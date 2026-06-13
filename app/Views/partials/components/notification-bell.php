@@ -1,6 +1,7 @@
 <?php $bell = notification_bell_data(); ?>
 <?php $notificationItems = is_array($bell['items'] ?? null) ? $bell['items'] : []; ?>
 <?php $unreadCount = (int) ($bell['unreadCount'] ?? 0); ?>
+<?php $actionCount = (int) ($bell['actionCount'] ?? 0); ?>
 <div class="notification-shell" data-notification-root data-feed-url="<?= e(url('/notifications/feed')) ?>" data-index-url="<?= e(url('/notifications')) ?>">
     <button type="button" class="icon-button notification-button" aria-label="การแจ้งเตือน" aria-haspopup="dialog" aria-expanded="false" data-notification-toggle>
         <?= lucide('bell', 'h-5 w-5') ?>
@@ -18,7 +19,7 @@
                 <span class="notification-heading-icon"><?= lucide('bell', 'h-5 w-5') ?></span>
                 <div>
                     <p class="panel-kicker">ศูนย์การแจ้งเตือน</p>
-                    <h3 class="panel-title">อัปเดตล่าสุด</h3>
+                    <h3 class="panel-title"><?= $actionCount > 0 ? e((string) $actionCount) . ' งานต้องทำ' : 'อัปเดตล่าสุด' ?></h3>
                 </div>
             </div>
             <button type="button" class="notification-close" aria-label="ปิดการแจ้งเตือน" data-notification-close><?= lucide('x', 'h-5 w-5') ?></button>
@@ -29,8 +30,8 @@
                 <div class="notification-empty">
                     <span class="notification-empty-icon"><?= lucide('check-circle', 'h-5 w-5') ?></span>
                     <div>
-                        <p class="notification-title">ไม่มีรายการใหม่</p>
-                        <p class="notification-copy">คุณติดตามอัปเดตล่าสุดครบแล้ว</p>
+                        <p class="notification-title">ไม่มีข้อความใหม่</p>
+                        <p class="notification-copy">ไม่มี Ticket ที่มีอัปเดตในขณะนี้</p>
                     </div>
                 </div>
             <?php else: ?>
@@ -44,6 +45,7 @@
                                 <strong><?= e((string) ($item['category_label'] ?? 'Workflow')) ?></strong>
                                 <span>·</span>
                                 <span><?= e((string) ($item['relative_time'] ?? $item['created_at'] ?? '-')) ?></span>
+                                <?php if ((int) ($item['event_count'] ?? 1) > 1): ?><span>· <?= e((string) $item['event_count']) ?> กิจกรรม</span><?php endif; ?>
                             </span>
                         </span>
                         <span class="notification-item-arrow" title="<?= e((string) ($item['action_label'] ?? 'เปิด Ticket')) ?>"><?= lucide('arrow-right', 'h-5 w-5') ?></span>

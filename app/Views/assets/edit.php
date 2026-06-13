@@ -3,7 +3,7 @@
         <div class="panel-head">
             <h2 class="panel-title">แก้ไขข้อมูลทรัพย์สิน</h2>
             <div class="button-row">
-                <?= render_partial('partials/components/button', ['label' => 'กลับไปหน้า Detail', 'variant' => 'secondary', 'href' => '/assets/' . (int) $assetId]) ?>
+                <?= render_partial('partials/components/button', ['label' => 'กลับไปหน้า Detail', 'variant' => 'secondary', 'href' => '/asset-registry/' . (int) $assetId]) ?>
             </div>
         </div>
     </section>
@@ -16,7 +16,7 @@
             </div>
         <?php endif; ?>
 
-        <form method="post" action="<?= e(url('/assets/' . (int) $assetId)) ?>" class="stack-lg">
+        <form method="post" action="<?= e(url('/asset-registry/' . (int) $assetId)) ?>" class="stack-lg">
             <?= csrf_field() ?>
 
             <div class="content-grid">
@@ -122,7 +122,7 @@
 
             <div class="button-row">
                 <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'บันทึกการแก้ไข', 'variant' => 'primary']) ?>
-                <?= render_partial('partials/components/button', ['label' => 'ยกเลิก', 'variant' => 'secondary', 'href' => '/assets/' . (int) $assetId]) ?>
+                <?= render_partial('partials/components/button', ['label' => 'ยกเลิก', 'variant' => 'secondary', 'href' => '/asset-registry/' . (int) $assetId]) ?>
             </div>
         </form>
     </section>

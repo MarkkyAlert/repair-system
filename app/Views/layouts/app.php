@@ -27,7 +27,7 @@
 <?php $viewer = auth()->user(); ?>
 <?php $currentPath = request_path(); ?>
 <?php $isTicketsPath = $currentPath === '/tickets' || str_starts_with($currentPath, '/tickets/'); ?>
-<?php $isAssetsPath = $currentPath === '/assets' || str_starts_with($currentPath, '/assets/') || str_starts_with($currentPath, '/scan/'); ?>
+<?php $isAssetsPath = $currentPath === '/asset-registry' || str_starts_with($currentPath, '/asset-registry/') || str_starts_with($currentPath, '/scan/'); ?>
 <?php $isReportsPath = $currentPath === '/reports' || str_starts_with($currentPath, '/reports/'); ?>
 <?php $isAdminPath = $currentPath === '/admin' || str_starts_with($currentPath, '/admin/'); ?>
 <?php $viewerName = trim((string) ($viewer['full_name'] ?? 'User')); ?>
@@ -61,7 +61,7 @@
                 <?= lucide('clipboard-list', 'nav-icon') ?>
                 <span class="nav-label">รายการแจ้งซ่อม</span>
             </a>
-            <a href="<?= e(url('/assets')) ?>" class="nav-link<?= $isAssetsPath ? ' is-active' : '' ?>" data-tooltip="ทรัพย์สินและ QR">
+            <a href="<?= e(url('/asset-registry')) ?>" class="nav-link<?= $isAssetsPath ? ' is-active' : '' ?>" data-tooltip="ทรัพย์สินและ QR">
                 <?= lucide('qr-code', 'nav-icon') ?>
                 <span class="nav-label">ทรัพย์สินและ QR</span>
             </a>

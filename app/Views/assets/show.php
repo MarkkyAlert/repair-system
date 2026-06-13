@@ -7,7 +7,7 @@
             </div>
             <div class="button-row">
                 <?= render_partial('partials/components/badge', ['label' => $asset['status_label'], 'tone' => $asset['status_tone']]) ?>
-                <?= render_partial('partials/components/button', ['label' => 'กลับไป Assets', 'variant' => 'secondary', 'href' => '/assets']) ?>
+                <?= render_partial('partials/components/button', ['label' => 'กลับไป Assets', 'variant' => 'secondary', 'href' => '/asset-registry']) ?>
             </div>
         </div>
     </section>
@@ -51,11 +51,11 @@
                 </button>
                 <?= render_partial('partials/components/button', ['label' => 'สร้าง Ticket จาก Asset นี้', 'variant' => 'primary', 'href' => $asset['prefill_ticket_url']]) ?>
                 <?php if (!empty($canManage)): ?>
-                    <?= render_partial('partials/components/button', ['label' => 'แก้ไข Asset', 'variant' => 'secondary', 'href' => '/assets/' . $asset['id'] . '/edit']) ?>
+                    <?= render_partial('partials/components/button', ['label' => 'แก้ไข Asset', 'variant' => 'secondary', 'href' => '/asset-registry/' . $asset['id'] . '/edit']) ?>
                 <?php endif; ?>
             </div>
             <?php if (!empty($canManage)): ?>
-                <form method="post" action="<?= e(url('/assets/' . $asset['id'] . '/qr/regenerate')) ?>" class="stack-md">
+                <form method="post" action="<?= e(url('/asset-registry/' . $asset['id'] . '/qr/regenerate')) ?>" class="stack-md">
                     <?= csrf_field() ?>
                     <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'สร้าง QR Token ใหม่', 'variant' => 'secondary']) ?>
                 </form>

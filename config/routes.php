@@ -11,6 +11,7 @@ use App\Controllers\ReportsController;
 use App\Controllers\ScanController;
 use App\Controllers\TicketsController;
 use App\Core\Router;
+use App\Core\Response;
 
 return static function (Router $router): void {
     $router->get('/', [AuthController::class, 'home']);
@@ -25,6 +26,7 @@ return static function (Router $router): void {
     $router->get('/notifications', [NotificationsController::class, 'index']);
     $router->get('/notifications/feed', [NotificationsController::class, 'feed']);
     $router->post('/notifications/read-all', [NotificationsController::class, 'readAll']);
+    $router->post('/notifications/ticket/{ticketId}/read', [NotificationsController::class, 'readTicket']);
     $router->post('/notifications/{notificationId}/read', [NotificationsController::class, 'read']);
     $router->get('/admin', [AdminController::class, 'index']);
     $router->post('/admin/users/{userId}', [AdminController::class, 'updateUser']);
@@ -34,6 +36,7 @@ return static function (Router $router): void {
     $router->get('/reports', [ReportsController::class, 'index']);
     $router->get('/reports/export/excel', [ReportsController::class, 'exportExcel']);
     $router->get('/reports/export/pdf', [ReportsController::class, 'exportPdf']);
+    $router->get('/assets', static fn () => Response::redirect('/asset-registry', 301));
     $router->get('/asset-registry', [AssetsController::class, 'index']);
     $router->get('/asset-registry/create', [AssetsController::class, 'create']);
     $router->post('/asset-registry', [AssetsController::class, 'store']);

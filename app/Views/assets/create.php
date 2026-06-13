@@ -3,7 +3,7 @@
         <div class="panel-head">
             <h2 class="panel-title">เพิ่มทรัพย์สินใหม่</h2>
             <div class="button-row">
-                <?= render_partial('partials/components/button', ['label' => 'กลับไป Assets', 'variant' => 'secondary', 'href' => '/assets']) ?>
+                <?= render_partial('partials/components/button', ['label' => 'กลับไป Assets', 'variant' => 'secondary', 'href' => '/asset-registry']) ?>
             </div>
         </div>
         <p class="body-text">เมื่อบันทึก Asset ระบบจะสร้าง QR token ให้โดยอัตโนมัติ</p>
@@ -17,7 +17,7 @@
             </div>
         <?php endif; ?>
 
-        <form method="post" action="<?= e(url('/assets')) ?>" class="stack-lg">
+        <form method="post" action="<?= e(url('/asset-registry')) ?>" class="stack-lg">
             <?= csrf_field() ?>
 
             <div class="content-grid">
@@ -123,7 +123,7 @@
 
             <div class="button-row">
                 <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'บันทึก Asset', 'variant' => 'primary']) ?>
-                <?= render_partial('partials/components/button', ['label' => 'ยกเลิก', 'variant' => 'secondary', 'href' => '/assets']) ?>
+                <?= render_partial('partials/components/button', ['label' => 'ยกเลิก', 'variant' => 'secondary', 'href' => '/asset-registry']) ?>
             </div>
         </form>
     </section>

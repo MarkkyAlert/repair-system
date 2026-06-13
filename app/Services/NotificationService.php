@@ -27,16 +27,22 @@ class NotificationService
             ];
         }
 
+        $items = $this->aggregateNotifications(
+            $this->mapNotifications($this->notifications->getUserNotifications($userId, 30), $viewer)
+        );
+
         return [
             'unreadCount' => $this->notifications->countUnreadNotifications($userId),
-            'items' => $this->mapNotifications($this->notifications->getUserNotifications($userId, 5), $viewer),
+            'actionCount' => $this->countActionItems($items),
+            'items' => array_slice($this->sortNotifications($items), 0, 5),
         ];
     }
 
     public function getNotificationPageData(array $viewer, array $filters = []): array
     {
         $userId = $this->requireViewerId($viewer);
-        $items = $this->mapNotifications($this->notifications->getUserNotifications($userId, 50), $viewer);
+        $eventItems = $this->mapNotifications($this->notifications->getUserNotifications($userId, 50), $viewer);
+        $items = $this->aggregateNotifications($eventItems);
         $selectedFilter = $this->normalizeFilter((string) ($filters['filter'] ?? 'all'));
         $filteredItems = array_values(array_filter(
             $items,
@@ -45,6 +51,9 @@ class NotificationService
 
         return [
             'unreadCount' => $this->notifications->countUnreadNotifications($userId),
+            'unreadThreadCount' => count(array_filter($items, static fn (array $item): bool => empty($item['is_read']))),
+            'actionCount' => $this->countActionItems($items),
+            'threadCount' => count($items),
             'notifications' => $filteredItems,
             'groups' => $this->groupNotifications($filteredItems),
             'selectedFilter' => $selectedFilter,
@@ -60,6 +69,11 @@ class NotificationService
     public function markAsRead(int $notificationId, array $viewer): void
     {
         $this->notifications->markAsRead($this->requireViewerId($viewer), $notificationId);
+    }
+
+    public function markTicketAsRead(int $ticketId, array $viewer): void
+    {
+        $this->notifications->markTicketNotificationsAsRead($this->requireViewerId($viewer), $ticketId);
     }
 
     public function markAllAsRead(array $viewer): void
@@ -282,11 +296,16 @@ class NotificationService
 
         return [
             'id' => (int) ($notification['id'] ?? 0),
+            'ticket_id' => $relatedType === 'ticket' ? $relatedId : 0,
+            'ticket_no' => (string) ($ticketContext['ticket_no'] ?? ($payload['ticket_no'] ?? '')),
+            'ticket_title' => (string) ($ticketContext['title'] ?? ''),
             'type' => $type,
             'title' => (string) ($notification['title'] ?? ''),
             'message' => (string) ($notification['message'] ?? ''),
             'is_read' => (bool) ($notification['is_read'] ?? false),
             'created_at' => $this->formatDateTime($createdAt),
+            'created_at_raw' => $createdAt,
+            'created_timestamp' => strtotime($createdAt) ?: 0,
             'relative_time' => $this->relativeTime($createdAt),
             'group_key' => $this->dateGroupKey($createdAt),
             'read_at' => $this->formatDateTime($notification['read_at'] ?? null),
@@ -297,33 +316,38 @@ class NotificationService
 
     private function notificationPresentation(string $type, array $viewer, array $ticket): array
     {
+        $role = (string) ($viewer['role'] ?? 'guest');
+        $status = (string) ($ticket['status'] ?? '');
+        $sla = $this->currentSlaState($ticket);
+
+        if (!empty($sla['is_overdue'])) {
+            return ['category' => 'sla', 'category_label' => 'เกิน SLA', 'tone' => 'danger', 'icon' => 'triangle-alert', 'action_label' => 'ตรวจสอบ SLA', 'priority_rank' => 0, 'deadline_label' => $sla['label']];
+        }
+
+        if (in_array($role, ['manager', 'admin'], true) && $status === 'pending_approval') {
+            return ['category' => 'action', 'category_label' => 'รออนุมัติ', 'tone' => 'warning', 'icon' => 'clipboard-list', 'action_label' => 'ตรวจสอบและอนุมัติ', 'priority_rank' => 10, 'deadline_label' => $sla['label']];
+        }
+        if (in_array($role, ['manager', 'admin'], true) && $status === 'approved') {
+            return ['category' => 'action', 'category_label' => 'รอมอบหมาย', 'tone' => 'warning', 'icon' => 'wrench', 'action_label' => 'มอบหมายช่าง', 'priority_rank' => 11, 'deadline_label' => $sla['label']];
+        }
+        if ($role === 'technician' && $status === 'assigned') {
+            return ['category' => 'action', 'category_label' => 'งานใหม่', 'tone' => 'info', 'icon' => 'wrench', 'action_label' => 'รับงาน', 'priority_rank' => 12, 'deadline_label' => $sla['label']];
+        }
+        if ($role === 'requester' && $status === 'resolved') {
+            return ['category' => 'action', 'category_label' => 'รอตรวจรับ', 'tone' => 'success', 'icon' => 'check-circle', 'action_label' => 'ตรวจรับงาน', 'priority_rank' => 13, 'deadline_label' => $sla['label']];
+        }
+
         if (str_contains($type, '.sla_breached.')) {
-            return ['category' => 'sla', 'category_label' => 'SLA', 'tone' => 'danger', 'icon' => 'triangle-alert', 'action_label' => 'ตรวจสอบ SLA'];
+            return ['category' => 'sla', 'category_label' => 'SLA', 'tone' => 'danger', 'icon' => 'triangle-alert', 'action_label' => 'ตรวจสอบ SLA', 'priority_rank' => 20, 'deadline_label' => $sla['label']];
         }
 
         if (str_contains($type, '.comment.')) {
-            return ['category' => 'comment', 'category_label' => 'บทสนทนา', 'tone' => 'info', 'icon' => 'message-circle', 'action_label' => 'ดูบทสนทนา'];
-        }
-
-        $role = (string) ($viewer['role'] ?? 'guest');
-        $status = (string) ($ticket['status'] ?? '');
-
-        if (in_array($role, ['manager', 'admin'], true) && $status === 'pending_approval') {
-            return ['category' => 'action', 'category_label' => 'รออนุมัติ', 'tone' => 'warning', 'icon' => 'clipboard-list', 'action_label' => 'ตรวจสอบและอนุมัติ'];
-        }
-        if (in_array($role, ['manager', 'admin'], true) && $status === 'approved') {
-            return ['category' => 'action', 'category_label' => 'รอมอบหมาย', 'tone' => 'warning', 'icon' => 'wrench', 'action_label' => 'มอบหมายช่าง'];
-        }
-        if ($role === 'technician' && $status === 'assigned') {
-            return ['category' => 'action', 'category_label' => 'งานใหม่', 'tone' => 'info', 'icon' => 'wrench', 'action_label' => 'รับงาน'];
-        }
-        if ($role === 'requester' && $status === 'resolved') {
-            return ['category' => 'action', 'category_label' => 'รอตรวจรับ', 'tone' => 'success', 'icon' => 'check-circle', 'action_label' => 'ตรวจรับงาน'];
+            return ['category' => 'comment', 'category_label' => 'บทสนทนา', 'tone' => 'info', 'icon' => 'message-circle', 'action_label' => 'ดูบทสนทนา', 'priority_rank' => 30, 'deadline_label' => ''];
         }
 
         return match ($type) {
-            'ticket.rejected' => ['category' => 'workflow', 'category_label' => 'Workflow', 'tone' => 'danger', 'icon' => 'triangle-alert', 'action_label' => 'ดูเหตุผล'],
-            default => ['category' => 'workflow', 'category_label' => 'Workflow', 'tone' => 'default', 'icon' => 'activity', 'action_label' => 'เปิด Ticket'],
+            'ticket.rejected' => ['category' => 'workflow', 'category_label' => 'Workflow', 'tone' => 'danger', 'icon' => 'triangle-alert', 'action_label' => 'ดูเหตุผล', 'priority_rank' => 40, 'deadline_label' => ''],
+            default => ['category' => 'workflow', 'category_label' => 'Workflow', 'tone' => 'default', 'icon' => 'activity', 'action_label' => 'เปิด Ticket', 'priority_rank' => 50, 'deadline_label' => ''],
         };
     }
 
@@ -367,13 +391,98 @@ class NotificationService
         $groups = [];
         $labels = ['today' => 'วันนี้', 'yesterday' => 'เมื่อวาน', 'earlier' => 'ก่อนหน้านี้'];
 
-        foreach ($items as $item) {
+        foreach ($this->sortNotifications($items) as $item) {
             $key = (string) ($item['group_key'] ?? 'earlier');
             $groups[$key] ??= ['key' => $key, 'label' => $labels[$key] ?? 'ก่อนหน้านี้', 'items' => []];
             $groups[$key]['items'][] = $item;
         }
 
         return array_values($groups);
+    }
+
+    private function aggregateNotifications(array $items): array
+    {
+        $threads = [];
+
+        foreach ($items as $item) {
+            $ticketId = (int) ($item['ticket_id'] ?? 0);
+            $key = $ticketId > 0 ? 'ticket:' . $ticketId : 'notification:' . (int) ($item['id'] ?? 0);
+
+            if (!isset($threads[$key])) {
+                $threads[$key] = $item + [
+                    'event_count' => 0,
+                    'unread_event_count' => 0,
+                    'notification_ids' => [],
+                ];
+            }
+
+            $threads[$key]['event_count']++;
+            $threads[$key]['notification_ids'][] = (int) ($item['id'] ?? 0);
+            if (empty($item['is_read'])) {
+                $threads[$key]['unread_event_count']++;
+            }
+        }
+
+        foreach ($threads as &$thread) {
+            $thread['is_read'] = (int) ($thread['unread_event_count'] ?? 0) === 0;
+            if ((int) ($thread['ticket_id'] ?? 0) > 0) {
+                $ticketNo = trim((string) ($thread['ticket_no'] ?? ''));
+                $ticketTitle = trim((string) ($thread['ticket_title'] ?? ''));
+                $thread['title'] = $ticketNo !== '' ? $ticketNo . ($ticketTitle !== '' ? ' · ' . $ticketTitle : '') : (string) ($thread['title'] ?? 'Ticket');
+                $thread['message'] = 'อัปเดตล่าสุด: ' . (string) ($thread['message'] ?? '');
+            }
+        }
+        unset($thread);
+
+        return array_values($threads);
+    }
+
+    private function sortNotifications(array $items): array
+    {
+        usort($items, static function (array $left, array $right): int {
+            $rank = (int) ($left['priority_rank'] ?? 50) <=> (int) ($right['priority_rank'] ?? 50);
+            if ($rank !== 0) {
+                return $rank;
+            }
+
+            $unread = (int) empty($left['is_read']) <=> (int) empty($right['is_read']);
+            if ($unread !== 0) {
+                return -$unread;
+            }
+
+            return (int) ($right['created_timestamp'] ?? 0) <=> (int) ($left['created_timestamp'] ?? 0);
+        });
+
+        return $items;
+    }
+
+    private function countActionItems(array $items): int
+    {
+        return count(array_filter($items, static fn (array $item): bool => in_array((string) ($item['category'] ?? ''), ['action', 'sla'], true)));
+    }
+
+    private function currentSlaState(array $ticket): array
+    {
+        $status = (string) ($ticket['status'] ?? '');
+        $terminal = in_array($status, ['resolved', 'completed', 'rejected', 'cancelled', 'closed'], true);
+        $now = time();
+        $responseDue = strtotime((string) ($ticket['response_due_at'] ?? ''));
+        $resolutionDue = strtotime((string) ($ticket['resolution_due_at'] ?? ''));
+
+        if (!$terminal && empty($ticket['resolved_at']) && $resolutionDue !== false && $resolutionDue < $now) {
+            return ['is_overdue' => true, 'label' => 'Resolution SLA เกินกำหนด'];
+        }
+        if (!$terminal && empty($ticket['first_response_at']) && $responseDue !== false && $responseDue < $now) {
+            return ['is_overdue' => true, 'label' => 'Response SLA เกินกำหนด'];
+        }
+
+        $target = !$terminal && empty($ticket['first_response_at']) ? $responseDue : $resolutionDue;
+        if (!$terminal && $target !== false && $target > $now) {
+            $minutes = (int) ceil(($target - $now) / 60);
+            return ['is_overdue' => false, 'label' => $minutes < 60 ? 'เหลือ ' . $minutes . ' นาที' : 'เหลือ ' . (int) ceil($minutes / 60) . ' ชั่วโมง'];
+        }
+
+        return ['is_overdue' => false, 'label' => ''];
     }
 
     private function dateGroupKey(string $value): string

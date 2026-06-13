@@ -29,6 +29,9 @@ class NotificationsController
             'notifications' => $data['notifications'],
             'groups' => $data['groups'],
             'unreadCount' => $data['unreadCount'],
+            'unreadThreadCount' => $data['unreadThreadCount'],
+            'actionCount' => $data['actionCount'],
+            'threadCount' => $data['threadCount'],
             'selectedFilter' => $data['selectedFilter'],
             'filterOptions' => $data['filterOptions'],
         ]);
@@ -52,6 +55,23 @@ class NotificationsController
         try {
             csrf_validate();
             $this->notifications->markAsRead((int) $notificationId, $viewer);
+        } catch (DomainException|RuntimeException $exception) {
+            flash('error', $exception->getMessage());
+        }
+
+        Response::redirect($returnTo);
+    }
+
+    public function readTicket(string $ticketId): void
+    {
+        AuthMiddleware::handle();
+
+        $viewer = auth()->user() ?? [];
+        $returnTo = sanitize_return_path((string) ($_POST['return_to'] ?? '/notifications'));
+
+        try {
+            csrf_validate();
+            $this->notifications->markTicketAsRead((int) $ticketId, $viewer);
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
         }

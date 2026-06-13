@@ -1,8 +1,8 @@
 <section class="stack-lg">
     <?php ob_start(); ?>
                 <?php if (!empty($canManage)): ?>
-                    <?= render_partial('partials/components/button', ['label' => 'เพิ่ม Asset', 'variant' => 'primary', 'href' => '/assets/create', 'icon' => 'arrow-right']) ?>
-                    <?= render_partial('partials/components/button', ['label' => 'พิมพ์ QR Sheet', 'variant' => 'secondary', 'href' => '/assets/print']) ?>
+                    <?= render_partial('partials/components/button', ['label' => 'เพิ่ม Asset', 'variant' => 'primary', 'href' => '/asset-registry/create', 'icon' => 'arrow-right']) ?>
+                    <?= render_partial('partials/components/button', ['label' => 'พิมพ์ QR Sheet', 'variant' => 'secondary', 'href' => '/asset-registry/print']) ?>
                 <?php endif; ?>
     <?php $heroActions = (string) ob_get_clean(); ?>
     <?= render_partial('partials/components/page-header', [
@@ -41,7 +41,7 @@
                             <div><dt><?= lucide('user', 'h-3.5 w-3.5') ?>ผู้ดูแล</dt><dd><?= e($asset['custodian_name'] ?: '-') ?></dd></div>
                         </dl>
                         <footer class="asset-card-actions">
-                            <a class="asset-card-link" href="<?= e(url('/assets/' . $asset['id'])) ?>">รายละเอียด</a>
+                            <a class="asset-card-link" href="<?= e(url('/asset-registry/' . $asset['id'])) ?>">รายละเอียด</a>
                             <a class="asset-card-cta" href="<?= e(url('/tickets/create?asset_id=' . $asset['id'])) ?>"><?= lucide('zap', 'h-3.5 w-3.5') ?>แจ้งปัญหา</a>
                         </footer>
                     </article>

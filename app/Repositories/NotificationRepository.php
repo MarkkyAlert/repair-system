@@ -111,9 +111,24 @@ class NotificationRepository
 
         $placeholders = implode(', ', array_fill(0, count($ticketIds), '?'));
         $stmt = $this->db->prepare(
-            "SELECT id, ticket_no, status, approval_status, requester_id, assigned_manager_id, assigned_technician_id
-             FROM tickets
-             WHERE id IN ($placeholders)"
+            "SELECT
+                t.id,
+                t.ticket_no,
+                t.title,
+                t.status,
+                t.approval_status,
+                t.requester_id,
+                t.assigned_manager_id,
+                t.assigned_technician_id,
+                t.first_response_at,
+                t.resolved_at,
+                t.response_due_at,
+                t.resolution_due_at,
+                p.code AS priority_code,
+                p.name AS priority_name
+             FROM tickets t
+             LEFT JOIN priorities p ON p.id = t.priority_id
+             WHERE t.id IN ($placeholders)"
         );
         $stmt->execute($ticketIds);
 
@@ -138,6 +153,26 @@ class NotificationRepository
             'read_at' => $readAt,
             'user_id' => $userId,
             'notification_id' => $notificationId,
+        ]);
+    }
+
+    public function markTicketNotificationsAsRead(int $userId, int $ticketId): void
+    {
+        $readAt = date('Y-m-d H:i:s');
+        $stmt = $this->db->prepare(
+            "UPDATE notification_recipients nr
+             INNER JOIN notifications n ON n.id = nr.notification_id
+             SET nr.is_read = 1,
+                 nr.read_at = COALESCE(nr.read_at, :read_at)
+             WHERE nr.user_id = :user_id
+               AND n.related_type = 'ticket'
+               AND n.related_id = :ticket_id
+               AND nr.is_read = 0"
+        );
+        $stmt->execute([
+            'read_at' => $readAt,
+            'user_id' => $userId,
+            'ticket_id' => $ticketId,
         ]);
     }
 

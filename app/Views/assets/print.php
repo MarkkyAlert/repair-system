@@ -3,7 +3,7 @@
         <div class="panel-head">
             <h2 class="panel-title">พิมพ์ QR Sheet</h2>
             <div class="button-row">
-                <?= render_partial('partials/components/button', ['label' => 'กลับไป Assets', 'variant' => 'secondary', 'href' => '/assets']) ?>
+                <?= render_partial('partials/components/button', ['label' => 'กลับไป Assets', 'variant' => 'secondary', 'href' => '/asset-registry']) ?>
                 <button type="button" class="btn btn-primary" onclick="window.print()">พิมพ์หน้านี้</button>
             </div>
         </div>

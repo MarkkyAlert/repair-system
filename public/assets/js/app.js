@@ -393,7 +393,7 @@ document.addEventListener('DOMContentLoaded', () => {
         list.innerHTML = `
           <div class="notification-empty">
             <span class="notification-empty-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.1V12a10 10 0 1 1-5.9-9.1"/><path d="m9 11 3 3L22 4"/></svg></span>
-            <div><p class="notification-title">ไม่มีรายการใหม่</p><p class="notification-copy">คุณติดตามอัปเดตล่าสุดครบแล้ว</p></div>
+            <div><p class="notification-title">ไม่มีข้อความใหม่</p><p class="notification-copy">ไม่มี Ticket ที่มีอัปเดตในขณะนี้</p></div>
           </div>`;
         return;
       }
@@ -404,7 +404,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <span class="notification-item-body">
             <span class="notification-title">${escapeHtml(item.title || 'การแจ้งเตือน')}</span>
             <span class="notification-copy">${escapeHtml(item.message || '')}</span>
-            <span class="notification-meta"><strong>${escapeHtml(item.category_label || 'Workflow')}</strong><span>·</span><span>${escapeHtml(item.relative_time || item.created_at || '-')}</span></span>
+            <span class="notification-meta"><strong>${escapeHtml(item.category_label || 'Workflow')}</strong><span>·</span><span>${escapeHtml(item.relative_time || item.created_at || '-')}</span>${Number(item.event_count || 1) > 1 ? `<span>· ${Number(item.event_count)} กิจกรรม</span>` : ''}</span>
           </span>
           <span class="notification-item-arrow" title="${escapeHtml(item.action_label || 'เปิด Ticket')}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
         </a>
