@@ -1,0 +1,8 @@
+/vendor/
+/.env
+/.phpunit.result.cache
+/storage/*.log
+/storage/framework/cache/data/*
+/storage/framework/sessions/*
+/storage/framework/views/*
+.DS_Store
