@@ -1,0 +1,2 @@
+<?= ($appName ?? 'Repair System') . PHP_EOL ?><?= str_repeat('=', function_exists('mb_strlen') ? mb_strlen((string) ($appName ?? 'Repair System')) : strlen((string) ($appName ?? 'Repair System'))) . PHP_EOL . PHP_EOL ?>สวัสดี <?= (string) ($recipientName ?? 'ผู้ใช้งาน') . PHP_EOL . PHP_EOL ?>มีคำขอตั้งรหัสผ่านใหม่สำหรับบัญชีของคุณในระบบแจ้งซ่อม
+ลิงก์นี้จะหมดอายุในวันที่ <?= (string) ($expiresAt ?? '-') . PHP_EOL . PHP_EOL ?>ตั้งรหัสผ่านใหม่: <?= (string) ($resetUrl ?? url('/login')) . PHP_EOL . PHP_EOL ?>หากคุณไม่ได้เป็นผู้ร้องขอ สามารถละเว้นอีเมลนี้ได้ทันที

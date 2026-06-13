@@ -1,0 +1,7 @@
+{
+    "sarabun": {
+        "normal": "\/Applications\/XAMPP\/xamppfiles\/htdocs\/maintenance\/vendor\/dompdf\/dompdf\/lib\/fonts\/sarabun_normal_adbd3c1dd4d7536ce867f6de12fb53a3",
+        "500": "\/Applications\/XAMPP\/xamppfiles\/htdocs\/maintenance\/vendor\/dompdf\/dompdf\/lib\/fonts\/sarabun_500_f84c3a9de6557cffcf9d176c38b576f1",
+        "bold": "sarabun_bold_8a26ed8f8dbd4d4e039f29ec4e26a49f"
+    }
+}

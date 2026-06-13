@@ -1,0 +1,78 @@
+<?php
+declare(strict_types=1);
+
+namespace App\Controllers;
+
+use App\Core\Response;
+use App\Middleware\AuthMiddleware;
+use App\Services\ReportService;
+use DomainException;
+use RuntimeException;
+
+class ReportsController
+{
+    public function __construct(private ReportService $reports)
+    {
+    }
+
+    public function index(): void
+    {
+        AuthMiddleware::handle();
+
+        $viewer = auth()->user() ?? [];
+
+        try {
+            $data = $this->reports->getReportPageData($viewer, request()?->query ?? []);
+        } catch (DomainException $exception) {
+            flash('error', $exception->getMessage());
+            Response::redirect('/dashboard');
+        }
+
+        Response::view('reports/index', [
+            'title' => 'Reports',
+            'pageHeading' => 'รายงานและ Export',
+            'currentUser' => $viewer,
+            'filters' => $data['filters'],
+            'summary' => $data['summary'],
+            'rows' => $data['rows'],
+        ]);
+    }
+
+    public function exportExcel(): void
+    {
+        AuthMiddleware::handle();
+
+        $viewer = auth()->user() ?? [];
+
+        try {
+            $export = $this->reports->exportExcel($viewer, request()?->query ?? []);
+            Response::download(
+                (string) ($export['content'] ?? ''),
+                (string) ($export['file_name'] ?? 'report.xlsx'),
+                (string) ($export['content_type'] ?? 'application/octet-stream')
+            );
+        } catch (DomainException|RuntimeException $exception) {
+            flash('error', $exception->getMessage());
+            Response::redirect('/reports');
+        }
+    }
+
+    public function exportPdf(): void
+    {
+        AuthMiddleware::handle();
+
+        $viewer = auth()->user() ?? [];
+
+        try {
+            $export = $this->reports->exportPdf($viewer, request()?->query ?? []);
+            Response::download(
+                (string) ($export['content'] ?? ''),
+                (string) ($export['file_name'] ?? 'report.pdf'),
+                (string) ($export['content_type'] ?? 'application/pdf')
+            );
+        } catch (DomainException|RuntimeException $exception) {
+            flash('error', $exception->getMessage());
+            Response::redirect('/reports');
+        }
+    }
+}
