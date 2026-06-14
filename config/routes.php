@@ -22,6 +22,8 @@ return static function (Router $router): void {
     $router->post('/forgot-password', [AuthController::class, 'sendResetLink']);
     $router->get('/reset-password', [AuthController::class, 'showResetPassword']);
     $router->post('/reset-password', [AuthController::class, 'resetPassword']);
+    $router->get('/change-password', [AuthController::class, 'showChangePassword']);
+    $router->post('/change-password', [AuthController::class, 'changePassword']);
     $router->get('/dashboard', [DashboardController::class, 'index']);
     $router->get('/notifications', [NotificationsController::class, 'index']);
     $router->get('/notifications/feed', [NotificationsController::class, 'feed']);
@@ -29,6 +31,7 @@ return static function (Router $router): void {
     $router->post('/notifications/ticket/{ticketId}/read', [NotificationsController::class, 'readTicket']);
     $router->post('/notifications/{notificationId}/read', [NotificationsController::class, 'read']);
     $router->get('/admin', [AdminController::class, 'index']);
+    $router->post('/admin/users', [AdminController::class, 'createUser']);
     $router->post('/admin/users/{userId}', [AdminController::class, 'updateUser']);
     $router->post('/admin/departments/{departmentId}', [AdminController::class, 'updateDepartment']);
     $router->post('/admin/categories/{categoryId}', [AdminController::class, 'updateCategory']);
@@ -57,6 +60,7 @@ return static function (Router $router): void {
     $router->post('/tickets/{ticketId}/start', [TicketsController::class, 'start']);
     $router->post('/tickets/{ticketId}/resolve', [TicketsController::class, 'resolve']);
     $router->post('/tickets/{ticketId}/complete', [TicketsController::class, 'complete']);
+    $router->post('/tickets/{ticketId}/cancel', [TicketsController::class, 'cancel']);
     $router->post('/tickets/{ticketId}/comments', [CommentsController::class, 'store']);
     $router->post('/tickets/{ticketId}/comments/{commentId}/update', [CommentsController::class, 'update']);
     $router->post('/tickets/{ticketId}/comments/{commentId}/delete', [CommentsController::class, 'delete']);

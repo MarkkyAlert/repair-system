@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Repositories;
 
 use PDO;
+use Throwable;
 
 class CommentRepository
 {
@@ -45,24 +46,38 @@ class CommentRepository
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
-    public function createComment(int $ticketId, int $userId, string $body, bool $isInternal, ?int $parentId = null): int
+    public function createComment(int $ticketId, int $userId, string $body, bool $isInternal, string $submissionToken, ?int $parentId = null): array
     {
         $createdAt = date('Y-m-d H:i:s');
-        $stmt = $this->db->prepare(
-            'INSERT INTO ticket_comments (ticket_id, user_id, parent_id, body, is_internal, created_at, updated_at)
-             VALUES (:ticket_id, :user_id, :parent_id, :body, :is_internal, :created_at, :updated_at)'
-        );
-        $stmt->execute([
-            'ticket_id' => $ticketId,
-            'user_id' => $userId,
-            'parent_id' => $parentId,
-            'body' => $body,
-            'is_internal' => $isInternal ? 1 : 0,
-            'created_at' => $createdAt,
-            'updated_at' => $createdAt,
-        ]);
+        try {
+            $stmt = $this->db->prepare(
+                'INSERT INTO ticket_comments (ticket_id, user_id, parent_id, submission_token, body, is_internal, created_at, updated_at)
+                 VALUES (:ticket_id, :user_id, :parent_id, :submission_token, :body, :is_internal, :created_at, :updated_at)'
+            );
+            $stmt->execute([
+                'ticket_id' => $ticketId,
+                'user_id' => $userId,
+                'parent_id' => $parentId,
+                'submission_token' => $submissionToken,
+                'body' => $body,
+                'is_internal' => $isInternal ? 1 : 0,
+                'created_at' => $createdAt,
+                'updated_at' => $createdAt,
+            ]);
 
-        return (int) $this->db->lastInsertId();
+            return ['id' => (int) $this->db->lastInsertId(), 'created' => true];
+        } catch (Throwable $exception) {
+            $stmt = $this->db->prepare(
+                'SELECT id FROM ticket_comments WHERE submission_token = :submission_token LIMIT 1'
+            );
+            $stmt->execute(['submission_token' => $submissionToken]);
+            $commentId = $stmt->fetchColumn();
+            if ($commentId !== false) {
+                return ['id' => (int) $commentId, 'created' => false];
+            }
+
+            throw $exception;
+        }
     }
 
     public function updateComment(int $commentId, string $body, bool $isInternal): void

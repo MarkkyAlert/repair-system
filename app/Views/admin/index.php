@@ -24,10 +24,84 @@
         <div class="panel-head">
             <div>
                 <h2 class="panel-title">จัดการผู้ใช้งาน</h2>
-                <p class="field-hint">คลิกชื่อผู้ใช้เพื่อขยายและแก้ไขข้อมูล แล้วกดบันทึก</p>
+                <p class="field-hint">สร้างบัญชีใหม่ หรือคลิกชื่อผู้ใช้เพื่อแก้ไขข้อมูลเดิม</p>
             </div>
             <span class="badge badge-info"><?= e((string) count($users ?? [])) ?> บัญชี</span>
         </div>
+
+        <details class="collapsible">
+            <summary class="collapsible-summary">
+                <span class="metric-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide('plus', 'h-4 w-4') ?></span>
+                <div class="collapsible-summary-main">
+                    <span class="collapsible-title">สร้างบัญชีผู้ใช้งาน</span>
+                    <span class="collapsible-subtitle">กำหนดข้อมูลบัญชี บทบาท และรหัสผ่านเริ่มต้น</span>
+                </div>
+                <span class="collapsible-chevron"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
+            </summary>
+            <div class="collapsible-body">
+                <form method="post" action="<?= e(url('/admin/users')) ?>" class="stack-md">
+                    <?= csrf_field() ?>
+                    <div class="content-grid">
+                        <div class="field-group">
+                            <label class="field-label" for="new_username">ชื่อผู้ใช้ <span class="required">*</span></label>
+                            <input id="new_username" class="input" type="text" name="username" required minlength="3" maxlength="50" pattern="[a-zA-Z0-9._-]+" autocomplete="off">
+                            <p class="field-hint">ใช้ a-z, 0-9, จุด, ขีดกลาง หรือขีดล่าง</p>
+                        </div>
+                        <div class="field-group">
+                            <label class="field-label" for="new_full_name">ชื่อ-นามสกุล <span class="required">*</span></label>
+                            <input id="new_full_name" class="input" type="text" name="full_name" required>
+                        </div>
+                    </div>
+                    <div class="content-grid">
+                        <div class="field-group">
+                            <label class="field-label" for="new_email">อีเมล <span class="required">*</span></label>
+                            <input id="new_email" class="input" type="email" name="email" required>
+                        </div>
+                        <div class="field-group">
+                            <label class="field-label" for="new_phone">เบอร์โทร</label>
+                            <input id="new_phone" class="input" type="text" name="phone">
+                        </div>
+                    </div>
+                    <div class="content-grid">
+                        <div class="field-group">
+                            <label class="field-label" for="new_department">แผนก</label>
+                            <select id="new_department" class="input" name="department_id">
+                                <option value="">ไม่ระบุ</option>
+                                <?php foreach (($departmentOptions ?? []) as $department): ?>
+                                    <option value="<?= e((string) ($department['id'] ?? 0)) ?>"><?= e((string) ($department['name'] ?? '-')) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="field-group">
+                            <label class="field-label" for="new_role">บทบาท (Role)</label>
+                            <select id="new_role" class="input" name="role">
+                                <?php $createRoleLabels = ['requester' => 'ผู้แจ้ง', 'manager' => 'หัวหน้างาน', 'technician' => 'ช่างเทคนิค', 'admin' => 'ผู้ดูแลระบบ']; ?>
+                                <?php foreach (($roles ?? []) as $role): ?>
+                                    <option value="<?= e((string) $role) ?>"<?= $role === 'requester' ? ' selected' : '' ?>><?= e($createRoleLabels[$role] ?? ucwords((string) $role)) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="content-grid">
+                        <div class="field-group">
+                            <label class="field-label" for="new_password">รหัสผ่านเริ่มต้น <span class="required">*</span></label>
+                            <input id="new_password" class="input" type="password" name="password" required minlength="8" autocomplete="new-password">
+                        </div>
+                        <div class="field-group">
+                            <label class="field-label" for="new_password_confirmation">ยืนยันรหัสผ่าน <span class="required">*</span></label>
+                            <input id="new_password_confirmation" class="input" type="password" name="password_confirmation" required minlength="8" autocomplete="new-password">
+                        </div>
+                    </div>
+                    <label class="checkbox-row">
+                        <input type="checkbox" name="is_active" value="1" checked>
+                        <span>เปิดใช้งานบัญชีทันที</span>
+                    </label>
+                    <div class="button-row">
+                        <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'สร้างบัญชีผู้ใช้งาน', 'variant' => 'primary', 'icon' => 'plus']) ?>
+                    </div>
+                </form>
+            </div>
+        </details>
 
         <?php if (($users ?? []) === []): ?>
             <?= render_partial('partials/components/empty-state', [
@@ -346,5 +420,3 @@
     if (location.hash) setActive(location.hash);
 })();
 </script>
-
-

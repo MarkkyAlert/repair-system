@@ -3,7 +3,10 @@ declare(strict_types=1);
 
 namespace App\Repositories;
 
+use DomainException;
 use PDO;
+use RuntimeException;
+use Throwable;
 
 class PasswordResetRepository
 {
@@ -44,5 +47,71 @@ class PasswordResetRepository
         $stmt->execute(['email' => $email]);
 
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    public function resetPasswordUsingToken(string $email, string $tokenHash, string $passwordHash): string
+    {
+        try {
+            $this->db->beginTransaction();
+
+            $stmt = $this->db->prepare(
+                'SELECT id, token, expires_at
+                 FROM password_resets
+                 WHERE email = :email
+                 ORDER BY created_at DESC
+                 LIMIT 1
+                 FOR UPDATE'
+            );
+            $stmt->execute(['email' => $email]);
+            $reset = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+
+            if ($reset === null) {
+                $this->db->rollBack();
+                return 'missing';
+            }
+
+            if (strtotime((string) $reset['expires_at']) < time()) {
+                $this->deleteByEmail($email);
+                $this->db->commit();
+                return 'expired';
+            }
+
+            if (!hash_equals((string) $reset['token'], $tokenHash)) {
+                $this->db->rollBack();
+                return 'invalid';
+            }
+
+            $userStmt = $this->db->prepare(
+                'UPDATE users
+                 SET password_hash = :password_hash, updated_at = :updated_at
+                 WHERE email = :email
+                 LIMIT 1'
+            );
+            $userStmt->execute([
+                'password_hash' => $passwordHash,
+                'updated_at' => date('Y-m-d H:i:s'),
+                'email' => $email,
+            ]);
+
+            if ($userStmt->rowCount() !== 1) {
+                throw new DomainException('ไม่พบบัญชีผู้ใช้นี้');
+            }
+
+            $deleteStmt = $this->db->prepare('DELETE FROM password_resets WHERE id = :id');
+            $deleteStmt->execute(['id' => (int) $reset['id']]);
+            $this->db->commit();
+
+            return 'success';
+        } catch (Throwable $exception) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+
+            if ($exception instanceof DomainException) {
+                throw $exception;
+            }
+
+            throw new RuntimeException('ไม่สามารถตั้งรหัสผ่านใหม่ได้ กรุณาลองอีกครั้ง', 0, $exception);
+        }
     }
 }

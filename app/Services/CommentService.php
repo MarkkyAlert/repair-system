@@ -21,19 +21,27 @@ class CommentService
         $ticket = $this->requireVisibleTicket($ticketId, $viewer);
         $body = trim((string) ($input['body'] ?? ''));
         $isInternal = $this->parseInternalFlag($viewer, $input);
+        $submissionToken = strtolower(trim((string) ($input['submission_token'] ?? '')));
 
         if ($body === '') {
             throw new DomainException('กรุณากรอกข้อความ comment ก่อนบันทึก');
         }
 
-        $commentId = $this->comments->createComment(
+        if (preg_match('/^[a-f0-9]{64}$/', $submissionToken) !== 1) {
+            throw new DomainException('แบบฟอร์ม comment หมดอายุ กรุณารีเฟรชหน้าแล้วลองอีกครั้ง');
+        }
+
+        $result = $this->comments->createComment(
             $ticketId,
             (int) ($viewer['id'] ?? 0),
             $body,
-            $isInternal
+            $isInternal,
+            $submissionToken
         );
 
-        $this->notifications->notifyCommentEvent($ticketId, $commentId, (int) ($viewer['id'] ?? 0), $isInternal, $body, 'created');
+        if ((bool) ($result['created'] ?? false)) {
+            $this->notifications->notifyCommentEvent($ticketId, (int) ($result['id'] ?? 0), (int) ($viewer['id'] ?? 0), $isInternal, $body, 'created');
+        }
     }
 
     public function updateComment(int $ticketId, int $commentId, array $viewer, array $input): array

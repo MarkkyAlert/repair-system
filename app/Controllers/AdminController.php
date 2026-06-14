@@ -48,6 +48,13 @@ class AdminController
         });
     }
 
+    public function createUser(): void
+    {
+        $this->handleUpdate(function (array $viewer): void {
+            $this->admin->createUser($viewer, $_POST);
+        }, 'สร้างบัญชีผู้ใช้งานเรียบร้อยแล้ว');
+    }
+
     public function updateDepartment(string $departmentId): void
     {
         $this->handleUpdate(function (array $viewer) use ($departmentId): void {
@@ -69,7 +76,7 @@ class AdminController
         });
     }
 
-    private function handleUpdate(callable $callback): void
+    private function handleUpdate(callable $callback, string $successMessage = 'บันทึกข้อมูลเรียบร้อยแล้ว'): void
     {
         AuthMiddleware::handle();
         $viewer = auth()->user() ?? [];
@@ -77,7 +84,7 @@ class AdminController
         try {
             csrf_validate();
             $callback($viewer);
-            flash('success', 'บันทึกข้อมูลเรียบร้อยแล้ว');
+            flash('success', $successMessage);
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
         }

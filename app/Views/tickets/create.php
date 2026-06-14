@@ -51,6 +51,7 @@
 
         <form method="post" action="<?= e(url('/tickets')) ?>" class="stack-lg">
             <?= csrf_field() ?>
+            <input type="hidden" name="submission_token" value="<?= e((string) ($form['defaults']['submission_token'] ?? '')) ?>">
 
             <div class="field-group">
                 <label for="title" class="field-label">หัวข้อปัญหา <span class="required">*</span></label>

@@ -30,6 +30,7 @@ class CommentsController
             with_old_input([
                 'comment_body' => (string) ($_POST['body'] ?? ''),
                 'comment_is_internal' => (string) ($_POST['is_internal'] ?? ''),
+                'comment_submission_token' => (string) ($_POST['submission_token'] ?? ''),
             ]);
             flash('error', $exception->getMessage());
         }

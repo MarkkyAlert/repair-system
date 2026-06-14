@@ -23,7 +23,7 @@ class AuthService
     public function attemptLogin(string $login, string $password, string $ipAddress): array
     {
         $login = trim($login);
-        $limiterKey = $this->limiterKey($ipAddress);
+        $limiterKey = $this->limiterKey($login, $ipAddress);
 
         if ($this->rateLimiter->tooManyAttempts($limiterKey)) {
             $seconds = $this->rateLimiter->availableIn($limiterKey);
@@ -105,33 +105,63 @@ class AuthService
             throw new DomainException('รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร');
         }
 
-        $reset = $this->passwordResets->findLatestByEmail($email);
-        if (!$reset) {
+        $result = $this->passwordResets->resetPasswordUsingToken(
+            $email,
+            hash('sha256', $token),
+            password_hash($password, PASSWORD_BCRYPT)
+        );
+
+        if ($result === 'missing') {
             throw new DomainException('ไม่พบคำขอรีเซ็ตรหัสผ่าน');
         }
 
-        if (strtotime((string) $reset['expires_at']) < time()) {
-            $this->passwordResets->deleteByEmail($email);
+        if ($result === 'expired') {
             throw new DomainException('ลิงก์รีเซ็ตรหัสผ่านหมดอายุแล้ว');
         }
 
-        if (!hash_equals((string) $reset['token'], hash('sha256', $token))) {
+        if ($result === 'invalid') {
             throw new DomainException('โทเค็นรีเซ็ตรหัสผ่านไม่ถูกต้อง');
         }
-
-        $user = $this->users->findByEmail($email);
-        if (!$user) {
-            throw new DomainException('ไม่พบบัญชีผู้ใช้นี้');
-        }
-
-        $this->users->updatePassword((int) $user['id'], password_hash($password, PASSWORD_BCRYPT));
-        $this->passwordResets->deleteByEmail($email);
     }
 
-    private function limiterKey(string $ipAddress): string
+    public function changePassword(array $viewer, string $currentPassword, string $password, string $passwordConfirmation): void
     {
+        $userId = (int) ($viewer['id'] ?? 0);
+        $user = $userId > 0 ? $this->users->findById($userId) : null;
+        if ($user === null) {
+            throw new DomainException('ไม่พบบัญชีผู้ใช้งาน');
+        }
+
+        if ($currentPassword === '' || $password === '' || $passwordConfirmation === '') {
+            throw new DomainException('กรุณากรอกรหัสผ่านให้ครบถ้วน');
+        }
+
+        if (!password_verify($currentPassword, (string) ($user['password_hash'] ?? ''))) {
+            throw new DomainException('รหัสผ่านปัจจุบันไม่ถูกต้อง');
+        }
+
+        if ($password !== $passwordConfirmation) {
+            throw new DomainException('ยืนยันรหัสผ่านใหม่ไม่ตรงกัน');
+        }
+
+        if (strlen($password) < 8) {
+            throw new DomainException('รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัวอักษร');
+        }
+
+        if (password_verify($password, (string) ($user['password_hash'] ?? ''))) {
+            throw new DomainException('รหัสผ่านใหม่ต้องไม่เหมือนรหัสผ่านปัจจุบัน');
+        }
+
+        $this->users->updatePassword($userId, password_hash($password, PASSWORD_BCRYPT));
+        Session::regenerate();
+        $this->auth->refresh();
+    }
+
+    private function limiterKey(string $login, string $ipAddress): string
+    {
+        $normalizedLogin = strtolower(trim($login));
         $normalizedIp = $ipAddress !== '' ? $ipAddress : 'unknown';
 
-        return 'login:' . sha1($normalizedIp);
+        return 'login:' . sha1($normalizedLogin . '|' . $normalizedIp);
     }
 }

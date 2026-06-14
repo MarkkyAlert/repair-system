@@ -129,6 +129,11 @@ class NotificationService
                 'Ticket ' . (string) ($context['ticket_no'] ?? '-') . ' ถูกผู้แจ้งยืนยันปิดงานเรียบร้อยแล้ว',
                 [(int) ($context['assigned_technician_id'] ?? 0), (int) ($context['assigned_manager_id'] ?? 0)],
             ],
+            'ticket.cancelled' => [
+                'Ticket ถูกยกเลิก',
+                'Ticket ' . (string) ($context['ticket_no'] ?? '-') . ' ถูกยกเลิกโดยผู้แจ้ง',
+                [(int) ($context['assigned_manager_id'] ?? 0)],
+            ],
             default => ['', '', []],
         };
 
@@ -347,6 +352,7 @@ class NotificationService
 
         return match ($type) {
             'ticket.rejected' => ['category' => 'workflow', 'category_label' => 'Workflow', 'tone' => 'danger', 'icon' => 'triangle-alert', 'action_label' => 'ดูเหตุผล', 'priority_rank' => 40, 'deadline_label' => ''],
+            'ticket.cancelled' => ['category' => 'workflow', 'category_label' => 'Workflow', 'tone' => 'danger', 'icon' => 'x', 'action_label' => 'ดูเหตุผล', 'priority_rank' => 40, 'deadline_label' => ''],
             default => ['category' => 'workflow', 'category_label' => 'Workflow', 'tone' => 'default', 'icon' => 'activity', 'action_label' => 'เปิด Ticket', 'priority_rank' => 50, 'deadline_label' => ''],
         };
     }

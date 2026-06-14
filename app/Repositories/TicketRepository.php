@@ -451,24 +451,33 @@ class TicketRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    public function createTicket(array $payload): int
+    public function createTicket(array $payload): array
     {
         $requestedAt = (string) ($payload['requested_at'] ?? date('Y-m-d H:i:s'));
         $responseDueAt = (string) ($payload['response_due_at'] ?? '');
         $resolutionDueAt = (string) ($payload['resolution_due_at'] ?? '');
-        $ticketNo = $this->generateNextTicketNumber($requestedAt);
+        $submissionToken = (string) ($payload['submission_token'] ?? '');
+        $existingTicketId = $this->findTicketIdBySubmissionToken($submissionToken);
+        if ($existingTicketId !== null) {
+            return ['id' => $existingTicketId, 'created' => false];
+        }
+
         $approverId = $this->findDefaultApproverId();
+        $numberLock = 'ticket-number-' . date('Ymd', strtotime($requestedAt) ?: time());
 
         if ($approverId === null) {
             throw new RuntimeException('ไม่พบผู้อนุมัติเริ่มต้นในระบบ กรุณาตรวจสอบข้อมูลผู้ใช้งาน role manager หรือ admin');
         }
 
         try {
+            $this->acquireNamedLock($numberLock);
             $this->db->beginTransaction();
+            $ticketNo = $this->generateNextTicketNumber($requestedAt);
 
             $ticketStmt = $this->db->prepare(
                 'INSERT INTO tickets (
                     ticket_no,
+                    submission_token,
                     title,
                     description,
                     requester_id,
@@ -491,6 +500,7 @@ class TicketRepository
                     updated_at
                  ) VALUES (
                     :ticket_no,
+                    :submission_token,
                     :title,
                     :description,
                     :requester_id,
@@ -516,6 +526,7 @@ class TicketRepository
 
             $ticketStmt->execute([
                 'ticket_no' => $ticketNo,
+                'submission_token' => $submissionToken,
                 'title' => $payload['title'],
                 'description' => $payload['description'],
                 'requester_id' => $payload['requester_id'],
@@ -592,13 +603,20 @@ class TicketRepository
 
             $this->db->commit();
 
-            return $ticketId;
+            return ['id' => $ticketId, 'created' => true];
         } catch (Throwable $exception) {
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
             }
 
+            $existingTicketId = $this->findTicketIdBySubmissionToken($submissionToken);
+            if ($existingTicketId !== null) {
+                return ['id' => $existingTicketId, 'created' => false];
+            }
+
             throw $exception;
+        } finally {
+            $this->releaseNamedLock($numberLock);
         }
     }
 
@@ -608,6 +626,7 @@ class TicketRepository
 
         try {
             $this->db->beginTransaction();
+            $this->lockTicketForTransition($ticketId, ['pending_approval'], 'pending');
 
             $ticketStmt = $this->db->prepare(
                 'UPDATE tickets
@@ -644,11 +663,13 @@ class TicketRepository
 
         try {
             $this->db->beginTransaction();
+            $this->lockTicketForTransition($ticketId, ['pending_approval'], 'pending');
 
             $ticketStmt = $this->db->prepare(
                 'UPDATE tickets
                  SET approval_status = :approval_status,
                      status = :status,
+                     approved_at = NULL,
                      updated_at = :updated_at
                  WHERE id = :ticket_id'
             );
@@ -675,9 +696,11 @@ class TicketRepository
     public function assignTechnician(int $ticketId, int $actorId, int $technicianId, string $technicianName, string $instructions, string $currentStatus): void
     {
         $assignedAt = date('Y-m-d H:i:s');
+        $workOrderNumberLock = null;
 
         try {
             $this->db->beginTransaction();
+            $this->lockTicketForTransition($ticketId, ['approved', 'assigned'], 'approved');
 
             $ticketStmt = $this->db->prepare(
                 'UPDATE tickets
@@ -728,6 +751,8 @@ class TicketRepository
                     'ticket_id' => $ticketId,
                 ]);
             } else {
+                $workOrderNumberLock = 'work-order-number-' . date('Ymd', strtotime($assignedAt) ?: time());
+                $this->acquireNamedLock($workOrderNumberLock);
                 $workOrderStmt = $this->db->prepare(
                     'INSERT INTO work_orders (
                         work_order_no,
@@ -796,6 +821,10 @@ class TicketRepository
             }
 
             throw $exception;
+        } finally {
+            if ($workOrderNumberLock !== null) {
+                $this->releaseNamedLock($workOrderNumberLock);
+            }
         }
     }
 
@@ -805,6 +834,7 @@ class TicketRepository
 
         try {
             $this->db->beginTransaction();
+            $this->lockTicketForTransition($ticketId, ['assigned'], 'approved', 'assigned_technician_id', $actorId);
 
             $ticketStmt = $this->db->prepare(
                 'UPDATE tickets
@@ -857,6 +887,7 @@ class TicketRepository
 
         try {
             $this->db->beginTransaction();
+            $this->lockTicketForTransition($ticketId, ['assigned', 'accepted'], 'approved', 'assigned_technician_id', $actorId);
 
             $ticketStmt = $this->db->prepare(
                 'UPDATE tickets
@@ -913,6 +944,7 @@ class TicketRepository
 
         try {
             $this->db->beginTransaction();
+            $this->lockTicketForTransition($ticketId, ['accepted', 'in_progress'], 'approved', 'assigned_technician_id', $actorId);
 
             $ticketStmt = $this->db->prepare(
                 'UPDATE tickets
@@ -988,6 +1020,7 @@ class TicketRepository
 
         try {
             $this->db->beginTransaction();
+            $this->lockTicketForTransition($ticketId, ['resolved'], 'approved', 'requester_id', $actorId);
 
             $ticketStmt = $this->db->prepare(
                 'UPDATE tickets
@@ -1018,6 +1051,53 @@ class TicketRepository
 
             $this->insertActivityLog($ticketId, $actorId, 'ticket_completed', $currentStatus, 'completed', $details);
 
+            $this->db->commit();
+        } catch (Throwable $exception) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+
+            throw $exception;
+        }
+    }
+
+    public function cancelTicket(int $ticketId, int $actorId, string $note, string $currentStatus): void
+    {
+        $cancelledAt = date('Y-m-d H:i:s');
+
+        try {
+            $this->db->beginTransaction();
+            $expectedApprovalStatus = $currentStatus === 'pending_approval' ? 'pending' : 'approved';
+            $this->lockTicketForTransition($ticketId, [$currentStatus], $expectedApprovalStatus, 'requester_id', $actorId);
+
+            $approvalStatus = $currentStatus === 'pending_approval' ? 'not_required' : 'approved';
+            $ticketStmt = $this->db->prepare(
+                'UPDATE tickets
+                 SET status = :status,
+                     approval_status = :approval_status,
+                     cancelled_at = :cancelled_at,
+                     closure_note = :closure_note,
+                     updated_at = :updated_at
+                 WHERE id = :ticket_id'
+            );
+            $ticketStmt->execute([
+                'status' => 'cancelled',
+                'approval_status' => $approvalStatus,
+                'cancelled_at' => $cancelledAt,
+                'closure_note' => $note,
+                'updated_at' => $cancelledAt,
+                'ticket_id' => $ticketId,
+            ]);
+
+            if ($currentStatus === 'pending_approval') {
+                $approvalStmt = $this->db->prepare(
+                    "DELETE FROM ticket_approvals
+                     WHERE ticket_id = :ticket_id AND action = 'pending'"
+                );
+                $approvalStmt->execute(['ticket_id' => $ticketId]);
+            }
+
+            $this->insertActivityLog($ticketId, $actorId, 'ticket_cancelled', $currentStatus, 'cancelled', $note);
             $this->db->commit();
         } catch (Throwable $exception) {
             if ($this->db->inTransaction()) {
@@ -1226,27 +1306,26 @@ class TicketRepository
         $lookupStmt = $this->db->prepare(
             'SELECT id
              FROM ticket_approvals
-             WHERE ticket_id = :ticket_id AND approver_id = :approver_id
+             WHERE ticket_id = :ticket_id
              ORDER BY created_at DESC, id DESC
              LIMIT 1'
         );
-        $lookupStmt->execute([
-            'ticket_id' => $ticketId,
-            'approver_id' => $approverId,
-        ]);
+        $lookupStmt->execute(['ticket_id' => $ticketId]);
 
         $approvalId = $lookupStmt->fetchColumn();
 
         if ($approvalId !== false) {
             $updateStmt = $this->db->prepare(
                 'UPDATE ticket_approvals
-                 SET action = :action,
+                 SET approver_id = :approver_id,
+                     action = :action,
                      note = :note,
                      acted_at = :acted_at
                  WHERE id = :id'
             );
             $updateStmt->execute([
                 'action' => $action,
+                'approver_id' => $approverId,
                 'note' => $note !== '' ? $note : null,
                 'acted_at' => $actedAt,
                 'id' => (int) $approvalId,
@@ -1267,6 +1346,77 @@ class TicketRepository
             'acted_at' => $actedAt,
             'created_at' => $actedAt,
         ]);
+    }
+
+    private function findTicketIdBySubmissionToken(string $submissionToken): ?int
+    {
+        if ($submissionToken === '') {
+            return null;
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT id FROM tickets WHERE submission_token = :submission_token LIMIT 1'
+        );
+        $stmt->execute(['submission_token' => $submissionToken]);
+        $ticketId = $stmt->fetchColumn();
+
+        return $ticketId !== false ? (int) $ticketId : null;
+    }
+
+    private function acquireNamedLock(string $name): void
+    {
+        $stmt = $this->db->prepare('SELECT GET_LOCK(:name, 5)');
+        $stmt->execute(['name' => $name]);
+        if ((int) $stmt->fetchColumn() !== 1) {
+            throw new RuntimeException('ระบบกำลังสร้างเลข Ticket กรุณาลองอีกครั้ง');
+        }
+    }
+
+    private function releaseNamedLock(string $name): void
+    {
+        try {
+            $stmt = $this->db->prepare('SELECT RELEASE_LOCK(:name)');
+            $stmt->execute(['name' => $name]);
+        } catch (Throwable) {
+            // Releasing a connection-scoped lock must not hide the original operation result.
+        }
+    }
+
+    private function lockTicketForTransition(
+        int $ticketId,
+        array $allowedStatuses,
+        ?string $expectedApprovalStatus = null,
+        ?string $ownerColumn = null,
+        ?int $ownerId = null
+    ): void {
+        $allowedOwnerColumns = ['assigned_technician_id', 'requester_id'];
+        if ($ownerColumn !== null && !in_array($ownerColumn, $allowedOwnerColumns, true)) {
+            throw new RuntimeException('ไม่สามารถตรวจสอบผู้ดำเนินการของ Ticket ได้');
+        }
+
+        $columns = 'status, approval_status';
+        if ($ownerColumn !== null) {
+            $columns .= ', ' . $ownerColumn;
+        }
+
+        $stmt = $this->db->prepare(
+            "SELECT $columns
+             FROM tickets
+             WHERE id = :ticket_id
+             LIMIT 1
+             FOR UPDATE"
+        );
+        $stmt->execute(['ticket_id' => $ticketId]);
+        $ticket = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+
+        $valid = $ticket !== null
+            && in_array((string) ($ticket['status'] ?? ''), $allowedStatuses, true)
+            && ($expectedApprovalStatus === null || (string) ($ticket['approval_status'] ?? '') === $expectedApprovalStatus)
+            && ($ownerColumn === null || (int) ($ticket[$ownerColumn] ?? 0) === (int) $ownerId);
+
+        if (!$valid) {
+            throw new RuntimeException('สถานะ Ticket ถูกเปลี่ยนแล้ว กรุณารีเฟรชหน้าแล้วลองอีกครั้ง');
+        }
     }
 
     private function insertActivityLog(int $ticketId, int $actorId, string $action, ?string $fromStatus, ?string $toStatus, string $details): void
@@ -1409,7 +1559,8 @@ class TicketRepository
 
         if ($role === 'technician') {
             $params['technician_id'] = $userId;
-            return 't.assigned_technician_id = :technician_id';
+            $params['technician_requester_id'] = $userId;
+            return '(t.assigned_technician_id = :technician_id OR t.requester_id = :technician_requester_id)';
         }
 
         if ($role === 'manager' || $role === 'admin') {

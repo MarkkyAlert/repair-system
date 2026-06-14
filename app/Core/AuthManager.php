@@ -3,9 +3,15 @@ declare(strict_types=1);
 
 namespace App\Core;
 
+use App\Repositories\UserRepository;
+
 class AuthManager
 {
     private const SESSION_KEY = '_auth_user';
+
+    public function __construct(private UserRepository $users)
+    {
+    }
 
     public function check(): bool
     {
@@ -40,5 +46,23 @@ class AuthManager
     public function guest(): bool
     {
         return !$this->check();
+    }
+
+    public function refresh(): bool
+    {
+        $userId = $this->id();
+        if ($userId === null) {
+            return false;
+        }
+
+        $user = $this->users->findById($userId);
+        if ($user === null || !(bool) ($user['is_active'] ?? false)) {
+            $this->logout();
+            return false;
+        }
+
+        $this->login($user);
+
+        return true;
     }
 }

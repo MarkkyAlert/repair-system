@@ -40,6 +40,19 @@ class UserRepository
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
+    public function findById(int $userId): ?array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT id, username, email, password_hash, full_name, phone, role, department_id, avatar, is_active, remember_token, created_at, updated_at
+             FROM users
+             WHERE id = :id
+             LIMIT 1'
+        );
+        $stmt->execute(['id' => $userId]);
+
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
     public function findActiveUsersByIds(array $userIds): array
     {
         $userIds = array_values(array_unique(array_filter(array_map('intval', $userIds), static fn (int $id): bool => $id > 0)));

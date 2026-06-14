@@ -103,13 +103,13 @@
                     <span class="theme-icon theme-icon-light"><?= lucide('sun', 'h-5 w-5') ?></span>
                     <span class="theme-icon theme-icon-dark"><?= lucide('moon', 'h-5 w-5') ?></span>
                 </button>
-                <div class="user-chip">
+                <a href="<?= e(url('/change-password')) ?>" class="user-chip" aria-label="เปลี่ยนรหัสผ่าน">
                     <span class="user-chip-avatar"><?= e($viewerInitials) ?></span>
                     <div>
                         <p class="user-chip-name"><?= e($viewer['full_name'] ?? 'User') ?></p>
                         <p class="user-chip-role"><?= e($viewer['role'] ?? 'guest') ?></p>
                     </div>
-                </div>
+                </a>
                 <form method="post" action="<?= e(url('/logout')) ?>">
                     <?= csrf_field() ?>
                     <button type="submit" class="icon-button" aria-label="ออกจากระบบ"><?= lucide('log-out', 'h-5 w-5') ?></button>

@@ -21,18 +21,20 @@ class LoginRateLimiter
 
     public function hit(string $key, int $decaySeconds = 900): void
     {
-        $payload = $this->read();
-        $attempts = $this->prune($payload[$key] ?? [], $decaySeconds);
-        $attempts[] = time();
-        $payload[$key] = $attempts;
-        $this->write($payload);
+        $this->mutate(function (array $payload) use ($key, $decaySeconds): array {
+            $attempts = $this->prune($payload[$key] ?? [], $decaySeconds);
+            $attempts[] = time();
+            $payload[$key] = $attempts;
+            return $payload;
+        });
     }
 
     public function clear(string $key): void
     {
-        $payload = $this->read();
-        unset($payload[$key]);
-        $this->write($payload);
+        $this->mutate(function (array $payload) use ($key): array {
+            unset($payload[$key]);
+            return $payload;
+        });
     }
 
     public function availableIn(string $key, int $decaySeconds = 900): int
@@ -54,24 +56,64 @@ class LoginRateLimiter
             return [];
         }
 
-        $contents = file_get_contents($this->filePath);
-        if ($contents === false || trim($contents) === '') {
+        $handle = fopen($this->filePath, 'rb');
+        if ($handle === false) {
             return [];
         }
 
-        $decoded = json_decode($contents, true);
+        try {
+            if (!flock($handle, LOCK_SH)) {
+                return [];
+            }
+            $contents = stream_get_contents($handle);
+            flock($handle, LOCK_UN);
+        } finally {
+            fclose($handle);
+        }
 
-        return is_array($decoded) ? $decoded : [];
+        return $this->decode((string) $contents);
     }
 
-    private function write(array $payload): void
+    private function mutate(callable $callback): void
     {
         $directory = dirname($this->filePath);
         if (!is_dir($directory)) {
             mkdir($directory, 0775, true);
         }
 
-        file_put_contents($this->filePath, json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT), LOCK_EX);
+        $handle = fopen($this->filePath, 'c+');
+        if ($handle === false) {
+            return;
+        }
+
+        try {
+            if (!flock($handle, LOCK_EX)) {
+                return;
+            }
+
+            rewind($handle);
+            $payload = $this->decode((string) stream_get_contents($handle));
+            $payload = $callback($payload);
+
+            rewind($handle);
+            ftruncate($handle, 0);
+            fwrite($handle, json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+            fflush($handle);
+            flock($handle, LOCK_UN);
+        } finally {
+            fclose($handle);
+        }
+    }
+
+    private function decode(string $contents): array
+    {
+        if (trim($contents) === '') {
+            return [];
+        }
+
+        $decoded = json_decode($contents, true);
+
+        return is_array($decoded) ? $decoded : [];
     }
 
     private function prune(array $attempts, int $decaySeconds): array

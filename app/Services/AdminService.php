@@ -66,6 +66,58 @@ class AdminService
         ]);
     }
 
+    public function createUser(array $viewer, array $input): void
+    {
+        $this->assertAdmin($viewer);
+
+        $username = strtolower(trim((string) ($input['username'] ?? '')));
+        $fullName = trim((string) ($input['full_name'] ?? ''));
+        $email = strtolower(trim((string) ($input['email'] ?? '')));
+        $role = trim((string) ($input['role'] ?? 'requester'));
+        $password = (string) ($input['password'] ?? '');
+        $passwordConfirmation = (string) ($input['password_confirmation'] ?? '');
+        $departmentId = (int) ($input['department_id'] ?? 0);
+
+        if ($username === '' || $fullName === '' || $email === '' || $password === '' || $passwordConfirmation === '') {
+            throw new DomainException('กรุณากรอกชื่อผู้ใช้ ชื่อ อีเมล และรหัสผ่านให้ครบถ้วน');
+        }
+
+        if (!preg_match('/^[a-z0-9._-]{3,50}$/', $username)) {
+            throw new DomainException('ชื่อผู้ใช้ต้องมี 3-50 ตัวอักษร และใช้ได้เฉพาะ a-z, 0-9, จุด, ขีดกลาง และขีดล่าง');
+        }
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            throw new DomainException('รูปแบบอีเมลผู้ใช้งานไม่ถูกต้อง');
+        }
+
+        if (!in_array($role, ['requester', 'manager', 'technician', 'admin'], true)) {
+            throw new DomainException('Role ผู้ใช้งานไม่ถูกต้อง');
+        }
+
+        if ($password !== $passwordConfirmation) {
+            throw new DomainException('ยืนยันรหัสผ่านไม่ตรงกัน');
+        }
+
+        if (strlen($password) < 8) {
+            throw new DomainException('รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร');
+        }
+
+        if ($departmentId > 0 && !$this->admin->departmentExists($departmentId)) {
+            throw new DomainException('Department ที่เลือกไม่ถูกต้อง');
+        }
+
+        $this->admin->createUser([
+            'username' => $username,
+            'full_name' => $fullName,
+            'email' => $email,
+            'phone' => trim((string) ($input['phone'] ?? '')),
+            'role' => $role,
+            'department_id' => $departmentId > 0 ? $departmentId : null,
+            'password_hash' => password_hash($password, PASSWORD_BCRYPT),
+            'is_active' => in_array((string) ($input['is_active'] ?? '0'), ['1', 'true', 'on'], true),
+        ]);
+    }
+
     public function updateDepartment(int $departmentId, array $viewer, array $input): void
     {
         $this->assertAdmin($viewer);

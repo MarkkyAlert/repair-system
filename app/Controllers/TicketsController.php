@@ -72,6 +72,7 @@ class TicketsController
                 'asset_id' => (string) ($_POST['asset_id'] ?? ''),
                 'impact_level' => (string) ($_POST['impact_level'] ?? 'medium'),
                 'urgency_level' => (string) ($_POST['urgency_level'] ?? 'medium'),
+                'submission_token' => (string) ($_POST['submission_token'] ?? ''),
             ]);
             flash('error', $exception->getMessage());
             Response::redirect('/tickets/create');
@@ -230,6 +231,26 @@ class TicketsController
                 'closure_note' => (string) ($_POST['closure_note'] ?? ''),
                 'score' => (string) ($_POST['score'] ?? ''),
                 'feedback' => (string) ($_POST['feedback'] ?? ''),
+            ]);
+            flash('error', $exception->getMessage());
+        }
+
+        Response::redirect('/tickets/' . (int) $ticketId);
+    }
+
+    public function cancel(string $ticketId): void
+    {
+        AuthMiddleware::handle();
+        $viewer = auth()->user() ?? [];
+
+        try {
+            csrf_validate();
+            clear_old_input();
+            $this->tickets->cancelTicket((int) $ticketId, $viewer, $_POST);
+            flash('success', 'ยกเลิก Ticket เรียบร้อยแล้ว');
+        } catch (DomainException|RuntimeException $exception) {
+            with_old_input([
+                'cancel_note' => (string) ($_POST['cancel_note'] ?? ''),
             ]);
             flash('error', $exception->getMessage());
         }

@@ -141,6 +141,8 @@ if (!empty($workflow['canReview'])) {
                 <dd><?= e(human_date($ticket['resolved_at'])) ?></dd>
                 <dt>ปิดงานเมื่อ</dt>
                 <dd><?= e(human_date($ticket['completed_at'])) ?></dd>
+                <dt>ยกเลิกเมื่อ</dt>
+                <dd><?= e(human_date($ticket['cancelled_at'])) ?></dd>
             </dl>
         </section>
     </div>
@@ -323,9 +325,24 @@ if (!empty($workflow['canReview'])) {
     <?php if (!empty($workflow['requesterCanAct'])): ?>
         <section class="panel-card stack-md">
             <div class="panel-head">
-                <h2 class="panel-title">ตรวจรับงานและให้คะแนน</h2>
+                <h2 class="panel-title">การดำเนินการของผู้แจ้ง</h2>
                 <span class="badge badge-info">ผู้แจ้ง</span>
             </div>
+
+            <?php if (!empty($workflow['canCancel'])): ?>
+                <form method="post" action="<?= e(url('/tickets/' . $ticket['id'] . '/cancel')) ?>" class="action-form action-form-danger" id="action-cancel" onsubmit="return confirm('ยืนยันการยกเลิก Ticket นี้? การดำเนินการนี้ย้อนกลับไม่ได้');">
+                    <?= csrf_field() ?>
+                    <div class="action-form-head">
+                        <span class="action-form-icon tone-danger"><?= lucide('x', 'h-5 w-5') ?></span>
+                        <div><h3>ยกเลิก Ticket</h3><p>ยกเลิกได้เฉพาะก่อนมีการมอบหมายงานให้ช่าง</p></div>
+                    </div>
+                    <div class="field-group">
+                        <label for="cancel_note" class="field-label">เหตุผลในการยกเลิก <span class="required">*</span></label>
+                        <textarea id="cancel_note" name="cancel_note" class="input" rows="3" required placeholder="ระบุเหตุผลที่ไม่ต้องการดำเนินการ Ticket นี้ต่อ"><?= e((string) ($workflow['defaults']['cancel_note'] ?? '')) ?></textarea>
+                    </div>
+                    <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ยืนยันยกเลิก Ticket', 'variant' => 'danger', 'icon' => 'x']) ?>
+                </form>
+            <?php endif; ?>
 
             <?php if (!empty($workflow['canComplete'])): ?>
                 <form method="post" action="<?= e(url('/tickets/' . $ticket['id'] . '/complete')) ?>" class="action-form action-form-success" id="action-complete">
@@ -353,7 +370,7 @@ if (!empty($workflow['canReview'])) {
                     </div>
                     <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ยืนยันปิดงานและส่งคะแนน', 'variant' => 'primary', 'icon' => 'star', 'iconPosition' => 'right']) ?>
                 </form>
-            <?php else: ?>
+            <?php elseif (empty($workflow['canCancel'])): ?>
                 <?= render_partial('partials/components/empty-state', [
                     'icon' => 'clipboard-list',
                     'title' => 'ยังไม่ถึงขั้นตอนของผู้แจ้ง',
@@ -375,7 +392,7 @@ if (!empty($workflow['canReview'])) {
                     <dd><?= e($ticket['resolution_summary']) ?></dd>
                 <?php endif; ?>
                 <?php if ($ticket['closure_note'] !== ''): ?>
-                    <dt>หมายเหตุปิดงาน</dt>
+                    <dt><?= (string) ($ticket['status'] ?? '') === 'cancelled' ? 'เหตุผลในการยกเลิก' : 'หมายเหตุปิดงาน' ?></dt>
                     <dd><?= e($ticket['closure_note']) ?></dd>
                 <?php endif; ?>
                 <?php if ($ticket['rating_score'] > 0): ?>
@@ -409,6 +426,7 @@ if (!empty($workflow['canReview'])) {
             <?php if (!empty($workflow['canComment'])): ?>
                 <form method="post" action="<?= e(url('/tickets/' . $ticket['id'] . '/comments')) ?>" class="comment-form stack-md">
                     <?= csrf_field() ?>
+                    <input type="hidden" name="submission_token" value="<?= e((string) ($workflow['defaults']['comment_submission_token'] ?? '')) ?>">
                     <div class="field-group">
                         <label for="comment_body" class="field-label">เพิ่มความเห็น</label>
                         <textarea id="comment_body" name="body" class="input" rows="3" placeholder="พิมพ์ข้อมูลอัปเดต, คำถาม, หรือรายละเอียดเพิ่มเติม"><?= e((string) ($workflow['defaults']['comment_body'] ?? '')) ?></textarea>

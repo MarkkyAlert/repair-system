@@ -9,7 +9,8 @@ class AuthMiddleware
 {
     public static function handle(?string $returnTo = null): void
     {
-        if (auth()->check()) {
+        $auth = auth();
+        if ($auth->refresh()) {
             return;
         }
 

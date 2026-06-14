@@ -5,6 +5,8 @@ use App\Core\Container;
 use App\Core\Env;
 use App\Core\Router;
 use App\Core\Session;
+use App\Core\AuthManager;
+use App\Repositories\UserRepository;
 
 const BASE_PATH = __DIR__;
 
@@ -89,6 +91,7 @@ $container->singleton(PDO::class, static function (Container $container): PDO {
     return $pdo;
 });
 $container->singleton(Router::class, static fn (): Router => new Router());
+$container->singleton(AuthManager::class, static fn (Container $container): AuthManager => new AuthManager($container->get(UserRepository::class)));
 
 $GLOBALS['app_container'] = $container;
 

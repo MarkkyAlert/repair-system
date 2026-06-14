@@ -151,6 +151,7 @@ class TicketService
                 'asset_id' => (string) ($oldInput['asset_id'] ?? ($prefillAsset !== null ? (string) ($prefillAsset['id'] ?? '') : (string) ($prefill['asset_id'] ?? ''))),
                 'impact_level' => (string) ($oldInput['impact_level'] ?? 'medium'),
                 'urgency_level' => (string) ($oldInput['urgency_level'] ?? 'medium'),
+                'submission_token' => $this->submissionToken((string) ($oldInput['submission_token'] ?? '')),
                 'requester_name' => (string) ($viewer['full_name'] ?? ''),
                 'requester_email' => (string) ($viewer['email'] ?? ''),
             ],
@@ -169,6 +170,7 @@ class TicketService
         $assetId = (int) ($input['asset_id'] ?? 0);
         $impactLevel = strtolower(trim((string) ($input['impact_level'] ?? 'medium')));
         $urgencyLevel = strtolower(trim((string) ($input['urgency_level'] ?? 'medium')));
+        $submissionToken = $this->submissionToken((string) ($input['submission_token'] ?? ''), false);
 
         if ($title === '' || $description === '') {
             throw new DomainException('กรุณากรอกหัวข้อและรายละเอียดของปัญหาให้ครบถ้วน');
@@ -214,7 +216,8 @@ class TicketService
         $responseDueAt = date('Y-m-d H:i:s', strtotime($requestedAt . ' +' . $responseMinutes . ' minutes'));
         $resolutionDueAt = date('Y-m-d H:i:s', strtotime($requestedAt . ' +' . $resolutionMinutes . ' minutes'));
 
-        $ticketId = $this->tickets->createTicket([
+        $result = $this->tickets->createTicket([
+            'submission_token' => $submissionToken,
             'title' => $title,
             'description' => $description,
             'requester_id' => (int) ($viewer['id'] ?? 0),
@@ -230,7 +233,10 @@ class TicketService
             'resolution_due_at' => $resolutionDueAt,
         ]);
 
-        $this->notifications->notifyTicketEvent($ticketId, 'ticket.created', (int) ($viewer['id'] ?? 0));
+        $ticketId = (int) ($result['id'] ?? 0);
+        if ((bool) ($result['created'] ?? false)) {
+            $this->notifications->notifyTicketEvent($ticketId, 'ticket.created', (int) ($viewer['id'] ?? 0));
+        }
 
         return $ticketId;
     }
@@ -466,6 +472,27 @@ class TicketService
         $this->notifications->notifyTicketEvent($ticketId, 'ticket.completed', (int) ($viewer['id'] ?? 0));
     }
 
+    public function cancelTicket(int $ticketId, array $viewer, array $input): void
+    {
+        $ticket = $this->requireRequesterTicket($ticketId, $viewer);
+        if (!$this->canRequesterCancelTicket($ticket, $viewer)) {
+            throw new DomainException('รายการนี้ไม่อยู่ในสถานะที่ยกเลิกได้');
+        }
+
+        $note = trim((string) ($input['cancel_note'] ?? ''));
+        if ($note === '') {
+            throw new DomainException('กรุณาระบุเหตุผลในการยกเลิก Ticket');
+        }
+
+        $this->tickets->cancelTicket(
+            $ticketId,
+            (int) ($viewer['id'] ?? 0),
+            $note,
+            (string) ($ticket['status'] ?? '')
+        );
+        $this->notifications->notifyTicketEvent($ticketId, 'ticket.cancelled', (int) ($viewer['id'] ?? 0));
+    }
+
     private function mapTicketSummary(array $ticket): array
     {
         $priorityCode = strtoupper((string) ($ticket['priority_code'] ?? 'MEDIUM'));
@@ -565,6 +592,7 @@ class TicketService
         $canResolve = $technicianCanAct && $this->canResolveTechnicianWork($ticket, $viewer);
         $requesterCanAct = $this->canRequesterManageClosure($ticket, $viewer);
         $canComplete = $requesterCanAct && $this->canRequesterCompleteTicket($ticket, $viewer);
+        $canCancel = $requesterCanAct && $this->canRequesterCancelTicket($ticket, $viewer);
         $canComment = (int) ($viewer['id'] ?? 0) > 0;
         $canUseInternalComment = (string) ($viewer['role'] ?? 'guest') !== 'requester';
 
@@ -578,6 +606,7 @@ class TicketService
             'canResolve' => $canResolve,
             'requesterCanAct' => $requesterCanAct,
             'canComplete' => $canComplete,
+            'canCancel' => $canCancel,
             'canComment' => $canComment,
             'canUseInternalComment' => $canUseInternalComment,
             'technicians' => array_map(fn (array $technician): array => [
@@ -611,11 +640,13 @@ class TicketService
                 'resolution_summary' => (string) ($oldInput['resolution_summary'] ?? (string) ($ticket['work_order_resolution_summary'] ?? '')),
                 'labor_minutes' => (string) ($oldInput['labor_minutes'] ?? (string) ((int) ($ticket['work_order_labor_minutes'] ?? 0))),
                 'closure_note' => (string) ($oldInput['closure_note'] ?? (string) ($ticket['closure_note'] ?? '')),
+                'cancel_note' => (string) ($oldInput['cancel_note'] ?? ''),
                 'score' => (string) ($oldInput['score'] ?? (string) ((int) ($ticket['rating_score'] ?? 0))),
                 'feedback' => (string) ($oldInput['feedback'] ?? (string) ($ticket['rating_feedback'] ?? '')),
                 'comment_body' => (string) ($oldInput['comment_body'] ?? ''),
                 'has_comment_body_old_input' => array_key_exists('comment_body', $oldInput),
                 'comment_is_internal' => (string) ($oldInput['comment_is_internal'] ?? ''),
+                'comment_submission_token' => $this->submissionToken((string) ($oldInput['comment_submission_token'] ?? '')),
                 'has_comment_is_internal_old_input' => array_key_exists('comment_is_internal', $oldInput),
                 'editing_comment_id' => (string) ($oldInput['editing_comment_id'] ?? ''),
             ],
@@ -671,6 +702,24 @@ class TicketService
 
     private function buildSlaSummary(array $ticket): array
     {
+        if ((string) ($ticket['status'] ?? '') === 'cancelled') {
+            $notApplicable = [
+                'status' => 'unavailable',
+                'label' => 'Not applicable',
+                'tone' => 'default',
+                'target_at' => '-',
+                'achieved_at' => '-',
+            ];
+
+            return [
+                'label' => 'SLA not applicable',
+                'tone' => 'default',
+                'is_overdue' => false,
+                'response' => ['name' => 'Response SLA'] + $notApplicable,
+                'resolution' => ['name' => 'Resolution SLA'] + $notApplicable,
+            ];
+        }
+
         $response = $this->buildSlaMetricState(
             'Response SLA',
             $ticket['response_due_at'] ?? null,
@@ -1072,8 +1121,7 @@ class TicketService
 
     private function canRequesterManageClosure(array $ticket, array $viewer): bool
     {
-        return (string) ($viewer['role'] ?? 'guest') === 'requester'
-            && (int) ($viewer['id'] ?? 0) > 0
+        return (int) ($viewer['id'] ?? 0) > 0
             && (int) ($ticket['requester_id'] ?? 0) === (int) ($viewer['id'] ?? 0);
     }
 
@@ -1082,6 +1130,12 @@ class TicketService
         return $this->canRequesterManageClosure($ticket, $viewer)
             && (string) ($ticket['approval_status'] ?? '') === 'approved'
             && (string) ($ticket['status'] ?? '') === 'resolved';
+    }
+
+    private function canRequesterCancelTicket(array $ticket, array $viewer): bool
+    {
+        return $this->canRequesterManageClosure($ticket, $viewer)
+            && in_array((string) ($ticket['status'] ?? ''), ['pending_approval', 'approved'], true);
     }
 
     private function canManageComment(array $comment, array $viewer): bool
@@ -1103,6 +1157,20 @@ class TicketService
         }
 
         return ucwords(str_replace('_', ' ', $normalized));
+    }
+
+    private function submissionToken(string $token, bool $generateWhenMissing = true): string
+    {
+        $token = strtolower(trim($token));
+        if (preg_match('/^[a-f0-9]{64}$/', $token) === 1) {
+            return $token;
+        }
+
+        if (!$generateWhenMissing) {
+            throw new DomainException('แบบฟอร์มหมดอายุ กรุณารีเฟรชหน้าแล้วลองอีกครั้ง');
+        }
+
+        return bin2hex(random_bytes(32));
     }
 
     private function statusTone(string $status): string

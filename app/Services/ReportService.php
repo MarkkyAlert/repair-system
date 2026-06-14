@@ -225,7 +225,7 @@ class ReportService
 
         if ($normalized['from_date'] !== '' && $normalized['to_date'] !== '' && strcmp($normalized['from_date'], $normalized['to_date']) > 0) {
             [$normalized['from_date'], $normalized['to_date']] = [$normalized['to_date'], $normalized['from_date']];
-            [$normalized['from_datetime'], $normalized['to_datetime']] = [$normalized['to_date'] . ' 00:00:00', $normalized['from_date'] . ' 23:59:59'];
+            [$normalized['from_datetime'], $normalized['to_datetime']] = [$normalized['from_date'] . ' 00:00:00', $normalized['to_date'] . ' 23:59:59'];
         }
 
         return $normalized;
@@ -342,6 +342,13 @@ class ReportService
 
     private function buildSlaSummary(array $ticket): array
     {
+        if ((string) ($ticket['status'] ?? '') === 'cancelled') {
+            return [
+                'label' => 'SLA not applicable',
+                'is_overdue' => false,
+            ];
+        }
+
         $response = $this->buildSlaMetricState($ticket['response_due_at'] ?? null, $ticket['first_response_at'] ?? null);
         $resolution = $this->buildSlaMetricState($ticket['resolution_due_at'] ?? null, $ticket['resolved_at'] ?? null);
         $isOverdue = ($response['status'] ?? '') === 'breached' || ($resolution['status'] ?? '') === 'breached' || (bool) ($ticket['is_overdue'] ?? false);

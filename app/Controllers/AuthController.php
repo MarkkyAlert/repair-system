@@ -165,4 +165,35 @@ class AuthController
             Response::redirect('/reset-password?email=' . rawurlencode($email) . '&token=' . rawurlencode($token));
         }
     }
+
+    public function showChangePassword(): void
+    {
+        AuthMiddleware::handle();
+
+        Response::view('auth/change-password', [
+            'title' => 'เปลี่ยนรหัสผ่าน',
+            'pageHeading' => 'เปลี่ยนรหัสผ่าน',
+            'currentUser' => auth()->user() ?? [],
+        ]);
+    }
+
+    public function changePassword(): void
+    {
+        AuthMiddleware::handle();
+
+        try {
+            csrf_validate();
+            $this->service->changePassword(
+                auth()->user() ?? [],
+                (string) ($_POST['current_password'] ?? ''),
+                (string) ($_POST['password'] ?? ''),
+                (string) ($_POST['password_confirmation'] ?? '')
+            );
+            flash('success', 'เปลี่ยนรหัสผ่านเรียบร้อยแล้ว');
+        } catch (DomainException|RuntimeException $exception) {
+            flash('error', $exception->getMessage());
+        }
+
+        Response::redirect('/change-password');
+    }
 }

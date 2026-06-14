@@ -9,7 +9,7 @@ class GuestMiddleware
 {
     public static function handle(): void
     {
-        if (!auth()->check()) {
+        if (!auth()->refresh()) {
             return;
         }
 
