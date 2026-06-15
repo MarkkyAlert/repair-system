@@ -16,6 +16,12 @@ $querySuffix = !empty($filters['query_string']) ? '?' . (string) $filters['query
                     'href' => '/reports/export/pdf' . $querySuffix,
                     'icon' => 'file-text',
                 ]) ?>
+                <?= render_partial('partials/components/button', [
+                    'label' => 'Export CSV',
+                    'variant' => 'secondary',
+                    'href' => '/reports/export/csv' . $querySuffix,
+                    'icon' => 'download',
+                ]) ?>
     <?php $heroActions = (string) ob_get_clean(); ?>
     <?= render_partial('partials/components/page-header', [
         'eyebrow' => 'ข้อมูลเพื่อการตัดสินใจ',

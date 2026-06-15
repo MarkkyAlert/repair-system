@@ -34,6 +34,7 @@ class NotificationsController
             'threadCount' => $data['threadCount'],
             'selectedFilter' => $data['selectedFilter'],
             'filterOptions' => $data['filterOptions'],
+            'pagination' => $data['pagination'],
         ]);
     }
 

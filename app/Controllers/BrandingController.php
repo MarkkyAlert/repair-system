@@ -1,0 +1,55 @@
+<?php
+declare(strict_types=1);
+
+namespace App\Controllers;
+
+use App\Core\Response;
+
+class BrandingController
+{
+    public function showLogo(): void
+    {
+        $configuredPath = trim((string) setting('app_logo_path', ''));
+        if ($configuredPath === '') {
+            Response::abort(404, 'ไม่พบโลโก้องค์กร');
+        }
+
+        $relativePath = ltrim($configuredPath, '/');
+        $candidates = [
+            [
+                'path' => BASE_PATH . '/' . $relativePath,
+                'root' => realpath(BASE_PATH . '/storage/uploads/branding'),
+            ],
+            [
+                'path' => BASE_PATH . '/public/' . $relativePath,
+                'root' => realpath(BASE_PATH . '/public/uploads/branding'),
+            ],
+        ];
+
+        $resolvedPath = null;
+        foreach ($candidates as $candidate) {
+            $absoluteReal = realpath($candidate['path']);
+            $root = $candidate['root'];
+            if ($absoluteReal === false || $root === false || !is_file($absoluteReal)) {
+                continue;
+            }
+            if (!str_starts_with($absoluteReal, $root)) {
+                continue;
+            }
+            $resolvedPath = $absoluteReal;
+            break;
+        }
+
+        if ($resolvedPath === null) {
+            Response::abort(404, 'ไม่พบโลโก้องค์กร');
+        }
+
+        $content = file_get_contents($resolvedPath);
+        if ($content === false) {
+            Response::abort(404, 'ไม่พบโลโก้องค์กร');
+        }
+
+        $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($resolvedPath) ?: 'application/octet-stream';
+        Response::download($content, basename($resolvedPath), $mime, 'inline');
+    }
+}

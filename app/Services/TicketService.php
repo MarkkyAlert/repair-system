@@ -7,6 +7,8 @@ use App\Repositories\CommentRepository;
 use App\Repositories\TicketRepository;
 use App\Core\View;
 use DomainException;
+use PDO;
+use Throwable;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use Endroid\QrCode\Builder\Builder;
@@ -19,12 +21,16 @@ class TicketService
         private CommentRepository $comments,
         private TicketRepository $tickets,
         private NotificationService $notifications,
+        private AttachmentService $attachments,
+        private PDO $db,
     ) {
     }
 
     public function getDashboardData(array $viewer, array $filters = []): array
     {
         $normalizedFilters = $this->normalizeDashboardFilters($filters);
+        $normalizedFilters['preset_user_id'] = (int) ($viewer['id'] ?? 0);
+        $normalizedFilters['preset_role'] = (string) ($viewer['role'] ?? 'guest');
         $reference = $this->tickets->getDashboardFilterReferenceData();
         $metrics = $this->tickets->getDashboardMetrics($viewer, $normalizedFilters);
         $recentTickets = array_map(
@@ -88,15 +94,30 @@ class TicketService
         ];
     }
 
-    public function getTicketIndexData(array $viewer): array
+    public function getTicketIndexData(array $viewer, array $filters = []): array
     {
         $metrics = $this->getDashboardData($viewer)['metrics'];
-        $tickets = array_map(fn (array $ticket): array => $this->mapTicketSummary($ticket), $this->tickets->getVisibleTickets($viewer));
+        $normalized = [
+            'q' => trim((string) ($filters['q'] ?? '')),
+            'status' => trim((string) ($filters['status'] ?? '')),
+            'priority' => strtoupper(trim((string) ($filters['priority'] ?? ''))),
+            'technician_id' => max(0, (int) ($filters['technician_id'] ?? 0)),
+        ];
+        $page = max(1, (int) ($filters['page'] ?? 1));
+        $result = $this->tickets->getVisibleTicketsPage($viewer, $normalized, $page, 20);
+        $tickets = array_map(fn (array $ticket): array => $this->mapTicketSummary($ticket), $result['items']);
 
         return [
             'metrics' => $metrics,
             'tickets' => $tickets,
             'roleLabel' => $this->labelize((string) ($viewer['role'] ?? 'guest')),
+            'filters' => $normalized + [
+                'technicians' => array_map(fn (array $row): array => [
+                    'id' => (int) $row['id'],
+                    'label' => (string) $row['full_name'],
+                ], $this->tickets->getActiveTechnicians()),
+            ],
+            'pagination' => $result,
         ];
     }
 
@@ -141,16 +162,18 @@ class TicketService
             'prefill' => [
                 'has_asset' => $prefillAsset !== null,
                 'asset_label' => $prefillAsset !== null ? (string) ($prefillAsset['label'] ?? '') : '',
+                'source_ticket_id' => (int) ($prefill['source_ticket_id'] ?? 0),
+                'source_ticket_no' => (string) ($prefill['source_ticket_no'] ?? ''),
             ],
             'defaults' => [
-                'title' => (string) ($oldInput['title'] ?? ''),
-                'description' => (string) ($oldInput['description'] ?? ''),
-                'priority_id' => (string) ($oldInput['priority_id'] ?? ''),
-                'ticket_category_id' => (string) ($oldInput['ticket_category_id'] ?? ''),
+                'title' => (string) ($oldInput['title'] ?? ($prefill['title'] ?? '')),
+                'description' => (string) ($oldInput['description'] ?? ($prefill['description'] ?? '')),
+                'priority_id' => (string) ($oldInput['priority_id'] ?? ($prefill['priority_id'] ?? '')),
+                'ticket_category_id' => (string) ($oldInput['ticket_category_id'] ?? ($prefill['ticket_category_id'] ?? '')),
                 'location_id' => (string) ($oldInput['location_id'] ?? ($prefillAsset !== null ? (string) ($prefillAsset['location_id'] ?? '') : (string) ($prefill['location_id'] ?? ''))),
                 'asset_id' => (string) ($oldInput['asset_id'] ?? ($prefillAsset !== null ? (string) ($prefillAsset['id'] ?? '') : (string) ($prefill['asset_id'] ?? ''))),
-                'impact_level' => (string) ($oldInput['impact_level'] ?? 'medium'),
-                'urgency_level' => (string) ($oldInput['urgency_level'] ?? 'medium'),
+                'impact_level' => (string) ($oldInput['impact_level'] ?? ($prefill['impact_level'] ?? 'medium')),
+                'urgency_level' => (string) ($oldInput['urgency_level'] ?? ($prefill['urgency_level'] ?? 'medium')),
                 'submission_token' => $this->submissionToken((string) ($oldInput['submission_token'] ?? '')),
                 'requester_name' => (string) ($viewer['full_name'] ?? ''),
                 'requester_email' => (string) ($viewer['email'] ?? ''),
@@ -158,8 +181,9 @@ class TicketService
         ];
     }
 
-    public function createTicket(array $viewer, array $input): int
+    public function createTicket(array $viewer, array $input, array $files = []): int
     {
+        $validatedFiles = $this->attachments->validateUploads($files);
         $reference = $this->tickets->getCreateFormReferenceData();
 
         $title = trim((string) ($input['title'] ?? ''));
@@ -216,29 +240,74 @@ class TicketService
         $responseDueAt = date('Y-m-d H:i:s', strtotime($requestedAt . ' +' . $responseMinutes . ' minutes'));
         $resolutionDueAt = date('Y-m-d H:i:s', strtotime($requestedAt . ' +' . $resolutionMinutes . ' minutes'));
 
-        $result = $this->tickets->createTicket([
-            'submission_token' => $submissionToken,
-            'title' => $title,
-            'description' => $description,
-            'requester_id' => (int) ($viewer['id'] ?? 0),
-            'requester_department_id' => isset($viewer['department_id']) ? (int) $viewer['department_id'] : null,
-            'location_id' => $locationId,
-            'asset_id' => is_array($asset) ? (int) ($asset['id'] ?? 0) : null,
-            'ticket_category_id' => $categoryId,
-            'priority_id' => $priorityId,
-            'impact_level' => $impactLevel,
-            'urgency_level' => $urgencyLevel,
-            'requested_at' => $requestedAt,
-            'response_due_at' => $responseDueAt,
-            'resolution_due_at' => $resolutionDueAt,
-        ]);
+        $storedPaths = [];
+        $ticketId = 0;
+        $created = false;
 
-        $ticketId = (int) ($result['id'] ?? 0);
-        if ((bool) ($result['created'] ?? false)) {
-            $this->notifications->notifyTicketEvent($ticketId, 'ticket.created', (int) ($viewer['id'] ?? 0));
+        try {
+            $this->db->beginTransaction();
+            $result = $this->tickets->createTicket([
+                'submission_token' => $submissionToken,
+                'title' => $title,
+                'description' => $description,
+                'requester_id' => (int) ($viewer['id'] ?? 0),
+                'requester_department_id' => isset($viewer['department_id']) ? (int) $viewer['department_id'] : null,
+                'location_id' => $locationId,
+                'asset_id' => is_array($asset) ? (int) ($asset['id'] ?? 0) : null,
+                'ticket_category_id' => $categoryId,
+                'priority_id' => $priorityId,
+                'impact_level' => $impactLevel,
+                'urgency_level' => $urgencyLevel,
+                'requested_at' => $requestedAt,
+                'response_due_at' => $responseDueAt,
+                'resolution_due_at' => $resolutionDueAt,
+            ]);
+
+            $ticketId = (int) ($result['id'] ?? 0);
+            $created = (bool) ($result['created'] ?? false);
+
+            if ($created) {
+                $storedPaths = $this->attachments->storeValidated($validatedFiles, $ticketId, (int) ($viewer['id'] ?? 0));
+            }
+
+            $this->db->commit();
+        } catch (Throwable $exception) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            $this->attachments->deleteStoredFiles($storedPaths);
+            throw $exception;
+        }
+
+        if ($created) {
+            try {
+                $this->notifications->notifyTicketEvent($ticketId, 'ticket.created', (int) ($viewer['id'] ?? 0));
+            } catch (Throwable) {
+            }
         }
 
         return $ticketId;
+    }
+
+    public function getDuplicateFormData(int $ticketId, array $viewer): array
+    {
+        $ticket = $this->tickets->findVisibleTicketById($ticketId, $viewer);
+        if ($ticket === null || !$this->canDuplicateTicket($ticket, $viewer)) {
+            throw new DomainException('Ticket นี้ไม่สามารถใช้เปิดรายการใหม่ได้');
+        }
+
+        return $this->getCreateFormData($viewer, [], [
+            'source_ticket_id' => $ticketId,
+            'source_ticket_no' => (string) ($ticket['ticket_no'] ?? ''),
+            'title' => (string) ($ticket['title'] ?? ''),
+            'description' => (string) ($ticket['description'] ?? ''),
+            'priority_id' => (string) ($ticket['priority_id'] ?? ''),
+            'ticket_category_id' => (string) ($ticket['ticket_category_id'] ?? ''),
+            'location_id' => (string) ($ticket['location_id'] ?? ''),
+            'asset_id' => (string) ($ticket['asset_id'] ?? ''),
+            'impact_level' => (string) ($ticket['impact_level'] ?? 'medium'),
+            'urgency_level' => (string) ($ticket['urgency_level'] ?? 'medium'),
+        ]);
     }
 
     public function getTicketDetailData(int $ticketId, array $viewer, array $oldInput = []): ?array
@@ -250,9 +319,20 @@ class TicketService
 
         $includeInternal = (string) ($viewer['role'] ?? 'guest') !== 'requester';
 
+        $allAttachments = $this->attachments->getTicketAttachments($ticketId, $includeInternal);
+        $commentAttachments = [];
+        foreach ($allAttachments as $attachment) {
+            $commentAttachments[(int) ($attachment['comment_id'] ?? 0)][] = $attachment;
+        }
+
         return [
             'ticket' => $this->mapTicketDetail($ticket),
-            'comments' => array_map(fn (array $comment): array => $this->mapComment($comment, $viewer), $this->comments->getCommentsByTicketId($ticketId, $includeInternal)),
+            'attachments' => $commentAttachments[0] ?? [],
+            'comments' => array_map(function (array $comment) use ($viewer, $commentAttachments): array {
+                $mapped = $this->mapComment($comment, $viewer);
+                $mapped['attachments'] = $commentAttachments[(int) ($comment['id'] ?? 0)] ?? [];
+                return $mapped;
+            }, $this->comments->getCommentsByTicketId($ticketId, $includeInternal)),
             'activityLogs' => array_map(fn (array $log): array => $this->mapActivityLog($log), $this->tickets->getActivityLogsByTicketId($ticketId)),
             'workflow' => $this->buildWorkflowData($ticket, $viewer, $oldInput),
         ];
@@ -472,6 +552,37 @@ class TicketService
         $this->notifications->notifyTicketEvent($ticketId, 'ticket.completed', (int) ($viewer['id'] ?? 0));
     }
 
+    public function reopenTicket(int $ticketId, array $viewer, array $input): void
+    {
+        $ticket = $this->requireRequesterTicket($ticketId, $viewer);
+        if (!$this->canRequesterReopenTicket($ticket, $viewer)) {
+            throw new DomainException('รายการนี้ยังไม่พร้อมสำหรับการส่งกลับไปแก้งานซ้ำ');
+        }
+
+        $note = trim((string) ($input['reopen_note'] ?? ''));
+        if ($note === '') {
+            throw new DomainException('กรุณาระบุเหตุผลที่ต้องการให้ดำเนินการซ้ำ');
+        }
+
+        $reopenedAt = date('Y-m-d H:i:s');
+        $responseDueAt = $this->calculateReopenDueAt($ticket, 'response_due_at', $reopenedAt);
+        $resolutionDueAt = $this->calculateReopenDueAt($ticket, 'resolution_due_at', $reopenedAt);
+
+        $this->tickets->reopenTicket(
+            $ticketId,
+            (int) ($viewer['id'] ?? 0),
+            $note,
+            (string) ($ticket['status'] ?? ''),
+            $responseDueAt,
+            $resolutionDueAt
+        );
+
+        try {
+            $this->notifications->notifyTicketEvent($ticketId, 'ticket.reopened', (int) ($viewer['id'] ?? 0));
+        } catch (Throwable) {
+        }
+    }
+
     public function cancelTicket(int $ticketId, array $viewer, array $input): void
     {
         $ticket = $this->requireRequesterTicket($ticketId, $viewer);
@@ -592,7 +703,9 @@ class TicketService
         $canResolve = $technicianCanAct && $this->canResolveTechnicianWork($ticket, $viewer);
         $requesterCanAct = $this->canRequesterManageClosure($ticket, $viewer);
         $canComplete = $requesterCanAct && $this->canRequesterCompleteTicket($ticket, $viewer);
+        $canReopen = $requesterCanAct && $this->canRequesterReopenTicket($ticket, $viewer);
         $canCancel = $requesterCanAct && $this->canRequesterCancelTicket($ticket, $viewer);
+        $canDuplicate = $this->canDuplicateTicket($ticket, $viewer);
         $canComment = (int) ($viewer['id'] ?? 0) > 0;
         $canUseInternalComment = (string) ($viewer['role'] ?? 'guest') !== 'requester';
 
@@ -606,7 +719,9 @@ class TicketService
             'canResolve' => $canResolve,
             'requesterCanAct' => $requesterCanAct,
             'canComplete' => $canComplete,
+            'canReopen' => $canReopen,
             'canCancel' => $canCancel,
+            'canDuplicate' => $canDuplicate,
             'canComment' => $canComment,
             'canUseInternalComment' => $canUseInternalComment,
             'technicians' => array_map(fn (array $technician): array => [
@@ -640,6 +755,7 @@ class TicketService
                 'resolution_summary' => (string) ($oldInput['resolution_summary'] ?? (string) ($ticket['work_order_resolution_summary'] ?? '')),
                 'labor_minutes' => (string) ($oldInput['labor_minutes'] ?? (string) ((int) ($ticket['work_order_labor_minutes'] ?? 0))),
                 'closure_note' => (string) ($oldInput['closure_note'] ?? (string) ($ticket['closure_note'] ?? '')),
+                'reopen_note' => (string) ($oldInput['reopen_note'] ?? ''),
                 'cancel_note' => (string) ($oldInput['cancel_note'] ?? ''),
                 'score' => (string) ($oldInput['score'] ?? (string) ((int) ($ticket['rating_score'] ?? 0))),
                 'feedback' => (string) ($oldInput['feedback'] ?? (string) ($ticket['rating_feedback'] ?? '')),
@@ -836,6 +952,7 @@ class TicketService
         $fromDate = is_string($filters['from_date'] ?? null) ? trim((string) $filters['from_date']) : '';
         $toDate = is_string($filters['to_date'] ?? null) ? trim((string) $filters['to_date']) : '';
         $status = is_string($filters['status'] ?? null) ? trim((string) $filters['status']) : '';
+        $preset = is_string($filters['preset'] ?? null) ? trim((string) $filters['preset']) : '';
         $year = (int) ($filters['year'] ?? date('Y'));
 
         $allowedStatuses = [
@@ -867,6 +984,7 @@ class TicketService
             'category_id' => max(0, (int) ($filters['category_id'] ?? 0)),
             'status' => in_array($status, $allowedStatuses, true) ? $status : '',
             'year' => $year,
+            'preset' => in_array($preset, ['mine', 'overdue', 'pending_approval', 'today'], true) ? $preset : '',
         ];
 
         if ($normalized['from_date'] !== '') {
@@ -905,6 +1023,7 @@ class TicketService
                 'category_id' => (string) ($filters['category_id'] ?? ''),
                 'status' => (string) ($filters['status'] ?? ''),
                 'year' => (string) ($filters['year'] ?? date('Y')),
+                'preset' => (string) ($filters['preset'] ?? ''),
             ],
             'departmentOptions' => array_merge([
                 ['value' => '', 'label' => 'ทุกแผนก'],
@@ -946,7 +1065,7 @@ class TicketService
     {
         $count = 0;
 
-        foreach (['from_date', 'to_date', 'department_id', 'category_id', 'status'] as $key) {
+        foreach (['from_date', 'to_date', 'department_id', 'category_id', 'status', 'preset'] as $key) {
             $value = $filters[$key] ?? '';
             if (is_string($value) && trim($value) !== '') {
                 $count++;
@@ -1132,10 +1251,23 @@ class TicketService
             && (string) ($ticket['status'] ?? '') === 'resolved';
     }
 
+    private function canRequesterReopenTicket(array $ticket, array $viewer): bool
+    {
+        return $this->canRequesterManageClosure($ticket, $viewer)
+            && (string) ($ticket['approval_status'] ?? '') === 'approved'
+            && in_array((string) ($ticket['status'] ?? ''), ['resolved', 'completed'], true);
+    }
+
     private function canRequesterCancelTicket(array $ticket, array $viewer): bool
     {
         return $this->canRequesterManageClosure($ticket, $viewer)
             && in_array((string) ($ticket['status'] ?? ''), ['pending_approval', 'approved'], true);
+    }
+
+    private function canDuplicateTicket(array $ticket, array $viewer): bool
+    {
+        return $this->canRequesterManageClosure($ticket, $viewer)
+            && in_array((string) ($ticket['status'] ?? ''), ['completed', 'rejected', 'cancelled', 'closed'], true);
     }
 
     private function canManageComment(array $comment, array $viewer): bool
@@ -1157,6 +1289,21 @@ class TicketService
         }
 
         return ucwords(str_replace('_', ' ', $normalized));
+    }
+
+    private function calculateReopenDueAt(array $ticket, string $dueField, string $reopenedAt): string
+    {
+        $requestedAt = strtotime((string) ($ticket['requested_at'] ?? ''));
+        $currentDueAt = strtotime((string) ($ticket[$dueField] ?? ''));
+        $reopenedTimestamp = strtotime($reopenedAt) ?: time();
+
+        if ($requestedAt === false || $currentDueAt === false || $currentDueAt < $requestedAt) {
+            return date('Y-m-d H:i:s', $reopenedTimestamp);
+        }
+
+        $minutes = max(0, (int) ceil(($currentDueAt - $requestedAt) / 60));
+
+        return date('Y-m-d H:i:s', strtotime('+' . $minutes . ' minutes', $reopenedTimestamp) ?: $reopenedTimestamp);
     }
 
     private function submissionToken(string $token, bool $generateWhenMissing = true): string

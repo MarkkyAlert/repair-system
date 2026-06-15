@@ -20,6 +20,9 @@ if (!empty($workflow['canReview'])) {
 } elseif (!empty($workflow['canComplete'])) {
     $primaryCta = ['label' => 'ยืนยันปิดงาน + ให้คะแนน', 'icon' => 'star'];
     $primaryAnchor = '#action-complete';
+} elseif (!empty($workflow['canReopen'])) {
+    $primaryCta = ['label' => 'ขอแก้งานซ้ำ', 'icon' => 'rotate-ccw'];
+    $primaryAnchor = '#action-reopen';
 }
 ?>
 <section class="stack-lg">
@@ -36,6 +39,9 @@ if (!empty($workflow['canReview'])) {
         <div class="action-bar-right">
             <?= render_partial('partials/components/badge', ['label' => $ticket['priority_label'], 'tone' => $ticket['priority_tone']]) ?>
             <?= render_partial('partials/components/badge', ['label' => $ticket['status_label'], 'tone' => $ticket['status_tone']]) ?>
+            <?php if (!empty($workflow['canDuplicate'])): ?>
+                <?= render_partial('partials/components/button', ['label' => 'เปิด Ticket ใหม่จากรายการนี้', 'variant' => 'secondary', 'href' => '/tickets/' . $ticket['id'] . '/duplicate', 'icon' => 'copy']) ?>
+            <?php endif; ?>
             <?php if ($primaryCta): ?>
                 <a href="<?= e($primaryAnchor) ?>" class="btn btn-primary btn-md">
                     <?= lucide($primaryCta['icon'], 'button-icon') ?>
@@ -67,6 +73,16 @@ if (!empty($workflow['canReview'])) {
             </div>
         </div>
         <p class="body-text"><?= e($ticket['description']) ?></p>
+        <?php if (!empty($attachments)): ?>
+            <div class="attachment-grid" aria-label="รูปแนบ Ticket">
+                <?php foreach ($attachments as $attachment): ?>
+                    <a class="attachment-card" href="<?= e(url($attachment['url'])) ?>" target="_blank" rel="noopener">
+                        <img src="<?= e(url($attachment['url'])) ?>" alt="<?= e($attachment['name']) ?>">
+                        <span><?= e($attachment['name']) ?> · <?= e($attachment['size_label']) ?></span>
+                    </a>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
         <ol class="workflow-progress" aria-label="สถานะการดำเนินงาน">
             <?php $statusOrder = ['pending_approval','approved','assigned','accepted','in_progress','resolved','completed']; ?>
             <?php $currentIndex = array_search((string) ($ticket['status'] ?? ''), $statusOrder, true); ?>
@@ -370,11 +386,28 @@ if (!empty($workflow['canReview'])) {
                     </div>
                     <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ยืนยันปิดงานและส่งคะแนน', 'variant' => 'primary', 'icon' => 'star', 'iconPosition' => 'right']) ?>
                 </form>
-            <?php elseif (empty($workflow['canCancel'])): ?>
+            <?php endif; ?>
+
+            <?php if (!empty($workflow['canReopen'])): ?>
+                <form method="post" action="<?= e(url('/tickets/' . $ticket['id'] . '/reopen')) ?>" class="action-form action-form-warning" id="action-reopen">
+                    <?= csrf_field() ?>
+                    <div class="action-form-head">
+                        <span class="action-form-icon tone-warning"><?= lucide('rotate-ccw', 'h-5 w-5') ?></span>
+                        <div><h3>ขอแก้งานซ้ำ</h3><p>ส่งงานกลับไปให้ช่างดำเนินการต่อ โดยใช้ช่างคนเดิมและรีเซ็ต SLA ของรอบนี้</p></div>
+                    </div>
+                    <div class="field-group">
+                        <label for="reopen_note" class="field-label">เหตุผลที่ต้องการให้แก้ไขซ้ำ <span class="required">*</span></label>
+                        <textarea id="reopen_note" name="reopen_note" class="input" rows="3" required placeholder="เช่น ยังใช้งานไม่ได้ตามปกติ หรืออาการเดิมกลับมาอีกครั้ง"><?= e((string) ($workflow['defaults']['reopen_note'] ?? '')) ?></textarea>
+                    </div>
+                    <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ส่งกลับไปแก้งานซ้ำ', 'variant' => 'warning', 'icon' => 'rotate-ccw']) ?>
+                </form>
+            <?php endif; ?>
+
+            <?php if (empty($workflow['canComplete']) && empty($workflow['canReopen']) && empty($workflow['canCancel'])): ?>
                 <?= render_partial('partials/components/empty-state', [
                     'icon' => 'clipboard-list',
                     'title' => 'ยังไม่ถึงขั้นตอนของผู้แจ้ง',
-                    'description' => 'ระบบจะแสดงฟอร์มยืนยันผลการซ่อมเมื่อช่างสรุปงานเป็น Resolved แล้ว',
+                    'description' => 'ระบบจะแสดงฟอร์มยืนยันผลการซ่อมหรือขอแก้งานซ้ำเมื่อช่างสรุปงานเป็น Resolved แล้ว',
                 ]) ?>
             <?php endif; ?>
         </section>
@@ -424,12 +457,17 @@ if (!empty($workflow['canReview'])) {
                 <span class="badge badge-default"><?= e((string) count($comments)) ?> รายการ</span>
             </div>
             <?php if (!empty($workflow['canComment'])): ?>
-                <form method="post" action="<?= e(url('/tickets/' . $ticket['id'] . '/comments')) ?>" class="comment-form stack-md">
+                <form method="post" action="<?= e(url('/tickets/' . $ticket['id'] . '/comments')) ?>" class="comment-form stack-md" enctype="multipart/form-data">
                     <?= csrf_field() ?>
                     <input type="hidden" name="submission_token" value="<?= e((string) ($workflow['defaults']['comment_submission_token'] ?? '')) ?>">
                     <div class="field-group">
                         <label for="comment_body" class="field-label">เพิ่มความเห็น</label>
                         <textarea id="comment_body" name="body" class="input" rows="3" placeholder="พิมพ์ข้อมูลอัปเดต, คำถาม, หรือรายละเอียดเพิ่มเติม"><?= e((string) ($workflow['defaults']['comment_body'] ?? '')) ?></textarea>
+                    </div>
+                    <div class="field-group">
+                        <label for="comment_attachments" class="field-label">แนบรูปเพิ่มเติม</label>
+                        <input id="comment_attachments" name="attachments[]" type="file" class="input" accept="image/jpeg,image/png,image/webp" multiple>
+                        <p class="field-hint">สูงสุด 3 รูป รูปละไม่เกิน 5MB</p>
                     </div>
                     <div class="comment-form-actions">
                         <?php if (!empty($workflow['canUseInternalComment'])): ?>
@@ -462,6 +500,16 @@ if (!empty($workflow['canReview'])) {
                             </div>
                             <div data-comment-view<?= $isEditingComment && !empty($comment['can_manage']) ? ' hidden' : '' ?>>
                                 <p class="comment-copy" data-comment-body><?= e($comment['body']) ?></p>
+                                <?php if (!empty($comment['attachments'])): ?>
+                                    <div class="attachment-grid attachment-grid-compact">
+                                        <?php foreach ($comment['attachments'] as $attachment): ?>
+                                            <a class="attachment-card" href="<?= e(url($attachment['url'])) ?>" target="_blank" rel="noopener">
+                                                <img src="<?= e(url($attachment['url'])) ?>" alt="<?= e($attachment['name']) ?>">
+                                                <span><?= e($attachment['name']) ?></span>
+                                            </a>
+                                        <?php endforeach; ?>
+                                    </div>
+                                <?php endif; ?>
                                 <?php if (!empty($comment['can_manage'])): ?>
                                     <div class="button-row" style="margin-top:.7rem">
                                         <a href="<?= e(url('/tickets/' . $ticket['id'] . '?edit_comment=' . $comment['id'] . '#comment-' . $comment['id'])) ?>" class="btn btn-ghost btn-sm" data-comment-edit-toggle onclick="(function(trigger){const item=trigger.closest('[data-comment-item]');const thread=trigger.closest('[data-comment-thread]');if(!item){return;}if(thread){thread.querySelectorAll('[data-comment-item]').forEach((currentItem)=>{const currentView=currentItem.querySelector('[data-comment-view]');const currentPanel=currentItem.querySelector('[data-comment-edit-panel]');const currentError=currentItem.querySelector('[data-comment-edit-error]');if(currentView){currentView.hidden=false;}if(currentPanel){currentPanel.hidden=true;}if(currentError){currentError.textContent='';currentError.hidden=true;}});}const view=item.querySelector('[data-comment-view]');const panel=item.querySelector('[data-comment-edit-panel]');const textarea=item.querySelector('[data-comment-edit-textarea]');if(view){view.hidden=true;}if(panel){panel.hidden=false;}if(textarea){textarea.focus();const length=textarea.value.length;textarea.setSelectionRange(length,length);}})(this); return false;">

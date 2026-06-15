@@ -41,7 +41,8 @@ class NotificationService
     public function getNotificationPageData(array $viewer, array $filters = []): array
     {
         $userId = $this->requireViewerId($viewer);
-        $eventItems = $this->mapNotifications($this->notifications->getUserNotifications($userId, 50), $viewer);
+        $result = $this->notifications->getUserNotificationsPage($userId, max(1, (int) ($filters['page'] ?? 1)), 25);
+        $eventItems = $this->mapNotifications($result['items'], $viewer);
         $items = $this->aggregateNotifications($eventItems);
         $selectedFilter = $this->normalizeFilter((string) ($filters['filter'] ?? 'all'));
         $filteredItems = array_values(array_filter(
@@ -58,6 +59,7 @@ class NotificationService
             'groups' => $this->groupNotifications($filteredItems),
             'selectedFilter' => $selectedFilter,
             'filterOptions' => $this->buildFilterOptions($items, $selectedFilter),
+            'pagination' => $result,
         ];
     }
 
@@ -127,6 +129,11 @@ class NotificationService
             'ticket.completed' => [
                 'งานถูกยืนยันปิดแล้ว',
                 'Ticket ' . (string) ($context['ticket_no'] ?? '-') . ' ถูกผู้แจ้งยืนยันปิดงานเรียบร้อยแล้ว',
+                [(int) ($context['assigned_technician_id'] ?? 0), (int) ($context['assigned_manager_id'] ?? 0)],
+            ],
+            'ticket.reopened' => [
+                'มีการส่งงานกลับไปแก้ไขซ้ำ',
+                'Ticket ' . (string) ($context['ticket_no'] ?? '-') . ' ถูกผู้แจ้งส่งกลับไปดำเนินการซ้ำแล้ว',
                 [(int) ($context['assigned_technician_id'] ?? 0), (int) ($context['assigned_manager_id'] ?? 0)],
             ],
             'ticket.cancelled' => [

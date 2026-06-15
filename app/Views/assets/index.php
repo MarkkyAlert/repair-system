@@ -47,6 +47,7 @@
                     </article>
                 <?php endforeach; ?>
             </div>
+            <?= render_partial('partials/components/pagination', ['pagination' => $pagination]) ?>
         <?php endif; ?>
     </section>
 </section>

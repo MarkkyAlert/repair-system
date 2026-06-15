@@ -21,7 +21,7 @@ class TicketsController
         AuthMiddleware::handle();
 
         $viewer = auth()->user() ?? [];
-        $data = $this->tickets->getTicketIndexData($viewer);
+        $data = $this->tickets->getTicketIndexData($viewer, request()?->query ?? []);
 
         Response::view('tickets/index', [
             'title' => 'Tickets',
@@ -30,6 +30,8 @@ class TicketsController
             'metrics' => $data['metrics'],
             'tickets' => $data['tickets'],
             'roleLabel' => $data['roleLabel'],
+            'filters' => $data['filters'],
+            'pagination' => $data['pagination'],
         ]);
     }
 
@@ -59,7 +61,7 @@ class TicketsController
             csrf_validate();
             clear_old_input();
 
-            $ticketId = $this->tickets->createTicket($viewer, $_POST);
+            $ticketId = $this->tickets->createTicket($viewer, $_POST, $_FILES['attachments'] ?? []);
             flash('success', 'สร้างรายการแจ้งซ่อมเรียบร้อยแล้ว');
             Response::redirect('/tickets/' . $ticketId);
         } catch (DomainException|RuntimeException $exception) {
@@ -77,6 +79,27 @@ class TicketsController
             flash('error', $exception->getMessage());
             Response::redirect('/tickets/create');
         }
+    }
+
+    public function duplicate(string $ticketId): void
+    {
+        AuthMiddleware::handle();
+
+        $viewer = auth()->user() ?? [];
+        try {
+            $form = $this->tickets->getDuplicateFormData((int) $ticketId, $viewer);
+        } catch (DomainException $exception) {
+            flash('error', $exception->getMessage());
+            Response::redirect('/tickets/' . (int) $ticketId);
+        }
+
+        Response::view('tickets/create', [
+            'title' => 'Duplicate Ticket',
+            'pageHeading' => 'เปิด Ticket ใหม่จากรายการเดิม',
+            'currentUser' => $viewer,
+            'form' => $form,
+            'errorMessage' => flash_message('error'),
+        ]);
     }
 
     public function approve(string $ticketId): void
@@ -238,6 +261,28 @@ class TicketsController
         Response::redirect('/tickets/' . (int) $ticketId);
     }
 
+    public function reopen(string $ticketId): void
+    {
+        AuthMiddleware::handle();
+
+        $viewer = auth()->user() ?? [];
+
+        try {
+            csrf_validate();
+            clear_old_input();
+
+            $this->tickets->reopenTicket((int) $ticketId, $viewer, $_POST);
+            flash('success', 'ส่งงานกลับไปดำเนินการซ้ำเรียบร้อยแล้ว');
+        } catch (DomainException|RuntimeException $exception) {
+            with_old_input([
+                'reopen_note' => (string) ($_POST['reopen_note'] ?? ''),
+            ]);
+            flash('error', $exception->getMessage());
+        }
+
+        Response::redirect('/tickets/' . (int) $ticketId);
+    }
+
     public function cancel(string $ticketId): void
     {
         AuthMiddleware::handle();
@@ -282,6 +327,7 @@ class TicketsController
             'pageHeading' => 'รายละเอียด Ticket',
             'currentUser' => $viewer,
             'ticket' => $detail['ticket'],
+            'attachments' => $detail['attachments'],
             'comments' => $detail['comments'],
             'activityLogs' => $detail['activityLogs'],
             'workflow' => $detail['workflow'],

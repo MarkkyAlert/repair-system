@@ -1,28 +1,12 @@
 <?php
-$filters = $_GET ?? [];
-$qSearch = trim((string) ($filters['q'] ?? ''));
+$qSearch = (string) ($filters['q'] ?? '');
 $qStatus = (string) ($filters['status'] ?? '');
 $qPriority = (string) ($filters['priority'] ?? '');
-
-$filteredTickets = $tickets;
-if ($qSearch !== '') {
-    $needle = function_exists('mb_strtolower') ? mb_strtolower($qSearch) : strtolower($qSearch);
-    $filteredTickets = array_filter($filteredTickets, static function ($t) use ($needle): bool {
-        $hay = strtolower((string) ($t['ticket_no'] ?? '') . ' ' . (string) ($t['title'] ?? '') . ' ' . (string) ($t['requester_name'] ?? ''));
-        return str_contains($hay, $needle);
-    });
-}
-if ($qStatus !== '') {
-    $filteredTickets = array_filter($filteredTickets, static fn ($t) => (string) ($t['status'] ?? '') === $qStatus);
-}
-if ($qPriority !== '') {
-    $filteredTickets = array_filter($filteredTickets, static fn ($t) => (string) ($t['priority_code'] ?? $t['priority_label'] ?? '') === $qPriority);
-}
-$filteredTickets = array_values($filteredTickets);
+$qTechnician = (int) ($filters['technician_id'] ?? 0);
 ?>
 <section class="stack-lg">
     <?php ob_start(); ?>
-    <span class="badge badge-info"><?= e((string) count($filteredTickets)) ?> รายการ</span>
+    <span class="badge badge-info"><?= e((string) ($pagination['total'] ?? 0)) ?> รายการ</span>
     <?= render_partial('partials/components/button', ['label' => 'แจ้งปัญหาใหม่', 'variant' => 'primary', 'href' => '/tickets/create', 'icon' => 'plus']) ?>
     <?php $heroActions = (string) ob_get_clean(); ?>
     <?= render_partial('partials/components/page-header', [
@@ -69,27 +53,39 @@ $filteredTickets = array_values($filteredTickets);
     <section class="panel-card stack-md">
         <div class="panel-head">
             <h2 class="panel-title">คิวงานทั้งหมด</h2>
-            <span class="helper-text"><?= e((string) count($filteredTickets)) ?> รายการตรงตามตัวกรอง</span>
+            <span class="helper-text"><?= e((string) ($pagination['total'] ?? 0)) ?> รายการตรงตามตัวกรอง</span>
         </div>
 
         <form method="get" action="<?= e(url('/tickets')) ?>" class="filter-bar">
             <div class="filter-search">
                 <?= lucide('search', 'h-4 w-4') ?>
-                <input type="search" name="q" value="<?= e($qSearch) ?>" placeholder="ค้นหา ticket no, หัวข้อ, ผู้แจ้ง..." aria-label="ค้นหา ticket">
+                <input type="search" name="q" value="<?= e($qSearch) ?>" placeholder="ค้นหา Ticket No หรือหัวข้อ..." aria-label="ค้นหา ticket">
             </div>
             <select name="status" class="input" style="max-width:180px" aria-label="กรองตามสถานะ">
                 <option value="">ทุกสถานะ</option>
-                <?php foreach (['pending_approval' => 'รออนุมัติ', 'approved' => 'อนุมัติแล้ว', 'assigned' => 'มอบหมายแล้ว', 'in_progress' => 'กำลังดำเนินการ', 'resolved' => 'รอตรวจรับ', 'completed' => 'เสร็จสิ้น', 'rejected' => 'ปฏิเสธ'] as $val => $lab): ?>
+                <?php foreach (['submitted' => 'ส่งแล้ว', 'pending_approval' => 'รออนุมัติ', 'approved' => 'อนุมัติแล้ว', 'assigned' => 'มอบหมายแล้ว', 'accepted' => 'รับงานแล้ว', 'in_progress' => 'กำลังดำเนินการ', 'on_hold' => 'พักงาน', 'resolved' => 'รอตรวจรับ', 'completed' => 'เสร็จสิ้น', 'rejected' => 'ปฏิเสธ', 'cancelled' => 'ยกเลิก', 'closed' => 'ปิดงาน'] as $val => $lab): ?>
                     <option value="<?= e($val) ?>"<?= $qStatus === $val ? ' selected' : '' ?>><?= e($lab) ?></option>
                 <?php endforeach; ?>
             </select>
+            <select name="priority" class="input" style="max-width:160px" aria-label="กรองตาม Priority">
+                <option value="">ทุก Priority</option>
+                <?php foreach (['LOW' => 'Low', 'MEDIUM' => 'Medium', 'HIGH' => 'High', 'URGENT' => 'Urgent'] as $val => $lab): ?>
+                    <option value="<?= e($val) ?>"<?= $qPriority === $val ? ' selected' : '' ?>><?= e($lab) ?></option>
+                <?php endforeach; ?>
+            </select>
+            <select name="technician_id" class="input" style="max-width:200px" aria-label="กรองตามช่าง">
+                <option value="">ทุกช่าง</option>
+                <?php foreach (($filters['technicians'] ?? []) as $technician): ?>
+                    <option value="<?= e((string) $technician['id']) ?>"<?= $qTechnician === (int) $technician['id'] ? ' selected' : '' ?>><?= e($technician['label']) ?></option>
+                <?php endforeach; ?>
+            </select>
             <button type="submit" class="btn btn-secondary btn-md"><?= lucide('filter', 'button-icon') ?><span>กรอง</span></button>
-            <?php if ($qSearch !== '' || $qStatus !== '' || $qPriority !== ''): ?>
+            <?php if ($qSearch !== '' || $qStatus !== '' || $qPriority !== '' || $qTechnician > 0): ?>
                 <a href="<?= e(url('/tickets')) ?>" class="btn btn-ghost btn-md"><?= lucide('x', 'button-icon') ?><span>ล้าง</span></a>
             <?php endif; ?>
         </form>
 
-        <?php if ($filteredTickets === []): ?>
+        <?php if ($tickets === []): ?>
             <?= render_partial('partials/components/empty-state', [
                 'icon' => 'clipboard-list',
                 'title' => $qSearch !== '' || $qStatus !== '' ? 'ไม่พบรายการตามเงื่อนไข' : 'ยังไม่มีรายการ',
@@ -110,7 +106,7 @@ $filteredTickets = array_values($filteredTickets);
                     </tr>
                     </thead>
                     <tbody>
-                    <?php foreach ($filteredTickets as $ticket): ?>
+                    <?php foreach ($tickets as $ticket): ?>
                         <tr class="ticket-row<?= !empty($ticket['is_overdue']) ? ' overdue-row' : '' ?>" data-href="<?= e(url('/tickets/' . $ticket['id'])) ?>">
                             <td>
                                 <div class="ticket-row-title">
@@ -139,6 +135,7 @@ $filteredTickets = array_values($filteredTickets);
                     </tbody>
                 </table>
             </div>
+            <?= render_partial('partials/components/pagination', ['pagination' => $pagination]) ?>
         <?php endif; ?>
     </section>
 </section>

@@ -113,10 +113,12 @@ class EmailTemplateService
     public function buildPasswordReset(array $user, string $resetUrl, string $expiresAt): array
     {
         $appName = (string) setting('app_name', config('app.name', 'Repair System'));
+        $logoUrl = branding_logo_url();
         $subject = '[' . $appName . '] ลิงก์ตั้งรหัสผ่านใหม่';
         $expiresAtLabel = $this->formatDateTime($expiresAt);
         $html = View::capture('emails/html/password-reset', [
             'appName' => $appName,
+            'logoUrl' => $logoUrl,
             'recipientName' => (string) ($user['full_name'] ?? $user['email'] ?? 'ผู้ใช้งาน'),
             'resetUrl' => $resetUrl,
             'expiresAt' => $expiresAtLabel,
@@ -144,8 +146,10 @@ class EmailTemplateService
     private function renderNotificationTemplate(array $data): array
     {
         $appName = (string) setting('app_name', config('app.name', 'Repair System'));
+        $logoUrl = branding_logo_url();
         $html = View::capture('emails/html/notification', [
             'appName' => $appName,
+            'logoUrl' => $logoUrl,
             'recipientName' => $data['recipient_name'],
             'heading' => $data['heading'],
             'intro' => $data['intro'],

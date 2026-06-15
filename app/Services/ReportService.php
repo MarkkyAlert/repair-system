@@ -169,6 +169,41 @@ class ReportService
         }
     }
 
+    public function exportCsv(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+        $normalizedFilters = $this->normalizeReportFilters($filters);
+        $rows = array_map(fn (array $row): array => $this->mapReportRow($row), $this->reports->getRows($viewer, $normalizedFilters, null));
+        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'ticket_report', 'csv', $normalizedFilters);
+        $fileName = 'ticket-report-' . date('Ymd-His') . '.csv';
+
+        try {
+            $stream = fopen('php://temp', 'w+b');
+            if ($stream === false) {
+                throw new RuntimeException('ไม่สามารถเตรียมไฟล์ CSV ได้');
+            }
+            fwrite($stream, "\xEF\xBB\xBF");
+            fputcsv($stream, ['Ticket No', 'Title', 'Requester', 'Department', 'Category', 'Technician', 'Priority', 'Status', 'Requested At', 'Resolved At', 'Resolution Hours', 'เกิน SLA', 'SLA Status', 'Rating', 'Location']);
+            foreach ($rows as $row) {
+                fputcsv($stream, [
+                    $row['ticket_no'], $row['title'], $row['requester_name'], $row['department_name'],
+                    $row['category_name'], $row['technician_name'], $row['priority_label'], $row['status_label'],
+                    $row['requested_at'], $row['resolved_at'], $row['resolution_hours_label'],
+                    $row['sla_overdue_label'], $row['sla_label'], $row['rating_label'], $row['location_name'],
+                ]);
+            }
+            rewind($stream);
+            $content = (string) stream_get_contents($stream);
+            fclose($stream);
+            $this->reports->markExportJobCompleted($jobId, $fileName);
+
+            return ['content' => $content, 'file_name' => $fileName, 'content_type' => 'text/csv; charset=UTF-8'];
+        } catch (\Throwable $exception) {
+            $this->recordExportFailure($jobId, $exception);
+            throw new RuntimeException('ไม่สามารถสร้างไฟล์ CSV ได้', 0, $exception);
+        }
+    }
+
     private function recordExportFailure(int $jobId, \Throwable $exception): void
     {
         try {

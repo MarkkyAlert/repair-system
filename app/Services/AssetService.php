@@ -15,12 +15,15 @@ class AssetService
     {
     }
 
-    public function getAssetIndexData(array $viewer): array
+    public function getAssetIndexData(array $viewer, array $filters = []): array
     {
+        $result = $this->assets->getAssetListPage(max(1, (int) ($filters['page'] ?? 1)), 18);
+
         return [
             'roleLabel' => $this->labelize((string) ($viewer['role'] ?? 'guest')),
             'canManage' => $this->canManageAssets($viewer),
-            'assets' => array_map(fn (array $asset): array => $this->mapAssetSummary($asset), $this->assets->getAssetList()),
+            'assets' => array_map(fn (array $asset): array => $this->mapAssetSummary($asset), $result['items']),
+            'pagination' => $result,
         ];
     }
 

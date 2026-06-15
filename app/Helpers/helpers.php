@@ -151,6 +151,30 @@ function asset(string $path): string
     return $url;
 }
 
+function branding_logo_url(): ?string
+{
+    $relative = trim((string) setting('app_logo_path', ''));
+    if ($relative === '') {
+        return null;
+    }
+
+    $relative = ltrim($relative, '/');
+    $publicPath = __DIR__ . '/../../public/' . $relative;
+    if (is_file($publicPath)) {
+        $url = url($relative);
+        return $url . (str_contains($url, '?') ? '&' : '?') . 'v=' . filemtime($publicPath);
+    }
+
+    $storagePath = __DIR__ . '/../../' . $relative;
+    if (!is_file($storagePath)) {
+        return null;
+    }
+
+    $url = url('/branding/logo');
+
+    return $url . (str_contains($url, '?') ? '&' : '?') . 'v=' . filemtime($storagePath);
+}
+
 function request_path(): string
 {
     $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
@@ -299,6 +323,8 @@ function lucide(string $name, string $classes = 'icon'): string
         'activity' => '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
         'layers' => '<path d="m12 2 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5"/><path d="m3 17 9 5 9-5"/>',
         'chevrons-left' => '<path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/>',
+        'chevron-left' => '<path d="m15 18-6-6 6-6"/>',
+        'copy' => '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
         'log-out' => '<path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M21 19V5a2 2 0 0 0-2-2h-6"/>',
         'menu' => '<path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/>',
         'search' => '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',

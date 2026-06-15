@@ -4,6 +4,8 @@ declare(strict_types=1);
 use App\Controllers\AuthController;
 use App\Controllers\AdminController;
 use App\Controllers\AssetsController;
+use App\Controllers\AttachmentsController;
+use App\Controllers\BrandingController;
 use App\Controllers\CommentsController;
 use App\Controllers\DashboardController;
 use App\Controllers\NotificationsController;
@@ -24,6 +26,9 @@ return static function (Router $router): void {
     $router->post('/reset-password', [AuthController::class, 'resetPassword']);
     $router->get('/change-password', [AuthController::class, 'showChangePassword']);
     $router->post('/change-password', [AuthController::class, 'changePassword']);
+    $router->get('/profile', [AuthController::class, 'showProfile']);
+    $router->post('/profile', [AuthController::class, 'updateProfile']);
+    $router->get('/branding/logo', [BrandingController::class, 'showLogo']);
     $router->get('/dashboard', [DashboardController::class, 'index']);
     $router->get('/notifications', [NotificationsController::class, 'index']);
     $router->get('/notifications/feed', [NotificationsController::class, 'feed']);
@@ -36,9 +41,12 @@ return static function (Router $router): void {
     $router->post('/admin/departments/{departmentId}', [AdminController::class, 'updateDepartment']);
     $router->post('/admin/categories/{categoryId}', [AdminController::class, 'updateCategory']);
     $router->post('/admin/settings', [AdminController::class, 'updateSetting']);
+    $router->post('/admin/settings/logo', [AdminController::class, 'updateLogo']);
     $router->get('/reports', [ReportsController::class, 'index']);
     $router->get('/reports/export/excel', [ReportsController::class, 'exportExcel']);
     $router->get('/reports/export/pdf', [ReportsController::class, 'exportPdf']);
+    $router->get('/reports/export/csv', [ReportsController::class, 'exportCsv']);
+    $router->get('/attachments/{attachmentId}', [AttachmentsController::class, 'show']);
     $router->get('/assets', static fn () => Response::redirect('/asset-registry', 301));
     $router->get('/asset-registry', [AssetsController::class, 'index']);
     $router->get('/asset-registry/create', [AssetsController::class, 'create']);
@@ -53,6 +61,7 @@ return static function (Router $router): void {
     $router->get('/tickets', [TicketsController::class, 'index']);
     $router->get('/tickets/create', [TicketsController::class, 'create']);
     $router->post('/tickets', [TicketsController::class, 'store']);
+    $router->get('/tickets/{ticketId}/duplicate', [TicketsController::class, 'duplicate']);
     $router->post('/tickets/{ticketId}/approve', [TicketsController::class, 'approve']);
     $router->post('/tickets/{ticketId}/reject', [TicketsController::class, 'reject']);
     $router->post('/tickets/{ticketId}/assign', [TicketsController::class, 'assign']);
@@ -60,6 +69,7 @@ return static function (Router $router): void {
     $router->post('/tickets/{ticketId}/start', [TicketsController::class, 'start']);
     $router->post('/tickets/{ticketId}/resolve', [TicketsController::class, 'resolve']);
     $router->post('/tickets/{ticketId}/complete', [TicketsController::class, 'complete']);
+    $router->post('/tickets/{ticketId}/reopen', [TicketsController::class, 'reopen']);
     $router->post('/tickets/{ticketId}/cancel', [TicketsController::class, 'cancel']);
     $router->post('/tickets/{ticketId}/comments', [CommentsController::class, 'store']);
     $router->post('/tickets/{ticketId}/comments/{commentId}/update', [CommentsController::class, 'update']);

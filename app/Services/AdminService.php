@@ -161,6 +161,92 @@ class AdminService
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 'json', false, (int) ($viewer['id'] ?? 0));
     }
 
+    public function updateLogo(array $viewer, array $files, array $input): void
+    {
+        $this->assertAdmin($viewer);
+
+        $remove = in_array((string) ($input['remove_logo'] ?? '0'), ['1', 'true', 'on'], true);
+        if ($remove) {
+            $this->deleteCurrentLogo();
+            $this->settings->upsert('app_logo_path', '', 'string', true, (int) ($viewer['id'] ?? 0));
+            return;
+        }
+
+        $file = $files['logo'] ?? null;
+        if (!is_array($file) || (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+            throw new DomainException('กรุณาเลือกไฟล์โลโก้ที่จะอัปโหลด');
+        }
+
+        if ((int) ($file['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK || empty($file['tmp_name']) || !is_uploaded_file((string) $file['tmp_name'])) {
+            throw new DomainException('ไม่สามารถอ่านไฟล์โลโก้ได้ กรุณาลองใหม่');
+        }
+
+        if ((int) ($file['size'] ?? 0) > 1048576) {
+            throw new DomainException('ไฟล์โลโก้ต้องมีขนาดไม่เกิน 1MB');
+        }
+
+        $allowed = [
+            'image/png' => 'png',
+            'image/jpeg' => 'jpg',
+            'image/webp' => 'webp',
+            'image/svg+xml' => 'svg',
+        ];
+
+        $finfo = new \finfo(FILEINFO_MIME_TYPE);
+        $mime = (string) $finfo->file((string) $file['tmp_name']);
+        if (!isset($allowed[$mime])) {
+            throw new DomainException('รองรับเฉพาะไฟล์ PNG, JPEG, WebP หรือ SVG');
+        }
+
+        $extension = $allowed[$mime];
+        $relativeDirectory = 'storage/uploads/branding';
+        $absoluteDirectory = BASE_PATH . '/' . $relativeDirectory;
+        if (!is_dir($absoluteDirectory) && !mkdir($absoluteDirectory, 0775, true) && !is_dir($absoluteDirectory)) {
+            throw new \RuntimeException('ไม่สามารถสร้างโฟลเดอร์เก็บโลโก้ได้');
+        }
+
+        $storedName = 'logo-' . bin2hex(random_bytes(8)) . '.' . $extension;
+        $absolutePath = $absoluteDirectory . '/' . $storedName;
+        if (!move_uploaded_file((string) $file['tmp_name'], $absolutePath)) {
+            throw new \RuntimeException('ไม่สามารถบันทึกไฟล์โลโก้ได้');
+        }
+
+        $this->deleteCurrentLogo();
+
+        $relativeStoredPath = $relativeDirectory . '/' . $storedName;
+        $this->settings->upsert('app_logo_path', $relativeStoredPath, 'string', true, (int) ($viewer['id'] ?? 0));
+    }
+
+    private function deleteCurrentLogo(): void
+    {
+        $existing = $this->settings->getByKey('app_logo_path');
+        $existingPath = trim((string) ($existing['setting_value'] ?? ''));
+        if ($existingPath === '') {
+            return;
+        }
+
+        $relativePath = ltrim($existingPath, '/');
+        $storageRoot = realpath(BASE_PATH . '/storage/uploads/branding');
+        $publicRoot = realpath(BASE_PATH . '/public/uploads/branding');
+        $absoluteCandidates = [
+            BASE_PATH . '/' . $relativePath,
+            BASE_PATH . '/public/' . $relativePath,
+        ];
+
+        foreach ($absoluteCandidates as $absoluteCandidate) {
+            $absoluteReal = realpath($absoluteCandidate);
+            if ($absoluteReal === false || !is_file($absoluteReal)) {
+                continue;
+            }
+
+            if (($storageRoot !== false && str_starts_with($absoluteReal, $storageRoot))
+                || ($publicRoot !== false && str_starts_with($absoluteReal, $publicRoot))) {
+                @unlink($absoluteReal);
+                break;
+            }
+        }
+    }
+
     public function updateSetting(array $viewer, array $input): void
     {
         $this->assertAdmin($viewer);

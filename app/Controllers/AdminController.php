@@ -76,6 +76,13 @@ class AdminController
         });
     }
 
+    public function updateLogo(): void
+    {
+        $this->handleUpdate(function (array $viewer): void {
+            $this->admin->updateLogo($viewer, $_FILES, $_POST);
+        }, 'อัปเดตโลโก้องค์กรเรียบร้อยแล้ว');
+    }
+
     private function handleUpdate(callable $callback, string $successMessage = 'บันทึกข้อมูลเรียบร้อยแล้ว'): void
     {
         AuthMiddleware::handle();

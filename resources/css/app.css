@@ -3547,6 +3547,57 @@ code.mono, .mono {
   border: 0;
 }
 
+/* Pagination, presets and image attachments */
+.pagination, .preset-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: .45rem;
+  margin-top: 1rem;
+}
+.pagination-summary { margin-right: .4rem; color: var(--muted); font-size: .78rem; }
+.page-link, .preset-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.35rem;
+  min-height: 2.35rem;
+  padding: .45rem .7rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--muted-strong);
+  font-size: .8rem;
+  font-weight: 700;
+}
+.page-link:hover, .preset-chip:hover, .page-link.is-active, .preset-chip.is-active {
+  border-color: var(--indigo-500);
+  background: var(--indigo-600);
+  color: #fff;
+}
+.page-link.is-disabled { opacity: .4; pointer-events: none; }
+.preset-bar { justify-content: flex-start; margin-top: 0; }
+.attachment-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: .75rem;
+  margin-top: .8rem;
+}
+.attachment-grid-compact { grid-template-columns: repeat(auto-fill, minmax(110px, 150px)); }
+.attachment-card {
+  display: grid;
+  gap: .4rem;
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  background: var(--surface-muted);
+  color: var(--muted-strong);
+  font-size: .72rem;
+}
+.attachment-card img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; }
+.attachment-card span { overflow: hidden; padding: 0 .55rem .55rem; text-overflow: ellipsis; white-space: nowrap; }
+
 /* =========================================================================
    Print media
    ========================================================================= */

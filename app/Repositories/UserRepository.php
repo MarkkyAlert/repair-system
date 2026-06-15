@@ -89,4 +89,41 @@ class UserRepository
             'updated_at' => date('Y-m-d H:i:s'),
         ]);
     }
+
+    public function updateProfile(int $userId, array $data): bool
+    {
+        $stmt = $this->db->prepare(
+            'UPDATE users
+             SET full_name = :full_name,
+                 email = :email,
+                 phone = :phone,
+                 updated_at = :updated_at
+             WHERE id = :id
+             LIMIT 1'
+        );
+
+        return $stmt->execute([
+            'id' => $userId,
+            'full_name' => (string) ($data['full_name'] ?? ''),
+            'email' => (string) ($data['email'] ?? ''),
+            'phone' => (string) ($data['phone'] ?? ''),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+    }
+
+    public function emailExistsForOtherUser(string $email, int $excludeUserId): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT id
+             FROM users
+             WHERE email = :email AND id <> :id
+             LIMIT 1'
+        );
+        $stmt->execute([
+            'email' => $email,
+            'id' => $excludeUserId,
+        ]);
+
+        return (bool) $stmt->fetchColumn();
+    }
 }

@@ -1,4 +1,5 @@
 <?php $appName = (string) setting('app_name', config('app.name', 'Repair System')); ?>
+<?php $brandLogoUrl = branding_logo_url(); ?>
 <!DOCTYPE html>
 <html lang="th" class="h-full antialiased">
 <head>
@@ -42,7 +43,11 @@
 <div class="app-shell">
     <aside class="sidebar" id="app-sidebar">
         <div class="brand-block">
-            <div class="brand-mark" aria-hidden="true"><?= lucide('wrench', 'brand-icon') ?></div>
+            <?php if ($brandLogoUrl !== null): ?>
+                <div class="brand-mark brand-mark-logo" aria-hidden="true"><img src="<?= e($brandLogoUrl) ?>" alt="<?= e($appName) ?>" style="max-width:100%;max-height:100%;object-fit:contain;"></div>
+            <?php else: ?>
+                <div class="brand-mark" aria-hidden="true"><?= lucide('wrench', 'brand-icon') ?></div>
+            <?php endif; ?>
             <div class="brand-copy">
                 <p class="brand-title"><?= e($appName) ?></p>
                 <p class="brand-subtitle">Maintenance Operations</p>
@@ -103,7 +108,7 @@
                     <span class="theme-icon theme-icon-light"><?= lucide('sun', 'h-5 w-5') ?></span>
                     <span class="theme-icon theme-icon-dark"><?= lucide('moon', 'h-5 w-5') ?></span>
                 </button>
-                <a href="<?= e(url('/change-password')) ?>" class="user-chip" aria-label="เปลี่ยนรหัสผ่าน">
+                <a href="<?= e(url('/profile')) ?>" class="user-chip" aria-label="ข้อมูลบัญชีของฉัน">
                     <span class="user-chip-avatar"><?= e($viewerInitials) ?></span>
                     <div>
                         <p class="user-chip-name"><?= e($viewer['full_name'] ?? 'User') ?></p>

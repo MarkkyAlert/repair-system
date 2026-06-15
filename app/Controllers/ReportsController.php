@@ -75,4 +75,23 @@ class ReportsController
             Response::redirect('/reports');
         }
     }
+
+    public function exportCsv(): void
+    {
+        AuthMiddleware::handle();
+
+        $viewer = auth()->user() ?? [];
+
+        try {
+            $export = $this->reports->exportCsv($viewer, request()?->query ?? []);
+            Response::download(
+                (string) ($export['content'] ?? ''),
+                (string) ($export['file_name'] ?? 'report.csv'),
+                (string) ($export['content_type'] ?? 'text/csv; charset=UTF-8')
+            );
+        } catch (DomainException|RuntimeException $exception) {
+            flash('error', $exception->getMessage());
+            Response::redirect('/reports');
+        }
+    }
 }

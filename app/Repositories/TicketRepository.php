@@ -354,6 +354,55 @@ class TicketRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    public function getVisibleTicketsPage(array $viewer, array $filters, int $page, int $perPage): array
+    {
+        $params = [];
+        $conditions = [$this->visibilityClause($viewer, $params)];
+        $this->applyTicketIndexFilters($conditions, $filters, $params);
+        $whereClause = implode(' AND ', $conditions);
+        $perPage = max(1, min($perPage, 100));
+
+        $countStmt = $this->db->prepare(
+            "SELECT COUNT(*)
+             FROM tickets t
+             INNER JOIN priorities p ON p.id = t.priority_id
+             WHERE $whereClause"
+        );
+        $countStmt->execute($params);
+        $total = (int) ($countStmt->fetchColumn() ?: 0);
+        $totalPages = max(1, (int) ceil($total / $perPage));
+        $page = max(1, min($page, $totalPages));
+        $offset = ($page - 1) * $perPage;
+
+        $stmt = $this->db->prepare(
+            "SELECT
+                t.id, t.ticket_no, t.title, t.status, t.approval_status, t.channel,
+                t.requested_at, t.updated_at, t.first_response_at, t.response_due_at,
+                t.resolved_at, t.resolution_due_at,
+                p.code AS priority_code, p.name AS priority_name,
+                c.name AS category_name, l.name AS location_name,
+                requester.full_name AS requester_name, technician.full_name AS technician_name
+             FROM tickets t
+             INNER JOIN priorities p ON p.id = t.priority_id
+             INNER JOIN ticket_categories c ON c.id = t.ticket_category_id
+             INNER JOIN locations l ON l.id = t.location_id
+             INNER JOIN users requester ON requester.id = t.requester_id
+             LEFT JOIN users technician ON technician.id = t.assigned_technician_id
+             WHERE $whereClause
+             ORDER BY t.requested_at DESC, t.id DESC
+             LIMIT $perPage OFFSET $offset"
+        );
+        $stmt->execute($params);
+
+        return [
+            'items' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
+            'total' => $total,
+            'page' => $page,
+            'perPage' => $perPage,
+            'totalPages' => $totalPages,
+        ];
+    }
+
     public function getPendingOverdueSlaBreaches(): array
     {
         $stmt = $this->db->prepare(
@@ -464,6 +513,7 @@ class TicketRepository
 
         $approverId = $this->findDefaultApproverId();
         $numberLock = 'ticket-number-' . date('Ymd', strtotime($requestedAt) ?: time());
+        $startedTransaction = !$this->db->inTransaction();
 
         if ($approverId === null) {
             throw new RuntimeException('ไม่พบผู้อนุมัติเริ่มต้นในระบบ กรุณาตรวจสอบข้อมูลผู้ใช้งาน role manager หรือ admin');
@@ -471,7 +521,9 @@ class TicketRepository
 
         try {
             $this->acquireNamedLock($numberLock);
-            $this->db->beginTransaction();
+            if ($startedTransaction) {
+                $this->db->beginTransaction();
+            }
             $ticketNo = $this->generateNextTicketNumber($requestedAt);
 
             $ticketStmt = $this->db->prepare(
@@ -524,30 +576,45 @@ class TicketRepository
                  )'
             );
 
-            $ticketStmt->execute([
-                'ticket_no' => $ticketNo,
-                'submission_token' => $submissionToken,
-                'title' => $payload['title'],
-                'description' => $payload['description'],
-                'requester_id' => $payload['requester_id'],
-                'requester_department_id' => $payload['requester_department_id'],
-                'location_id' => $payload['location_id'],
-                'asset_id' => $payload['asset_id'],
-                'ticket_category_id' => $payload['ticket_category_id'],
-                'priority_id' => $payload['priority_id'],
-                'assigned_manager_id' => $approverId,
-                'assigned_technician_id' => null,
-                'approval_status' => 'pending',
-                'status' => 'pending_approval',
-                'channel' => 'web',
-                'impact_level' => $payload['impact_level'],
-                'urgency_level' => $payload['urgency_level'],
-                'requested_at' => $requestedAt,
-                'response_due_at' => $responseDueAt,
-                'resolution_due_at' => $resolutionDueAt,
-                'created_at' => $requestedAt,
-                'updated_at' => $requestedAt,
-            ]);
+            try {
+                $ticketStmt->execute([
+                    'ticket_no' => $ticketNo,
+                    'submission_token' => $submissionToken,
+                    'title' => $payload['title'],
+                    'description' => $payload['description'],
+                    'requester_id' => $payload['requester_id'],
+                    'requester_department_id' => $payload['requester_department_id'],
+                    'location_id' => $payload['location_id'],
+                    'asset_id' => $payload['asset_id'],
+                    'ticket_category_id' => $payload['ticket_category_id'],
+                    'priority_id' => $payload['priority_id'],
+                    'assigned_manager_id' => $approverId,
+                    'assigned_technician_id' => null,
+                    'approval_status' => 'pending',
+                    'status' => 'pending_approval',
+                    'channel' => 'web',
+                    'impact_level' => $payload['impact_level'],
+                    'urgency_level' => $payload['urgency_level'],
+                    'requested_at' => $requestedAt,
+                    'response_due_at' => $responseDueAt,
+                    'resolution_due_at' => $resolutionDueAt,
+                    'created_at' => $requestedAt,
+                    'updated_at' => $requestedAt,
+                ]);
+            } catch (Throwable $exception) {
+                if ($startedTransaction && $this->db->inTransaction()) {
+                    $this->db->rollBack();
+                }
+
+                if ($this->isSubmissionTokenConflict($exception, $submissionToken)) {
+                    $existingTicketId = $this->findTicketIdBySubmissionToken($submissionToken);
+                    if ($existingTicketId !== null) {
+                        return ['id' => $existingTicketId, 'created' => false];
+                    }
+                }
+
+                throw $exception;
+            }
 
             $ticketId = (int) $this->db->lastInsertId();
 
@@ -601,17 +668,14 @@ class TicketRepository
                 'created_at' => $requestedAt,
             ]);
 
-            $this->db->commit();
+            if ($startedTransaction) {
+                $this->db->commit();
+            }
 
             return ['id' => $ticketId, 'created' => true];
         } catch (Throwable $exception) {
-            if ($this->db->inTransaction()) {
+            if ($startedTransaction && $this->db->inTransaction()) {
                 $this->db->rollBack();
-            }
-
-            $existingTicketId = $this->findTicketIdBySubmissionToken($submissionToken);
-            if ($existingTicketId !== null) {
-                return ['id' => $existingTicketId, 'created' => false];
             }
 
             throw $exception;
@@ -1061,6 +1125,79 @@ class TicketRepository
         }
     }
 
+    public function reopenTicket(int $ticketId, int $actorId, string $note, string $currentStatus, string $responseDueAt, string $resolutionDueAt): void
+    {
+        $reopenedAt = date('Y-m-d H:i:s');
+
+        try {
+            $this->db->beginTransaction();
+            $this->lockTicketForTransition($ticketId, ['resolved', 'completed'], 'approved', 'requester_id', $actorId);
+
+            $ticketStmt = $this->db->prepare(
+                'UPDATE tickets
+                 SET status = :status,
+                     assigned_at = :assigned_at,
+                     first_response_at = NULL,
+                     started_at = NULL,
+                     resolved_at = NULL,
+                     completed_at = NULL,
+                     resolution_summary = NULL,
+                     closure_note = NULL,
+                     response_due_at = :response_due_at,
+                     resolution_due_at = :resolution_due_at,
+                     updated_at = :updated_at
+                 WHERE id = :ticket_id'
+            );
+            $ticketStmt->execute([
+                'status' => 'assigned',
+                'assigned_at' => $reopenedAt,
+                'response_due_at' => $responseDueAt,
+                'resolution_due_at' => $resolutionDueAt,
+                'updated_at' => $reopenedAt,
+                'ticket_id' => $ticketId,
+            ]);
+
+            $workOrderStmt = $this->db->prepare(
+                'UPDATE work_orders
+                 SET status = :status,
+                     assigned_at = :assigned_at,
+                     accepted_at = NULL,
+                     started_at = NULL,
+                     completed_at = NULL,
+                     diagnosis_summary = NULL,
+                     resolution_summary = NULL,
+                     labor_minutes = 0,
+                     updated_at = :updated_at
+                 WHERE ticket_id = :ticket_id'
+            );
+            $workOrderStmt->execute([
+                'status' => 'assigned',
+                'assigned_at' => $reopenedAt,
+                'updated_at' => $reopenedAt,
+                'ticket_id' => $ticketId,
+            ]);
+
+            if ($workOrderStmt->rowCount() === 0) {
+                throw new RuntimeException('ไม่พบ work order สำหรับ ticket นี้');
+            }
+
+            $ratingStmt = $this->db->prepare('DELETE FROM ticket_ratings WHERE ticket_id = :ticket_id');
+            $ratingStmt->execute(['ticket_id' => $ticketId]);
+
+            $this->resetSlaTrack($ticketId, 'response', $responseDueAt);
+            $this->resetSlaTrack($ticketId, 'resolution', $resolutionDueAt);
+            $this->insertActivityLog($ticketId, $actorId, 'ticket_reopened', $currentStatus, 'assigned', $note);
+
+            $this->db->commit();
+        } catch (Throwable $exception) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+
+            throw $exception;
+        }
+    }
+
     public function cancelTicket(int $ticketId, int $actorId, string $note, string $currentStatus): void
     {
         $cancelledAt = date('Y-m-d H:i:s');
@@ -1120,6 +1257,10 @@ class TicketRepository
                 t.title,
                 t.description,
                 t.requester_id,
+                t.location_id,
+                t.asset_id,
+                t.ticket_category_id,
+                t.priority_id,
                 t.status,
                 t.approval_status,
                 t.assigned_manager_id,
@@ -1363,6 +1504,19 @@ class TicketRepository
         return $ticketId !== false ? (int) $ticketId : null;
     }
 
+    private function isSubmissionTokenConflict(Throwable $exception, string $submissionToken): bool
+    {
+        if ($submissionToken === '' || !$exception instanceof \PDOException) {
+            return false;
+        }
+
+        if ((string) $exception->getCode() !== '23000') {
+            return false;
+        }
+
+        return $this->findTicketIdBySubmissionToken($submissionToken) !== null;
+    }
+
     private function acquireNamedLock(string $name): void
     {
         $stmt = $this->db->prepare('SELECT GET_LOCK(:name, 5)');
@@ -1513,6 +1667,24 @@ class TicketRepository
         ]);
     }
 
+    private function resetSlaTrack(int $ticketId, string $metricType, string $targetAt): void
+    {
+        $stmt = $this->db->prepare(
+            'UPDATE ticket_sla_tracks
+             SET target_at = :target_at,
+                 achieved_at = NULL,
+                 breached_at = NULL,
+                 status = :status
+             WHERE ticket_id = :ticket_id AND metric_type = :metric_type'
+        );
+        $stmt->execute([
+            'target_at' => $targetAt,
+            'status' => 'pending',
+            'ticket_id' => $ticketId,
+            'metric_type' => $metricType,
+        ]);
+    }
+
     private function applyDashboardFilters(array &$conditions, array $filters, array &$params): void
     {
         $fromDate = is_string($filters['from_datetime'] ?? null) ? trim((string) $filters['from_datetime']) : '';
@@ -1544,6 +1716,55 @@ class TicketRepository
         if ($status !== '') {
             $conditions[] = 't.status = :filter_status';
             $params['filter_status'] = $status;
+        }
+
+        $preset = (string) ($filters['preset'] ?? '');
+        $presetUserId = (int) ($filters['preset_user_id'] ?? 0);
+        $presetRole = (string) ($filters['preset_role'] ?? '');
+        if ($preset === 'mine' && $presetUserId > 0) {
+            if ($presetRole === 'technician') {
+                $conditions[] = 't.assigned_technician_id = :preset_user_id';
+            } elseif ($presetRole === 'manager') {
+                $conditions[] = 't.assigned_manager_id = :preset_user_id';
+            } else {
+                $conditions[] = 't.requester_id = :preset_user_id';
+            }
+            $params['preset_user_id'] = $presetUserId;
+        } elseif ($preset === 'overdue') {
+            $conditions[] = "t.status NOT IN ('resolved','completed','rejected','cancelled','closed')";
+            $conditions[] = "EXISTS (SELECT 1 FROM ticket_sla_tracks preset_ts WHERE preset_ts.ticket_id = t.id AND (preset_ts.status = 'breached' OR (preset_ts.status = 'pending' AND preset_ts.target_at < NOW())))";
+        } elseif ($preset === 'pending_approval') {
+            $conditions[] = "t.status = 'pending_approval' AND t.approval_status = 'pending'";
+        } elseif ($preset === 'today') {
+            $conditions[] = 't.requested_at >= :preset_today_start AND t.requested_at <= :preset_today_end';
+            $params['preset_today_start'] = date('Y-m-d 00:00:00');
+            $params['preset_today_end'] = date('Y-m-d 23:59:59');
+        }
+    }
+
+    private function applyTicketIndexFilters(array &$conditions, array $filters, array &$params): void
+    {
+        $search = trim((string) ($filters['q'] ?? ''));
+        $status = trim((string) ($filters['status'] ?? ''));
+        $priority = trim((string) ($filters['priority'] ?? ''));
+        $technicianId = (int) ($filters['technician_id'] ?? 0);
+
+        if ($search !== '') {
+            $conditions[] = '(t.ticket_no LIKE :ticket_no_search OR t.title LIKE :ticket_title_search)';
+            $params['ticket_no_search'] = '%' . $search . '%';
+            $params['ticket_title_search'] = '%' . $search . '%';
+        }
+        if ($status !== '') {
+            $conditions[] = 't.status = :ticket_status';
+            $params['ticket_status'] = $status;
+        }
+        if ($priority !== '') {
+            $conditions[] = 'p.code = :ticket_priority';
+            $params['ticket_priority'] = $priority;
+        }
+        if ($technicianId > 0) {
+            $conditions[] = 't.assigned_technician_id = :ticket_technician_id';
+            $params['ticket_technician_id'] = $technicianId;
         }
     }
 

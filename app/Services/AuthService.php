@@ -157,6 +157,49 @@ class AuthService
         $this->auth->refresh();
     }
 
+    public function updateProfile(array $viewer, array $input): array
+    {
+        $userId = (int) ($viewer['id'] ?? 0);
+        $user = $userId > 0 ? $this->users->findById($userId) : null;
+        if ($user === null) {
+            throw new DomainException('ไม่พบบัญชีผู้ใช้งาน');
+        }
+
+        $fullName = trim((string) ($input['full_name'] ?? ''));
+        $email = strtolower(trim((string) ($input['email'] ?? '')));
+        $phone = trim((string) ($input['phone'] ?? ''));
+
+        if ($fullName === '' || $email === '') {
+            throw new DomainException('กรุณากรอกชื่อ-นามสกุลและอีเมลให้ครบถ้วน');
+        }
+
+        if (mb_strlen($fullName) > 200) {
+            throw new DomainException('ชื่อ-นามสกุลยาวเกินกำหนด');
+        }
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            throw new DomainException('รูปแบบอีเมลไม่ถูกต้อง');
+        }
+
+        if ($phone !== '' && !preg_match('/^[0-9+\-() .]{4,30}$/', $phone)) {
+            throw new DomainException('รูปแบบเบอร์โทรไม่ถูกต้อง');
+        }
+
+        if ($this->users->emailExistsForOtherUser($email, $userId)) {
+            throw new DomainException('อีเมลนี้ถูกใช้โดยบัญชีอื่นแล้ว');
+        }
+
+        $this->users->updateProfile($userId, [
+            'full_name' => $fullName,
+            'email' => $email,
+            'phone' => $phone,
+        ]);
+
+        $this->auth->refresh();
+
+        return $this->auth->user() ?? [];
+    }
+
     private function limiterKey(string $login, string $ipAddress): string
     {
         $normalizedLogin = strtolower(trim($login));

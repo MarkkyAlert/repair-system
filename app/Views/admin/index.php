@@ -333,6 +333,40 @@
             </div>
         </div>
 
+        <?php $currentLogoUrl = branding_logo_url(); ?>
+        <div class="panel-card stack-md" style="background:rgba(99,102,241,.05);border:1px dashed rgba(99,102,241,.35)">
+            <div class="panel-head">
+                <div>
+                    <h3 class="panel-title" style="font-size:1rem">โลโก้องค์กร</h3>
+                    <p class="field-hint">รองรับ PNG, JPEG, WebP, SVG ขนาดไม่เกิน 1MB · จะแสดงในหัวเว็บ หน้า login และอีเมลแจ้งเตือน</p>
+                </div>
+                <?php if ($currentLogoUrl !== null): ?>
+                    <img src="<?= e($currentLogoUrl) ?>" alt="โลโก้ปัจจุบัน" style="height:48px;max-width:160px;object-fit:contain;background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:8px;padding:4px 8px;">
+                <?php else: ?>
+                    <span class="badge badge-default">ยังไม่ได้ตั้งค่า</span>
+                <?php endif; ?>
+            </div>
+            <form method="post" action="<?= e(url('/admin/settings/logo')) ?>" enctype="multipart/form-data" class="stack-md">
+                <?= csrf_field() ?>
+                <div class="field-group">
+                    <label class="field-label" for="logo">เลือกไฟล์โลโก้ใหม่</label>
+                    <input id="logo" class="input" type="file" name="logo" accept="image/png,image/jpeg,image/webp,image/svg+xml">
+                </div>
+                <div class="button-row">
+                    <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'อัปโหลดโลโก้', 'variant' => 'primary', 'icon' => 'upload']) ?>
+                </div>
+            </form>
+            <?php if ($currentLogoUrl !== null): ?>
+                <form method="post" action="<?= e(url('/admin/settings/logo')) ?>" class="stack-md">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="remove_logo" value="1">
+                    <div class="button-row">
+                        <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ลบโลโก้ปัจจุบัน', 'variant' => 'secondary', 'icon' => 'trash-2']) ?>
+                    </div>
+                </form>
+            <?php endif; ?>
+        </div>
+
         <details class="collapsible">
             <summary class="collapsible-summary">
                 <span class="metric-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide('plus', 'h-4 w-4') ?></span>

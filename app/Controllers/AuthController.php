@@ -196,4 +196,48 @@ class AuthController
 
         Response::redirect('/change-password');
     }
+
+    public function showProfile(): void
+    {
+        AuthMiddleware::handle();
+
+        $viewer = auth()->user() ?? [];
+        $oldInput = pull_old_input();
+
+        Response::view('auth/profile', [
+            'title' => 'ข้อมูลบัญชี',
+            'pageHeading' => 'ข้อมูลบัญชีของฉัน',
+            'currentUser' => $viewer,
+            'profile' => [
+                'full_name' => (string) ($oldInput['full_name'] ?? ($viewer['full_name'] ?? '')),
+                'email' => (string) ($oldInput['email'] ?? ($viewer['email'] ?? '')),
+                'phone' => (string) ($oldInput['phone'] ?? ($viewer['phone'] ?? '')),
+                'username' => (string) ($viewer['username'] ?? ''),
+                'role' => (string) ($viewer['role'] ?? 'guest'),
+            ],
+            'errorMessage' => flash_message('error'),
+            'successMessage' => flash_message('success'),
+        ]);
+    }
+
+    public function updateProfile(): void
+    {
+        AuthMiddleware::handle();
+
+        try {
+            csrf_validate();
+            $this->service->updateProfile(auth()->user() ?? [], $_POST);
+            clear_old_input();
+            flash('success', 'อัปเดตข้อมูลบัญชีเรียบร้อยแล้ว');
+        } catch (DomainException|RuntimeException $exception) {
+            with_old_input([
+                'full_name' => (string) ($_POST['full_name'] ?? ''),
+                'email' => (string) ($_POST['email'] ?? ''),
+                'phone' => (string) ($_POST['phone'] ?? ''),
+            ]);
+            flash('error', $exception->getMessage());
+        }
+
+        Response::redirect('/profile');
+    }
 }

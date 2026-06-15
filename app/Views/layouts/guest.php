@@ -1,4 +1,5 @@
 <?php $appName = (string) setting('app_name', config('app.name', 'Repair System')); ?>
+<?php $brandLogoUrl = branding_logo_url(); ?>
 <!DOCTYPE html>
 <html lang="th" class="h-full antialiased">
 <head>
@@ -22,6 +23,12 @@
 </head>
 <body class="guest-body">
     <main class="guest-shell">
+        <?php if ($brandLogoUrl !== null): ?>
+            <div class="guest-brand" style="display:flex;flex-direction:column;align-items:center;gap:8px;margin-bottom:24px">
+                <img src="<?= e($brandLogoUrl) ?>" alt="<?= e($appName) ?>" style="max-height:72px;max-width:240px;object-fit:contain;">
+                <p style="margin:0;font-weight:700;letter-spacing:.4px;color:#1c1554"><?= e($appName) ?></p>
+            </div>
+        <?php endif; ?>
         <?= $content ?>
     </main>
     <script src="<?= e(asset('js/app.js')) ?>" defer></script>

@@ -24,7 +24,7 @@ class CommentsController
         try {
             csrf_validate();
             clear_old_input();
-            $this->comments->createComment((int) $ticketId, $viewer, $_POST);
+            $this->comments->createComment((int) $ticketId, $viewer, $_POST, $_FILES['attachments'] ?? []);
             flash('success', 'บันทึก comment เรียบร้อยแล้ว');
         } catch (DomainException|RuntimeException $exception) {
             with_old_input([

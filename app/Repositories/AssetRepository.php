@@ -51,6 +51,42 @@ class AssetRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    public function getAssetListPage(int $page, int $perPage): array
+    {
+        $perPage = max(1, min($perPage, 100));
+        $total = (int) ($this->db->query('SELECT COUNT(*) FROM assets')->fetchColumn() ?: 0);
+        $totalPages = max(1, (int) ceil($total / $perPage));
+        $page = max(1, min($page, $totalPages));
+        $offset = ($page - 1) * $perPage;
+        $stmt = $this->db->query(
+            "SELECT
+                a.id, a.asset_code, a.name, a.serial_number, a.brand, a.model, a.status,
+                a.warranty_expires_at, ac.name AS category_name, l.name AS location_name,
+                l.building, l.room, d.name AS department_name, custodian.full_name AS custodian_name,
+                qr.token AS qr_token, qr.last_scanned_at
+             FROM assets a
+             INNER JOIN asset_categories ac ON ac.id = a.asset_category_id
+             INNER JOIN locations l ON l.id = a.location_id
+             LEFT JOIN departments d ON d.id = a.department_id
+             LEFT JOIN users custodian ON custodian.id = a.custodian_user_id
+             LEFT JOIN asset_qr_tokens qr ON qr.id = (
+                SELECT q.id FROM asset_qr_tokens q
+                WHERE q.asset_id = a.id AND q.is_active = 1
+                ORDER BY q.id DESC LIMIT 1
+             )
+             ORDER BY a.asset_code ASC, a.id ASC
+             LIMIT $perPage OFFSET $offset"
+        );
+
+        return [
+            'items' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
+            'total' => $total,
+            'page' => $page,
+            'perPage' => $perPage,
+            'totalPages' => $totalPages,
+        ];
+    }
+
     public function getAssetFormReferenceData(): array
     {
         $categories = $this->db->query(

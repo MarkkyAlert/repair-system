@@ -6,6 +6,8 @@ namespace App\Services;
 use App\Repositories\CommentRepository;
 use App\Repositories\TicketRepository;
 use DomainException;
+use PDO;
+use Throwable;
 
 class CommentService
 {
@@ -13,12 +15,15 @@ class CommentService
         private CommentRepository $comments,
         private TicketRepository $tickets,
         private NotificationService $notifications,
+        private AttachmentService $attachments,
+        private PDO $db,
     ) {
     }
 
-    public function createComment(int $ticketId, array $viewer, array $input): void
+    public function createComment(int $ticketId, array $viewer, array $input, array $files = []): void
     {
         $ticket = $this->requireVisibleTicket($ticketId, $viewer);
+        $validatedFiles = $this->attachments->validateUploads($files);
         $body = trim((string) ($input['body'] ?? ''));
         $isInternal = $this->parseInternalFlag($viewer, $input);
         $submissionToken = strtolower(trim((string) ($input['submission_token'] ?? '')));
@@ -31,16 +36,41 @@ class CommentService
             throw new DomainException('แบบฟอร์ม comment หมดอายุ กรุณารีเฟรชหน้าแล้วลองอีกครั้ง');
         }
 
-        $result = $this->comments->createComment(
-            $ticketId,
-            (int) ($viewer['id'] ?? 0),
-            $body,
-            $isInternal,
-            $submissionToken
-        );
+        $storedPaths = [];
+        $commentId = 0;
+        $created = false;
 
-        if ((bool) ($result['created'] ?? false)) {
-            $this->notifications->notifyCommentEvent($ticketId, (int) ($result['id'] ?? 0), (int) ($viewer['id'] ?? 0), $isInternal, $body, 'created');
+        try {
+            $this->db->beginTransaction();
+            $result = $this->comments->createComment(
+                $ticketId,
+                (int) ($viewer['id'] ?? 0),
+                $body,
+                $isInternal,
+                $submissionToken
+            );
+
+            $commentId = (int) ($result['id'] ?? 0);
+            $created = (bool) ($result['created'] ?? false);
+
+            if ($created) {
+                $storedPaths = $this->attachments->storeValidated($validatedFiles, $ticketId, (int) ($viewer['id'] ?? 0), $commentId);
+            }
+
+            $this->db->commit();
+        } catch (Throwable $exception) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            $this->attachments->deleteStoredFiles($storedPaths);
+            throw $exception;
+        }
+
+        if ($created) {
+            try {
+                $this->notifications->notifyCommentEvent($ticketId, $commentId, (int) ($viewer['id'] ?? 0), $isInternal, $body, 'created');
+            } catch (Throwable) {
+            }
         }
     }
 
@@ -72,6 +102,7 @@ class CommentService
         $this->requireVisibleTicket($ticketId, $viewer);
         $comment = $this->requireEditableComment($ticketId, $commentId, $viewer);
 
+        $this->attachments->deleteCommentFiles($commentId);
         $this->comments->deleteComment($commentId);
         $this->notifications->notifyCommentEvent(
             $ticketId,
@@ -117,14 +148,15 @@ class CommentService
 
     private function parseInternalFlag(array $viewer, array $input, bool $default = false): bool
     {
-        $isInternal = array_key_exists('is_internal', $input)
-            ? in_array((string) $input['is_internal'], ['1', 'true', 'on'], true)
-            : $default;
-
-        if ((string) ($viewer['role'] ?? 'guest') === 'requester') {
+        $role = (string) ($viewer['role'] ?? 'guest');
+        if (!in_array($role, ['manager', 'admin', 'technician'], true)) {
             return false;
         }
 
-        return $isInternal;
+        if (!array_key_exists('is_internal', $input)) {
+            return $default;
+        }
+
+        return in_array((string) $input['is_internal'], ['1', 'true', 'on', 'yes'], true);
     }
 }

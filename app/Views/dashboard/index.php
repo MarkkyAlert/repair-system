@@ -19,6 +19,13 @@ $chartPayload = [
         'actions' => $heroActions,
     ]) ?>
 
+    <nav class="preset-bar" aria-label="ตัวกรองลัด Dashboard">
+        <span class="helper-text">มุมมองด่วน</span>
+        <?php foreach (['mine' => 'งานของฉัน', 'overdue' => 'เกิน SLA', 'pending_approval' => 'รออนุมัติ', 'today' => 'วันนี้'] as $presetKey => $presetLabel): ?>
+            <a href="<?= e(url('/dashboard?preset=' . $presetKey)) ?>" class="preset-chip<?= (string) ($filterState['preset'] ?? '') === $presetKey ? ' is-active' : '' ?>"><?= e($presetLabel) ?></a>
+        <?php endforeach; ?>
+    </nav>
+
     <details class="collapsible" <?= ($filters['active_count'] ?? 0) > 0 ? 'open' : '' ?>>
         <summary class="collapsible-summary">
             <span class="metric-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide('filter', 'h-4 w-4') ?></span>
@@ -35,6 +42,9 @@ $chartPayload = [
         </summary>
         <div class="collapsible-body">
         <form method="get" action="<?= e(url('/dashboard')) ?>" class="stack-md">
+            <?php if ((string) ($filterState['preset'] ?? '') !== ''): ?>
+                <input type="hidden" name="preset" value="<?= e((string) $filterState['preset']) ?>">
+            <?php endif; ?>
             <div class="dashboard-filter-grid">
                 <div class="field-group">
                     <label for="from_date" class="field-label">วันที่เริ่มต้น</label>

@@ -20,7 +20,7 @@ class AssetsController
         AuthMiddleware::handle();
 
         $viewer = auth()->user() ?? [];
-        $data = $this->assets->getAssetIndexData($viewer);
+        $data = $this->assets->getAssetIndexData($viewer, request()?->query ?? []);
 
         Response::view('assets/index', [
             'title' => 'Assets & QR',
@@ -29,6 +29,7 @@ class AssetsController
             'assets' => $data['assets'],
             'roleLabel' => $data['roleLabel'],
             'canManage' => $data['canManage'],
+            'pagination' => $data['pagination'],
         ]);
     }
 

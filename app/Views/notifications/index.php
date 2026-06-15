@@ -1,6 +1,7 @@
 <?php
 $currentFilter = (string) ($selectedFilter ?? 'all');
-$returnTo = '/notifications' . ($currentFilter === 'all' ? '' : '?filter=' . rawurlencode($currentFilter));
+$returnQuery = $_GET ?? [];
+$returnTo = '/notifications' . ($returnQuery === [] ? '' : '?' . http_build_query($returnQuery));
 ?>
 <section class="stack-lg notification-page">
     <?php ob_start(); ?>
@@ -142,6 +143,7 @@ $returnTo = '/notifications' . ($currentFilter === 'all' ? '' : '?filter=' . raw
                     </section>
                 <?php endforeach; ?>
             </div>
+            <?= render_partial('partials/components/pagination', ['pagination' => $pagination]) ?>
         <?php endif; ?>
     </section>
 </section>

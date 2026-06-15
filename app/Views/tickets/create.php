@@ -6,6 +6,13 @@
         'actions' => render_partial('partials/components/button', ['label' => 'กลับหน้ารายการ', 'variant' => 'secondary', 'href' => '/tickets']),
     ]) ?>
 
+    <?php if (!empty($form['prefill']['source_ticket_id'])): ?>
+        <div class="auth-alert auth-alert-info">
+            <span class="auth-alert-icon"><?= lucide('copy', 'h-4 w-4') ?></span>
+            <p>กำลังเปิด Ticket ใหม่จาก <a href="<?= e(url('/tickets/' . (int) $form['prefill']['source_ticket_id'])) ?>"><strong><?= e((string) $form['prefill']['source_ticket_no']) ?></strong></a> โดยคัดลอกเฉพาะข้อมูลปัญหา</p>
+        </div>
+    <?php endif; ?>
+
     <div class="content-grid">
         <section class="panel-card stack-md">
             <div class="panel-head">
@@ -49,7 +56,7 @@
             </div>
         <?php endif; ?>
 
-        <form method="post" action="<?= e(url('/tickets')) ?>" class="stack-lg">
+        <form method="post" action="<?= e(url('/tickets')) ?>" class="stack-lg" enctype="multipart/form-data">
             <?= csrf_field() ?>
             <input type="hidden" name="submission_token" value="<?= e((string) ($form['defaults']['submission_token'] ?? '')) ?>">
 
@@ -129,6 +136,12 @@
                     </select>
                     <p class="field-hint">รอได้นานแค่ไหน? ยิ่งสูง = ต้องเข้าเร็ว</p>
                 </div>
+            </div>
+
+            <div class="field-group">
+                <label for="attachments" class="field-label">รูปอาการเสีย</label>
+                <input id="attachments" name="attachments[]" type="file" class="input" accept="image/jpeg,image/png,image/webp" multiple>
+                <p class="field-hint">รองรับ JPEG, PNG และ WebP สูงสุด 3 รูป รูปละไม่เกิน 5MB</p>
             </div>
 
             <div class="button-row">
