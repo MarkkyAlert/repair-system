@@ -357,6 +357,7 @@ CREATE TABLE ticket_sla_tracks (
     status ENUM('pending','met','breached') NOT NULL DEFAULT 'pending',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
+    UNIQUE KEY uq_ticket_sla_tracks_ticket_metric (ticket_id, metric_type),
     KEY idx_ticket_sla_tracks_ticket (ticket_id),
     KEY idx_ticket_sla_tracks_metric (metric_type, status),
     CONSTRAINT fk_ticket_sla_tracks_ticket FOREIGN KEY (ticket_id) REFERENCES tickets (id) ON DELETE CASCADE ON UPDATE CASCADE

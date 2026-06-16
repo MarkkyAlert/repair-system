@@ -72,7 +72,15 @@ class AssetService
             throw new DomainException('ไม่พบ asset ที่ต้องการแก้ไข');
         }
 
-        $this->assets->updateAsset($assetId, $this->validateAssetInput($input));
+        $originalUpdatedAt = trim((string) ($input['updated_at'] ?? ''));
+        if ($originalUpdatedAt === '') {
+            throw new DomainException('ข้อมูล Asset ไม่ครบถ้วน กรุณารีเฟรชหน้าแล้วลองอีกครั้ง');
+        }
+
+        $payload = $this->validateAssetInput($input);
+        $payload['original_updated_at'] = $originalUpdatedAt;
+
+        $this->assets->updateAsset($assetId, $payload);
     }
 
     public function regenerateQrToken(int $assetId, array $viewer): void
@@ -204,6 +212,7 @@ class AssetService
                 'warranty_expires_at' => (string) ($oldInput['warranty_expires_at'] ?? ($asset['warranty_expires_at'] ?? '')),
                 'status' => (string) ($oldInput['status'] ?? ($asset['status'] ?? 'active')),
                 'notes' => (string) ($oldInput['notes'] ?? ($asset['notes'] ?? '')),
+                'updated_at' => (string) ($oldInput['updated_at'] ?? ($asset['updated_at'] ?? '')),
             ],
         ];
     }

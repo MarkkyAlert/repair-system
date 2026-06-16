@@ -245,6 +245,7 @@ class TicketService
         $created = false;
 
         try {
+            // RISK MAP: Ticket insert + attachment rows/files must stay atomic; keep storedPaths cleanup with any rollback.
             $this->db->beginTransaction();
             $result = $this->tickets->createTicket([
                 'submission_token' => $submissionToken,
@@ -794,12 +795,29 @@ class TicketService
         return [
             'actor_name' => (string) ($log['actor_name'] ?? 'System'),
             'actor_role' => $this->labelize((string) ($log['actor_role'] ?? 'system')),
-            'action_label' => $this->labelize($action),
+            'action_label' => $this->activityActionLabel($action),
+            'action_tone' => $this->activityActionTone($action),
             'details' => (string) ($log['details'] ?? ''),
             'from_status' => $this->labelize((string) ($log['from_status'] ?? '')),
             'to_status' => $this->labelize((string) ($log['to_status'] ?? '')),
             'created_at' => $this->formatDateTime($log['created_at'] ?? null),
         ];
+    }
+
+    private function activityActionLabel(string $action): string
+    {
+        return match ($action) {
+            'ticket_reopened' => 'ขอแก้งานซ้ำ',
+            default => $this->labelize($action),
+        };
+    }
+
+    private function activityActionTone(string $action): string
+    {
+        return match ($action) {
+            'ticket_reopened' => 'warning',
+            default => 'default',
+        };
     }
 
     private function formatDateTime(mixed $value): string

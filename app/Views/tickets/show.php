@@ -570,7 +570,11 @@ if (!empty($workflow['canReview'])) {
                         <li class="timeline-item">
                             <span class="timeline-dot"></span>
                             <div class="timeline-content">
-                                <p class="timeline-action"><?= e($log['action_label']) ?></p>
+                                <?php if (($log['action_tone'] ?? 'default') !== 'default'): ?>
+                                    <p class="timeline-action"><?= render_partial('partials/components/badge', ['label' => $log['action_label'], 'tone' => $log['action_tone']]) ?></p>
+                                <?php else: ?>
+                                    <p class="timeline-action"><?= e($log['action_label']) ?></p>
+                                <?php endif; ?>
                                 <p class="helper-text"><?= e($log['actor_name']) ?> · <?= e($log['actor_role']) ?> · <?= e(human_date($log['created_at'])) ?></p>
                                 <?php if ($log['from_status'] !== '-' || $log['to_status'] !== '-'): ?>
                                     <p class="timeline-status"><code class="mono"><?= e($log['from_status']) ?></code> → <code class="mono"><?= e($log['to_status']) ?></code></p>

@@ -177,10 +177,6 @@ INSERT INTO ticket_comments (id, ticket_id, user_id, parent_id, body, is_interna
     (2, 2, 3, 1, 'รับงานแล้ว กำลังตรวจ uplink และสวิตช์ต้นทาง', 1, '2026-06-02 09:26:00', '2026-06-02 09:26:00'),
     (3, 3, 1, NULL, 'หลังซ่อมห้องประชุมกลับมาเย็นตามปกติ ขอบคุณครับ', 0, '2026-06-01 16:00:00', '2026-06-01 16:00:00');
 
-INSERT INTO ticket_attachments (id, ticket_id, comment_id, uploaded_by, original_name, stored_name, disk_path, mime_type, file_size, created_at) VALUES
-    (1, 1, NULL, 1, 'printer-error.jpg', '20260602_printer_error_1.jpg', 'uploads/tickets/20260602_printer_error_1.jpg', 'image/jpeg', 245312, NOW()),
-    (2, 2, 2, 3, 'router-log.txt', '20260602_router_log_1.txt', 'uploads/tickets/20260602_router_log_1.txt', 'text/plain', 18342, NOW());
-
 INSERT INTO ticket_activity_logs (id, ticket_id, actor_id, action, from_status, to_status, details, created_at) VALUES
     (1, 1, 1, 'ticket_submitted', NULL, 'pending_approval', 'ผู้แจ้งสร้างรายการแจ้งซ่อมผ่านหน้าเว็บ', '2026-06-02 08:30:00'),
     (2, 2, 2, 'ticket_approved', 'pending_approval', 'approved', 'หัวหน้างานอนุมัติงานด่วนเครือข่าย', '2026-06-02 09:12:00'),
@@ -190,10 +186,12 @@ INSERT INTO ticket_activity_logs (id, ticket_id, actor_id, action, from_status, 
     (6, 3, 1, 'ticket_completed', 'resolved', 'completed', 'ผู้แจ้งยืนยันผลการซ่อมและปิดงาน', '2026-06-01 15:30:00');
 
 INSERT INTO ticket_sla_tracks (id, ticket_id, metric_type, target_at, achieved_at, breached_at, status, created_at) VALUES
-    (1, 2, 'response', '2026-06-02 09:35:00', '2026-06-02 09:18:00', NULL, 'met', NOW()),
-    (2, 2, 'resolution', '2026-06-02 13:05:00', NULL, NULL, 'pending', NOW()),
-    (3, 3, 'response', '2026-06-01 15:10:00', '2026-06-01 13:32:00', NULL, 'met', NOW()),
-    (4, 3, 'resolution', '2026-06-01 21:10:00', '2026-06-01 15:10:00', NULL, 'met', NOW());
+    (1, 1, 'response', '2026-06-02 16:30:00', NULL, NULL, 'pending', NOW()),
+    (2, 1, 'resolution', '2026-06-03 08:30:00', NULL, NULL, 'pending', NOW()),
+    (3, 2, 'response', '2026-06-02 09:35:00', '2026-06-02 09:18:00', NULL, 'met', NOW()),
+    (4, 2, 'resolution', '2026-06-02 13:05:00', NULL, NULL, 'pending', NOW()),
+    (5, 3, 'response', '2026-06-01 15:10:00', '2026-06-01 13:32:00', NULL, 'met', NOW()),
+    (6, 3, 'resolution', '2026-06-01 21:10:00', '2026-06-01 15:10:00', NULL, 'met', NOW());
 
 INSERT INTO ticket_ratings (id, ticket_id, requester_id, technician_id, score, feedback, created_at, updated_at) VALUES
     (1, 3, 1, 3, 5, 'ช่างเข้าดำเนินการเร็ว อธิบายสาเหตุชัดเจน และงานเรียบร้อยมาก', NOW(), NOW());

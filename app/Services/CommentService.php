@@ -41,6 +41,7 @@ class CommentService
         $created = false;
 
         try {
+            // RISK MAP: Comment insert + attachment rows/files must stay atomic; keep storedPaths cleanup with any rollback.
             $this->db->beginTransaction();
             $result = $this->comments->createComment(
                 $ticketId,
@@ -102,8 +103,9 @@ class CommentService
         $this->requireVisibleTicket($ticketId, $viewer);
         $comment = $this->requireEditableComment($ticketId, $commentId, $viewer);
 
-        $this->attachments->deleteCommentFiles($commentId);
+        $paths = $this->attachments->getCommentFilePaths($commentId);
         $this->comments->deleteComment($commentId);
+        $this->attachments->deleteStoredFiles($paths);
         $this->notifications->notifyCommentEvent(
             $ticketId,
             $commentId,

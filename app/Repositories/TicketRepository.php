@@ -1641,17 +1641,18 @@ class TicketRepository
 
     private function markSlaAchieved(int $ticketId, string $metricType, string $achievedAt): void
     {
+        // RISK MAP: SLA status must be updated idempotently from the effective achieved timestamp.
         $stmt = $this->db->prepare(
             'UPDATE ticket_sla_tracks
              SET achieved_at = COALESCE(achieved_at, :achieved_at_value),
                  breached_at = CASE
-                     WHEN achieved_at IS NULL AND target_at < :achieved_at_compare THEN :breached_at_value
+                     WHEN COALESCE(achieved_at, :achieved_at_compare) > target_at
+                         THEN COALESCE(breached_at, COALESCE(achieved_at, :breached_at_value))
                      ELSE breached_at
                  END,
                  status = CASE
-                     WHEN achieved_at IS NULL AND target_at < :status_achieved_at_compare THEN :breached_status
-                     WHEN achieved_at IS NULL THEN :met_status
-                     ELSE status
+                     WHEN COALESCE(achieved_at, :status_achieved_at_compare) > target_at THEN :breached_status
+                     ELSE :met_status
                  END
              WHERE ticket_id = :ticket_id AND metric_type = :metric_type'
         );
@@ -1669,6 +1670,7 @@ class TicketRepository
 
     private function resetSlaTrack(int $ticketId, string $metricType, string $targetAt): void
     {
+        // RISK MAP: Reopen depends on existing response/resolution SLA rows; schema should enforce one row per metric.
         $stmt = $this->db->prepare(
             'UPDATE ticket_sla_tracks
              SET target_at = :target_at,

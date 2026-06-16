@@ -53,6 +53,11 @@ class EmailQueueService
 
     public function processDueEmails(?int $limit = null): array
     {
+        if (PHP_SAPI !== 'cli') {
+            throw new \RuntimeException('Email queue worker must be executed from CLI.');
+        }
+
+        // claimDueEmails handles row locking; this guard keeps the worker out of normal HTTP request paths.
         $limit = $limit ?? (int) config('mail.queue_batch_size', 10);
         $processingExpiredBefore = date('Y-m-d H:i:s', time() - max(60, (int) config('mail.processing_timeout_seconds', 900)));
         $jobs = $this->queue->claimDueEmails($limit, $processingExpiredBefore);

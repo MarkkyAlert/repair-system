@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Repositories;
 
+use DomainException;
 use PDO;
 use RuntimeException;
 use Throwable;
@@ -206,6 +207,7 @@ class AssetRepository
 
     public function updateAsset(int $assetId, array $payload): void
     {
+        // Optimistic lock: prevent one admin's stale edit form from overwriting another admin's newer asset update.
         $stmt = $this->db->prepare(
             'UPDATE assets
              SET asset_code = :asset_code,
@@ -223,7 +225,8 @@ class AssetRepository
                  status = :status,
                  notes = :notes,
                  updated_at = :updated_at
-             WHERE id = :asset_id'
+             WHERE id = :asset_id
+               AND updated_at = :original_updated_at'
         );
         $stmt->execute([
             'asset_code' => $payload['asset_code'],
@@ -242,11 +245,24 @@ class AssetRepository
             'notes' => $payload['notes'] ?: null,
             'updated_at' => date('Y-m-d H:i:s'),
             'asset_id' => $assetId,
+            'original_updated_at' => (string) ($payload['original_updated_at'] ?? ''),
         ]);
+
+        if ($stmt->rowCount() > 0) {
+            return;
+        }
+
+        $currentStmt = $this->db->prepare('SELECT updated_at FROM assets WHERE id = :asset_id LIMIT 1');
+        $currentStmt->execute(['asset_id' => $assetId]);
+        $currentUpdatedAt = $currentStmt->fetchColumn();
+        if ($currentUpdatedAt === false || (string) $currentUpdatedAt !== (string) ($payload['original_updated_at'] ?? '')) {
+            throw new DomainException('ข้อมูล Asset ถูกแก้ไขโดยผู้ใช้อื่นแล้ว กรุณารีเฟรชหน้าแล้วลองอีกครั้ง');
+        }
     }
 
     public function regenerateQrToken(int $assetId, ?int $generatedBy = null): string
     {
+        // RISK MAP: Keep deactivate+insert in one transaction; consider an active-token constraint for stronger safety.
         $createdAt = date('Y-m-d H:i:s');
         $token = $this->generateUniqueQrToken();
 

@@ -18,6 +18,7 @@
 
         <form method="post" action="<?= e(url('/asset-registry/' . (int) $assetId)) ?>" class="stack-lg">
             <?= csrf_field() ?>
+            <input type="hidden" name="updated_at" value="<?= e((string) ($form['defaults']['updated_at'] ?? '')) ?>">
 
             <div class="content-grid">
                 <div class="field-group">

@@ -144,12 +144,15 @@ class AttachmentService
 
     public function deleteCommentFiles(int $commentId): void
     {
-        foreach ($this->attachments->getByCommentId($commentId) as $attachment) {
-            $path = BASE_PATH . '/' . ltrim((string) $attachment['disk_path'], '/');
-            if (is_file($path)) {
-                @unlink($path);
-            }
-        }
+        $this->deleteStoredFiles($this->getCommentFilePaths($commentId));
+    }
+
+    public function getCommentFilePaths(int $commentId): array
+    {
+        return array_values(array_filter(array_map(
+            static fn (array $attachment): string => (string) ($attachment['disk_path'] ?? ''),
+            $this->attachments->getByCommentId($commentId)
+        ), static fn (string $path): bool => trim($path) !== ''));
     }
 
     private function normalizeFiles(array $files): array

@@ -24,6 +24,7 @@ class SettingsRepository
 
     public function upsert(string $key, ?string $value, string $type, bool $isPublic, int $updatedBy): void
     {
+        // RISK MAP: Check-then-insert relies on uq_system_settings_key; catch duplicate-key if concurrent writes increase.
         $existing = $this->getByKey($key);
         $now = date('Y-m-d H:i:s');
 

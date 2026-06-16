@@ -47,6 +47,7 @@ class ReportService
 
         $normalizedFilters = $this->normalizeReportFilters($filters);
         $rows = array_map(fn (array $row): array => $this->mapReportRow($row), $this->reports->getRows($viewer, $normalizedFilters, null));
+        // RISK MAP: Export is triggered by GET but creates an export job; add throttling/idempotency if exports become heavy.
         $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'ticket_report', 'xlsx', $normalizedFilters);
         $fileName = 'ticket-report-' . date('Ymd-His') . '.xlsx';
 
@@ -82,7 +83,7 @@ class ReportService
 
             $rowNumber = 2;
             foreach ($rows as $row) {
-                $sheet->fromArray([
+                $sheet->fromArray($this->sanitizeExportRow([
                     $row['ticket_no'],
                     $row['title'],
                     $row['requester_name'],
@@ -98,7 +99,7 @@ class ReportService
                     $row['sla_label'],
                     $row['rating_label'],
                     $row['location_name'],
-                ], null, 'A' . $rowNumber);
+                ]), null, 'A' . $rowNumber);
                 $rowNumber++;
             }
 
@@ -129,6 +130,7 @@ class ReportService
         $normalizedFilters = $this->normalizeReportFilters($filters);
         $rows = array_map(fn (array $row): array => $this->mapReportRow($row), $this->reports->getRows($viewer, $normalizedFilters, null));
         $summary = $this->reports->getSummary($viewer, $normalizedFilters);
+        // RISK MAP: Export is triggered by GET but creates an export job; add throttling/idempotency if exports become heavy.
         $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'ticket_report', 'pdf', $normalizedFilters);
         $fileName = 'ticket-report-' . date('Ymd-His') . '.pdf';
 
@@ -174,6 +176,7 @@ class ReportService
         $this->ensureCanViewReports($viewer);
         $normalizedFilters = $this->normalizeReportFilters($filters);
         $rows = array_map(fn (array $row): array => $this->mapReportRow($row), $this->reports->getRows($viewer, $normalizedFilters, null));
+        // RISK MAP: Export is triggered by GET but creates an export job; add throttling/idempotency if exports become heavy.
         $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'ticket_report', 'csv', $normalizedFilters);
         $fileName = 'ticket-report-' . date('Ymd-His') . '.csv';
 
@@ -185,12 +188,12 @@ class ReportService
             fwrite($stream, "\xEF\xBB\xBF");
             fputcsv($stream, ['Ticket No', 'Title', 'Requester', 'Department', 'Category', 'Technician', 'Priority', 'Status', 'Requested At', 'Resolved At', 'Resolution Hours', 'เกิน SLA', 'SLA Status', 'Rating', 'Location']);
             foreach ($rows as $row) {
-                fputcsv($stream, [
+                fputcsv($stream, $this->sanitizeExportRow([
                     $row['ticket_no'], $row['title'], $row['requester_name'], $row['department_name'],
                     $row['category_name'], $row['technician_name'], $row['priority_label'], $row['status_label'],
                     $row['requested_at'], $row['resolved_at'], $row['resolution_hours_label'],
                     $row['sla_overdue_label'], $row['sla_label'], $row['rating_label'], $row['location_name'],
-                ]);
+                ]));
             }
             rewind($stream);
             $content = (string) stream_get_contents($stream);
@@ -211,6 +214,23 @@ class ReportService
         } catch (\Throwable) {
             // Preserve the original export error if failure logging also fails.
         }
+    }
+
+    private function sanitizeExportRow(array $values): array
+    {
+        return array_map(fn (mixed $value): string => $this->sanitizeExportCell($value), $values);
+    }
+
+    private function sanitizeExportCell(mixed $value): string
+    {
+        $cell = (string) $value;
+        $trimmed = ltrim($cell);
+
+        if ($trimmed !== '' && in_array($trimmed[0], ['=', '+', '-', '@'], true)) {
+            return "'" . $cell;
+        }
+
+        return $cell;
     }
 
     private function ensureCanViewReports(array $viewer): void

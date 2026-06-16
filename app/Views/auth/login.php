@@ -1,8 +1,14 @@
+<?php $authLogoUrl = branding_logo_url(); ?>
+<?php $authAppName = (string) setting('app_name', config('app.name', 'Repair System')); ?>
 <section class="guest-panel">
     <div class="guest-brand">
-        <div class="brand-mark" aria-hidden="true"><?= lucide("wrench", "brand-icon") ?></div>
+        <?php if ($authLogoUrl !== null): ?>
+            <div class="brand-mark brand-mark-logo" aria-hidden="true"><img src="<?= e($authLogoUrl) ?>" alt="<?= e($authAppName) ?>" style="max-width:100%;max-height:100%;object-fit:contain;"></div>
+        <?php else: ?>
+            <div class="brand-mark" aria-hidden="true"><?= lucide("wrench", "brand-icon") ?></div>
+        <?php endif; ?>
         <div>
-            <p class="brand-title"><?= e((string) setting('app_name', config('app.name', 'Repair System'))) ?></p>
+            <p class="brand-title"><?= e($authAppName) ?></p>
             <p class="brand-subtitle">Maintenance Operations</p>
         </div>
     </div>

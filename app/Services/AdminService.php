@@ -6,6 +6,7 @@ namespace App\Services;
 use App\Repositories\AdminRepository;
 use App\Repositories\SettingsRepository;
 use DomainException;
+use Throwable;
 
 class AdminService
 {
@@ -167,8 +168,9 @@ class AdminService
 
         $remove = in_array((string) ($input['remove_logo'] ?? '0'), ['1', 'true', 'on'], true);
         if ($remove) {
-            $this->deleteCurrentLogo();
+            $currentLogoPath = $this->currentLogoFilePath();
             $this->settings->upsert('app_logo_path', '', 'string', true, (int) ($viewer['id'] ?? 0));
+            $this->deleteLogoFile($currentLogoPath);
             return;
         }
 
@@ -198,6 +200,7 @@ class AdminService
             throw new DomainException('รองรับเฉพาะไฟล์ PNG, JPEG, WebP หรือ SVG');
         }
 
+        // RISK MAP: SVG uploads can carry active content if ever rendered inline; keep serving only as an image asset.
         $extension = $allowed[$mime];
         $relativeDirectory = 'storage/uploads/branding';
         $absoluteDirectory = BASE_PATH . '/' . $relativeDirectory;
@@ -211,18 +214,29 @@ class AdminService
             throw new \RuntimeException('ไม่สามารถบันทึกไฟล์โลโก้ได้');
         }
 
-        $this->deleteCurrentLogo();
-
+        $currentLogoPath = $this->currentLogoFilePath();
         $relativeStoredPath = $relativeDirectory . '/' . $storedName;
-        $this->settings->upsert('app_logo_path', $relativeStoredPath, 'string', true, (int) ($viewer['id'] ?? 0));
+        try {
+            $this->settings->upsert('app_logo_path', $relativeStoredPath, 'string', true, (int) ($viewer['id'] ?? 0));
+        } catch (Throwable $exception) {
+            $this->deleteLogoFile($absolutePath);
+            throw $exception;
+        }
+
+        $this->deleteLogoFile($currentLogoPath);
     }
 
     private function deleteCurrentLogo(): void
     {
+        $this->deleteLogoFile($this->currentLogoFilePath());
+    }
+
+    private function currentLogoFilePath(): ?string
+    {
         $existing = $this->settings->getByKey('app_logo_path');
         $existingPath = trim((string) ($existing['setting_value'] ?? ''));
         if ($existingPath === '') {
-            return;
+            return null;
         }
 
         $relativePath = ltrim($existingPath, '/');
@@ -241,9 +255,17 @@ class AdminService
 
             if (($storageRoot !== false && str_starts_with($absoluteReal, $storageRoot))
                 || ($publicRoot !== false && str_starts_with($absoluteReal, $publicRoot))) {
-                @unlink($absoluteReal);
-                break;
+                return $absoluteReal;
             }
+        }
+
+        return null;
+    }
+
+    private function deleteLogoFile(?string $path): void
+    {
+        if ($path !== null && is_file($path)) {
+            @unlink($path);
         }
     }
 

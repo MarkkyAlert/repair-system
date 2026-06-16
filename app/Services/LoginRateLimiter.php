@@ -81,6 +81,7 @@ class LoginRateLimiter
             mkdir($directory, 0775, true);
         }
 
+        // RISK MAP: If storage is not writable, login throttling silently degrades; deployment must verify permissions.
         $handle = fopen($this->filePath, 'c+');
         if ($handle === false) {
             return;
