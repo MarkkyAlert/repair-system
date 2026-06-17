@@ -9,14 +9,24 @@
     <div class="stat-grid">
         <?= render_partial('partials/components/card', ['title' => 'ผู้ใช้งาน', 'value' => (string) count($users ?? []), 'meta' => 'บัญชีทั้งหมดในระบบ', 'tone' => 'default', 'icon' => 'users']) ?>
         <?= render_partial('partials/components/card', ['title' => 'แผนก', 'value' => (string) count($departments ?? []), 'meta' => 'หน่วยงานในองค์กร', 'tone' => 'info', 'icon' => 'building']) ?>
+        <?= render_partial('partials/components/card', ['title' => 'สถานที่', 'value' => (string) count($locations ?? []), 'meta' => 'จุดติดตั้ง/แจ้งซ่อม', 'tone' => 'info', 'icon' => 'map-pin']) ?>
+        <?= render_partial('partials/components/card', ['title' => 'Priority/SLA', 'value' => (string) count($priorities ?? []), 'meta' => 'ระดับความเร่งด่วน', 'tone' => 'danger', 'icon' => 'clock']) ?>
         <?= render_partial('partials/components/card', ['title' => 'หมวดหมู่งาน', 'value' => (string) count($categories ?? []), 'meta' => 'ประเภทของ ticket', 'tone' => 'warning', 'icon' => 'tag']) ?>
+        <?= render_partial('partials/components/card', ['title' => 'หมวดหมู่ Asset', 'value' => (string) count($assetCategories ?? []), 'meta' => 'ประเภททรัพย์สิน', 'tone' => 'default', 'icon' => 'layers']) ?>
         <?= render_partial('partials/components/card', ['title' => 'การตั้งค่า', 'value' => (string) count($settings ?? []), 'meta' => 'system settings', 'tone' => 'success', 'icon' => 'settings']) ?>
+        <?= render_partial('partials/components/card', ['title' => 'Audit Log', 'value' => (string) (int) (($auditLogs['total'] ?? 0)), 'meta' => 'admin actions', 'tone' => 'info', 'icon' => 'file-text']) ?>
     </div>
 
     <nav class="admin-tabs" aria-label="หมวดการตั้งค่า">
         <a href="#tab-users" class="admin-tab is-active"><?= lucide('users', 'h-4 w-4') ?><span>ผู้ใช้งาน</span></a>
         <a href="#tab-departments" class="admin-tab"><?= lucide('building', 'h-4 w-4') ?><span>แผนก</span></a>
-        <a href="#tab-categories" class="admin-tab"><?= lucide('tag', 'h-4 w-4') ?><span>หมวดหมู่</span></a>
+        <a href="#tab-locations" class="admin-tab"><?= lucide('map-pin', 'h-4 w-4') ?><span>สถานที่</span></a>
+        <a href="#tab-priorities" class="admin-tab"><?= lucide('clock', 'h-4 w-4') ?><span>Priority/SLA</span></a>
+        <a href="#tab-categories" class="admin-tab"><?= lucide('tag', 'h-4 w-4') ?><span>หมวดหมู่งาน</span></a>
+        <a href="#tab-asset-categories" class="admin-tab"><?= lucide('layers', 'h-4 w-4') ?><span>หมวดหมู่ Asset</span></a>
+        <a href="#tab-roles" class="admin-tab"><?= lucide('shield-check', 'h-4 w-4') ?><span>สิทธิ์ตาม Role</span></a>
+        <a href="#tab-audit" class="admin-tab"><?= lucide('file-text', 'h-4 w-4') ?><span>Audit Log</span></a>
+        <a href="#tab-email" class="admin-tab"><?= lucide('send', 'h-4 w-4') ?><span>Email</span></a>
         <a href="#tab-settings" class="admin-tab"><?= lucide('settings', 'h-4 w-4') ?><span>การตั้งค่า</span></a>
     </nav>
 
@@ -190,6 +200,42 @@
             <h2 class="panel-title">จัดการแผนก</h2>
             <span class="badge badge-info"><?= e((string) count($departments ?? [])) ?> รายการ</span>
         </div>
+        <details class="collapsible">
+            <summary class="collapsible-summary">
+                <span class="metric-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide('plus', 'h-4 w-4') ?></span>
+                <div class="collapsible-summary-main">
+                    <span class="collapsible-title">เพิ่มแผนกใหม่</span>
+                    <span class="collapsible-subtitle">สร้างหน่วยงานสำหรับผูกกับผู้ใช้, Asset และรายงาน</span>
+                </div>
+                <span class="collapsible-chevron"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
+            </summary>
+            <div class="collapsible-body">
+                <form method="post" action="<?= e(url('/admin/departments')) ?>" class="stack-md">
+                    <?= csrf_field() ?>
+                    <div class="content-grid">
+                        <div class="field-group">
+                            <label class="field-label" for="new_dep_code">รหัสแผนก <span class="required">*</span></label>
+                            <input id="new_dep_code" class="input" type="text" name="code" required placeholder="เช่น IT">
+                        </div>
+                        <div class="field-group">
+                            <label class="field-label" for="new_dep_name">ชื่อแผนก <span class="required">*</span></label>
+                            <input id="new_dep_name" class="input" type="text" name="name" required placeholder="เช่น ฝ่ายเทคโนโลยีสารสนเทศ">
+                        </div>
+                    </div>
+                    <div class="field-group">
+                        <label class="field-label" for="new_dep_desc">รายละเอียด</label>
+                        <textarea id="new_dep_desc" class="input" name="description" rows="3"></textarea>
+                    </div>
+                    <label class="checkbox-row">
+                        <input type="checkbox" name="is_active" value="1" checked>
+                        <span>เปิดใช้งานแผนกนี้ทันที</span>
+                    </label>
+                    <div class="button-row">
+                        <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'เพิ่มแผนก', 'variant' => 'primary', 'icon' => 'plus']) ?>
+                    </div>
+                </form>
+            </div>
+        </details>
         <?php if (($departments ?? []) === []): ?>
             <?= render_partial('partials/components/empty-state', [
                 'icon' => 'building',
@@ -237,6 +283,225 @@
                                     <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'บันทึก', 'variant' => 'primary', 'icon' => 'check-circle']) ?>
                                 </div>
                             </form>
+                            <form method="post" action="<?= e(url('/admin/departments/' . $depId . '/delete')) ?>" class="button-row" onsubmit="return confirm('ยืนยันการลบแผนกนี้? ลบได้เฉพาะรายการที่ยังไม่ถูกใช้งาน หากถูกใช้งานแล้วให้ปิดใช้งานแทน');">
+                                <?= csrf_field() ?>
+                                <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ลบแผนก', 'variant' => 'danger', 'icon' => 'trash']) ?>
+                            </form>
+                        </div>
+                    </details>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+    </section>
+
+    <section id="tab-locations" class="panel-card stack-md">
+        <div class="panel-head">
+            <div>
+                <h2 class="panel-title">จัดการสถานที่</h2>
+                <p class="field-hint">สถานที่ที่ใช้ในฟอร์ม Ticket และ Asset Registry</p>
+            </div>
+            <span class="badge badge-info"><?= e((string) count($locations ?? [])) ?> รายการ</span>
+        </div>
+        <details class="collapsible">
+            <summary class="collapsible-summary">
+                <span class="metric-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide('plus', 'h-4 w-4') ?></span>
+                <div class="collapsible-summary-main">
+                    <span class="collapsible-title">เพิ่มสถานที่ใหม่</span>
+                    <span class="collapsible-subtitle">สร้างจุดติดตั้งหรือพื้นที่สำหรับเลือกใน Ticket/Asset</span>
+                </div>
+                <span class="collapsible-chevron"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
+            </summary>
+            <div class="collapsible-body">
+                <form method="post" action="<?= e(url('/admin/locations')) ?>" class="stack-md">
+                    <?= csrf_field() ?>
+                    <div class="content-grid">
+                        <div class="field-group">
+                            <label class="field-label" for="new_location_code">รหัสสถานที่ <span class="required">*</span></label>
+                            <input id="new_location_code" class="input" type="text" name="code" required placeholder="เช่น HQ-1F-REC">
+                        </div>
+                        <div class="field-group">
+                            <label class="field-label" for="new_location_name">ชื่อสถานที่ <span class="required">*</span></label>
+                            <input id="new_location_name" class="input" type="text" name="name" required placeholder="เช่น Reception Printer Area">
+                        </div>
+                    </div>
+                    <div class="content-grid">
+                        <div class="field-group">
+                            <label class="field-label" for="new_location_building">อาคาร</label>
+                            <input id="new_location_building" class="input" type="text" name="building">
+                        </div>
+                        <div class="field-group">
+                            <label class="field-label" for="new_location_floor">ชั้น</label>
+                            <input id="new_location_floor" class="input" type="text" name="floor">
+                        </div>
+                    </div>
+                    <div class="field-group">
+                        <label class="field-label" for="new_location_room">ห้อง/โซน</label>
+                        <input id="new_location_room" class="input" type="text" name="room">
+                    </div>
+                    <div class="field-group">
+                        <label class="field-label" for="new_location_desc">รายละเอียด</label>
+                        <textarea id="new_location_desc" class="input" name="description" rows="3"></textarea>
+                    </div>
+                    <label class="checkbox-row">
+                        <input type="checkbox" name="is_active" value="1" checked>
+                        <span>เปิดใช้งานสถานที่นี้ทันที</span>
+                    </label>
+                    <div class="button-row">
+                        <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'เพิ่มสถานที่', 'variant' => 'primary', 'icon' => 'plus']) ?>
+                    </div>
+                </form>
+            </div>
+        </details>
+        <?php if (($locations ?? []) === []): ?>
+            <?= render_partial('partials/components/empty-state', [
+                'icon' => 'map-pin',
+                'title' => 'ยังไม่มีสถานที่',
+                'description' => 'เพิ่มสถานที่เพื่อให้ผู้ใช้เลือกตอนเปิด Ticket หรือบันทึก Asset',
+            ]) ?>
+        <?php else: ?>
+            <div class="stack-md">
+                <?php foreach (($locations ?? []) as $location): ?>
+                    <?php $locationId = (int) ($location['id'] ?? 0); ?>
+                    <details class="collapsible">
+                        <summary class="collapsible-summary">
+                            <span class="metric-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide('map-pin', 'h-4 w-4') ?></span>
+                            <div class="collapsible-summary-main">
+                                <span class="collapsible-title"><?= e((string) ($location['name'] ?? '-')) ?></span>
+                                <span class="collapsible-subtitle"><?= e((string) ($location['code'] ?? '-')) ?> · <?= e(trim((string) ($location['building'] ?? '') . ' ' . (string) ($location['floor'] ?? '') . ' ' . (string) ($location['room'] ?? '')) ?: '-') ?></span>
+                            </div>
+                            <div class="collapsible-meta">
+                                <span class="badge badge-<?= !empty($location['is_active']) ? 'success' : 'default' ?>"><?= !empty($location['is_active']) ? 'เปิดใช้งาน' : 'ปิดใช้งาน' ?></span>
+                                <span class="collapsible-chevron"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
+                            </div>
+                        </summary>
+                        <div class="collapsible-body">
+                            <form method="post" action="<?= e(url('/admin/locations/' . $locationId)) ?>" class="stack-md">
+                                <?= csrf_field() ?>
+                                <div class="content-grid">
+                                    <div class="field-group">
+                                        <label class="field-label" for="location_code_<?= $locationId ?>">รหัสสถานที่ <span class="required">*</span></label>
+                                        <input id="location_code_<?= $locationId ?>" class="input" type="text" name="code" required value="<?= e((string) ($location['code'] ?? '')) ?>">
+                                    </div>
+                                    <div class="field-group">
+                                        <label class="field-label" for="location_name_<?= $locationId ?>">ชื่อสถานที่ <span class="required">*</span></label>
+                                        <input id="location_name_<?= $locationId ?>" class="input" type="text" name="name" required value="<?= e((string) ($location['name'] ?? '')) ?>">
+                                    </div>
+                                </div>
+                                <div class="content-grid">
+                                    <div class="field-group">
+                                        <label class="field-label" for="location_building_<?= $locationId ?>">อาคาร</label>
+                                        <input id="location_building_<?= $locationId ?>" class="input" type="text" name="building" value="<?= e((string) ($location['building'] ?? '')) ?>">
+                                    </div>
+                                    <div class="field-group">
+                                        <label class="field-label" for="location_floor_<?= $locationId ?>">ชั้น</label>
+                                        <input id="location_floor_<?= $locationId ?>" class="input" type="text" name="floor" value="<?= e((string) ($location['floor'] ?? '')) ?>">
+                                    </div>
+                                </div>
+                                <div class="field-group">
+                                    <label class="field-label" for="location_room_<?= $locationId ?>">ห้อง/โซน</label>
+                                    <input id="location_room_<?= $locationId ?>" class="input" type="text" name="room" value="<?= e((string) ($location['room'] ?? '')) ?>">
+                                </div>
+                                <div class="field-group">
+                                    <label class="field-label" for="location_desc_<?= $locationId ?>">รายละเอียด</label>
+                                    <textarea id="location_desc_<?= $locationId ?>" class="input" name="description" rows="3"><?= e((string) ($location['description'] ?? '')) ?></textarea>
+                                </div>
+                                <label class="checkbox-row">
+                                    <input type="checkbox" name="is_active" value="1"<?= !empty($location['is_active']) ? ' checked' : '' ?>>
+                                    <span>เปิดใช้งานสถานที่นี้</span>
+                                </label>
+                                <div class="button-row">
+                                    <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'บันทึก', 'variant' => 'primary', 'icon' => 'check-circle']) ?>
+                                </div>
+                            </form>
+                        </div>
+                    </details>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+    </section>
+
+    <section id="tab-priorities" class="panel-card stack-md">
+        <div class="panel-head">
+            <div>
+                <h2 class="panel-title">จัดการ Priority และ SLA พื้นฐาน</h2>
+                <p class="field-hint">แก้ชื่อ สี และเวลาตอบกลับ/แก้ไขของ 4 ระดับเดิม โดยไม่เปลี่ยน code หรือ level</p>
+            </div>
+            <span class="badge badge-info"><?= e((string) count($priorities ?? [])) ?> ระดับ</span>
+        </div>
+        <?php if (($priorities ?? []) === []): ?>
+            <?= render_partial('partials/components/empty-state', [
+                'icon' => 'clock',
+                'title' => 'ยังไม่มี Priority',
+                'description' => 'ควร seed priority พื้นฐานก่อนใช้งานระบบ Ticket',
+            ]) ?>
+        <?php else: ?>
+            <div class="stack-md">
+                <?php foreach (($priorities ?? []) as $priority): ?>
+                    <?php $priorityId = (int) ($priority['id'] ?? 0); ?>
+                    <details class="collapsible">
+                        <summary class="collapsible-summary">
+                            <span class="metric-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide('clock', 'h-4 w-4') ?></span>
+                            <div class="collapsible-summary-main">
+                                <span class="collapsible-title"><?= e((string) ($priority['name'] ?? '-')) ?></span>
+                                <span class="collapsible-subtitle"><?= e((string) ($priority['code'] ?? '-')) ?> · Level <?= e((string) ($priority['level'] ?? '-')) ?> · ตอบใน <?= e((string) ($priority['response_hours'] ?? 0)) ?> ชม. · แก้ใน <?= e((string) ($priority['resolution_hours'] ?? 0)) ?> ชม.</span>
+                            </div>
+                            <div class="collapsible-meta">
+                                <span class="badge badge-<?= !empty($priority['is_active']) ? 'success' : 'default' ?>"><?= !empty($priority['is_active']) ? 'เปิดใช้งาน' : 'ปิดใช้งาน' ?></span>
+                                <span class="badge badge-default"><?= e((string) ($priority['color'] ?? 'slate')) ?></span>
+                                <span class="collapsible-chevron"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
+                            </div>
+                        </summary>
+                        <div class="collapsible-body">
+                            <form method="post" action="<?= e(url('/admin/priorities/' . $priorityId)) ?>" class="stack-md">
+                                <?= csrf_field() ?>
+                                <div class="content-grid">
+                                    <div class="field-group">
+                                        <label class="field-label">Code (เปลี่ยนไม่ได้)</label>
+                                        <input class="input" type="text" value="<?= e((string) ($priority['code'] ?? '')) ?>" disabled>
+                                    </div>
+                                    <div class="field-group">
+                                        <label class="field-label">Level (เปลี่ยนไม่ได้)</label>
+                                        <input class="input" type="text" value="<?= e((string) ($priority['level'] ?? '')) ?>" disabled>
+                                    </div>
+                                </div>
+                                <div class="content-grid">
+                                    <div class="field-group">
+                                        <label class="field-label" for="priority_name_<?= $priorityId ?>">ชื่อ Priority <span class="required">*</span></label>
+                                        <input id="priority_name_<?= $priorityId ?>" class="input" type="text" name="name" required value="<?= e((string) ($priority['name'] ?? '')) ?>">
+                                    </div>
+                                    <div class="field-group">
+                                        <label class="field-label" for="priority_color_<?= $priorityId ?>">สี</label>
+                                        <select id="priority_color_<?= $priorityId ?>" class="input" name="color">
+                                            <?php foreach (['slate', 'sky', 'amber', 'rose', 'emerald', 'violet'] as $color): ?>
+                                                <option value="<?= e($color) ?>"<?= (string) ($priority['color'] ?? '') === $color ? ' selected' : '' ?>><?= e($color) ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="content-grid">
+                                    <div class="field-group">
+                                        <label class="field-label" for="priority_response_<?= $priorityId ?>">เวลาตอบกลับ (ชม.)</label>
+                                        <input id="priority_response_<?= $priorityId ?>" class="input" type="number" min="0" step="0.25" name="response_hours" value="<?= e((string) ($priority['response_hours'] ?? 0)) ?>">
+                                    </div>
+                                    <div class="field-group">
+                                        <label class="field-label" for="priority_resolution_<?= $priorityId ?>">เวลาแก้ไข (ชม.)</label>
+                                        <input id="priority_resolution_<?= $priorityId ?>" class="input" type="number" min="0" step="0.25" name="resolution_hours" value="<?= e((string) ($priority['resolution_hours'] ?? 0)) ?>">
+                                    </div>
+                                </div>
+                                <div class="content-grid">
+                                    <div class="field-group">
+                                        <label class="field-label" for="priority_sort_<?= $priorityId ?>">ลำดับการแสดง</label>
+                                        <input id="priority_sort_<?= $priorityId ?>" class="input" type="number" min="1" name="sort_order" value="<?= e((string) ($priority['sort_order'] ?? 1)) ?>">
+                                    </div>
+                                </div>
+                                <label class="checkbox-row">
+                                    <input type="checkbox" name="is_active" value="1"<?= !empty($priority['is_active']) ? ' checked' : '' ?>>
+                                    <span>เปิดใช้งาน Priority นี้ในฟอร์ม Ticket</span>
+                                </label>
+                                <div class="button-row">
+                                    <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'บันทึก Priority/SLA', 'variant' => 'primary', 'icon' => 'check-circle']) ?>
+                                </div>
+                            </form>
                         </div>
                     </details>
                 <?php endforeach; ?>
@@ -252,6 +517,60 @@
             </div>
             <span class="badge badge-info"><?= e((string) count($categories ?? [])) ?> รายการ</span>
         </div>
+        <details class="collapsible">
+            <summary class="collapsible-summary">
+                <span class="metric-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide('plus', 'h-4 w-4') ?></span>
+                <div class="collapsible-summary-main">
+                    <span class="collapsible-title">เพิ่มหมวดหมู่งานใหม่</span>
+                    <span class="collapsible-subtitle">สร้างประเภทงานซ่อมพร้อม SLA override</span>
+                </div>
+                <span class="collapsible-chevron"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
+            </summary>
+            <div class="collapsible-body">
+                <form method="post" action="<?= e(url('/admin/categories')) ?>" class="stack-md">
+                    <?= csrf_field() ?>
+                    <div class="content-grid">
+                        <div class="field-group">
+                            <label class="field-label" for="new_cat_code">รหัสหมวด <span class="required">*</span></label>
+                            <input id="new_cat_code" class="input" type="text" name="code" required placeholder="เช่น AC">
+                        </div>
+                        <div class="field-group">
+                            <label class="field-label" for="new_cat_name">ชื่อหมวด <span class="required">*</span></label>
+                            <input id="new_cat_name" class="input" type="text" name="name" required placeholder="เช่น ระบบปรับอากาศ">
+                        </div>
+                    </div>
+                    <div class="field-group">
+                        <label class="field-label" for="new_cat_desc">รายละเอียด</label>
+                        <textarea id="new_cat_desc" class="input" name="description" rows="3"></textarea>
+                    </div>
+                    <div class="content-grid">
+                        <div class="field-group">
+                            <label class="field-label" for="new_cat_sort">ลำดับการแสดง</label>
+                            <input id="new_cat_sort" class="input" type="number" min="1" name="sort_order" value="1">
+                        </div>
+                    </div>
+                    <div class="content-grid">
+                        <div class="field-group">
+                            <label class="field-label" for="new_cat_resp">เวลาตอบกลับ (ชม.)</label>
+                            <input id="new_cat_resp" class="input" type="number" min="0" step="0.25" name="response_hours" value="0">
+                            <p class="field-hint">ใส่ 0 เพื่อให้ระบบใช้ SLA จาก priority ตามปกติ</p>
+                        </div>
+                        <div class="field-group">
+                            <label class="field-label" for="new_cat_reso">เวลาแก้ไข (ชม.)</label>
+                            <input id="new_cat_reso" class="input" type="number" min="0" step="0.25" name="resolution_hours" value="0">
+                            <p class="field-hint">ใส่ 0 เพื่อให้ระบบใช้ SLA จาก priority ตามปกติ</p>
+                        </div>
+                    </div>
+                    <label class="checkbox-row">
+                        <input type="checkbox" name="is_active" value="1" checked>
+                        <span>เปิดใช้งานหมวดนี้ทันที</span>
+                    </label>
+                    <div class="button-row">
+                        <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'เพิ่มหมวดหมู่งาน', 'variant' => 'primary', 'icon' => 'plus']) ?>
+                    </div>
+                </form>
+            </div>
+        </details>
         <?php if (($categories ?? []) === []): ?>
             <?= render_partial('partials/components/empty-state', [
                 'icon' => 'tag',
@@ -318,6 +637,10 @@
                                     <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'บันทึก', 'variant' => 'primary', 'icon' => 'check-circle']) ?>
                                 </div>
                             </form>
+                            <form method="post" action="<?= e(url('/admin/categories/' . $catId . '/delete')) ?>" class="button-row" onsubmit="return confirm('ยืนยันการลบหมวดหมู่งานนี้? ลบได้เฉพาะรายการที่ยังไม่ถูกใช้งาน หากถูกใช้งานแล้วให้ปิดใช้งานแทน');">
+                                <?= csrf_field() ?>
+                                <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ลบหมวดหมู่งาน', 'variant' => 'danger', 'icon' => 'trash']) ?>
+                            </form>
                         </div>
                     </details>
                 <?php endforeach; ?>
@@ -325,12 +648,418 @@
         <?php endif; ?>
     </section>
 
+    <section id="tab-asset-categories" class="panel-card stack-md">
+        <div class="panel-head">
+            <div>
+                <h2 class="panel-title">จัดการหมวดหมู่ Asset</h2>
+                <p class="field-hint">ประเภททรัพย์สินที่ใช้ในฟอร์มเพิ่มและแก้ไข Asset</p>
+            </div>
+            <span class="badge badge-info"><?= e((string) count($assetCategories ?? [])) ?> รายการ</span>
+        </div>
+        <details class="collapsible">
+            <summary class="collapsible-summary">
+                <span class="metric-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide('plus', 'h-4 w-4') ?></span>
+                <div class="collapsible-summary-main">
+                    <span class="collapsible-title">เพิ่มหมวดหมู่ Asset ใหม่</span>
+                    <span class="collapsible-subtitle">สร้างประเภททรัพย์สินสำหรับทะเบียน Asset</span>
+                </div>
+                <span class="collapsible-chevron"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
+            </summary>
+            <div class="collapsible-body">
+                <form method="post" action="<?= e(url('/admin/asset-categories')) ?>" class="stack-md">
+                    <?= csrf_field() ?>
+                    <div class="content-grid">
+                        <div class="field-group">
+                            <label class="field-label" for="new_asset_cat_code">รหัสหมวด <span class="required">*</span></label>
+                            <input id="new_asset_cat_code" class="input" type="text" name="code" required placeholder="เช่น LAPTOP">
+                        </div>
+                        <div class="field-group">
+                            <label class="field-label" for="new_asset_cat_name">ชื่อหมวด <span class="required">*</span></label>
+                            <input id="new_asset_cat_name" class="input" type="text" name="name" required placeholder="เช่น Notebook">
+                        </div>
+                    </div>
+                    <div class="field-group">
+                        <label class="field-label" for="new_asset_cat_desc">รายละเอียด</label>
+                        <textarea id="new_asset_cat_desc" class="input" name="description" rows="3"></textarea>
+                    </div>
+                    <div class="content-grid">
+                        <div class="field-group">
+                            <label class="field-label" for="new_asset_cat_sort">ลำดับการแสดง</label>
+                            <input id="new_asset_cat_sort" class="input" type="number" min="1" name="sort_order" value="1">
+                        </div>
+                    </div>
+                    <label class="checkbox-row">
+                        <input type="checkbox" name="is_active" value="1" checked>
+                        <span>เปิดใช้งานหมวดนี้ทันที</span>
+                    </label>
+                    <div class="button-row">
+                        <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'เพิ่มหมวดหมู่ Asset', 'variant' => 'primary', 'icon' => 'plus']) ?>
+                    </div>
+                </form>
+            </div>
+        </details>
+        <?php if (($assetCategories ?? []) === []): ?>
+            <?= render_partial('partials/components/empty-state', [
+                'icon' => 'layers',
+                'title' => 'ยังไม่มีหมวดหมู่ Asset',
+                'description' => 'เมื่อมีหมวดหมู่ Asset รายการจะปรากฏที่นี่ พร้อมให้แก้ไขหรือปิดใช้งานได้',
+            ]) ?>
+        <?php else: ?>
+            <div class="stack-md">
+                <?php foreach (($assetCategories ?? []) as $assetCategory): ?>
+                    <?php $assetCatId = (int) ($assetCategory['id'] ?? 0); ?>
+                    <details class="collapsible">
+                        <summary class="collapsible-summary">
+                            <span class="metric-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide('layers', 'h-4 w-4') ?></span>
+                            <div class="collapsible-summary-main">
+                                <span class="collapsible-title"><?= e((string) ($assetCategory['name'] ?? '-')) ?></span>
+                                <span class="collapsible-subtitle"><?= e((string) ($assetCategory['code'] ?? '-')) ?> · ลำดับ <?= e((string) ($assetCategory['sort_order'] ?? 1)) ?></span>
+                            </div>
+                            <div class="collapsible-meta">
+                                <span class="badge badge-<?= !empty($assetCategory['is_active']) ? 'success' : 'default' ?>"><?= !empty($assetCategory['is_active']) ? 'เปิดใช้งาน' : 'ปิดใช้งาน' ?></span>
+                                <span class="collapsible-chevron"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
+                            </div>
+                        </summary>
+                        <div class="collapsible-body">
+                            <form method="post" action="<?= e(url('/admin/asset-categories/' . $assetCatId)) ?>" class="stack-md">
+                                <?= csrf_field() ?>
+                                <div class="content-grid">
+                                    <div class="field-group">
+                                        <label class="field-label" for="asset_cat_code_<?= $assetCatId ?>">รหัสหมวด <span class="required">*</span></label>
+                                        <input id="asset_cat_code_<?= $assetCatId ?>" class="input" type="text" name="code" required value="<?= e((string) ($assetCategory['code'] ?? '')) ?>">
+                                    </div>
+                                    <div class="field-group">
+                                        <label class="field-label" for="asset_cat_name_<?= $assetCatId ?>">ชื่อหมวด <span class="required">*</span></label>
+                                        <input id="asset_cat_name_<?= $assetCatId ?>" class="input" type="text" name="name" required value="<?= e((string) ($assetCategory['name'] ?? '')) ?>">
+                                    </div>
+                                </div>
+                                <div class="field-group">
+                                    <label class="field-label" for="asset_cat_desc_<?= $assetCatId ?>">รายละเอียด</label>
+                                    <textarea id="asset_cat_desc_<?= $assetCatId ?>" class="input" name="description" rows="3"><?= e((string) ($assetCategory['description'] ?? '')) ?></textarea>
+                                </div>
+                                <div class="content-grid">
+                                    <div class="field-group">
+                                        <label class="field-label" for="asset_cat_sort_<?= $assetCatId ?>">ลำดับการแสดง</label>
+                                        <input id="asset_cat_sort_<?= $assetCatId ?>" class="input" type="number" min="1" name="sort_order" value="<?= e((string) ($assetCategory['sort_order'] ?? 1)) ?>">
+                                    </div>
+                                </div>
+                                <label class="checkbox-row">
+                                    <input type="checkbox" name="is_active" value="1"<?= !empty($assetCategory['is_active']) ? ' checked' : '' ?>>
+                                    <span>เปิดใช้งานหมวดนี้</span>
+                                </label>
+                                <div class="button-row">
+                                    <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'บันทึก', 'variant' => 'primary', 'icon' => 'check-circle']) ?>
+                                </div>
+                            </form>
+                            <form method="post" action="<?= e(url('/admin/asset-categories/' . $assetCatId . '/delete')) ?>" class="button-row" onsubmit="return confirm('ยืนยันการลบหมวดหมู่ Asset นี้? ลบได้เฉพาะรายการที่ยังไม่ถูกใช้งาน หากถูกใช้งานแล้วให้ปิดใช้งานแทน');">
+                                <?= csrf_field() ?>
+                                <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ลบหมวดหมู่ Asset', 'variant' => 'danger', 'icon' => 'trash']) ?>
+                            </form>
+                        </div>
+                    </details>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+    </section>
+
+    <section id="tab-roles" class="panel-card stack-md">
+        <div class="panel-head">
+            <div>
+                <h2 class="panel-title">Preview สิทธิ์ตาม Role</h2>
+                <p class="field-hint">สรุปความสามารถจาก workflow และ routes ที่ระบบใช้อยู่จริง เป็นเอกสารอ่านอย่างเดียวสำหรับผู้ซื้อ template</p>
+            </div>
+            <span class="badge badge-default">Read-only</span>
+        </div>
+
+        <?php $rolePreviewData = $rolePreview ?? ['roles' => [], 'capabilities' => []]; ?>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                <tr>
+                    <th>ความสามารถ</th>
+                    <?php foreach (($rolePreviewData['roles'] ?? []) as $roleCode => $roleLabel): ?>
+                        <th><?= e((string) $roleLabel) ?><br><span class="helper-text"><?= e((string) $roleCode) ?></span></th>
+                    <?php endforeach; ?>
+                </tr>
+                </thead>
+                <tbody>
+                <?php foreach (($rolePreviewData['capabilities'] ?? []) as $capability): ?>
+                    <tr>
+                        <td><?= e((string) ($capability['label'] ?? '-')) ?></td>
+                        <?php foreach (($rolePreviewData['roles'] ?? []) as $roleCode => $roleLabel): ?>
+                            <?php $allowed = in_array((string) $roleCode, (array) ($capability['roles'] ?? []), true); ?>
+                            <td><?= $allowed ? '<span class="badge badge-success">ทำได้</span>' : '<span class="badge badge-default">ไม่ได้</span>' ?></td>
+                        <?php endforeach; ?>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section id="tab-audit" class="panel-card stack-md">
+        <div class="panel-head">
+            <div>
+                <h2 class="panel-title">Audit Log</h2>
+                <p class="field-hint">อ่านอย่างเดียว: ดูว่าใครแก้ข้อมูลผู้ใช้ master data, settings, logo และอีเมลทดสอบเมื่อไหร่</p>
+            </div>
+            <span class="badge badge-info"><?= e((string) (int) (($auditLogs['total'] ?? 0))) ?> รายการ</span>
+        </div>
+
+        <?php
+        $auditFilters = $auditFilters ?? [];
+        $auditOptions = $auditFilterOptions ?? ['actions' => [], 'entityTypes' => []];
+        ?>
+        <form method="get" action="<?= e(url('/admin#tab-audit')) ?>" class="panel-card stack-md" style="background:rgba(14,165,233,.05);border:1px solid rgba(14,165,233,.18)">
+            <div class="content-grid">
+                <div class="field-group">
+                    <label class="field-label" for="audit_action">Action</label>
+                    <select id="audit_action" class="input" name="action">
+                        <option value="">ทั้งหมด</option>
+                        <?php foreach (($auditOptions['actions'] ?? []) as $action): ?>
+                            <option value="<?= e((string) $action) ?>"<?= (string) ($auditFilters['action'] ?? '') === (string) $action ? ' selected' : '' ?>><?= e((string) $action) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="field-group">
+                    <label class="field-label" for="audit_entity_type">Entity</label>
+                    <select id="audit_entity_type" class="input" name="entity_type">
+                        <option value="">ทั้งหมด</option>
+                        <?php foreach (($auditOptions['entityTypes'] ?? []) as $entityType): ?>
+                            <option value="<?= e((string) $entityType) ?>"<?= (string) ($auditFilters['entity_type'] ?? '') === (string) $entityType ? ' selected' : '' ?>><?= e((string) $entityType) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
+            <div class="content-grid">
+                <div class="field-group">
+                    <label class="field-label" for="audit_user_id">ผู้ใช้</label>
+                    <select id="audit_user_id" class="input" name="user_id">
+                        <option value="">ทั้งหมด</option>
+                        <?php foreach (($users ?? []) as $auditUser): ?>
+                            <option value="<?= e((string) ($auditUser['id'] ?? 0)) ?>"<?= (int) ($auditFilters['user_id'] ?? 0) === (int) ($auditUser['id'] ?? 0) ? ' selected' : '' ?>><?= e((string) ($auditUser['full_name'] ?? $auditUser['username'] ?? '-')) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="content-grid">
+                    <div class="field-group">
+                        <label class="field-label" for="audit_date_from">จากวันที่</label>
+                        <input id="audit_date_from" class="input" type="date" name="date_from" value="<?= e((string) ($auditFilters['date_from'] ?? '')) ?>">
+                    </div>
+                    <div class="field-group">
+                        <label class="field-label" for="audit_date_to">ถึงวันที่</label>
+                        <input id="audit_date_to" class="input" type="date" name="date_to" value="<?= e((string) ($auditFilters['date_to'] ?? '')) ?>">
+                    </div>
+                </div>
+            </div>
+            <div class="button-row">
+                <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'กรอง Audit Log', 'variant' => 'primary', 'icon' => 'filter']) ?>
+                <?= render_partial('partials/components/button', ['href' => '/admin#tab-audit', 'label' => 'ล้าง filter', 'variant' => 'secondary', 'icon' => 'x']) ?>
+            </div>
+        </form>
+
+        <?php if (empty($auditLogs['items'])): ?>
+            <?= render_partial('partials/components/empty-state', [
+                'icon' => 'file-text',
+                'title' => 'ยังไม่มี Audit Log',
+                'description' => 'ระบบจะเริ่มบันทึกเมื่อมี admin action สำคัญหลังจากเปิดใช้ฟีเจอร์นี้',
+            ]) ?>
+        <?php else: ?>
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                    <tr>
+                        <th>เวลา</th>
+                        <th>ผู้ใช้</th>
+                        <th>Action</th>
+                        <th>Entity</th>
+                        <th>IP</th>
+                        <th>รายละเอียด</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach (($auditLogs['items'] ?? []) as $log): ?>
+                        <?php
+                        $context = json_decode((string) ($log['context'] ?? ''), true);
+                        $contextSummary = is_array($context)
+                            ? implode(' · ', array_slice(array_map(
+                                static fn ($key, $value): string => $key . ': ' . (is_array($value) ? json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : (string) $value),
+                                array_keys($context),
+                                $context
+                            ), 0, 4))
+                            : '';
+                        ?>
+                        <tr>
+                            <td><?= e(human_date((string) ($log['created_at'] ?? ''))) ?></td>
+                            <td><?= e((string) ($log['user_name'] ?? $log['username'] ?? 'System')) ?></td>
+                            <td><span class="badge badge-info"><?= e((string) ($log['action'] ?? '-')) ?></span></td>
+                            <td><?= e((string) ($log['entity_type'] ?? '-')) ?><?php if (!empty($log['entity_id'])): ?> #<?= e((string) $log['entity_id']) ?><?php endif; ?></td>
+                            <td><?= e((string) ($log['ip_address'] ?? '-')) ?></td>
+                            <td><span class="helper-text"><?= e($contextSummary !== '' ? $contextSummary : '-') ?></span></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+
+            <?php
+            $auditPage = max(1, (int) ($auditLogs['page'] ?? 1));
+            $auditTotalPages = max(1, (int) ($auditLogs['totalPages'] ?? 1));
+            $auditQuery = $_GET ?? [];
+            unset($auditQuery['audit_page']);
+            $auditPageUrl = static function (int $target) use ($auditQuery): string {
+                return url('/admin?' . http_build_query($auditQuery + ['audit_page' => $target]) . '#tab-audit');
+            };
+            ?>
+            <?php if ($auditTotalPages > 1): ?>
+                <nav class="pagination" aria-label="Audit pagination">
+                    <span class="pagination-summary"><?= e((string) (int) ($auditLogs['total'] ?? 0)) ?> รายการ · หน้า <?= e((string) $auditPage) ?>/<?= e((string) $auditTotalPages) ?></span>
+                    <a class="page-link<?= $auditPage <= 1 ? ' is-disabled' : '' ?>" href="<?= e($auditPageUrl(max(1, $auditPage - 1))) ?>"><?= lucide('chevron-left', 'h-4 w-4') ?></a>
+                    <?php for ($target = max(1, $auditPage - 2); $target <= min($auditTotalPages, $auditPage + 2); $target++): ?>
+                        <a class="page-link<?= $target === $auditPage ? ' is-active' : '' ?>" href="<?= e($auditPageUrl($target)) ?>"><?= e((string) $target) ?></a>
+                    <?php endfor; ?>
+                    <a class="page-link<?= $auditPage >= $auditTotalPages ? ' is-disabled' : '' ?>" href="<?= e($auditPageUrl(min($auditTotalPages, $auditPage + 1))) ?>"><?= lucide('chevron-right', 'h-4 w-4') ?></a>
+                </nav>
+            <?php endif; ?>
+        <?php endif; ?>
+    </section>
+
+    <section id="tab-email" class="panel-card stack-md">
+        <div class="panel-head">
+            <div>
+                <h2 class="panel-title">Email Template และ SMTP Test</h2>
+                <p class="field-hint">ดูตัวอย่างอีเมลจริงของระบบและส่งทดสอบผ่าน MailerService เดิม โดยไม่แสดงรหัสผ่าน SMTP</p>
+            </div>
+            <span class="badge badge-info"><?= e((string) (($mailDiagnostics['driver'] ?? 'log'))) ?></span>
+        </div>
+
+        <?php $mail = $mailDiagnostics ?? []; ?>
+        <div class="content-grid">
+            <div class="panel-card stack-md" style="background:rgba(20,184,166,.06);border:1px solid rgba(20,184,166,.2)">
+                <div class="panel-head">
+                    <div>
+                        <h3 class="panel-title" style="font-size:1rem">Mail Config</h3>
+                        <p class="field-hint">ค่าที่อ่านจาก `.env`/config ปัจจุบัน</p>
+                    </div>
+                </div>
+                <dl class="description-list">
+                    <dt>Driver</dt><dd><?= e((string) ($mail['driver'] ?? 'log')) ?></dd>
+                    <dt>Host/Port</dt><dd><?= e((string) ($mail['host'] ?? '-')) ?>:<?= e((string) ($mail['port'] ?? '-')) ?></dd>
+                    <dt>Encryption</dt><dd><?= e((string) (($mail['encryption'] ?? '') !== '' ? $mail['encryption'] : 'none')) ?></dd>
+                    <dt>From</dt><dd><?= e((string) ($mail['from_name'] ?? '-')) ?> &lt;<?= e((string) ($mail['from_address'] ?? '-')) ?>&gt;</dd>
+                    <dt>Reply-To</dt><dd><?= e((string) (($mail['reply_to_address'] ?? '') !== '' ? $mail['reply_to_address'] : '-')) ?></dd>
+                    <?php if (!empty($mail['is_log_driver'])): ?>
+                        <dt>Log Path</dt><dd><code><?= e((string) ($mail['log_path'] ?? 'storage/mail-logs')) ?></code></dd>
+                    <?php endif; ?>
+                </dl>
+            </div>
+
+            <div class="panel-card stack-md" style="background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.2)">
+                <div class="panel-head">
+                    <div>
+                        <h3 class="panel-title" style="font-size:1rem">ส่งอีเมลทดสอบ</h3>
+                        <p class="field-hint">ถ้าใช้ driver log ระบบจะเขียนไฟล์ JSON ใน mail log path</p>
+                    </div>
+                </div>
+                <form method="post" action="<?= e(url('/admin/email/test')) ?>" class="stack-md">
+                    <?= csrf_field() ?>
+                    <div class="field-group">
+                        <label class="field-label" for="test_to_email">อีเมลปลายทาง <span class="required">*</span></label>
+                        <input id="test_to_email" class="input" type="email" name="to_email" required placeholder="owner@example.com" value="<?= e((string) ($currentUser['email'] ?? '')) ?>">
+                    </div>
+                    <div class="field-group">
+                        <label class="field-label" for="test_template">Template</label>
+                        <select id="test_template" class="input" name="template">
+                            <option value="password_reset">Password Reset</option>
+                            <option value="notification">Notification / Ticket Event</option>
+                        </select>
+                    </div>
+                    <div class="button-row">
+                        <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ส่งอีเมลทดสอบ', 'variant' => 'primary', 'icon' => 'send']) ?>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <?php foreach (($emailPreviews ?? []) as $templateKey => $preview): ?>
+            <details class="collapsible"<?= $templateKey === 'password_reset' ? ' open' : '' ?>>
+                <summary class="collapsible-summary">
+                    <span class="metric-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide($templateKey === 'password_reset' ? 'key-round' : 'bell', 'h-4 w-4') ?></span>
+                    <div class="collapsible-summary-main">
+                        <span class="collapsible-title"><?= e((string) ($preview['label'] ?? $templateKey)) ?></span>
+                        <span class="collapsible-subtitle"><?= e((string) ($preview['subject'] ?? '-')) ?></span>
+                    </div>
+                    <span class="collapsible-chevron"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
+                </summary>
+                <div class="collapsible-body stack-md">
+                    <iframe title="<?= e((string) ($preview['label'] ?? $templateKey)) ?> preview" sandbox style="width:100%;height:520px;border:1px solid rgba(148,163,184,.35);border-radius:16px;background:#fff" srcdoc="<?= e((string) ($preview['body_html'] ?? '')) ?>"></iframe>
+                    <details class="collapsible">
+                        <summary class="collapsible-summary">
+                            <span class="collapsible-title">Text fallback</span>
+                            <span class="collapsible-chevron"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
+                        </summary>
+                        <div class="collapsible-body">
+                            <pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-size:.82rem"><?= e((string) ($preview['body_text'] ?? '')) ?></pre>
+                        </div>
+                    </details>
+                </div>
+            </details>
+        <?php endforeach; ?>
+    </section>
+
     <section id="tab-settings" class="panel-card stack-md">
         <div class="panel-head">
             <div>
                 <h2 class="panel-title">การตั้งค่ากลางของระบบ</h2>
-                <p class="field-hint">ค่าตั้งค่าที่ระบบใช้ เช่น ชื่อแอป, timezone, prefix ของ ticket</p>
+                <p class="field-hint">ตั้งค่าพื้นฐานด้วยฟอร์มอ่านง่าย เพื่อลดการแก้ JSON หรือ key/value ดิบผิดพลาด</p>
             </div>
+        </div>
+
+        <?php $systemForm = $systemSettingForm ?? []; ?>
+        <div class="panel-card stack-md" style="background:rgba(14,165,233,.05);border:1px solid rgba(14,165,233,.2)">
+            <div class="panel-head">
+                <div>
+                    <h3 class="panel-title" style="font-size:1rem">ตั้งค่าระบบหลัก</h3>
+                    <p class="field-hint">ชื่อระบบ, timezone, ticket prefix และเวลาทำการ</p>
+                </div>
+            </div>
+            <form method="post" action="<?= e(url('/admin/system-settings')) ?>" class="stack-md">
+                <?= csrf_field() ?>
+                <div class="content-grid">
+                    <div class="field-group">
+                        <label class="field-label" for="system_app_name">ชื่อระบบ <span class="required">*</span></label>
+                        <input id="system_app_name" class="input" type="text" name="app_name" required value="<?= e((string) ($systemForm['app_name'] ?? 'Repair System')) ?>">
+                    </div>
+                    <div class="field-group">
+                        <label class="field-label" for="system_timezone">Timezone <span class="required">*</span></label>
+                        <select id="system_timezone" class="input" name="default_timezone" required>
+                            <?php foreach (($systemForm['timezoneOptions'] ?? [['value' => 'Asia/Bangkok', 'label' => 'Asia/Bangkok']]) as $option): ?>
+                                <option value="<?= e((string) ($option['value'] ?? '')) ?>"<?= (string) ($systemForm['default_timezone'] ?? 'Asia/Bangkok') === (string) ($option['value'] ?? '') ? ' selected' : '' ?>><?= e((string) ($option['label'] ?? '')) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+                <div class="content-grid">
+                    <div class="field-group">
+                        <label class="field-label" for="system_ticket_prefix">Ticket Prefix <span class="required">*</span></label>
+                        <input id="system_ticket_prefix" class="input" type="text" name="ticket_prefix" required minlength="2" maxlength="12" pattern="[A-Za-z0-9_-]{2,12}" value="<?= e((string) ($systemForm['ticket_prefix'] ?? 'MT')) ?>">
+                        <p class="field-hint">ใช้ A-Z, 0-9, ขีดกลาง หรือขีดล่าง เช่น MT</p>
+                    </div>
+                </div>
+                <div class="content-grid">
+                    <div class="field-group">
+                        <label class="field-label" for="system_business_start">เวลาเริ่มทำการ <span class="required">*</span></label>
+                        <input id="system_business_start" class="input" type="time" name="business_start" required value="<?= e((string) ($systemForm['business_start'] ?? '08:30')) ?>">
+                    </div>
+                    <div class="field-group">
+                        <label class="field-label" for="system_business_end">เวลาสิ้นสุดทำการ <span class="required">*</span></label>
+                        <input id="system_business_end" class="input" type="time" name="business_end" required value="<?= e((string) ($systemForm['business_end'] ?? '17:30')) ?>">
+                    </div>
+                </div>
+                <div class="button-row">
+                    <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'บันทึกการตั้งค่าระบบ', 'variant' => 'primary', 'icon' => 'check-circle']) ?>
+                </div>
+            </form>
         </div>
 
         <?php $currentLogoUrl = branding_logo_url(); ?>
@@ -361,7 +1090,7 @@
                     <?= csrf_field() ?>
                     <input type="hidden" name="remove_logo" value="1">
                     <div class="button-row">
-                        <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ลบโลโก้ปัจจุบัน', 'variant' => 'secondary', 'icon' => 'trash-2']) ?>
+                        <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ลบโลโก้ปัจจุบัน', 'variant' => 'secondary', 'icon' => 'trash']) ?>
                     </div>
                 </form>
             <?php endif; ?>
@@ -369,14 +1098,24 @@
 
         <details class="collapsible">
             <summary class="collapsible-summary">
-                <span class="metric-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide('plus', 'h-4 w-4') ?></span>
+                <span class="metric-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide('settings', 'h-4 w-4') ?></span>
                 <div class="collapsible-summary-main">
-                    <span class="collapsible-title">เพิ่ม Setting ใหม่</span>
-                    <span class="collapsible-subtitle">กำหนด key/value/type สำหรับ config ที่ระบบใช้</span>
+                    <span class="collapsible-title">Advanced Settings</span>
+                    <span class="collapsible-subtitle">สำหรับ key/value เพิ่มเติมที่ไม่ได้อยู่ในฟอร์มหลัก</span>
                 </div>
                 <span class="collapsible-chevron"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
             </summary>
             <div class="collapsible-body">
+                <details class="collapsible">
+                    <summary class="collapsible-summary">
+                        <span class="metric-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide('plus', 'h-4 w-4') ?></span>
+                        <div class="collapsible-summary-main">
+                            <span class="collapsible-title">เพิ่ม Setting ใหม่</span>
+                            <span class="collapsible-subtitle">กำหนด key/value/type สำหรับ config ที่ระบบใช้</span>
+                        </div>
+                        <span class="collapsible-chevron"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
+                    </summary>
+                    <div class="collapsible-body">
                 <form method="post" action="<?= e(url('/admin/settings')) ?>" class="stack-md">
                     <?= csrf_field() ?>
                     <div class="content-grid">
@@ -407,39 +1146,41 @@
                         <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'บันทึก Setting', 'variant' => 'primary', 'icon' => 'plus']) ?>
                     </div>
                 </form>
+                    </div>
+                </details>
+
+                <?php if (!empty($settings)): ?>
+                    <div class="table-wrap">
+                        <table class="data-table">
+                            <thead>
+                            <tr>
+                                <th>Key</th>
+                                <th>ค่า</th>
+                                <th>ชนิด</th>
+                                <th>เปิดเผย</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <?php foreach ($settings as $setting): ?>
+                                <tr>
+                                    <td><code><?= e((string) ($setting['setting_key'] ?? '')) ?></code></td>
+                                    <td><pre style="margin:0;font-size:.78rem;white-space:pre-wrap;word-break:break-word"><?= e((string) ($setting['setting_value'] ?? '')) ?></pre></td>
+                                    <td><span class="badge badge-default"><?= e((string) ($setting['value_type'] ?? 'string')) ?></span></td>
+                                    <td><?= !empty($setting['is_public']) ? '<span class="badge badge-success">ใช่</span>' : '<span class="badge badge-default">ไม่</span>' ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php else: ?>
+                    <?= render_partial('partials/components/empty-state', [
+                        'icon' => 'settings',
+                        'title' => 'ยังไม่มี settings เพิ่มเติม',
+                        'description' => 'คุณสามารถเพิ่ม setting ใหม่จากฟอร์มด้านบนได้ทันที',
+                    ]) ?>
+                <?php endif; ?>
             </div>
         </details>
-
-        <?php if (!empty($settings)): ?>
-            <div class="table-wrap">
-                <table class="data-table">
-                    <thead>
-                    <tr>
-                        <th>Key</th>
-                        <th>ค่า</th>
-                        <th>ชนิด</th>
-                        <th>เปิดเผย</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    <?php foreach ($settings as $setting): ?>
-                        <tr>
-                            <td><code><?= e((string) ($setting['setting_key'] ?? '')) ?></code></td>
-                            <td><pre style="margin:0;font-size:.78rem;white-space:pre-wrap;word-break:break-word"><?= e((string) ($setting['setting_value'] ?? '')) ?></pre></td>
-                            <td><span class="badge badge-default"><?= e((string) ($setting['value_type'] ?? 'string')) ?></span></td>
-                            <td><?= !empty($setting['is_public']) ? '<span class="badge badge-success">ใช่</span>' : '<span class="badge badge-default">ไม่</span>' ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        <?php else: ?>
-            <?= render_partial('partials/components/empty-state', [
-                'icon' => 'settings',
-                'title' => 'ยังไม่มี settings เพิ่มเติม',
-                'description' => 'คุณสามารถเพิ่ม setting ใหม่จากฟอร์มด้านบนได้ทันที',
-            ]) ?>
-        <?php endif; ?>
     </section>
 </section>
 

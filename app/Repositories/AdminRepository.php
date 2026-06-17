@@ -48,6 +48,39 @@ class AdminRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    public function getAssetCategories(): array
+    {
+        $stmt = $this->db->query(
+            'SELECT id, parent_id, code, name, description, sort_order, is_active, created_at, updated_at
+             FROM asset_categories
+             ORDER BY sort_order ASC, name ASC, id ASC'
+        );
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public function getLocations(): array
+    {
+        $stmt = $this->db->query(
+            'SELECT id, code, name, building, floor, room, description, is_active, created_at, updated_at
+             FROM locations
+             ORDER BY name ASC, id ASC'
+        );
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public function getPriorities(): array
+    {
+        $stmt = $this->db->query(
+            'SELECT id, code, name, level, color, response_time_minutes, resolution_time_minutes, sort_order, is_active, created_at, updated_at
+             FROM priorities
+             ORDER BY sort_order ASC, level ASC, id ASC'
+        );
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
     public function departmentExists(int $departmentId): bool
     {
         $stmt = $this->db->prepare('SELECT EXISTS(SELECT 1 FROM departments WHERE id = :id)');
@@ -195,45 +228,442 @@ class AdminRepository
 
     public function updateDepartment(int $departmentId, array $payload): void
     {
-        $stmt = $this->db->prepare(
-            'UPDATE departments
-             SET code = :code,
-                 name = :name,
-                 description = :description,
-                 is_active = :is_active,
-                 updated_at = :updated_at
-             WHERE id = :id'
-        );
-        $stmt->execute([
-            'code' => $payload['code'],
-            'name' => $payload['name'],
-            'description' => $payload['description'],
-            'is_active' => $payload['is_active'] ? 1 : 0,
-            'updated_at' => date('Y-m-d H:i:s'),
-            'id' => $departmentId,
-        ]);
+        try {
+            $stmt = $this->db->prepare(
+                'UPDATE departments
+                 SET code = :code,
+                     name = :name,
+                     description = :description,
+                     is_active = :is_active,
+                     updated_at = :updated_at
+                 WHERE id = :id'
+            );
+            $stmt->execute([
+                'code' => $payload['code'],
+                'name' => $payload['name'],
+                'description' => $payload['description'],
+                'is_active' => $payload['is_active'] ? 1 : 0,
+                'updated_at' => date('Y-m-d H:i:s'),
+                'id' => $departmentId,
+            ]);
+
+            if ($stmt->rowCount() === 0 && !$this->recordExists('departments', $departmentId)) {
+                throw new DomainException('ไม่พบแผนกที่ต้องการแก้ไข');
+            }
+        } catch (PDOException $exception) {
+            $this->throwFriendlyUniqueViolation($exception, 'รหัสแผนกนี้มีอยู่แล้ว', 'ชื่อแผนกนี้มีอยู่แล้ว');
+        }
+    }
+
+    public function createDepartment(array $payload): int
+    {
+        try {
+            $stmt = $this->db->prepare(
+                'INSERT INTO departments (code, name, description, is_active, created_at, updated_at)
+                 VALUES (:code, :name, :description, :is_active, :created_at, :updated_at)'
+            );
+            $createdAt = date('Y-m-d H:i:s');
+            $stmt->execute([
+                'code' => $payload['code'],
+                'name' => $payload['name'],
+                'description' => $payload['description'] !== '' ? $payload['description'] : null,
+                'is_active' => $payload['is_active'] ? 1 : 0,
+                'created_at' => $createdAt,
+                'updated_at' => $createdAt,
+            ]);
+
+            return (int) $this->db->lastInsertId();
+        } catch (PDOException $exception) {
+            $this->throwFriendlyUniqueViolation($exception, 'รหัสแผนกนี้มีอยู่แล้ว', 'ชื่อแผนกนี้มีอยู่แล้ว');
+        }
+    }
+
+    public function deleteDepartment(int $departmentId): void
+    {
+        try {
+            $this->db->beginTransaction();
+            $this->lockRecord('departments', $departmentId, 'ไม่พบแผนกที่ต้องการลบ');
+
+            if ($this->departmentInUse($departmentId)) {
+                throw new DomainException('แผนกนี้ถูกใช้งานแล้ว กรุณาปิดใช้งานแทนการลบ');
+            }
+
+            $stmt = $this->db->prepare('DELETE FROM departments WHERE id = :id');
+            $stmt->execute(['id' => $departmentId]);
+            $this->db->commit();
+        } catch (Throwable $exception) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            if ($exception instanceof PDOException && (string) $exception->getCode() === '23000') {
+                throw new DomainException('แผนกนี้ถูกใช้งานแล้ว กรุณาปิดใช้งานแทนการลบ');
+            }
+
+            throw $exception;
+        }
     }
 
     public function updateTicketCategory(int $categoryId, array $payload): void
     {
+        try {
+            if ($this->masterValueExists('ticket_categories', 'name', (string) $payload['name'], $categoryId)) {
+                throw new DomainException('ชื่อหมวดหมู่งานนี้มีอยู่แล้ว');
+            }
+
+            $stmt = $this->db->prepare(
+                'UPDATE ticket_categories
+                 SET code = :code,
+                     name = :name,
+                     description = :description,
+                     sort_order = :sort_order,
+                     is_active = :is_active,
+                     updated_at = :updated_at
+                 WHERE id = :id'
+            );
+            $stmt->execute([
+                'code' => $payload['code'],
+                'name' => $payload['name'],
+                'description' => $payload['description'],
+                'sort_order' => $payload['sort_order'],
+                'is_active' => $payload['is_active'] ? 1 : 0,
+                'updated_at' => date('Y-m-d H:i:s'),
+                'id' => $categoryId,
+            ]);
+
+            if ($stmt->rowCount() === 0 && !$this->recordExists('ticket_categories', $categoryId)) {
+                throw new DomainException('ไม่พบหมวดหมู่งานที่ต้องการแก้ไข');
+            }
+        } catch (PDOException $exception) {
+            $this->throwFriendlyUniqueViolation($exception, 'รหัสหมวดหมู่งานนี้มีอยู่แล้ว', 'ชื่อหมวดหมู่งานนี้มีอยู่แล้ว');
+        }
+    }
+
+    public function createTicketCategory(array $payload): int
+    {
+        try {
+            if ($this->masterValueExists('ticket_categories', 'name', (string) $payload['name'])) {
+                throw new DomainException('ชื่อหมวดหมู่งานนี้มีอยู่แล้ว');
+            }
+
+            $stmt = $this->db->prepare(
+                'INSERT INTO ticket_categories (parent_id, code, name, description, sort_order, is_active, created_at, updated_at)
+                 VALUES (NULL, :code, :name, :description, :sort_order, :is_active, :created_at, :updated_at)'
+            );
+            $createdAt = date('Y-m-d H:i:s');
+            $stmt->execute([
+                'code' => $payload['code'],
+                'name' => $payload['name'],
+                'description' => $payload['description'] !== '' ? $payload['description'] : null,
+                'sort_order' => $payload['sort_order'],
+                'is_active' => $payload['is_active'] ? 1 : 0,
+                'created_at' => $createdAt,
+                'updated_at' => $createdAt,
+            ]);
+
+            return (int) $this->db->lastInsertId();
+        } catch (PDOException $exception) {
+            $this->throwFriendlyUniqueViolation($exception, 'รหัสหมวดหมู่งานนี้มีอยู่แล้ว', 'ชื่อหมวดหมู่งานนี้มีอยู่แล้ว');
+        }
+    }
+
+    public function deleteTicketCategory(int $categoryId): void
+    {
+        try {
+            $this->db->beginTransaction();
+            $this->lockRecord('ticket_categories', $categoryId, 'ไม่พบหมวดหมู่งานที่ต้องการลบ');
+
+            if ($this->ticketCategoryInUse($categoryId)) {
+                throw new DomainException('หมวดหมู่งานนี้ถูกใช้งานแล้ว กรุณาปิดใช้งานแทนการลบ');
+            }
+
+            $settingStmt = $this->db->prepare('DELETE FROM system_settings WHERE setting_key = :setting_key');
+            $settingStmt->execute(['setting_key' => 'category_sla_' . $categoryId]);
+
+            $stmt = $this->db->prepare('DELETE FROM ticket_categories WHERE id = :id');
+            $stmt->execute(['id' => $categoryId]);
+            $this->db->commit();
+        } catch (Throwable $exception) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            if ($exception instanceof PDOException && (string) $exception->getCode() === '23000') {
+                throw new DomainException('หมวดหมู่งานนี้ถูกใช้งานแล้ว กรุณาปิดใช้งานแทนการลบ');
+            }
+
+            throw $exception;
+        }
+    }
+
+    public function createAssetCategory(array $payload): int
+    {
+        try {
+            if ($this->masterValueExists('asset_categories', 'name', (string) $payload['name'])) {
+                throw new DomainException('ชื่อหมวดหมู่ Asset นี้มีอยู่แล้ว');
+            }
+
+            $stmt = $this->db->prepare(
+                'INSERT INTO asset_categories (parent_id, code, name, description, sort_order, is_active, created_at, updated_at)
+                 VALUES (NULL, :code, :name, :description, :sort_order, :is_active, :created_at, :updated_at)'
+            );
+            $createdAt = date('Y-m-d H:i:s');
+            $stmt->execute([
+                'code' => $payload['code'],
+                'name' => $payload['name'],
+                'description' => $payload['description'] !== '' ? $payload['description'] : null,
+                'sort_order' => $payload['sort_order'],
+                'is_active' => $payload['is_active'] ? 1 : 0,
+                'created_at' => $createdAt,
+                'updated_at' => $createdAt,
+            ]);
+
+            return (int) $this->db->lastInsertId();
+        } catch (PDOException $exception) {
+            $this->throwFriendlyUniqueViolation($exception, 'รหัสหมวดหมู่ Asset นี้มีอยู่แล้ว', 'ชื่อหมวดหมู่ Asset นี้มีอยู่แล้ว');
+        }
+    }
+
+    public function updateAssetCategory(int $categoryId, array $payload): void
+    {
+        try {
+            if ($this->masterValueExists('asset_categories', 'name', (string) $payload['name'], $categoryId)) {
+                throw new DomainException('ชื่อหมวดหมู่ Asset นี้มีอยู่แล้ว');
+            }
+
+            $stmt = $this->db->prepare(
+                'UPDATE asset_categories
+                 SET code = :code,
+                     name = :name,
+                     description = :description,
+                     sort_order = :sort_order,
+                     is_active = :is_active,
+                     updated_at = :updated_at
+                 WHERE id = :id'
+            );
+            $stmt->execute([
+                'code' => $payload['code'],
+                'name' => $payload['name'],
+                'description' => $payload['description'],
+                'sort_order' => $payload['sort_order'],
+                'is_active' => $payload['is_active'] ? 1 : 0,
+                'updated_at' => date('Y-m-d H:i:s'),
+                'id' => $categoryId,
+            ]);
+
+            if ($stmt->rowCount() === 0 && !$this->recordExists('asset_categories', $categoryId)) {
+                throw new DomainException('ไม่พบหมวดหมู่ Asset ที่ต้องการแก้ไข');
+            }
+        } catch (PDOException $exception) {
+            $this->throwFriendlyUniqueViolation($exception, 'รหัสหมวดหมู่ Asset นี้มีอยู่แล้ว', 'ชื่อหมวดหมู่ Asset นี้มีอยู่แล้ว');
+        }
+    }
+
+    public function deleteAssetCategory(int $categoryId): void
+    {
+        try {
+            $this->db->beginTransaction();
+            $this->lockRecord('asset_categories', $categoryId, 'ไม่พบหมวดหมู่ Asset ที่ต้องการลบ');
+
+            if ($this->assetCategoryInUse($categoryId)) {
+                throw new DomainException('หมวดหมู่ Asset นี้ถูกใช้งานแล้ว กรุณาปิดใช้งานแทนการลบ');
+            }
+
+            $stmt = $this->db->prepare('DELETE FROM asset_categories WHERE id = :id');
+            $stmt->execute(['id' => $categoryId]);
+            $this->db->commit();
+        } catch (Throwable $exception) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            if ($exception instanceof PDOException && (string) $exception->getCode() === '23000') {
+                throw new DomainException('หมวดหมู่ Asset นี้ถูกใช้งานแล้ว กรุณาปิดใช้งานแทนการลบ');
+            }
+
+            throw $exception;
+        }
+    }
+
+    public function createLocation(array $payload): int
+    {
+        try {
+            $stmt = $this->db->prepare(
+                'INSERT INTO locations (code, name, building, floor, room, description, is_active, created_at, updated_at)
+                 VALUES (:code, :name, :building, :floor, :room, :description, :is_active, :created_at, :updated_at)'
+            );
+            $createdAt = date('Y-m-d H:i:s');
+            $stmt->execute([
+                'code' => $payload['code'],
+                'name' => $payload['name'],
+                'building' => $payload['building'] !== '' ? $payload['building'] : null,
+                'floor' => $payload['floor'] !== '' ? $payload['floor'] : null,
+                'room' => $payload['room'] !== '' ? $payload['room'] : null,
+                'description' => $payload['description'] !== '' ? $payload['description'] : null,
+                'is_active' => $payload['is_active'] ? 1 : 0,
+                'created_at' => $createdAt,
+                'updated_at' => $createdAt,
+            ]);
+
+            return (int) $this->db->lastInsertId();
+        } catch (PDOException $exception) {
+            $this->throwFriendlyUniqueViolation($exception, 'รหัสสถานที่นี้มีอยู่แล้ว', 'ชื่อสถานที่นี้มีอยู่แล้ว');
+        }
+    }
+
+    public function updateLocation(int $locationId, array $payload): void
+    {
+        try {
+            $stmt = $this->db->prepare(
+                'UPDATE locations
+                 SET code = :code,
+                     name = :name,
+                     building = :building,
+                     floor = :floor,
+                     room = :room,
+                     description = :description,
+                     is_active = :is_active,
+                     updated_at = :updated_at
+                 WHERE id = :id'
+            );
+            $stmt->execute([
+                'code' => $payload['code'],
+                'name' => $payload['name'],
+                'building' => $payload['building'] !== '' ? $payload['building'] : null,
+                'floor' => $payload['floor'] !== '' ? $payload['floor'] : null,
+                'room' => $payload['room'] !== '' ? $payload['room'] : null,
+                'description' => $payload['description'] !== '' ? $payload['description'] : null,
+                'is_active' => $payload['is_active'] ? 1 : 0,
+                'updated_at' => date('Y-m-d H:i:s'),
+                'id' => $locationId,
+            ]);
+
+            if ($stmt->rowCount() === 0 && !$this->recordExists('locations', $locationId)) {
+                throw new DomainException('ไม่พบสถานที่ที่ต้องการแก้ไข');
+            }
+        } catch (PDOException $exception) {
+            $this->throwFriendlyUniqueViolation($exception, 'รหัสสถานที่นี้มีอยู่แล้ว', 'ชื่อสถานที่นี้มีอยู่แล้ว');
+        }
+    }
+
+    public function updatePriority(int $priorityId, array $payload): void
+    {
         $stmt = $this->db->prepare(
-            'UPDATE ticket_categories
-             SET code = :code,
-                 name = :name,
-                 description = :description,
+            'UPDATE priorities
+             SET name = :name,
+                 color = :color,
+                 response_time_minutes = :response_time_minutes,
+                 resolution_time_minutes = :resolution_time_minutes,
                  sort_order = :sort_order,
                  is_active = :is_active,
                  updated_at = :updated_at
              WHERE id = :id'
         );
         $stmt->execute([
-            'code' => $payload['code'],
             'name' => $payload['name'],
-            'description' => $payload['description'],
+            'color' => $payload['color'] !== '' ? $payload['color'] : null,
+            'response_time_minutes' => $payload['response_time_minutes'],
+            'resolution_time_minutes' => $payload['resolution_time_minutes'],
             'sort_order' => $payload['sort_order'],
             'is_active' => $payload['is_active'] ? 1 : 0,
             'updated_at' => date('Y-m-d H:i:s'),
-            'id' => $categoryId,
+            'id' => $priorityId,
         ]);
+
+        if ($stmt->rowCount() === 0 && !$this->recordExists('priorities', $priorityId)) {
+            throw new DomainException('ไม่พบ Priority ที่ต้องการแก้ไข');
+        }
+    }
+
+    private function departmentInUse(int $departmentId): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT
+                EXISTS(SELECT 1 FROM users WHERE department_id = :user_department_id)
+                OR EXISTS(SELECT 1 FROM assets WHERE department_id = :asset_department_id)
+                OR EXISTS(SELECT 1 FROM tickets WHERE requester_department_id = :ticket_department_id)'
+        );
+        $stmt->execute([
+            'user_department_id' => $departmentId,
+            'asset_department_id' => $departmentId,
+            'ticket_department_id' => $departmentId,
+        ]);
+
+        return (bool) $stmt->fetchColumn();
+    }
+
+    private function ticketCategoryInUse(int $categoryId): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT
+                EXISTS(SELECT 1 FROM tickets WHERE ticket_category_id = :ticket_category_id)
+                OR EXISTS(SELECT 1 FROM ticket_categories WHERE parent_id = :child_category_id)'
+        );
+        $stmt->execute([
+            'ticket_category_id' => $categoryId,
+            'child_category_id' => $categoryId,
+        ]);
+
+        return (bool) $stmt->fetchColumn();
+    }
+
+    private function assetCategoryInUse(int $categoryId): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT
+                EXISTS(SELECT 1 FROM assets WHERE asset_category_id = :asset_category_id)
+                OR EXISTS(SELECT 1 FROM asset_categories WHERE parent_id = :child_category_id)'
+        );
+        $stmt->execute([
+            'asset_category_id' => $categoryId,
+            'child_category_id' => $categoryId,
+        ]);
+
+        return (bool) $stmt->fetchColumn();
+    }
+
+    private function masterValueExists(string $table, string $column, string $value, ?int $excludeId = null): bool
+    {
+        $sql = "SELECT EXISTS(SELECT 1 FROM {$table} WHERE {$column} = :value";
+        $params = ['value' => $value];
+        if ($excludeId !== null) {
+            $sql .= ' AND id <> :exclude_id';
+            $params['exclude_id'] = $excludeId;
+        }
+        $sql .= ')';
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+
+        return (bool) $stmt->fetchColumn();
+    }
+
+    private function recordExists(string $table, int $id): bool
+    {
+        $stmt = $this->db->prepare("SELECT EXISTS(SELECT 1 FROM {$table} WHERE id = :id)");
+        $stmt->execute(['id' => $id]);
+
+        return (bool) $stmt->fetchColumn();
+    }
+
+    private function lockRecord(string $table, int $id, string $notFoundMessage): void
+    {
+        $stmt = $this->db->prepare("SELECT id FROM {$table} WHERE id = :id LIMIT 1 FOR UPDATE");
+        $stmt->execute(['id' => $id]);
+        if ($stmt->fetchColumn() === false) {
+            throw new DomainException($notFoundMessage);
+        }
+    }
+
+    private function throwFriendlyUniqueViolation(PDOException $exception, string $codeMessage, string $nameMessage): void
+    {
+        if ((string) $exception->getCode() === '23000') {
+            $message = strtolower($exception->getMessage());
+            if (str_contains($message, 'code')) {
+                throw new DomainException($codeMessage);
+            }
+            if (str_contains($message, 'name')) {
+                throw new DomainException($nameMessage);
+            }
+        }
+
+        throw $exception;
     }
 }
