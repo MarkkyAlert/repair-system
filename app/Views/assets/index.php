@@ -1,3 +1,14 @@
+<?php
+$assetFilters = $filters ?? ['q' => '', 'category_id' => 0, 'location_id' => 0, 'status' => ''];
+$assetFilterOptions = $filterOptions ?? ['categories' => [], 'locations' => [], 'statuses' => []];
+$assetActiveFilters = $activeFilters ?? [];
+$assetSearch = (string) ($assetFilters['q'] ?? '');
+$assetCategoryId = (int) ($assetFilters['category_id'] ?? 0);
+$assetLocationId = (int) ($assetFilters['location_id'] ?? 0);
+$assetStatus = (string) ($assetFilters['status'] ?? '');
+$isAssetFilterActive = $assetSearch !== '' || $assetCategoryId > 0 || $assetLocationId > 0 || $assetStatus !== '';
+$isAssetAdvancedFilterActive = $assetCategoryId > 0 || $assetLocationId > 0 || $assetStatus !== '';
+?>
 <section class="stack-lg">
     <?php ob_start(); ?>
                 <?php if (!empty($canManage)): ?>
@@ -18,11 +29,73 @@
             <span class="badge badge-info"><?= e($roleLabel ?? '-') ?></span>
         </div>
 
+        <form method="get" action="<?= e(url('/asset-registry')) ?>" class="asset-filter-toolbar">
+            <div class="asset-filter-main">
+                <div class="filter-search">
+                    <?= lucide('search', 'h-4 w-4') ?>
+                    <input type="search" name="q" value="<?= e($assetSearch) ?>" placeholder="ค้นหารหัส ชื่อ เลขซีเรียล ยี่ห้อ หรือรุ่น..." aria-label="ค้นหาทรัพย์สินจากรหัส ชื่อ เลขซีเรียล ยี่ห้อ หรือรุ่น">
+                </div>
+                <div class="asset-filter-actions">
+                    <button type="submit" class="btn btn-secondary btn-md"><?= lucide('filter', 'button-icon') ?><span>ค้นหาและกรอง</span></button>
+                    <?php if ($isAssetFilterActive): ?>
+                        <a href="<?= e(url('/asset-registry')) ?>" class="btn btn-ghost btn-md"><?= lucide('x', 'button-icon') ?><span>ล้างตัวกรอง</span></a>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <?php if ($assetActiveFilters !== []): ?>
+                <div class="asset-filter-chips" aria-label="ตัวกรองทรัพย์สินที่กำลังใช้งาน">
+                    <?php foreach ($assetActiveFilters as $chip): ?>
+                        <span class="filter-chip"><?= e((string) $chip) ?></span>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+
+            <details class="asset-filter-advanced"<?= $isAssetAdvancedFilterActive ? ' open' : '' ?>>
+                <summary>
+                    <span><?= lucide('filter', 'h-4 w-4') ?> ตัวกรองเพิ่มเติม</span>
+                    <?php if ($isAssetAdvancedFilterActive): ?>
+                        <span class="badge badge-info"><?= e((string) count($assetActiveFilters)) ?> ตัวกรอง</span>
+                    <?php endif; ?>
+                    <span class="collapsible-chevron"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
+                </summary>
+                <div class="asset-filter-grid">
+                    <div class="field-group">
+                        <label class="field-label" for="asset-filter-category">หมวดหมู่</label>
+                        <select id="asset-filter-category" name="category_id" class="input" aria-label="กรองตามหมวดหมู่ทรัพย์สิน">
+                            <option value="">ทุกหมวดหมู่</option>
+                            <?php foreach (($assetFilterOptions['categories'] ?? []) as $category): ?>
+                                <option value="<?= e((string) $category['id']) ?>"<?= $assetCategoryId === (int) $category['id'] ? ' selected' : '' ?>><?= e((string) $category['label']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="field-group">
+                        <label class="field-label" for="asset-filter-location">สถานที่</label>
+                        <select id="asset-filter-location" name="location_id" class="input" aria-label="กรองตามสถานที่">
+                            <option value="">ทุกสถานที่</option>
+                            <?php foreach (($assetFilterOptions['locations'] ?? []) as $location): ?>
+                                <option value="<?= e((string) $location['id']) ?>"<?= $assetLocationId === (int) $location['id'] ? ' selected' : '' ?>><?= e((string) $location['label']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="field-group">
+                        <label class="field-label" for="asset-filter-status">สถานะ</label>
+                        <select id="asset-filter-status" name="status" class="input" aria-label="กรองตามสถานะทรัพย์สิน">
+                            <option value="">ทุกสถานะ</option>
+                            <?php foreach (($assetFilterOptions['statuses'] ?? []) as $value => $label): ?>
+                                <option value="<?= e((string) $value) ?>"<?= $assetStatus === (string) $value ? ' selected' : '' ?>><?= e((string) $label) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+            </details>
+        </form>
+
         <?php if ($assets === []): ?>
             <?= render_partial('partials/components/empty-state', [
                 'icon' => 'qr-code',
-                'title' => 'ยังไม่มีทรัพย์สินในระบบ',
-                'description' => 'เพิ่มทรัพย์สินรายการแรกเพื่อสร้าง QR สำหรับสแกนแจ้งซ่อมได้ทันที',
+                'title' => $isAssetFilterActive ? 'ไม่พบทรัพย์สินตามเงื่อนไข' : 'ยังไม่มีทรัพย์สินในระบบ',
+                'description' => $isAssetFilterActive ? 'ลองปรับคำค้นหรือล้างตัวกรองเพื่อดูทรัพย์สินที่เกี่ยวข้อง' : 'เพิ่มทรัพย์สินรายการแรกเพื่อสร้าง QR สำหรับสแกนแจ้งซ่อมได้ทันที',
             ]) ?>
         <?php else: ?>
             <div class="asset-grid">

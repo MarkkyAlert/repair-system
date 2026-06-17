@@ -1,20 +1,55 @@
-<section class="qr-sheet-preview">
-    <div>
-        <p class="panel-kicker">แผ่น QR ทรัพย์สิน</p>
-        <h3 class="panel-title"><?= e($title ?? 'ตัวอย่างแผ่น QR ขนาด A4') ?></h3>
+<?php
+$qrBrandName = trim((string) ($brandName ?? setting('app_name', config('app.name', 'Repair System'))));
+$qrBrandLogoUrl = trim((string) ($brandLogoUrl ?? (branding_logo_url() ?? '')));
+$qrItems = $items ?? [];
+?>
+<section class="qr-sheet-preview" aria-labelledby="qr-sheet-title" aria-describedby="qr-sheet-summary">
+    <div class="qr-sheet-head">
+        <div>
+            <p class="panel-kicker">แผ่น QR ทรัพย์สิน</p>
+            <h3 id="qr-sheet-title" class="panel-title"><?= e($title ?? 'แผ่น QR พร้อมพิมพ์ ขนาด A4') ?></h3>
+        </div>
+        <p id="qr-sheet-summary" class="qr-sheet-summary">ฉลาก QR สำหรับติดบนทรัพย์สิน พิมพ์บนกระดาษ A4 แนวตั้งและตั้ง Scale 100%</p>
     </div>
-    <div class="qr-grid" role="list" aria-label="รายการฉลาก QR ทรัพย์สิน">
-        <?php foreach (($items ?? []) as $item): ?>
-            <div class="qr-cell" role="listitem">
-                <div class="qr-label-brand"><?= lucide('wrench', 'qr-label-icon') ?><strong>แจ้งซ่อม</strong></div>
-                <img src="<?= e($item['qr_png_url'] ?? '') ?>" alt="QR สำหรับทรัพย์สิน <?= e($item['asset_code'] ?? '') ?>" class="panel-card">
-                <div class="stack-md">
-                    <p class="panel-title"><?= e($item['name'] ?? '-') ?></p>
-                    <span class="badge badge-default"><?= e($item['asset_code'] ?? '-') ?></span>
-                    <p class="helper-text"><?= e($item['location_name'] ?? '-') ?></p>
-                    <p class="qr-instruction">สแกนเพื่อแจ้งซ่อมอุปกรณ์นี้</p>
-                </div>
+
+    <?php if (empty($qrItems)): ?>
+        <div class="empty-state no-print">
+            <div class="empty-state-illustration" aria-hidden="true">
+                <span class="empty-state-illustration-blob empty-state-illustration-blob-1"></span>
+                <span class="empty-state-illustration-blob empty-state-illustration-blob-2"></span>
+                <span class="empty-state-illustration-icon"><?= lucide('qr-code') ?></span>
             </div>
-        <?php endforeach; ?>
-    </div>
+            <p class="empty-state-title">ยังไม่มีทรัพย์สินสำหรับพิมพ์ QR</p>
+            <p class="empty-state-copy">เพิ่มทรัพย์สินหรือกลับไปตรวจรายการทรัพย์สินก่อน แล้วค่อยพิมพ์แผ่น QR อีกครั้ง</p>
+            <?= render_partial('partials/components/button', ['label' => 'กลับไปทะเบียนทรัพย์สิน', 'variant' => 'secondary', 'href' => '/asset-registry']) ?>
+        </div>
+    <?php else: ?>
+        <div class="qr-grid" role="list" aria-labelledby="qr-sheet-title" aria-describedby="qr-sheet-summary">
+            <?php foreach ($qrItems as $item): ?>
+                <?php
+                $assetCode = (string) ($item['asset_code'] ?? '-');
+                $assetName = (string) ($item['name'] ?? '-');
+                $assetLocation = (string) ($item['location_name'] ?? '-');
+                ?>
+                <div class="qr-cell" role="listitem">
+                    <div class="qr-cut-guide" aria-hidden="true"></div>
+                    <div class="qr-label-brand">
+                        <?php if ($qrBrandLogoUrl !== ''): ?>
+                            <img src="<?= e($qrBrandLogoUrl) ?>" alt="" aria-hidden="true" class="qr-label-logo">
+                        <?php else: ?>
+                            <?= lucide('wrench', 'qr-label-icon') ?>
+                        <?php endif; ?>
+                        <strong><?= e($qrBrandName !== '' ? $qrBrandName : 'แจ้งซ่อม') ?></strong>
+                    </div>
+                    <img src="<?= e($item['qr_png_url'] ?? '') ?>" alt="QR สำหรับแจ้งซ่อม <?= e($assetCode) ?> <?= e($assetName) ?> ที่ <?= e($assetLocation) ?>" class="qr-code-image">
+                    <div class="qr-label-meta">
+                        <p class="qr-label-title"><?= e($assetName) ?></p>
+                        <span class="qr-label-code"><?= e($assetCode) ?></span>
+                        <p class="qr-label-location"><?= e($assetLocation) ?></p>
+                        <p class="qr-instruction">สแกนเพื่อแจ้งซ่อมอุปกรณ์นี้</p>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        </div>
+    <?php endif; ?>
 </section>

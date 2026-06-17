@@ -17,13 +17,19 @@ class AssetService
 
     public function getAssetIndexData(array $viewer, array $filters = []): array
     {
-        $result = $this->assets->getAssetListPage(max(1, (int) ($filters['page'] ?? 1)), 18);
+        $reference = $this->assets->getAssetFormReferenceData();
+        $normalizedFilters = $this->normalizeAssetIndexFilters($filters);
+        $result = $this->assets->getAssetListPage(max(1, (int) ($filters['page'] ?? 1)), 18, $normalizedFilters);
+        $filterOptions = $this->buildAssetFilterOptions($reference);
 
         return [
             'roleLabel' => $this->labelize((string) ($viewer['role'] ?? 'guest')),
             'canManage' => $this->canManageAssets($viewer),
             'assets' => array_map(fn (array $asset): array => $this->mapAssetSummary($asset), $result['items']),
             'pagination' => $result,
+            'filters' => $normalizedFilters,
+            'filterOptions' => $filterOptions,
+            'activeFilters' => $this->buildAssetActiveFilterChips($normalizedFilters, $filterOptions),
         ];
     }
 
@@ -99,6 +105,8 @@ class AssetService
         $this->assertManageable($viewer);
 
         return [
+            'brandName' => (string) setting('app_name', config('app.name', 'Repair System')),
+            'brandLogoUrl' => branding_logo_url(),
             'assets' => array_map(fn (array $asset): array => [
                 'id' => (int) ($asset['id'] ?? 0),
                 'asset_code' => (string) ($asset['asset_code'] ?? ''),
@@ -314,6 +322,89 @@ class AssetService
             'last_scanned_at' => $this->formatDateTime($asset['last_scanned_at'] ?? null),
             'qr_png_url' => url('/asset-registry/' . (int) ($asset['id'] ?? 0) . '/qr.png'),
             'prefill_ticket_url' => '/tickets/create?asset_id=' . (int) ($asset['id'] ?? 0),
+        ];
+    }
+
+    private function normalizeAssetIndexFilters(array $filters): array
+    {
+        $statusOptions = array_keys($this->assetStatusOptions());
+        $status = trim((string) ($filters['status'] ?? ''));
+
+        return [
+            'q' => function_exists('mb_substr')
+                ? mb_substr(trim((string) ($filters['q'] ?? '')), 0, 120)
+                : substr(trim((string) ($filters['q'] ?? '')), 0, 120),
+            'category_id' => max(0, (int) ($filters['category_id'] ?? 0)),
+            'location_id' => max(0, (int) ($filters['location_id'] ?? 0)),
+            'status' => in_array($status, $statusOptions, true) ? $status : '',
+        ];
+    }
+
+    private function buildAssetFilterOptions(array $reference): array
+    {
+        return [
+            'categories' => array_map(fn (array $category): array => [
+                'id' => (int) ($category['id'] ?? 0),
+                'label' => (string) ($category['name'] ?? '') . ' (' . (string) ($category['code'] ?? '') . ')',
+            ], $reference['categories'] ?? []),
+            'locations' => array_map(fn (array $location): array => [
+                'id' => (int) ($location['id'] ?? 0),
+                'label' => $this->buildLabel([
+                    (string) ($location['name'] ?? ''),
+                    (string) ($location['building'] ?? ''),
+                    (string) ($location['room'] ?? ''),
+                ]),
+            ], $reference['locations'] ?? []),
+            'statuses' => $this->assetStatusOptions(),
+        ];
+    }
+
+    private function buildAssetActiveFilterChips(array $filters, array $options): array
+    {
+        $chips = [];
+
+        if ((string) ($filters['q'] ?? '') !== '') {
+            $chips[] = 'คำค้น: ' . (string) $filters['q'];
+        }
+
+        $categoryId = (int) ($filters['category_id'] ?? 0);
+        if ($categoryId > 0) {
+            $label = $this->findOptionLabel($options['categories'] ?? [], $categoryId);
+            $chips[] = 'หมวดหมู่: ' . ($label !== '' ? $label : (string) $categoryId);
+        }
+
+        $locationId = (int) ($filters['location_id'] ?? 0);
+        if ($locationId > 0) {
+            $label = $this->findOptionLabel($options['locations'] ?? [], $locationId);
+            $chips[] = 'สถานที่: ' . ($label !== '' ? $label : (string) $locationId);
+        }
+
+        $status = (string) ($filters['status'] ?? '');
+        if ($status !== '') {
+            $chips[] = 'สถานะ: ' . (string) (($options['statuses'] ?? [])[$status] ?? $this->labelize($status));
+        }
+
+        return $chips;
+    }
+
+    private function findOptionLabel(array $options, int $id): string
+    {
+        foreach ($options as $option) {
+            if ((int) ($option['id'] ?? 0) === $id) {
+                return (string) ($option['label'] ?? '');
+            }
+        }
+
+        return '';
+    }
+
+    private function assetStatusOptions(): array
+    {
+        return [
+            'active' => 'ใช้งานอยู่',
+            'maintenance' => 'อยู่ระหว่างซ่อม',
+            'retired' => 'เลิกใช้งาน',
+            'disposed' => 'จำหน่าย/ทิ้ง',
         ];
     }
 

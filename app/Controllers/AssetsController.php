@@ -30,6 +30,9 @@ class AssetsController
             'roleLabel' => $data['roleLabel'],
             'canManage' => $data['canManage'],
             'pagination' => $data['pagination'],
+            'filters' => $data['filters'],
+            'filterOptions' => $data['filterOptions'],
+            'activeFilters' => $data['activeFilters'],
         ]);
     }
 
@@ -195,6 +198,8 @@ class AssetsController
             'pageHeading' => 'พิมพ์แผ่น QR',
             'currentUser' => $viewer,
             'assets' => $data['assets'],
+            'brandName' => $data['brandName'],
+            'brandLogoUrl' => $data['brandLogoUrl'],
         ]);
     }
 

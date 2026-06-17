@@ -52,14 +52,30 @@ class AssetRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    public function getAssetListPage(int $page, int $perPage): array
+    public function getAssetListPage(int $page, int $perPage, array $filters = []): array
     {
         $perPage = max(1, min($perPage, 100));
-        $total = (int) ($this->db->query('SELECT COUNT(*) FROM assets')->fetchColumn() ?: 0);
+        [$whereSql, $params] = $this->buildAssetListWhere($filters);
+
+        $countStmt = $this->db->prepare(
+            "SELECT COUNT(*)
+             FROM assets a
+             INNER JOIN asset_categories ac ON ac.id = a.asset_category_id
+             INNER JOIN locations l ON l.id = a.location_id
+             LEFT JOIN departments d ON d.id = a.department_id
+             LEFT JOIN users custodian ON custodian.id = a.custodian_user_id
+             $whereSql"
+        );
+        foreach ($params as $key => $value) {
+            $countStmt->bindValue($key, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
+        }
+        $countStmt->execute();
+
+        $total = (int) ($countStmt->fetchColumn() ?: 0);
         $totalPages = max(1, (int) ceil($total / $perPage));
         $page = max(1, min($page, $totalPages));
         $offset = ($page - 1) * $perPage;
-        $stmt = $this->db->query(
+        $stmt = $this->db->prepare(
             "SELECT
                 a.id, a.asset_code, a.name, a.serial_number, a.brand, a.model, a.status,
                 a.warranty_expires_at, ac.name AS category_name, l.name AS location_name,
@@ -75,9 +91,16 @@ class AssetRepository
                 WHERE q.asset_id = a.id AND q.is_active = 1
                 ORDER BY q.id DESC LIMIT 1
              )
+             $whereSql
              ORDER BY a.asset_code ASC, a.id ASC
-             LIMIT $perPage OFFSET $offset"
+             LIMIT :limit OFFSET :offset"
         );
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
+        }
+        $stmt->bindValue('limit', $perPage, PDO::PARAM_INT);
+        $stmt->bindValue('offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
 
         return [
             'items' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
@@ -86,6 +109,43 @@ class AssetRepository
             'perPage' => $perPage,
             'totalPages' => $totalPages,
         ];
+    }
+
+    private function buildAssetListWhere(array $filters): array
+    {
+        $where = [];
+        $params = [];
+
+        $q = trim((string) ($filters['q'] ?? ''));
+        if ($q !== '') {
+            $where[] = '(a.asset_code LIKE :q_asset_code OR a.name LIKE :q_name OR a.serial_number LIKE :q_serial OR a.brand LIKE :q_brand OR a.model LIKE :q_model)';
+            $like = '%' . $q . '%';
+            $params['q_asset_code'] = $like;
+            $params['q_name'] = $like;
+            $params['q_serial'] = $like;
+            $params['q_brand'] = $like;
+            $params['q_model'] = $like;
+        }
+
+        $categoryId = (int) ($filters['category_id'] ?? 0);
+        if ($categoryId > 0) {
+            $where[] = 'a.asset_category_id = :category_id';
+            $params['category_id'] = $categoryId;
+        }
+
+        $locationId = (int) ($filters['location_id'] ?? 0);
+        if ($locationId > 0) {
+            $where[] = 'a.location_id = :location_id';
+            $params['location_id'] = $locationId;
+        }
+
+        $status = trim((string) ($filters['status'] ?? ''));
+        if ($status !== '') {
+            $where[] = 'a.status = :status';
+            $params['status'] = $status;
+        }
+
+        return [$where === [] ? '' : 'WHERE ' . implode(' AND ', $where), $params];
     }
 
     public function getAssetFormReferenceData(): array
