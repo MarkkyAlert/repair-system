@@ -151,8 +151,6 @@ class AssetService
 
     public function generateQrPng(int $assetId, array $viewer): string
     {
-        $this->assertManageable($viewer);
-
         $asset = $this->assets->findAssetById($assetId);
         if ($asset === null || (string) ($asset['qr_token'] ?? '') === '') {
             throw new DomainException('ไม่พบ QR token สำหรับ asset นี้');
@@ -314,6 +312,8 @@ class AssetService
             'custodian_name' => (string) ($asset['custodian_name'] ?? '-'),
             'warranty_expires_at' => $this->formatDate($asset['warranty_expires_at'] ?? null),
             'last_scanned_at' => $this->formatDateTime($asset['last_scanned_at'] ?? null),
+            'qr_png_url' => url('/asset-registry/' . (int) ($asset['id'] ?? 0) . '/qr.png'),
+            'prefill_ticket_url' => '/tickets/create?asset_id=' . (int) ($asset['id'] ?? 0),
         ];
     }
 

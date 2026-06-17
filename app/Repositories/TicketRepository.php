@@ -1750,6 +1750,7 @@ class TicketRepository
         $status = trim((string) ($filters['status'] ?? ''));
         $priority = trim((string) ($filters['priority'] ?? ''));
         $technicianId = (int) ($filters['technician_id'] ?? 0);
+        $sla = trim((string) ($filters['sla'] ?? ''));
 
         if ($search !== '') {
             $conditions[] = '(t.ticket_no LIKE :ticket_no_search OR t.title LIKE :ticket_title_search)';
@@ -1767,6 +1768,10 @@ class TicketRepository
         if ($technicianId > 0) {
             $conditions[] = 't.assigned_technician_id = :ticket_technician_id';
             $params['ticket_technician_id'] = $technicianId;
+        }
+        if ($sla === 'overdue') {
+            $conditions[] = "t.status NOT IN ('resolved','completed','rejected','cancelled','closed')";
+            $conditions[] = "EXISTS (SELECT 1 FROM ticket_sla_tracks ticket_sla_filter WHERE ticket_sla_filter.ticket_id = t.id AND (ticket_sla_filter.status = 'breached' OR (ticket_sla_filter.status = 'pending' AND ticket_sla_filter.target_at < NOW())))";
         }
     }
 

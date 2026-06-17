@@ -8,8 +8,12 @@ $icon = $icon ?? match ($tone) {
     default => 'layers',
 };
 $href = $href ?? null;
+$ariaLabel = $ariaLabel ?? null;
 $tag = is_string($href) && $href !== '' ? 'a' : 'article';
 $attributes = $tag === 'a' ? ' href="' . e(url($href)) . '"' : '';
+if (is_string($ariaLabel) && $ariaLabel !== '') {
+    $attributes .= ' aria-label="' . e($ariaLabel) . '"';
+}
 ?>
 <<?= $tag ?> class="metric-card metric-card-<?= e($tone) ?>"<?= $attributes ?>>
     <div class="metric-card-head">

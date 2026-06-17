@@ -118,6 +118,189 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  document.addEventListener('click', (event) => {
+    const trigger = event.target instanceof Element ? event.target.closest('[data-print-qr-url]') : null;
+
+    if (!(trigger instanceof HTMLElement)) {
+      return;
+    }
+
+    const qrUrl = trigger.getAttribute('data-print-qr-url') || '';
+    if (qrUrl === '') {
+      return;
+    }
+
+    event.preventDefault();
+
+    const printWindow = window.open('', '_blank', 'noopener');
+    if (!printWindow) {
+      window.location.href = qrUrl;
+      return;
+    }
+
+    printWindow.document.open();
+    printWindow.document.write(`<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <title>พิมพ์ QR</title>
+</head>
+<body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#fff;">
+</body>
+</html>`);
+    printWindow.document.close();
+
+    const image = printWindow.document.createElement('img');
+    image.src = qrUrl;
+    image.alt = 'QR สำหรับแจ้งซ่อม';
+    image.style.maxWidth = '90vw';
+    image.style.maxHeight = '90vh';
+    image.addEventListener('load', () => {
+      printWindow.print();
+      printWindow.setTimeout(() => printWindow.close(), 150);
+    });
+    printWindow.document.body.appendChild(image);
+  });
+
+  const mobileInfoCards = document.querySelectorAll('[data-mobile-collapsible-info]');
+
+  if (mobileInfoCards.length > 0) {
+    const mobileInfoQuery = window.matchMedia('(max-width: 700px)');
+    const syncMobileInfoCards = () => {
+      mobileInfoCards.forEach((card) => {
+        if (!(card instanceof HTMLDetailsElement)) {
+          return;
+        }
+
+        if (mobileInfoQuery.matches) {
+          card.removeAttribute('open');
+          return;
+        }
+
+        card.setAttribute('open', 'open');
+      });
+    };
+
+    mobileInfoCards.forEach((card) => {
+      const summary = card.querySelector('summary');
+
+      if (!summary) {
+        return;
+      }
+
+      summary.addEventListener('click', (event) => {
+        if (!mobileInfoQuery.matches) {
+          event.preventDefault();
+        }
+      });
+    });
+
+    syncMobileInfoCards();
+
+    if (typeof mobileInfoQuery.addEventListener === 'function') {
+      mobileInfoQuery.addEventListener('change', syncMobileInfoCards);
+    } else if (typeof mobileInfoQuery.addListener === 'function') {
+      mobileInfoQuery.addListener(syncMobileInfoCards);
+    }
+  }
+
+  document.querySelectorAll('[data-ticket-attachment-input]').forEach((input) => {
+    const fieldGroup = input.closest('.field-group');
+    const rootEl = fieldGroup?.querySelector('[data-ticket-attachment-root]');
+    const status = fieldGroup?.querySelector('[data-ticket-attachment-status]');
+    const preview = fieldGroup?.querySelector('[data-ticket-attachment-preview]');
+    let objectUrls = [];
+
+    if (!(input instanceof HTMLInputElement) || !status || !preview) {
+      return;
+    }
+
+    const maxFiles = 3;
+    const formatter = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 1 });
+
+    const clearPreview = () => {
+      objectUrls.forEach((url) => URL.revokeObjectURL(url));
+      objectUrls = [];
+      preview.replaceChildren();
+      preview.setAttribute('hidden', 'hidden');
+      status.classList.remove('is-warning');
+      if (rootEl) {
+        rootEl.classList.remove('has-files', 'has-warning');
+      }
+    };
+
+    const formatFileSize = (bytes) => {
+      if (!Number.isFinite(bytes) || bytes <= 0) {
+        return '0 KB';
+      }
+
+      if (bytes >= 1024 * 1024) {
+        return `${formatter.format(bytes / (1024 * 1024))} MB`;
+      }
+
+      return `${formatter.format(bytes / 1024)} KB`;
+    };
+
+    const renderPreview = () => {
+      clearPreview();
+
+      const files = Array.from(input.files || []);
+
+      if (files.length === 0) {
+        status.textContent = 'ยังไม่ได้เลือกรูป';
+        return;
+      }
+
+      const isOverLimit = files.length > maxFiles;
+      status.textContent = isOverLimit
+        ? `เลือกแล้ว ${files.length} รูป จากสูงสุด ${maxFiles} รูป ระบบรับได้สูงสุด ${maxFiles} รูปต่อครั้ง`
+        : `เลือกแล้ว ${files.length} รูป จากสูงสุด ${maxFiles} รูป`;
+      status.classList.toggle('is-warning', isOverLimit);
+
+      if (rootEl) {
+        rootEl.classList.add('has-files');
+        rootEl.classList.toggle('has-warning', isOverLimit);
+      }
+
+      files.forEach((file) => {
+        const card = document.createElement('div');
+        card.className = 'attachment-preview-card';
+        card.setAttribute('role', 'listitem');
+
+        const thumb = document.createElement('div');
+        thumb.className = 'attachment-preview-thumb';
+
+        if (file.type.startsWith('image/')) {
+          const image = document.createElement('img');
+          const url = URL.createObjectURL(file);
+          objectUrls.push(url);
+          image.src = url;
+          image.alt = `ตัวอย่างรูป ${file.name}`;
+          thumb.appendChild(image);
+        } else {
+          thumb.textContent = 'ไฟล์';
+        }
+
+        const meta = document.createElement('div');
+        meta.className = 'attachment-preview-meta';
+
+        const name = document.createElement('strong');
+        name.textContent = file.name || 'รูปประกอบ';
+
+        const size = document.createElement('span');
+        size.textContent = formatFileSize(file.size);
+
+        meta.append(name, size);
+        card.append(thumb, meta);
+        preview.appendChild(card);
+      });
+
+      preview.removeAttribute('hidden');
+    };
+
+    input.addEventListener('change', renderPreview);
+  });
+
   document.querySelectorAll('[data-comment-thread]').forEach((thread) => {
     const setEditingState = (item, isEditing) => {
       const view = item.querySelector('[data-comment-view]');

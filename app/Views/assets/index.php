@@ -1,14 +1,14 @@
 <section class="stack-lg">
     <?php ob_start(); ?>
                 <?php if (!empty($canManage)): ?>
-                    <?= render_partial('partials/components/button', ['label' => 'เพิ่ม Asset', 'variant' => 'primary', 'href' => '/asset-registry/create', 'icon' => 'arrow-right']) ?>
-                    <?= render_partial('partials/components/button', ['label' => 'พิมพ์ QR Sheet', 'variant' => 'secondary', 'href' => '/asset-registry/print']) ?>
+                    <?= render_partial('partials/components/button', ['label' => 'เพิ่มทรัพย์สิน', 'variant' => 'primary', 'href' => '/asset-registry/create', 'icon' => 'arrow-right']) ?>
+                    <?= render_partial('partials/components/button', ['label' => 'พิมพ์แผ่น QR', 'variant' => 'secondary', 'href' => '/asset-registry/print']) ?>
                 <?php endif; ?>
     <?php $heroActions = (string) ob_get_clean(); ?>
     <?= render_partial('partials/components/page-header', [
-        'eyebrow' => 'Asset Registry',
+        'eyebrow' => 'ทะเบียนทรัพย์สิน',
         'title' => 'ทรัพย์สินและ QR',
-        'description' => 'จัดการอุปกรณ์และพิมพ์ QR สำหรับสแกนแจ้งซ่อม',
+        'description' => 'ดูทรัพย์สิน สแกน QR และเปิดงานแจ้งซ่อมจากอุปกรณ์ได้ทันที',
         'actions' => $heroActions,
     ]) ?>
 
@@ -21,28 +21,37 @@
         <?php if ($assets === []): ?>
             <?= render_partial('partials/components/empty-state', [
                 'icon' => 'qr-code',
-                'title' => 'ยังไม่มี Asset ในระบบ',
-                'description' => 'เมื่อเพิ่มข้อมูล Asset แล้ว จะสามารถสร้าง QR และใช้ prefill หน้าแจ้งซ่อมได้',
+                'title' => 'ยังไม่มีทรัพย์สินในระบบ',
+                'description' => 'เพิ่มทรัพย์สินรายการแรกเพื่อสร้าง QR สำหรับสแกนแจ้งซ่อมได้ทันที',
             ]) ?>
         <?php else: ?>
             <div class="asset-grid">
                 <?php foreach ($assets as $asset): ?>
                     <article class="asset-card">
-                        <header class="asset-card-head">
-                            <div class="asset-card-id">
-                                <code class="mono"><?= e($asset['asset_code']) ?></code>
-                                <?= render_partial('partials/components/badge', ['label' => $asset['status_label'], 'tone' => $asset['status_tone']]) ?>
+                        <div class="asset-card-main">
+                            <div class="asset-card-copy">
+                                <header class="asset-card-head">
+                                    <div class="asset-card-id">
+                                        <code class="mono"><?= e($asset['asset_code']) ?></code>
+                                        <?= render_partial('partials/components/badge', ['label' => $asset['status_label'], 'tone' => $asset['status_tone']]) ?>
+                                    </div>
+                                    <h3 class="asset-card-title"><?= e($asset['name']) ?></h3>
+                                </header>
                             </div>
-                            <h3 class="asset-card-title"><?= e($asset['name']) ?></h3>
-                        </header>
+                            <a class="asset-card-qr" href="<?= e($asset['qr_png_url']) ?>" target="_blank" rel="noopener" aria-label="ดู QR ของทรัพย์สิน <?= e($asset['asset_code']) ?>">
+                                <img src="<?= e($asset['qr_png_url']) ?>" alt="QR สำหรับทรัพย์สิน <?= e($asset['asset_code']) ?>">
+                                <span>ดู QR</span>
+                            </a>
+                        </div>
                         <dl class="asset-card-meta">
-                            <div><dt><?= lucide('tag', 'h-3.5 w-3.5') ?>หมวด</dt><dd><?= e($asset['category_name']) ?></dd></div>
+                            <div><dt><?= lucide('tag', 'h-3.5 w-3.5') ?>หมวดหมู่</dt><dd><?= e($asset['category_name']) ?></dd></div>
                             <div><dt><?= lucide('map-pin', 'h-3.5 w-3.5') ?>สถานที่</dt><dd><?= e($asset['location_label']) ?></dd></div>
                             <div><dt><?= lucide('user', 'h-3.5 w-3.5') ?>ผู้ดูแล</dt><dd><?= e($asset['custodian_name'] ?: '-') ?></dd></div>
                         </dl>
                         <footer class="asset-card-actions">
-                            <a class="asset-card-link" href="<?= e(url('/asset-registry/' . $asset['id'])) ?>">รายละเอียด</a>
-                            <a class="asset-card-cta" href="<?= e(url('/tickets/create?asset_id=' . $asset['id'])) ?>"><?= lucide('zap', 'h-3.5 w-3.5') ?>แจ้งปัญหา</a>
+                            <a class="asset-card-cta" href="<?= e(url($asset['prefill_ticket_url'])) ?>" aria-label="แจ้งซ่อมจากทรัพย์สิน <?= e($asset['asset_code']) ?>"><?= lucide('zap', 'h-3.5 w-3.5') ?>แจ้งซ่อม</a>
+                            <a class="asset-card-link" href="<?= e(url('/asset-registry/' . $asset['id'])) ?>" aria-label="ดูรายละเอียดทรัพย์สิน <?= e($asset['asset_code']) ?>">รายละเอียด</a>
+                            <a class="asset-card-link" href="<?= e($asset['qr_png_url']) ?>" target="_blank" rel="noopener" aria-label="เปิด QR PNG ของทรัพย์สิน <?= e($asset['asset_code']) ?>">เปิด QR</a>
                         </footer>
                     </article>
                 <?php endforeach; ?>

@@ -23,7 +23,7 @@ class AssetsController
         $data = $this->assets->getAssetIndexData($viewer, request()?->query ?? []);
 
         Response::view('assets/index', [
-            'title' => 'Assets & QR',
+            'title' => 'ทรัพย์สินและ QR',
             'pageHeading' => 'ทรัพย์สินและ QR',
             'currentUser' => $viewer,
             'assets' => $data['assets'],
@@ -87,7 +87,7 @@ class AssetsController
         }
 
         Response::view('assets/show', [
-            'title' => 'Asset Detail',
+            'title' => 'รายละเอียดทรัพย์สิน',
             'pageHeading' => 'รายละเอียดทรัพย์สิน',
             'currentUser' => $viewer,
             'asset' => $detail['asset'],
@@ -191,8 +191,8 @@ class AssetsController
         }
 
         Response::view('assets/print', [
-            'title' => 'QR Print Sheet',
-            'pageHeading' => 'พิมพ์ QR Sheet',
+            'title' => 'พิมพ์แผ่น QR',
+            'pageHeading' => 'พิมพ์แผ่น QR',
             'currentUser' => $viewer,
             'assets' => $data['assets'],
         ]);

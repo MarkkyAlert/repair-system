@@ -102,6 +102,7 @@ class TicketService
             'status' => trim((string) ($filters['status'] ?? '')),
             'priority' => strtoupper(trim((string) ($filters['priority'] ?? ''))),
             'technician_id' => max(0, (int) ($filters['technician_id'] ?? 0)),
+            'sla' => trim((string) ($filters['sla'] ?? '')) === 'overdue' ? 'overdue' : '',
         ];
         $page = max(1, (int) ($filters['page'] ?? 1));
         $result = $this->tickets->getVisibleTicketsPage($viewer, $normalized, $page, 20);

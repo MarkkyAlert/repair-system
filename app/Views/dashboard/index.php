@@ -6,16 +6,77 @@ $chartPayload = [
     'departmentBreakdown' => $charts['departmentBreakdown'] ?? [],
     'resolutionTrend' => $charts['resolutionTrend'] ?? [],
 ];
+$role = (string) ($currentUser['role'] ?? 'guest');
+$roleLabels = [
+    'requester' => 'ผู้แจ้ง',
+    'manager' => 'ผู้จัดการ',
+    'technician' => 'ช่างเทคนิค',
+    'admin' => 'ผู้ดูแลระบบ',
+];
+$primaryCta = match ($role) {
+    'manager' => ['label' => 'ตรวจงานรออนุมัติ', 'href' => '/dashboard?preset=pending_approval', 'icon' => 'clipboard-list'],
+    'technician' => ['label' => 'ดูงานของฉัน', 'href' => '/dashboard?preset=mine', 'icon' => 'wrench'],
+    default => ['label' => 'แจ้งปัญหาใหม่', 'href' => '/tickets/create', 'icon' => 'arrow-right'],
+};
+$chartHasData = static function (array $chart): bool {
+    $data = $chart['data'] ?? [];
+    if (!is_array($data) || $data === []) {
+        return false;
+    }
+
+    return array_sum(array_map(static fn ($value): float => (float) $value, $data)) > 0;
+};
+$metricCount = static fn (string $key): int => max(0, (int) ($metrics[$key] ?? 0));
+$formatChartNumber = static function (float $value): string {
+    return rtrim(rtrim(number_format($value, 1), '0'), '.');
+};
+$chartSummary = static function (array $chart, string $unit) use ($formatChartNumber): array {
+    $labels = is_array($chart['labels'] ?? null) ? array_values($chart['labels']) : [];
+    $data = is_array($chart['data'] ?? null) ? array_values($chart['data']) : [];
+    $values = array_map(static fn ($value): float => (float) $value, $data);
+    $total = array_sum($values);
+    $topValue = $values === [] ? 0.0 : max($values);
+    $topIndex = $values === [] ? false : array_search($topValue, $values, true);
+    $topLabel = $topIndex !== false && isset($labels[$topIndex]) ? (string) $labels[$topIndex] : '-';
+
+    return [
+        'total' => $formatChartNumber($total) . ' ' . $unit,
+        'top' => $topLabel . ' ' . $formatChartNumber($topValue) . ' ' . $unit,
+    ];
+};
+$urgentAlerts = [];
+if ($metricCount('overdue') > 0) {
+    $urgentAlerts[] = [
+        'tone' => 'danger',
+        'icon' => 'triangle-alert',
+        'label' => 'มีงานเกิน SLA ' . $metricCount('overdue') . ' รายการ',
+        'href' => '/tickets',
+    ];
+}
+if ($metricCount('pendingApproval') > 0) {
+    $urgentAlerts[] = [
+        'tone' => 'warning',
+        'icon' => 'clock',
+        'label' => 'มีงานรออนุมัติ ' . $metricCount('pendingApproval') . ' รายการ',
+        'href' => '/tickets?status=pending_approval',
+    ];
+}
 ?>
 <section class="stack-lg">
     <?php ob_start(); ?>
-    <span class="badge badge-info"><?= e($currentUser['role'] ?? 'guest') ?></span>
-    <?= render_partial('partials/components/button', ['label' => 'แจ้งปัญหาใหม่', 'variant' => 'primary', 'href' => '/tickets/create', 'icon' => 'arrow-right', 'iconPosition' => 'right']) ?>
+    <span class="badge badge-info"><?= e($roleLabels[$role] ?? $role) ?></span>
+    <?= render_partial('partials/components/button', [
+        'label' => $primaryCta['label'],
+        'variant' => 'primary',
+        'href' => $primaryCta['href'],
+        'icon' => $primaryCta['icon'],
+        'iconPosition' => 'right',
+    ]) ?>
     <?php $heroActions = (string) ob_get_clean(); ?>
     <?= render_partial('partials/components/page-header', [
         'eyebrow' => 'ภาพรวมการปฏิบัติงาน',
         'title' => 'สวัสดี ' . (string) ($currentUser['full_name'] ?? 'ผู้ใช้งาน'),
-        'description' => 'ภาพรวมงานซ่อมและ SLA แบบ real-time',
+        'description' => 'ภาพรวมงานซ่อมและ SLA ล่าสุด',
         'actions' => $heroActions,
     ]) ?>
 
@@ -26,12 +87,125 @@ $chartPayload = [
         <?php endforeach; ?>
     </nav>
 
+    <?php if ($urgentAlerts !== []): ?>
+        <section class="operations-alert-strip" aria-label="งานด่วนที่ควรจัดการก่อน">
+            <div class="operations-alert-copy">
+                <span class="operations-alert-icon"><?= lucide('triangle-alert', 'h-5 w-5') ?></span>
+                <div>
+                    <strong>มีงานที่ควรจัดการก่อน</strong>
+                    <span>เปิดรายการเพื่อป้องกัน SLA หลุดและลดคิวงานค้าง</span>
+                </div>
+            </div>
+            <div class="operations-alert-actions">
+                <?php foreach ($urgentAlerts as $alert): ?>
+                    <a class="operations-alert-chip tone-<?= e($alert['tone']) ?>" href="<?= e(url($alert['href'])) ?>">
+                        <?= lucide($alert['icon'], 'h-4 w-4') ?>
+                        <span><?= e($alert['label']) ?></span>
+                    </a>
+                <?php endforeach; ?>
+            </div>
+        </section>
+    <?php endif; ?>
+
+    <div class="stat-grid stat-grid-5">
+        <?= render_partial('partials/components/card', [
+            'title' => 'งานทั้งหมด',
+            'value' => (string) $metricCount('total'),
+            'meta' => 'เปิดรายการ Ticket',
+            'tone' => 'default',
+            'icon' => 'clipboard-list',
+            'href' => '/tickets',
+            'ariaLabel' => 'เปิดรายการ Ticket ทั้งหมด จำนวน ' . $metricCount('total') . ' รายการ',
+        ]) ?>
+        <?= render_partial('partials/components/card', [
+            'title' => 'รออนุมัติ',
+            'value' => (string) $metricCount('pendingApproval'),
+            'meta' => 'เปิดรายการ Ticket',
+            'tone' => 'warning',
+            'icon' => 'clock',
+            'href' => '/tickets?status=pending_approval',
+            'ariaLabel' => 'เปิดรายการ Ticket รออนุมัติ จำนวน ' . $metricCount('pendingApproval') . ' รายการ',
+        ]) ?>
+        <?= render_partial('partials/components/card', [
+            'title' => 'กำลังดำเนินการ',
+            'value' => (string) $metricCount('inProgress'),
+            'meta' => 'เปิดรายการ Ticket',
+            'tone' => 'info',
+            'icon' => 'activity',
+            'href' => '/tickets?status=in_progress',
+            'ariaLabel' => 'เปิดรายการ Ticket กำลังดำเนินการ จำนวน ' . $metricCount('inProgress') . ' รายการ',
+        ]) ?>
+        <?= render_partial('partials/components/card', [
+            'title' => 'เสร็จเดือนนี้',
+            'value' => (string) $metricCount('completedThisMonth'),
+            'meta' => 'เปิดรายการ Ticket',
+            'tone' => 'success',
+            'icon' => 'check-circle',
+            'href' => '/tickets?status=completed',
+            'ariaLabel' => 'เปิดรายการ Ticket ที่เสร็จแล้ว จำนวน ' . $metricCount('completedThisMonth') . ' รายการ',
+        ]) ?>
+        <?= render_partial('partials/components/card', [
+            'title' => 'เกินกำหนด',
+            'value' => (string) $metricCount('overdue'),
+            'meta' => 'เปิดรายการ Ticket',
+            'tone' => 'danger',
+            'icon' => 'triangle-alert',
+            'href' => '/tickets',
+            'ariaLabel' => 'เปิดรายการ Ticket เกิน SLA จำนวน ' . $metricCount('overdue') . ' รายการ',
+        ]) ?>
+    </div>
+
+    <section class="panel-card">
+        <div class="panel-head">
+            <div>
+                <h2 class="panel-title">งานที่ต้องติดตาม</h2>
+                <p class="field-hint">รายการล่าสุดตามสิทธิ์และตัวกรองปัจจุบัน เปิดเพื่อจัดการต่อได้ทันที</p>
+            </div>
+            <?= render_partial('partials/components/button', [
+                'label' => 'ดูทั้งหมด',
+                'variant' => 'ghost',
+                'href' => '/tickets',
+                'icon' => 'arrow-right',
+                'iconPosition' => 'right',
+            ]) ?>
+        </div>
+        <?php if (!empty($recentTickets)): ?>
+            <ul class="list-rows">
+                <?php foreach ($recentTickets as $ticket): ?>
+                    <li>
+                        <a class="list-row<?= !empty($ticket['is_overdue']) ? ' is-overdue' : '' ?>" href="<?= e(url('/tickets/' . $ticket['id'])) ?>">
+                            <span class="list-row-main">
+                                <span class="list-row-title">
+                                    <code class="mono"><?= e($ticket['ticket_no']) ?></code>
+                                    <strong><?= e($ticket['title']) ?></strong>
+                                </span>
+                                <span class="list-row-meta"><?= e($ticket['requester_name']) ?> · <?= e($ticket['location_name']) ?> · <?= e(human_date($ticket['requested_at'])) ?></span>
+                            </span>
+                            <span class="list-row-side">
+                                <?= render_partial('partials/components/badge', ['label' => $ticket['priority_label'], 'tone' => $ticket['priority_tone']]) ?>
+                                <?= render_partial('partials/components/badge', ['label' => $ticket['status_label'], 'tone' => $ticket['status_tone']]) ?>
+                                <span class="list-row-sla"><?= render_partial('partials/components/badge', ['label' => $ticket['sla_overview_label'], 'tone' => $ticket['sla_overview_tone']]) ?></span>
+                                <span class="list-row-arrow"><?= lucide('chevron-right', 'h-4 w-4') ?></span>
+                            </span>
+                        </a>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        <?php else: ?>
+            <?= render_partial('partials/components/empty-state', [
+                'icon' => 'clipboard-list',
+                'title' => 'ยังไม่มีงานที่ต้องติดตามในมุมมองนี้',
+                'description' => 'ลองเปลี่ยนมุมมองด่วนหรือปรับตัวกรองเพื่อดูงานที่เกี่ยวข้อง',
+            ]) ?>
+        <?php endif; ?>
+    </section>
+
     <details class="collapsible" <?= ($filters['active_count'] ?? 0) > 0 ? 'open' : '' ?>>
         <summary class="collapsible-summary">
             <span class="metric-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide('filter', 'h-4 w-4') ?></span>
             <div class="collapsible-summary-main">
                 <span class="collapsible-title">ตัวกรองข้อมูล</span>
-                <span class="collapsible-subtitle">วันที่, แผนก, หมวดหมู่, สถานะ, ปีของกราฟ — กรองทุก KPI และกราฟใน dashboard</span>
+                <span class="collapsible-subtitle">วันที่, แผนก, หมวดหมู่, สถานะ และปีของกราฟ — ใช้ปรับข้อมูลในหน้านี้</span>
             </div>
             <div class="collapsible-meta">
                 <?php if (($filters['active_count'] ?? 0) > 0): ?>
@@ -95,64 +269,50 @@ $chartPayload = [
         </div>
     </details>
 
-    <div class="stat-grid stat-grid-5">
-        <?= render_partial('partials/components/card', [
-            'title' => 'งานทั้งหมด',
-            'value' => (string) ($metrics['total'] ?? 0),
-            'meta' => 'ตามสิทธิ์ของคุณ',
-            'tone' => 'default',
-            'icon' => 'clipboard-list',
-        ]) ?>
-        <?= render_partial('partials/components/card', [
-            'title' => 'รออนุมัติ',
-            'value' => (string) ($metrics['pendingApproval'] ?? 0),
-            'meta' => 'รอตรวจสอบ',
-            'tone' => 'warning',
-            'icon' => 'clock',
-        ]) ?>
-        <?= render_partial('partials/components/card', [
-            'title' => 'กำลังดำเนินการ',
-            'value' => (string) ($metrics['inProgress'] ?? 0),
-            'meta' => 'งานช่างเทคนิค',
-            'tone' => 'info',
-            'icon' => 'activity',
-        ]) ?>
-        <?= render_partial('partials/components/card', [
-            'title' => 'เสร็จเดือนนี้',
-            'value' => (string) ($metrics['completedThisMonth'] ?? 0),
-            'meta' => 'เดือนปัจจุบัน',
-            'tone' => 'success',
-            'icon' => 'check-circle',
-        ]) ?>
-        <?= render_partial('partials/components/card', [
-            'title' => 'เกินกำหนด',
-            'value' => (string) ($metrics['overdue'] ?? 0),
-            'meta' => 'ต้องเร่งดำเนินการ',
-            'tone' => 'danger',
-            'icon' => 'triangle-alert',
-        ]) ?>
-    </div>
-
     <div class="dashboard-chart-grid">
         <section class="panel-card stack-md">
             <div class="chart-meta">
                 <h2 class="panel-title">ปริมาณงานรายเดือน</h2>
                 <span class="chart-chip">ปี <?= e((string) ($filterState['year'] ?? date('Y'))) ?></span>
             </div>
+            <?php if ($chartHasData($chartPayload['monthlyTickets'] ?? [])): ?>
+                <?php $summary = $chartSummary($chartPayload['monthlyTickets'] ?? [], 'รายการ'); ?>
+                <p class="chart-summary">รวม <?= e($summary['total']) ?> · สูงสุด <?= e($summary['top']) ?></p>
+            <?php endif; ?>
             <div class="chart-shell" data-chart-shell>
-                <div class="chart-loading" data-chart-loading><?= render_partial('partials/components/skeleton') ?></div>
-                <canvas class="chart-canvas" data-dashboard-chart="monthlyTickets" data-chart-type="bar"></canvas>
+                <?php if ($chartHasData($chartPayload['monthlyTickets'] ?? [])): ?>
+                    <div class="chart-loading" data-chart-loading><?= render_partial('partials/components/skeleton') ?></div>
+                    <canvas class="chart-canvas" data-dashboard-chart="monthlyTickets" data-chart-type="bar" role="img" aria-label="กราฟปริมาณงานรายเดือน รวม <?= e($summary['total'] ?? '') ?>"></canvas>
+                <?php else: ?>
+                    <?= render_partial('partials/components/empty-state', [
+                        'icon' => 'bar-chart-3',
+                        'title' => 'ยังไม่มีปริมาณงานในช่วงนี้',
+                        'description' => 'เมื่อมี Ticket ในปีที่เลือก กราฟรายเดือนจะแสดงที่นี่',
+                    ]) ?>
+                <?php endif; ?>
             </div>
         </section>
 
         <section class="panel-card stack-md">
             <div class="chart-meta">
                 <h2 class="panel-title">สัดส่วนตามหมวดหมู่</h2>
-                <span class="chart-chip">Top categories</span>
+                <span class="chart-chip">หมวดหมู่ยอดนิยม</span>
             </div>
+            <?php if ($chartHasData($chartPayload['categoryBreakdown'] ?? [])): ?>
+                <?php $summary = $chartSummary($chartPayload['categoryBreakdown'] ?? [], 'รายการ'); ?>
+                <p class="chart-summary">รวม <?= e($summary['total']) ?> · สูงสุด <?= e($summary['top']) ?></p>
+            <?php endif; ?>
             <div class="chart-shell" data-chart-shell>
-                <div class="chart-loading" data-chart-loading><?= render_partial('partials/components/skeleton') ?></div>
-                <canvas class="chart-canvas" data-dashboard-chart="categoryBreakdown" data-chart-type="doughnut"></canvas>
+                <?php if ($chartHasData($chartPayload['categoryBreakdown'] ?? [])): ?>
+                    <div class="chart-loading" data-chart-loading><?= render_partial('partials/components/skeleton') ?></div>
+                    <canvas class="chart-canvas" data-dashboard-chart="categoryBreakdown" data-chart-type="doughnut" role="img" aria-label="กราฟสัดส่วนตามหมวดหมู่ รวม <?= e($summary['total'] ?? '') ?>"></canvas>
+                <?php else: ?>
+                    <?= render_partial('partials/components/empty-state', [
+                        'icon' => 'tag',
+                        'title' => 'ยังไม่มีข้อมูลหมวดหมู่',
+                        'description' => 'เมื่อมี Ticket ตามหมวดหมู่ ระบบจะสรุปสัดส่วนให้ที่นี่',
+                    ]) ?>
+                <?php endif; ?>
             </div>
         </section>
 
@@ -161,9 +321,21 @@ $chartPayload = [
                 <h2 class="panel-title">ปริมาณงานตามแผนก</h2>
                 <span class="chart-chip">ทุกแผนก</span>
             </div>
+            <?php if ($chartHasData($chartPayload['departmentBreakdown'] ?? [])): ?>
+                <?php $summary = $chartSummary($chartPayload['departmentBreakdown'] ?? [], 'รายการ'); ?>
+                <p class="chart-summary">รวม <?= e($summary['total']) ?> · สูงสุด <?= e($summary['top']) ?></p>
+            <?php endif; ?>
             <div class="chart-shell" data-chart-shell>
-                <div class="chart-loading" data-chart-loading><?= render_partial('partials/components/skeleton') ?></div>
-                <canvas class="chart-canvas" data-dashboard-chart="departmentBreakdown" data-chart-type="doughnut"></canvas>
+                <?php if ($chartHasData($chartPayload['departmentBreakdown'] ?? [])): ?>
+                    <div class="chart-loading" data-chart-loading><?= render_partial('partials/components/skeleton') ?></div>
+                    <canvas class="chart-canvas" data-dashboard-chart="departmentBreakdown" data-chart-type="doughnut" role="img" aria-label="กราฟปริมาณงานตามแผนก รวม <?= e($summary['total'] ?? '') ?>"></canvas>
+                <?php else: ?>
+                    <?= render_partial('partials/components/empty-state', [
+                        'icon' => 'building',
+                        'title' => 'ยังไม่มีข้อมูลตามแผนก',
+                        'description' => 'เมื่อมี Ticket จากแผนกต่าง ๆ ระบบจะแสดงสัดส่วนให้ที่นี่',
+                    ]) ?>
+                <?php endif; ?>
             </div>
         </section>
 
@@ -172,9 +344,21 @@ $chartPayload = [
                 <h2 class="panel-title">เวลาแก้ไขเฉลี่ย</h2>
                 <span class="chart-chip">ชั่วโมง</span>
             </div>
+            <?php if ($chartHasData($chartPayload['resolutionTrend'] ?? [])): ?>
+                <?php $summary = $chartSummary($chartPayload['resolutionTrend'] ?? [], 'ชั่วโมง'); ?>
+                <p class="chart-summary">ค่าเฉลี่ยสูงสุด <?= e($summary['top']) ?></p>
+            <?php endif; ?>
             <div class="chart-shell" data-chart-shell>
-                <div class="chart-loading" data-chart-loading><?= render_partial('partials/components/skeleton') ?></div>
-                <canvas class="chart-canvas" data-dashboard-chart="resolutionTrend" data-chart-type="line"></canvas>
+                <?php if ($chartHasData($chartPayload['resolutionTrend'] ?? [])): ?>
+                    <div class="chart-loading" data-chart-loading><?= render_partial('partials/components/skeleton') ?></div>
+                    <canvas class="chart-canvas" data-dashboard-chart="resolutionTrend" data-chart-type="line" role="img" aria-label="กราฟเวลาแก้ไขเฉลี่ย ค่าเฉลี่ยสูงสุด <?= e($summary['top'] ?? '') ?>"></canvas>
+                <?php else: ?>
+                    <?= render_partial('partials/components/empty-state', [
+                        'icon' => 'clock',
+                        'title' => 'ยังไม่มีเวลาแก้ไขเฉลี่ย',
+                        'description' => 'เมื่อมีงานที่แก้ไขเสร็จ ระบบจะคำนวณแนวโน้มให้ที่นี่',
+                    ]) ?>
+                <?php endif; ?>
             </div>
         </section>
     </div>
@@ -183,7 +367,7 @@ $chartPayload = [
         <summary class="collapsible-summary">
             <span class="metric-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide('bar-chart-3', 'h-4 w-4') ?></span>
             <div class="collapsible-summary-main">
-                <span class="collapsible-title">รายงานเชิงลึก (Top performers)</span>
+                <span class="collapsible-title">รายงานเชิงลึก</span>
                 <span class="collapsible-subtitle">5 อันดับช่างและหมวดหมู่ที่พบบ่อย</span>
             </div>
             <span class="collapsible-chevron"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
@@ -220,8 +404,8 @@ $chartPayload = [
             <?php else: ?>
                 <?= render_partial('partials/components/empty-state', [
                     'icon' => 'bar-chart-3',
-                    'title' => 'ยังไม่มีข้อมูล technician leaderboard',
-                    'description' => 'เมื่อมีงานที่ถูก assign และมีประวัติ rating/overdue ระบบจะแสดงลำดับให้อัตโนมัติ',
+                    'title' => 'ยังไม่มีอันดับช่างเทคนิค',
+                    'description' => 'เมื่อมีงานที่มอบหมายและมีประวัติคะแนนหรือเกินกำหนด ระบบจะแสดงลำดับให้อัตโนมัติ',
                 ]) ?>
             <?php endif; ?>
         </section>
@@ -256,64 +440,12 @@ $chartPayload = [
                 <?= render_partial('partials/components/empty-state', [
                     'icon' => 'bar-chart-3',
                     'title' => 'ยังไม่มีข้อมูลหมวดที่พบบ่อย',
-                    'description' => 'เมื่อมีการแจ้งงานตามหมวดต่าง ๆ ระบบจะสรุป top categories ให้ที่นี่',
+                    'description' => 'เมื่อมีการแจ้งงานตามหมวดต่าง ๆ ระบบจะสรุปหมวดหมู่ที่พบบ่อยให้ที่นี่',
                 ]) ?>
             <?php endif; ?>
         </section>
         </div>
     </details>
 
-    <section class="panel-card">
-        <div class="panel-head">
-            <h2 class="panel-title">งานล่าสุดที่คุณเข้าถึงได้</h2>
-            <?= render_partial('partials/components/button', [
-                'label' => 'ดูทั้งหมด',
-                'variant' => 'ghost',
-                'href' => '/tickets',
-                'icon' => 'arrow-right',
-                'iconPosition' => 'right',
-            ]) ?>
-        </div>
-        <?php if (!empty($recentTickets)): ?>
-            <ul class="list-rows">
-                <?php foreach ($recentTickets as $ticket): ?>
-                    <li class="list-row<?= !empty($ticket['is_overdue']) ? ' is-overdue' : '' ?>" data-href="<?= e(url('/tickets/' . $ticket['id'])) ?>">
-                        <div class="list-row-main">
-                            <div class="list-row-title">
-                                <code class="mono"><?= e($ticket['ticket_no']) ?></code>
-                                <strong><?= e($ticket['title']) ?></strong>
-                            </div>
-                            <p class="list-row-meta"><?= e($ticket['requester_name']) ?> · <?= e($ticket['location_name']) ?> · <?= e(human_date($ticket['requested_at'])) ?></p>
-                        </div>
-                        <div class="list-row-side">
-                            <?= render_partial('partials/components/badge', ['label' => $ticket['priority_label'], 'tone' => $ticket['priority_tone']]) ?>
-                            <?= render_partial('partials/components/badge', ['label' => $ticket['status_label'], 'tone' => $ticket['status_tone']]) ?>
-                            <?= render_partial('partials/components/badge', ['label' => $ticket['sla_overview_label'], 'tone' => $ticket['sla_overview_tone']]) ?>
-                            <span class="list-row-arrow"><?= lucide('chevron-right', 'h-4 w-4') ?></span>
-                        </div>
-                    </li>
-                <?php endforeach; ?>
-            </ul>
-        <?php else: ?>
-            <?= render_partial('partials/components/empty-state', [
-                'icon' => 'clipboard-list',
-                'title' => 'ยังไม่มีงานที่เห็น',
-                'description' => 'เมื่อมีงานตามสิทธิ์ของคุณ รายการล่าสุดจะปรากฏที่นี่',
-            ]) ?>
-        <?php endif; ?>
-    </section>
-
     <script id="dashboard-charts-data" type="application/json"><?= json_encode($chartPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?></script>
 </section>
-
-<script>
-(() => {
-    document.querySelectorAll('.list-row[data-href], .ticket-row[data-href]').forEach((row) => {
-        row.addEventListener('click', (e) => {
-            if (e.target.closest('a,button,input,select,textarea')) return;
-            window.location.href = row.dataset.href;
-        });
-        row.style.cursor = 'pointer';
-    });
-})();
-</script>
