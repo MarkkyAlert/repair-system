@@ -9,28 +9,28 @@
         <?php endif; ?>
         <div>
             <p class="brand-title"><?= e($authAppName) ?></p>
-            <p class="brand-subtitle">Forgot Password</p>
+            <p class="brand-subtitle">ตั้งรหัสผ่านใหม่</p>
         </div>
     </div>
 
     <div class="hero-card">
         <div class="hero-copy">
-            <span class="pill">Password Reset</span>
+            <span class="pill">รีเซ็ตรหัสผ่าน</span>
             <h1 class="hero-title">ลืมรหัสผ่าน</h1>
-            <p class="hero-text">กรอกอีเมลที่ผูกกับบัญชี ระบบจะส่งขั้นตอนตั้งรหัสผ่านใหม่ให้คุณอย่างปลอดภัย</p>
+            <p class="hero-text">กรอกอีเมลที่ผูกกับบัญชี ระบบจะส่งลิงก์สำหรับตั้งรหัสผ่านใหม่อย่างปลอดภัย</p>
             <ul class="auth-step-list" aria-label="ขั้นตอนรีเซ็ตรหัสผ่าน">
-                <li><span>1</span><strong>กรอกอีเมล</strong><small>ใช้บัญชีที่ลงทะเบียนไว้ในระบบ</small></li>
-                <li><span>2</span><strong>เปิดลิงก์จากอีเมล</strong><small>ลิงก์มีอายุจำกัดและใช้ได้ครั้งเดียว</small></li>
-                <li><span>3</span><strong>ตั้งรหัสผ่านใหม่</strong><small>กลับมาเข้าสู่ระบบด้วยรหัสใหม่</small></li>
+                <li><span>1</span><strong>กรอกอีเมล</strong><small>ใช้อีเมลที่ลงทะเบียนไว้ในระบบ</small></li>
+                <li><span>2</span><strong>เปิดลิงก์ในอีเมล</strong><small>ลิงก์มีอายุจำกัดและใช้ได้ครั้งเดียว</small></li>
+                <li><span>3</span><strong>ตั้งรหัสผ่านใหม่</strong><small>กลับเข้าสู่ระบบด้วยรหัสผ่านใหม่</small></li>
             </ul>
         </div>
 
         <form class="auth-card" method="post" action="<?= e(url('/forgot-password')) ?>">
             <?= csrf_field() ?>
             <div class="auth-card-header">
-                <p class="page-kicker">Password Reset</p>
+                <p class="page-kicker">รีเซ็ตรหัสผ่าน</p>
                 <h2 class="auth-card-title">รับลิงก์ตั้งรหัสผ่านใหม่</h2>
-                <p class="helper-text">ใส่อีเมลของบัญชีผู้ใช้ ระบบจะส่งขั้นตอนถัดไปให้ หากพบอีเมลนี้ในระบบ</p>
+                <p class="helper-text">กรอกอีเมลที่ใช้กับบัญชีของคุณ หากพบในระบบ เราจะส่งขั้นตอนถัดไปให้</p>
             </div>
             <?php if (!empty($errorMessage)): ?>
                 <div class="stack-md">
@@ -51,12 +51,13 @@
                 </div>
             <?php endif; ?>
             <div class="field-group">
-                <label for="email" class="field-label">Email</label>
+                <label for="email" class="field-label">อีเมล</label>
                 <input id="email" name="email" type="email" class="input" placeholder="admin@example.com" value="<?= e((string) (($oldInput['email'] ?? ''))) ?>">
+                <p class="field-hint">ระบบจะส่งลิงก์ให้เฉพาะอีเมลที่มีอยู่ในระบบ</p>
             </div>
             <?= render_partial('partials/components/button', [
                 'type' => 'submit',
-                'label' => 'ส่งคำขอรีเซ็ตรหัสผ่าน',
+                'label' => 'ส่งลิงก์ตั้งรหัสผ่าน',
                 'variant' => 'primary',
                 'fullWidth' => true,
             ]) ?>

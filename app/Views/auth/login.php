@@ -9,22 +9,22 @@
         <?php endif; ?>
         <div>
             <p class="brand-title"><?= e($authAppName) ?></p>
-            <p class="brand-subtitle">Maintenance Operations</p>
+            <p class="brand-subtitle">ระบบจัดการงานซ่อมบำรุง</p>
         </div>
     </div>
 
     <div class="hero-card">
         <div class="hero-copy">
-            <span class="pill">Operations Center</span>
-            <h1 class="hero-title">ทุกงานซ่อม<br>เห็นภาพเดียวกัน</h1>
-            <p class="hero-text">รับแจ้ง ติดตาม SLA มอบหมายทีม และดูแลทรัพย์สินขององค์กรในระบบเดียว — เพื่อทีมที่อยากให้บริการเร็วและตรวจสอบได้</p>
+            <span class="pill">ศูนย์ปฏิบัติการซ่อมบำรุง</span>
+            <h1 class="hero-title">จัดการงานซ่อม<br>ให้เห็นภาพเดียวกัน</h1>
+            <p class="hero-text">รับแจ้งซ่อม ติดตาม SLA มอบหมายงาน และดูแลทรัพย์สินขององค์กรในระบบเดียว</p>
 
             <ul class="hero-feature-list">
                 <li>
                     <span class="hero-feature-icon"><?= lucide('zap', 'h-4 w-4') ?></span>
                     <div>
                         <strong>SLA อัตโนมัติ</strong>
-                        <span>คำนวณเวลาตอบ/แก้ไขตาม priority</span>
+                        <span>คำนวณเวลาตอบรับและแก้ไขตาม Priority</span>
                     </div>
                 </li>
                 <li>
@@ -38,7 +38,7 @@
                     <span class="hero-feature-icon"><?= lucide('bar-chart-3', 'h-4 w-4') ?></span>
                     <div>
                         <strong>Dashboard เรียลไทม์</strong>
-                        <span>ภาพรวมงาน + ทีม + แผนกครบ</span>
+                        <span>เห็นงานค้าง งานด่วน และภาพรวมทีม</span>
                     </div>
                 </li>
             </ul>
@@ -51,7 +51,7 @@
             <div class="auth-card-header">
                 <p class="page-kicker">เข้าสู่ระบบ</p>
                 <h2 class="auth-card-title">ยินดีต้อนรับกลับ</h2>
-                <p class="helper-text">เข้าสู่ระบบเพื่อจัดการงานซ่อมและทรัพย์สินของคุณ</p>
+                <p class="helper-text">เข้าสู่ระบบเพื่อจัดการงานซ่อมและทรัพย์สินในองค์กร</p>
             </div>
 
             <?php if (!empty($errorMessage)): ?>
@@ -77,11 +77,11 @@
             <?php endif; ?>
 
             <div class="field-group">
-                <label for="login" class="field-label">Username หรือ Email</label>
+                <label for="login" class="field-label">ชื่อผู้ใช้หรืออีเมล</label>
                 <input id="login" name="login" type="text" class="input" placeholder="admin หรือ admin@example.com" value="<?= e((string) (($oldInput['login'] ?? ''))) ?>" autocomplete="username">
             </div>
             <div class="field-group">
-                <label for="password" class="field-label">Password</label>
+                <label for="password" class="field-label">รหัสผ่าน</label>
                 <input id="password" name="password" type="password" class="input" placeholder="••••••••" autocomplete="current-password">
             </div>
 
@@ -97,7 +97,7 @@
 
             <div class="auth-divider"><span>หรือ</span></div>
 
-            <a class="btn btn-secondary btn-md btn-block" href="<?= e(url('/forgot-password')) ?>">
+            <a class="btn btn-secondary btn-sm btn-block auth-forgot-link" href="<?= e(url('/forgot-password')) ?>">
                 <?= lucide('key-round', 'button-icon') ?>
                 <span>ลืมรหัสผ่าน</span>
             </a>

@@ -1442,6 +1442,21 @@ textarea.input { resize: vertical; min-height: 110px; }
 .auth-footnote svg { color: var(--indigo-500); }
 .dark .auth-footnote svg { color: var(--indigo-300); }
 
+.auth-forgot-link {
+  border-style: dashed;
+  background: transparent;
+  box-shadow: none;
+}
+
+.auth-forgot-link:hover {
+  background: color-mix(in srgb, var(--indigo-50) 60%, transparent);
+  box-shadow: none;
+}
+
+.dark .auth-forgot-link:hover {
+  background: rgba(99, 102, 241, .08);
+}
+
 /* Hero feature list (shown next to auth card) */
 .hero-feature-list {
   display: flex;
