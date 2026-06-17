@@ -2437,20 +2437,20 @@ textarea.input { resize: vertical; min-height: 110px; }
 
 .qr-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1.1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .75rem;
 }
 
 .qr-cell {
   display: flex;
-  min-height: 220px;
+  min-height: 180px;
   align-items: center;
   justify-content: center;
   flex-direction: column;
   gap: .7rem;
   position: relative;
   overflow: hidden;
-  padding: 1.15rem;
+  padding: .85rem;
   border: 1px dashed var(--glass-border-strong);
   border-radius: 16px;
   text-align: center;
@@ -2467,8 +2467,8 @@ textarea.input { resize: vertical; min-height: 110px; }
 }
 
 .qr-code-image {
-  width: 140px;
-  height: 140px;
+  width: 120px;
+  height: 120px;
   object-fit: contain;
   padding: .6rem;
   background: #fff;
@@ -2888,6 +2888,12 @@ textarea.input { resize: vertical; min-height: 110px; }
   .dashboard-chart-grid { grid-template-columns: 1fr; }
   .notification-inbox-toolbar { align-items: stretch; flex-direction: column; }
   .notification-filter-tabs { width: 100%; }
+}
+
+@media (min-width: 701px) and (max-width: 900px) {
+  .qr-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 700px) {
@@ -5126,7 +5132,7 @@ code.mono, .mono {
   .qr-label-brand {
     gap: .22rem;
     color: #3730a3 !important;
-    font-size: .55rem;
+    font-size: .65rem;
     letter-spacing: .08em;
   }
   .qr-label-logo {
@@ -5139,8 +5145,8 @@ code.mono, .mono {
     height: 12px;
   }
   .qr-label-title {
-    max-width: 20ch;
-    font-size: .68rem;
+    max-width: 22ch;
+    font-size: .78rem;
     line-height: 1.2;
   }
   .qr-label-code {
@@ -5148,12 +5154,12 @@ code.mono, .mono {
     border-color: #c7d2fe !important;
     background: #eef2ff !important;
     color: #3730a3 !important;
-    font-size: .56rem;
+    font-size: .68rem;
   }
   .qr-label-location,
   .qr-instruction {
-    max-width: 22ch;
-    font-size: .56rem;
+    max-width: 24ch;
+    font-size: .65rem;
     line-height: 1.2;
   }
   .print-only { display: block !important; }
