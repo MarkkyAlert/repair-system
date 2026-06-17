@@ -3,14 +3,7 @@ $qrBrandName = trim((string) ($brandName ?? setting('app_name', config('app.name
 $qrBrandLogoUrl = trim((string) ($brandLogoUrl ?? (branding_logo_url() ?? '')));
 $qrItems = $items ?? [];
 ?>
-<section class="qr-sheet-preview" aria-labelledby="qr-sheet-title" aria-describedby="qr-sheet-summary">
-    <div class="qr-sheet-head">
-        <div>
-            <p class="panel-kicker">แผ่น QR ทรัพย์สิน</p>
-            <h3 id="qr-sheet-title" class="panel-title"><?= e($title ?? 'แผ่น QR พร้อมพิมพ์ ขนาด A4') ?></h3>
-        </div>
-        <p id="qr-sheet-summary" class="qr-sheet-summary">ฉลาก QR สำหรับติดบนทรัพย์สิน พิมพ์บนกระดาษ A4 แนวตั้งและตั้ง Scale 100%</p>
-    </div>
+<section class="qr-sheet-preview" aria-label="<?= e($title ?? 'แผ่น QR พร้อมพิมพ์ ขนาด A4') ?>">
 
     <?php if (empty($qrItems)): ?>
         <div class="empty-state no-print">
@@ -24,7 +17,7 @@ $qrItems = $items ?? [];
             <?= render_partial('partials/components/button', ['label' => 'กลับไปทะเบียนทรัพย์สิน', 'variant' => 'secondary', 'href' => '/asset-registry']) ?>
         </div>
     <?php else: ?>
-        <div class="qr-grid" role="list" aria-labelledby="qr-sheet-title" aria-describedby="qr-sheet-summary">
+        <div class="qr-grid" role="list" aria-label="<?= e($title ?? 'แผ่น QR พร้อมพิมพ์ ขนาด A4') ?>">
             <?php foreach ($qrItems as $item): ?>
                 <?php
                 $assetCode = (string) ($item['asset_code'] ?? '-');

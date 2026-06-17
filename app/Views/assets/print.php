@@ -1,13 +1,13 @@
 <section class="stack-lg">
     <section class="panel-card no-print">
         <div class="panel-head">
-            <div>
-                <h2 class="panel-title">พิมพ์แผ่น QR ทรัพย์สิน</h2>
-                <p class="field-hint">ตรวจฉลาก QR ก่อนพิมพ์ แนะนำกระดาษ A4 แนวตั้ง และตั้ง Scale 100%</p>
-            </div>
+            <h2 class="panel-title">พิมพ์แผ่น QR ทรัพย์สิน</h2>
             <div class="button-row">
-                <?= render_partial('partials/components/button', ['label' => 'กลับไปทะเบียนทรัพย์สิน', 'variant' => 'secondary', 'href' => '/asset-registry']) ?>
-                <button type="button" class="btn btn-primary" data-print-trigger>พิมพ์แผ่น QR</button>
+                <?= render_partial('partials/components/button', ['label' => 'กลับไปทะเบียนทรัพย์สิน', 'variant' => 'ghost', 'icon' => 'arrow-left', 'href' => '/asset-registry']) ?>
+                <button type="button" class="btn btn-primary btn-md" data-print-trigger>
+                    <?= lucide('printer', 'button-icon') ?>
+                    <span>พิมพ์แผ่น QR</span>
+                </button>
             </div>
         </div>
         <div class="qr-print-summary" aria-label="สรุปการพิมพ์แผ่น QR">
@@ -23,6 +23,10 @@
                 <span>การพิมพ์</span>
                 <strong>Scale 100%</strong>
             </div>
+            <div class="qr-print-summary-card">
+                <span>จำนวนหน้า</span>
+                <strong><?= ceil(count($assets ?? []) / 9) ?> แผ่น A4</strong>
+            </div>
         </div>
     </section>
 
@@ -32,4 +36,11 @@
         'brandName' => $brandName ?? null,
         'brandLogoUrl' => $brandLogoUrl ?? null,
     ]) ?>
+
+    <div class="qr-sticky-bar no-print">
+        <button type="button" class="btn btn-primary btn-md" data-print-trigger>
+            <?= lucide('printer', 'button-icon') ?>
+            <span>พิมพ์แผ่น QR</span>
+        </button>
+    </div>
 </section>

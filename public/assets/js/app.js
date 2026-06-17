@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const sidebar = document.getElementById('app-sidebar');
   const sidebarOverlay = document.querySelector('[data-sidebar-overlay]');
   const notificationRoot = document.querySelector('[data-notification-root]');
-  const printTrigger = document.querySelector('[data-print-trigger]');
+  const printTriggers = document.querySelectorAll('[data-print-trigger]');
   const toasts = document.querySelectorAll('[data-toast]');
 
   const syncThemeToggle = () => {
@@ -112,11 +112,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  if (printTrigger) {
-    printTrigger.addEventListener('click', () => {
-      window.print();
-    });
-  }
+  printTriggers.forEach(el => el.addEventListener('click', () => window.print()));
 
   document.addEventListener('click', (event) => {
     const trigger = event.target instanceof Element ? event.target.closest('[data-print-qr-url]') : null;

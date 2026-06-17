@@ -2391,7 +2391,7 @@ textarea.input { resize: vertical; min-height: 110px; }
    ========================================================================= */
 .qr-print-summary {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: .75rem;
   margin-top: 1rem;
 }
@@ -2408,7 +2408,7 @@ textarea.input { resize: vertical; min-height: 110px; }
 
 .qr-print-summary-card span {
   color: var(--muted);
-  font-size: .72rem;
+  font-size: .75rem;
   font-weight: 750;
 }
 
@@ -2485,7 +2485,7 @@ textarea.input { resize: vertical; min-height: 110px; }
   gap: .4rem;
   max-width: 100%;
   color: var(--indigo-700);
-  font-size: .72rem;
+  font-size: .75rem;
   letter-spacing: .14em;
   position: relative;
   z-index: 1;
@@ -2547,7 +2547,7 @@ textarea.input { resize: vertical; min-height: 110px; }
   border-radius: 99px;
   background: color-mix(in srgb, var(--indigo-50) 72%, var(--surface));
   color: var(--indigo-700);
-  font-size: .72rem;
+  font-size: .75rem;
   font-weight: 850;
   letter-spacing: .05em;
   text-overflow: ellipsis;
@@ -2563,18 +2563,36 @@ textarea.input { resize: vertical; min-height: 110px; }
 .qr-label-location {
   max-width: 28ch;
   color: var(--muted);
-  font-size: .74rem;
+  font-size: .76rem;
   -webkit-line-clamp: 1;
 }
 
 .qr-instruction {
   margin: 0;
   color: var(--indigo-700);
-  font-size: .7rem;
+  font-size: .75rem;
   font-weight: 700;
 }
 
 .dark .qr-instruction { color: var(--indigo-300); }
+
+.qr-sticky-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: -.4rem;
+  padding: .65rem 1.1rem;
+  border: 1px solid var(--glass-border-strong);
+  border-radius: 16px 16px 0 0;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, .06);
+}
 
 /* =========================================================================
    Comments
