@@ -3,7 +3,7 @@
         'eyebrow' => 'จัดการระบบ',
         'title' => 'ตั้งค่าและดูแลระบบ',
         'description' => 'ตั้งค่า master data, ผู้ใช้, แผนก, หมวดหมู่ และ SLA',
-        'actions' => '<span class="badge badge-default">เฉพาะผู้ดูแลระบบ</span>',
+        'actions' => '<span class="badge badge-warning">' . lucide('shield-check', 'h-4 w-4') . ' เฉพาะผู้ดูแลระบบ</span>',
     ]) ?>
 
     <div class="stat-grid admin-stat-scroll">
@@ -39,9 +39,18 @@
             <span class="badge badge-info"><?= e((string) count($users ?? [])) ?> บัญชี</span>
         </div>
 
+        <div class="admin-search-box">
+            <label for="user-search" class="sr-only">ค้นหาผู้ใช้งาน</label>
+            <div class="admin-search-input-wrap">
+                <?= lucide('search', 'h-4 w-4 admin-search-icon') ?>
+                <input id="user-search" type="search" class="input admin-search-input" placeholder="ค้นหาชื่อ, อีเมล, แผนก หรือ role..." data-search-target="#user-list">
+            </div>
+            <span class="helper-text admin-search-count"></span>
+        </div>
+
         <details class="collapsible">
             <summary class="collapsible-summary">
-                <span class="metric-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide('plus', 'h-4 w-4') ?></span>
+                <span class="metric-icon metric-icon-sm"><?= lucide('plus', 'h-4 w-4') ?></span>
                 <div class="collapsible-summary-main">
                     <span class="collapsible-title">สร้างบัญชีผู้ใช้งาน</span>
                     <span class="collapsible-subtitle">กำหนดข้อมูลบัญชี บทบาท และรหัสผ่านเริ่มต้น</span>
@@ -120,7 +129,7 @@
                 'description' => 'เมื่อมีบัญชีในระบบ รายการจะปรากฏที่นี่ให้แก้ไข role และ department ได้',
             ]) ?>
         <?php else: ?>
-            <div class="stack-md">
+            <div class="stack-md" id="user-list">
                 <?php foreach (($users ?? []) as $user): ?>
                     <?php $userId = (int) ($user['id'] ?? 0); ?>
                     <?php $deptName = '-'; foreach (($departmentOptions ?? []) as $d) { if ((string) ($d['id'] ?? '') === (string) ($user['department_id'] ?? '')) { $deptName = (string) ($d['name'] ?? '-'); break; } } ?>
@@ -202,7 +211,7 @@
         </div>
         <details class="collapsible">
             <summary class="collapsible-summary">
-                <span class="metric-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide('plus', 'h-4 w-4') ?></span>
+                <span class="metric-icon metric-icon-sm"><?= lucide('plus', 'h-4 w-4') ?></span>
                 <div class="collapsible-summary-main">
                     <span class="collapsible-title">เพิ่มแผนกใหม่</span>
                     <span class="collapsible-subtitle">สร้างหน่วยงานสำหรับผูกกับผู้ใช้, Asset และรายงาน</span>
@@ -248,7 +257,7 @@
                     <?php $depId = (int) ($department['id'] ?? 0); ?>
                     <details class="collapsible">
                         <summary class="collapsible-summary">
-                            <span class="metric-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide('building', 'h-4 w-4') ?></span>
+                            <span class="metric-icon metric-icon-sm"><?= lucide('building', 'h-4 w-4') ?></span>
                             <div class="collapsible-summary-main">
                                 <span class="collapsible-title"><?= e((string) ($department['name'] ?? '-')) ?></span>
                                 <span class="collapsible-subtitle">รหัส: <?= e((string) ($department['code'] ?? '-')) ?></span>
@@ -283,10 +292,12 @@
                                     <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'บันทึก', 'variant' => 'primary', 'icon' => 'check-circle']) ?>
                                 </div>
                             </form>
-                            <form method="post" action="<?= e(url('/admin/departments/' . $depId . '/delete')) ?>" class="button-row" onsubmit="return confirm('ยืนยันการลบแผนกนี้? ลบได้เฉพาะรายการที่ยังไม่ถูกใช้งาน หากถูกใช้งานแล้วให้ปิดใช้งานแทน');">
-                                <?= csrf_field() ?>
-                                <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ลบแผนก', 'variant' => 'danger', 'icon' => 'trash']) ?>
-                            </form>
+                            <div class="delete-zone">
+                                <form method="post" action="<?= e(url('/admin/departments/' . $depId . '/delete')) ?>" class="button-row" onsubmit="return confirm('ยืนยันการลบแผนกนี้? ลบได้เฉพาะรายการที่ยังไม่ถูกใช้งาน หากถูกใช้งานแล้วให้ปิดใช้งานแทน');">
+                                    <?= csrf_field() ?>
+                                    <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ลบแผนก', 'variant' => 'danger', 'icon' => 'trash']) ?>
+                                </form>
+                            </div>
                         </div>
                     </details>
                 <?php endforeach; ?>
@@ -304,7 +315,7 @@
         </div>
         <details class="collapsible">
             <summary class="collapsible-summary">
-                <span class="metric-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide('plus', 'h-4 w-4') ?></span>
+                <span class="metric-icon metric-icon-sm"><?= lucide('plus', 'h-4 w-4') ?></span>
                 <div class="collapsible-summary-main">
                     <span class="collapsible-title">เพิ่มสถานที่ใหม่</span>
                     <span class="collapsible-subtitle">สร้างจุดติดตั้งหรือพื้นที่สำหรับเลือกใน Ticket/Asset</span>
@@ -364,7 +375,7 @@
                     <?php $locationId = (int) ($location['id'] ?? 0); ?>
                     <details class="collapsible">
                         <summary class="collapsible-summary">
-                            <span class="metric-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide('map-pin', 'h-4 w-4') ?></span>
+                            <span class="metric-icon metric-icon-sm"><?= lucide('map-pin', 'h-4 w-4') ?></span>
                             <div class="collapsible-summary-main">
                                 <span class="collapsible-title"><?= e((string) ($location['name'] ?? '-')) ?></span>
                                 <span class="collapsible-subtitle"><?= e((string) ($location['code'] ?? '-')) ?> · <?= e(trim((string) ($location['building'] ?? '') . ' ' . (string) ($location['floor'] ?? '') . ' ' . (string) ($location['room'] ?? '')) ?: '-') ?></span>
@@ -440,7 +451,7 @@
                     <?php $priorityId = (int) ($priority['id'] ?? 0); ?>
                     <details class="collapsible">
                         <summary class="collapsible-summary">
-                            <span class="metric-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide('clock', 'h-4 w-4') ?></span>
+                            <span class="metric-icon metric-icon-sm"><?= lucide('clock', 'h-4 w-4') ?></span>
                             <div class="collapsible-summary-main">
                                 <span class="collapsible-title"><?= e((string) ($priority['name'] ?? '-')) ?></span>
                                 <span class="collapsible-subtitle"><?= e((string) ($priority['code'] ?? '-')) ?> · Level <?= e((string) ($priority['level'] ?? '-')) ?> · ตอบใน <?= e((string) ($priority['response_hours'] ?? 0)) ?> ชม. · แก้ใน <?= e((string) ($priority['resolution_hours'] ?? 0)) ?> ชม.</span>
@@ -519,7 +530,7 @@
         </div>
         <details class="collapsible">
             <summary class="collapsible-summary">
-                <span class="metric-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide('plus', 'h-4 w-4') ?></span>
+                <span class="metric-icon metric-icon-sm"><?= lucide('plus', 'h-4 w-4') ?></span>
                 <div class="collapsible-summary-main">
                     <span class="collapsible-title">เพิ่มหมวดหมู่งานใหม่</span>
                     <span class="collapsible-subtitle">สร้างประเภทงานซ่อมพร้อม SLA override</span>
@@ -584,7 +595,7 @@
                     <?php $sla = $categorySla[$catId] ?? ['response_hours' => 0, 'resolution_hours' => 0]; ?>
                     <details class="collapsible">
                         <summary class="collapsible-summary">
-                            <span class="metric-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide('tag', 'h-4 w-4') ?></span>
+                            <span class="metric-icon metric-icon-sm"><?= lucide('tag', 'h-4 w-4') ?></span>
                             <div class="collapsible-summary-main">
                                 <span class="collapsible-title"><?= e((string) ($category['name'] ?? '-')) ?></span>
                                 <span class="collapsible-subtitle"><?= e((string) ($category['code'] ?? '-')) ?> · ตอบใน <?= e((string) ($sla['response_hours'] ?? 0)) ?> ชม. · แก้ใน <?= e((string) ($sla['resolution_hours'] ?? 0)) ?> ชม.</span>
@@ -637,10 +648,12 @@
                                     <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'บันทึก', 'variant' => 'primary', 'icon' => 'check-circle']) ?>
                                 </div>
                             </form>
-                            <form method="post" action="<?= e(url('/admin/categories/' . $catId . '/delete')) ?>" class="button-row" onsubmit="return confirm('ยืนยันการลบหมวดหมู่งานนี้? ลบได้เฉพาะรายการที่ยังไม่ถูกใช้งาน หากถูกใช้งานแล้วให้ปิดใช้งานแทน');">
-                                <?= csrf_field() ?>
-                                <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ลบหมวดหมู่งาน', 'variant' => 'danger', 'icon' => 'trash']) ?>
-                            </form>
+                            <div class="delete-zone">
+                                <form method="post" action="<?= e(url('/admin/categories/' . $catId . '/delete')) ?>" class="button-row" onsubmit="return confirm('ยืนยันการลบหมวดหมู่งานนี้? ลบได้เฉพาะรายการที่ยังไม่ถูกใช้งาน หากถูกใช้งานแล้วให้ปิดใช้งานแทน');">
+                                    <?= csrf_field() ?>
+                                    <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ลบหมวดหมู่งาน', 'variant' => 'danger', 'icon' => 'trash']) ?>
+                                </form>
+                            </div>
                         </div>
                     </details>
                 <?php endforeach; ?>
@@ -658,7 +671,7 @@
         </div>
         <details class="collapsible">
             <summary class="collapsible-summary">
-                <span class="metric-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide('plus', 'h-4 w-4') ?></span>
+                <span class="metric-icon metric-icon-sm"><?= lucide('plus', 'h-4 w-4') ?></span>
                 <div class="collapsible-summary-main">
                     <span class="collapsible-title">เพิ่มหมวดหมู่ Asset ใหม่</span>
                     <span class="collapsible-subtitle">สร้างประเภททรัพย์สินสำหรับทะเบียน Asset</span>
@@ -710,7 +723,7 @@
                     <?php $assetCatId = (int) ($assetCategory['id'] ?? 0); ?>
                     <details class="collapsible">
                         <summary class="collapsible-summary">
-                            <span class="metric-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide('layers', 'h-4 w-4') ?></span>
+                            <span class="metric-icon metric-icon-sm"><?= lucide('layers', 'h-4 w-4') ?></span>
                             <div class="collapsible-summary-main">
                                 <span class="collapsible-title"><?= e((string) ($assetCategory['name'] ?? '-')) ?></span>
                                 <span class="collapsible-subtitle"><?= e((string) ($assetCategory['code'] ?? '-')) ?> · ลำดับ <?= e((string) ($assetCategory['sort_order'] ?? 1)) ?></span>
@@ -751,10 +764,12 @@
                                     <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'บันทึก', 'variant' => 'primary', 'icon' => 'check-circle']) ?>
                                 </div>
                             </form>
-                            <form method="post" action="<?= e(url('/admin/asset-categories/' . $assetCatId . '/delete')) ?>" class="button-row" onsubmit="return confirm('ยืนยันการลบหมวดหมู่ Asset นี้? ลบได้เฉพาะรายการที่ยังไม่ถูกใช้งาน หากถูกใช้งานแล้วให้ปิดใช้งานแทน');">
-                                <?= csrf_field() ?>
-                                <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ลบหมวดหมู่ Asset', 'variant' => 'danger', 'icon' => 'trash']) ?>
-                            </form>
+                            <div class="delete-zone">
+                                <form method="post" action="<?= e(url('/admin/asset-categories/' . $assetCatId . '/delete')) ?>" class="button-row" onsubmit="return confirm('ยืนยันการลบหมวดหมู่ Asset นี้? ลบได้เฉพาะรายการที่ยังไม่ถูกใช้งาน หากถูกใช้งานแล้วให้ปิดใช้งานแทน');">
+                                    <?= csrf_field() ?>
+                                    <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ลบหมวดหมู่ Asset', 'variant' => 'danger', 'icon' => 'trash']) ?>
+                                </form>
+                            </div>
                         </div>
                     </details>
                 <?php endforeach; ?>
@@ -774,6 +789,7 @@
         <?php $rolePreviewData = $rolePreview ?? ['roles' => [], 'capabilities' => []]; ?>
         <div class="table-wrap">
             <table class="data-table">
+                <caption class="sr-only">ตารางสิทธิ์การใช้งานตาม Role</caption>
                 <thead>
                 <tr>
                     <th>ความสามารถ</th>
@@ -810,8 +826,8 @@
         $auditFilters = $auditFilters ?? [];
         $auditOptions = $auditFilterOptions ?? ['actions' => [], 'entityTypes' => []];
         ?>
-        <form method="get" action="<?= e(url('/admin#tab-audit')) ?>" class="panel-card stack-md" style="background:rgba(14,165,233,.05);border:1px solid rgba(14,165,233,.18)">
-            <div class="content-grid">
+        <form method="get" action="<?= e(url('/admin#tab-audit')) ?>" class="panel-card panel-card-sky stack-md">
+            <div class="dashboard-filter-grid dashboard-filter-grid-5">
                 <div class="field-group">
                     <label class="field-label" for="audit_action">Action</label>
                     <select id="audit_action" class="input" name="action">
@@ -830,8 +846,6 @@
                         <?php endforeach; ?>
                     </select>
                 </div>
-            </div>
-            <div class="content-grid">
                 <div class="field-group">
                     <label class="field-label" for="audit_user_id">ผู้ใช้</label>
                     <select id="audit_user_id" class="input" name="user_id">
@@ -841,15 +855,13 @@
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <div class="content-grid">
-                    <div class="field-group">
-                        <label class="field-label" for="audit_date_from">จากวันที่</label>
-                        <input id="audit_date_from" class="input" type="date" name="date_from" value="<?= e((string) ($auditFilters['date_from'] ?? '')) ?>">
-                    </div>
-                    <div class="field-group">
-                        <label class="field-label" for="audit_date_to">ถึงวันที่</label>
-                        <input id="audit_date_to" class="input" type="date" name="date_to" value="<?= e((string) ($auditFilters['date_to'] ?? '')) ?>">
-                    </div>
+                <div class="field-group">
+                    <label class="field-label" for="audit_date_from">จากวันที่</label>
+                    <input id="audit_date_from" class="input" type="date" name="date_from" value="<?= e((string) ($auditFilters['date_from'] ?? '')) ?>">
+                </div>
+                <div class="field-group">
+                    <label class="field-label" for="audit_date_to">ถึงวันที่</label>
+                    <input id="audit_date_to" class="input" type="date" name="date_to" value="<?= e((string) ($auditFilters['date_to'] ?? '')) ?>">
                 </div>
             </div>
             <div class="button-row">
@@ -867,12 +879,13 @@
         <?php else: ?>
             <div class="table-wrap">
                 <table class="data-table">
+                    <caption class="sr-only">ตาราง Audit Log</caption>
                     <thead>
                     <tr>
                         <th>เวลา</th>
                         <th>ผู้ใช้</th>
-                        <th>Action</th>
-                        <th>Entity</th>
+                        <th>การกระทำ</th>
+                        <th>ข้อมูล</th>
                         <th>IP</th>
                         <th>รายละเอียด</th>
                     </tr>
@@ -935,10 +948,10 @@
 
         <?php $mail = $mailDiagnostics ?? []; ?>
         <div class="content-grid">
-            <div class="panel-card stack-md" style="background:rgba(20,184,166,.06);border:1px solid rgba(20,184,166,.2)">
+            <div class="panel-card panel-card-teal stack-md">
                 <div class="panel-head">
                     <div>
-                        <h3 class="panel-title" style="font-size:1rem">Mail Config</h3>
+                        <h3 class="panel-title panel-title-lg">Mail Config</h3>
                         <p class="field-hint">ค่าที่อ่านจาก `.env`/config ปัจจุบัน</p>
                     </div>
                 </div>
@@ -954,10 +967,10 @@
                 </dl>
             </div>
 
-            <div class="panel-card stack-md" style="background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.2)">
+            <div class="panel-card panel-card-indigo stack-md">
                 <div class="panel-head">
                     <div>
-                        <h3 class="panel-title" style="font-size:1rem">ส่งอีเมลทดสอบ</h3>
+                        <h3 class="panel-title panel-title-lg">ส่งอีเมลทดสอบ</h3>
                         <p class="field-hint">ถ้าใช้ driver log ระบบจะเขียนไฟล์ JSON ใน mail log path</p>
                     </div>
                 </div>
@@ -984,7 +997,7 @@
         <?php foreach (($emailPreviews ?? []) as $templateKey => $preview): ?>
             <details class="collapsible"<?= $templateKey === 'password_reset' ? ' open' : '' ?>>
                 <summary class="collapsible-summary">
-                    <span class="metric-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide($templateKey === 'password_reset' ? 'key-round' : 'bell', 'h-4 w-4') ?></span>
+                    <span class="metric-icon metric-icon-sm"><?= lucide($templateKey === 'password_reset' ? 'key-round' : 'bell', 'h-4 w-4') ?></span>
                     <div class="collapsible-summary-main">
                         <span class="collapsible-title"><?= e((string) ($preview['label'] ?? $templateKey)) ?></span>
                         <span class="collapsible-subtitle"><?= e((string) ($preview['subject'] ?? '-')) ?></span>
@@ -999,7 +1012,7 @@
                             <span class="collapsible-chevron"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
                         </summary>
                         <div class="collapsible-body">
-                            <pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-size:.82rem"><?= e((string) ($preview['body_text'] ?? '')) ?></pre>
+                            <pre class="code-block"><?= e((string) ($preview['body_text'] ?? '')) ?></pre>
                         </div>
                     </details>
                 </div>
@@ -1016,10 +1029,10 @@
         </div>
 
         <?php $systemForm = $systemSettingForm ?? []; ?>
-        <div class="panel-card stack-md" style="background:rgba(14,165,233,.05);border:1px solid rgba(14,165,233,.2)">
+        <div class="panel-card panel-card-sky stack-md">
             <div class="panel-head">
                 <div>
-                    <h3 class="panel-title" style="font-size:1rem">ตั้งค่าระบบหลัก</h3>
+                    <h3 class="panel-title panel-title-lg">ตั้งค่าระบบหลัก</h3>
                     <p class="field-hint">ชื่อระบบ, timezone, ticket prefix และเวลาทำการ</p>
                 </div>
             </div>
@@ -1063,14 +1076,14 @@
         </div>
 
         <?php $currentLogoUrl = branding_logo_url(); ?>
-        <div class="panel-card stack-md" style="background:rgba(99,102,241,.05);border:1px dashed rgba(99,102,241,.35)">
+        <div class="panel-card panel-card-indigo-dashed stack-md">
             <div class="panel-head">
                 <div>
-                    <h3 class="panel-title" style="font-size:1rem">โลโก้องค์กร</h3>
+                    <h3 class="panel-title panel-title-lg">โลโก้องค์กร</h3>
                     <p class="field-hint">รองรับ PNG, JPEG, WebP, SVG ขนาดไม่เกิน 1MB · จะแสดงในหัวเว็บ หน้า login และอีเมลแจ้งเตือน</p>
                 </div>
                 <?php if ($currentLogoUrl !== null): ?>
-                    <img src="<?= e($currentLogoUrl) ?>" alt="โลโก้ปัจจุบัน" style="height:48px;max-width:160px;object-fit:contain;background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:8px;padding:4px 8px;">
+                    <img src="<?= e($currentLogoUrl) ?>" alt="โลโก้ปัจจุบัน" class="logo-preview">
                 <?php else: ?>
                     <span class="badge badge-default">ยังไม่ได้ตั้งค่า</span>
                 <?php endif; ?>
@@ -1098,24 +1111,14 @@
 
         <details class="collapsible">
             <summary class="collapsible-summary">
-                <span class="metric-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide('settings', 'h-4 w-4') ?></span>
+                <span class="metric-icon metric-icon-sm"><?= lucide('plus', 'h-4 w-4') ?></span>
                 <div class="collapsible-summary-main">
-                    <span class="collapsible-title">Advanced Settings</span>
-                    <span class="collapsible-subtitle">สำหรับ key/value เพิ่มเติมที่ไม่ได้อยู่ในฟอร์มหลัก</span>
+                    <span class="collapsible-title">เพิ่ม Setting ขั้นสูง</span>
+                    <span class="collapsible-subtitle">กำหนด key/value/type สำหรับ config เพิ่มเติมที่ไม่ได้อยู่ในฟอร์มหลัก</span>
                 </div>
                 <span class="collapsible-chevron"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
             </summary>
             <div class="collapsible-body">
-                <details class="collapsible">
-                    <summary class="collapsible-summary">
-                        <span class="metric-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide('plus', 'h-4 w-4') ?></span>
-                        <div class="collapsible-summary-main">
-                            <span class="collapsible-title">เพิ่ม Setting ใหม่</span>
-                            <span class="collapsible-subtitle">กำหนด key/value/type สำหรับ config ที่ระบบใช้</span>
-                        </div>
-                        <span class="collapsible-chevron"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
-                    </summary>
-                    <div class="collapsible-body">
                 <form method="post" action="<?= e(url('/admin/settings')) ?>" class="stack-md">
                     <?= csrf_field() ?>
                     <div class="content-grid">
@@ -1146,41 +1149,40 @@
                         <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'บันทึก Setting', 'variant' => 'primary', 'icon' => 'plus']) ?>
                     </div>
                 </form>
-                    </div>
-                </details>
-
-                <?php if (!empty($settings)): ?>
-                    <div class="table-wrap">
-                        <table class="data-table">
-                            <thead>
-                            <tr>
-                                <th>Key</th>
-                                <th>ค่า</th>
-                                <th>ชนิด</th>
-                                <th>เปิดเผย</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            <?php foreach ($settings as $setting): ?>
-                                <tr>
-                                    <td><code><?= e((string) ($setting['setting_key'] ?? '')) ?></code></td>
-                                    <td><pre style="margin:0;font-size:.78rem;white-space:pre-wrap;word-break:break-word"><?= e((string) ($setting['setting_value'] ?? '')) ?></pre></td>
-                                    <td><span class="badge badge-default"><?= e((string) ($setting['value_type'] ?? 'string')) ?></span></td>
-                                    <td><?= !empty($setting['is_public']) ? '<span class="badge badge-success">ใช่</span>' : '<span class="badge badge-default">ไม่</span>' ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                <?php else: ?>
-                    <?= render_partial('partials/components/empty-state', [
-                        'icon' => 'settings',
-                        'title' => 'ยังไม่มี settings เพิ่มเติม',
-                        'description' => 'คุณสามารถเพิ่ม setting ใหม่จากฟอร์มด้านบนได้ทันที',
-                    ]) ?>
-                <?php endif; ?>
             </div>
         </details>
+
+        <?php if (!empty($settings)): ?>
+            <div class="table-wrap">
+                <table class="data-table">
+                    <caption class="sr-only">ตารางการตั้งค่าขั้นสูง</caption>
+                    <thead>
+                    <tr>
+                        <th>Key</th>
+                        <th>ค่า</th>
+                        <th>ชนิด</th>
+                        <th>เปิดเผย</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($settings as $setting): ?>
+                        <tr>
+                            <td><code><?= e((string) ($setting['setting_key'] ?? '')) ?></code></td>
+                            <td><pre class="code-inline"><?= e((string) ($setting['setting_value'] ?? '')) ?></pre></td>
+                            <td><span class="badge badge-default"><?= e((string) ($setting['value_type'] ?? 'string')) ?></span></td>
+                            <td><?= !empty($setting['is_public']) ? '<span class="badge badge-success">ใช่</span>' : '<span class="badge badge-default">ไม่</span>' ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php else: ?>
+            <?= render_partial('partials/components/empty-state', [
+                'icon' => 'settings',
+                'title' => 'ยังไม่มี settings เพิ่มเติม',
+                'description' => 'คุณสามารถเพิ่ม setting ใหม่จากฟอร์มด้านบนได้ทันที',
+            ]) ?>
+        <?php endif; ?>
     </section>
 </section>
 

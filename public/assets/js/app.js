@@ -670,7 +670,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ── Export dropdown: close on outside click ──
   document.addEventListener('click', function (e) {
-    document.querySelectorAll('.export-dropdown[open]').forEach(function (d) {
+    document.querySelectorAll('.export-dropdown[open], .ticket-print-menu[open]').forEach(function (d) {
       if (!d.contains(e.target)) d.removeAttribute('open');
     });
   });
@@ -710,6 +710,33 @@ document.addEventListener('DOMContentLoaded', () => {
         return va.localeCompare(vb, 'th') * (asc ? 1 : -1);
       });
       rows.forEach(function (r) { tbody.appendChild(r); });
+    });
+  });
+
+  // ── Admin search/filter ──
+  document.querySelectorAll('[data-search-target]').forEach(function (input) {
+    var targetId = input.getAttribute('data-search-target');
+    var container = document.querySelector(targetId);
+    if (!container) return;
+
+    var countEl = input.closest('.admin-search-box');
+    countEl = countEl && countEl.querySelector('.admin-search-count');
+
+    input.addEventListener('input', function () {
+      var q = input.value.trim().toLowerCase();
+      var items = container.querySelectorAll('.collapsible');
+      var shown = 0;
+
+      items.forEach(function (item) {
+        var text = (item.querySelector('.collapsible-summary') || item).textContent.toLowerCase();
+        var match = !q || text.indexOf(q) !== -1;
+        item.classList.toggle('search-hidden', !match);
+        if (match) shown++;
+      });
+
+      if (countEl) {
+        countEl.textContent = q ? shown + ' / ' + items.length + ' รายการ' : '';
+      }
     });
   });
 });

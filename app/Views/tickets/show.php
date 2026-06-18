@@ -26,19 +26,22 @@ if (!empty($workflow['canReview'])) {
 }
 ?>
 <section class="stack-lg">
+    <h1 class="sr-only"><?= e($ticket['title']) ?> — <?= e($ticket['ticket_no']) ?></h1>
     <!-- Sticky Action Bar -->
     <div class="action-bar no-print">
         <div class="action-bar-left">
             <a href="<?= e(url('/tickets')) ?>" class="icon-button" aria-label="กลับหน้ารายการ"><?= lucide('chevrons-left', 'h-4 w-4') ?></a>
             <div>
                 <code class="mono"><?= e($ticket['ticket_no']) ?></code>
-                <strong style="display:block;margin-top:.2rem"><?= e($ticket['title']) ?></strong>
+                <strong class="action-bar-title"><?= e($ticket['title']) ?></strong>
                 <span class="helper-text">แจ้งเมื่อ <?= e(human_date($ticket['requested_at'])) ?></span>
+                <div class="action-bar-badges">
+                    <?= render_partial('partials/components/badge', ['label' => $ticket['priority_label'], 'tone' => $ticket['priority_tone']]) ?>
+                    <?= render_partial('partials/components/badge', ['label' => $ticket['status_label'], 'tone' => $ticket['status_tone']]) ?>
+                </div>
             </div>
         </div>
         <div class="action-bar-right">
-            <?= render_partial('partials/components/badge', ['label' => $ticket['priority_label'], 'tone' => $ticket['priority_tone']]) ?>
-            <?= render_partial('partials/components/badge', ['label' => $ticket['status_label'], 'tone' => $ticket['status_tone']]) ?>
             <?php if (!empty($workflow['canDuplicate'])): ?>
                 <?= render_partial('partials/components/button', ['label' => 'เปิด Ticket ใหม่จากรายการนี้', 'variant' => 'secondary', 'href' => '/tickets/' . $ticket['id'] . '/duplicate', 'icon' => 'copy']) ?>
             <?php endif; ?>
@@ -77,7 +80,7 @@ if (!empty($workflow['canReview'])) {
             <div class="attachment-grid" aria-label="รูปแนบ Ticket">
                 <?php foreach ($attachments as $attachment): ?>
                     <a class="attachment-card" href="<?= e(url($attachment['url'])) ?>" target="_blank" rel="noopener">
-                        <img src="<?= e(url($attachment['url'])) ?>" alt="<?= e($attachment['name']) ?>">
+                        <img src="<?= e(url($attachment['url'])) ?>" alt="<?= e($attachment['name']) ?>" loading="lazy">
                         <span><?= e($attachment['name']) ?> · <?= e($attachment['size_label']) ?></span>
                     </a>
                 <?php endforeach; ?>
@@ -104,7 +107,7 @@ if (!empty($workflow['canReview'])) {
         <section class="panel-card stack-md">
             <div class="panel-head">
                 <h2 class="panel-title">ข้อมูลแจ้งซ่อม</h2>
-                <span class="metric-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide('info', 'h-4 w-4') ?></span>
+                <span class="metric-icon metric-icon-sm"><?= lucide('info', 'h-4 w-4') ?></span>
             </div>
             <dl class="detail-list">
                 <dt>ผู้แจ้ง</dt>
@@ -141,24 +144,42 @@ if (!empty($workflow['canReview'])) {
                 <dd><?= e($ticket['technician_name'] ?: '-') ?></dd>
                 <dt>แจ้งเมื่อ</dt>
                 <dd><?= e(human_date($ticket['requested_at'])) ?></dd>
-                <dt>อนุมัติเมื่อ</dt>
-                <dd><?= e(human_date($ticket['approved_at'])) ?></dd>
-                <dt>มอบหมายเมื่อ</dt>
-                <dd><?= e(human_date($ticket['assigned_at'])) ?></dd>
-                <dt>ตอบรับครั้งแรก</dt>
-                <dd><?= e(human_date($ticket['first_response_at'])) ?></dd>
-                <dt>เริ่มงานเมื่อ</dt>
-                <dd><?= e(human_date($ticket['started_at'])) ?></dd>
-                <dt>เป้าตอบรับ</dt>
-                <dd><?= e(human_date($ticket['response_due_at'])) ?></dd>
-                <dt>เป้าแก้ไข</dt>
-                <dd><?= e(human_date($ticket['resolution_due_at'])) ?></dd>
-                <dt>แก้เสร็จเมื่อ</dt>
-                <dd><?= e(human_date($ticket['resolved_at'])) ?></dd>
-                <dt>ปิดงานเมื่อ</dt>
-                <dd><?= e(human_date($ticket['completed_at'])) ?></dd>
-                <dt>ยกเลิกเมื่อ</dt>
-                <dd><?= e(human_date($ticket['cancelled_at'])) ?></dd>
+                <?php if (!empty($ticket['approved_at'])): ?>
+                    <dt>อนุมัติเมื่อ</dt>
+                    <dd><?= e(human_date($ticket['approved_at'])) ?></dd>
+                <?php endif; ?>
+                <?php if (!empty($ticket['assigned_at'])): ?>
+                    <dt>มอบหมายเมื่อ</dt>
+                    <dd><?= e(human_date($ticket['assigned_at'])) ?></dd>
+                <?php endif; ?>
+                <?php if (!empty($ticket['first_response_at'])): ?>
+                    <dt>ตอบรับครั้งแรก</dt>
+                    <dd><?= e(human_date($ticket['first_response_at'])) ?></dd>
+                <?php endif; ?>
+                <?php if (!empty($ticket['started_at'])): ?>
+                    <dt>เริ่มงานเมื่อ</dt>
+                    <dd><?= e(human_date($ticket['started_at'])) ?></dd>
+                <?php endif; ?>
+                <?php if (!empty($ticket['response_due_at'])): ?>
+                    <dt>เป้าตอบรับ</dt>
+                    <dd><?= e(human_date($ticket['response_due_at'])) ?></dd>
+                <?php endif; ?>
+                <?php if (!empty($ticket['resolution_due_at'])): ?>
+                    <dt>เป้าแก้ไข</dt>
+                    <dd><?= e(human_date($ticket['resolution_due_at'])) ?></dd>
+                <?php endif; ?>
+                <?php if (!empty($ticket['resolved_at'])): ?>
+                    <dt>แก้เสร็จเมื่อ</dt>
+                    <dd><?= e(human_date($ticket['resolved_at'])) ?></dd>
+                <?php endif; ?>
+                <?php if (!empty($ticket['completed_at'])): ?>
+                    <dt>ปิดงานเมื่อ</dt>
+                    <dd><?= e(human_date($ticket['completed_at'])) ?></dd>
+                <?php endif; ?>
+                <?php if (!empty($ticket['cancelled_at'])): ?>
+                    <dt>ยกเลิกเมื่อ</dt>
+                    <dd><?= e(human_date($ticket['cancelled_at'])) ?></dd>
+                <?php endif; ?>
             </dl>
         </section>
     </div>
@@ -264,14 +285,22 @@ if (!empty($workflow['canReview'])) {
                 <dd><?= e((string) ($workflow['workOrder']['status'] ?? '-')) ?></dd>
                 <dt>คำสั่งงาน</dt>
                 <dd><?= e((string) (($workflow['workOrder']['instructions'] ?? '') !== '' ? $workflow['workOrder']['instructions'] : '-')) ?></dd>
-                <dt>มอบหมายเมื่อ</dt>
-                <dd><?= e(human_date($workflow['workOrder']['assigned_at'] ?? null)) ?></dd>
-                <dt>รับงานเมื่อ</dt>
-                <dd><?= e(human_date($workflow['workOrder']['accepted_at'] ?? null)) ?></dd>
-                <dt>เริ่มงานเมื่อ</dt>
-                <dd><?= e(human_date($workflow['workOrder']['started_at'] ?? null)) ?></dd>
-                <dt>เสร็จสิ้นเมื่อ</dt>
-                <dd><?= e(human_date($workflow['workOrder']['completed_at'] ?? null)) ?></dd>
+                <?php if (!empty($workflow['workOrder']['assigned_at'])): ?>
+                    <dt>มอบหมายเมื่อ</dt>
+                    <dd><?= e(human_date($workflow['workOrder']['assigned_at'])) ?></dd>
+                <?php endif; ?>
+                <?php if (!empty($workflow['workOrder']['accepted_at'])): ?>
+                    <dt>รับงานเมื่อ</dt>
+                    <dd><?= e(human_date($workflow['workOrder']['accepted_at'])) ?></dd>
+                <?php endif; ?>
+                <?php if (!empty($workflow['workOrder']['started_at'])): ?>
+                    <dt>เริ่มงานเมื่อ</dt>
+                    <dd><?= e(human_date($workflow['workOrder']['started_at'])) ?></dd>
+                <?php endif; ?>
+                <?php if (!empty($workflow['workOrder']['completed_at'])): ?>
+                    <dt>เสร็จสิ้นเมื่อ</dt>
+                    <dd><?= e(human_date($workflow['workOrder']['completed_at'])) ?></dd>
+                <?php endif; ?>
             </dl>
 
             <?php if (!empty($workflow['canAccept'])): ?>
@@ -323,7 +352,7 @@ if (!empty($workflow['canReview'])) {
                         <label for="labor_minutes" class="field-label">เวลาที่ใช้ (นาที)</label>
                         <input id="labor_minutes" name="labor_minutes" type="number" min="0" class="input" value="<?= e((string) ($workflow['defaults']['labor_minutes'] ?? '0')) ?>">
                     </div>
-                    <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'สรุปงาน (Resolve)', 'variant' => 'primary', 'icon' => 'check-circle']) ?>
+                    <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'สรุปงาน', 'variant' => 'primary', 'icon' => 'check-circle']) ?>
                 </form>
             <?php endif; ?>
 
@@ -374,6 +403,7 @@ if (!empty($workflow['canReview'])) {
                     <div class="field-group">
                         <label class="field-label">คะแนนความพึงพอใจ <span class="required">*</span></label>
                         <fieldset class="star-rating">
+                            <legend class="sr-only">คะแนนความพึงพอใจ</legend>
                             <?php for ($i = 5; $i >= 1; $i--): ?>
                                 <input type="radio" name="score" id="star<?= $i ?>" value="<?= $i ?>"<?= (string) ($workflow['defaults']['score'] ?? '') === (string) $i ? ' checked' : '' ?> required>
                                 <label for="star<?= $i ?>" title="<?= $i ?> ดาว"><?= $i ?></label>
@@ -430,11 +460,12 @@ if (!empty($workflow['canReview'])) {
                 <?php endif; ?>
                 <?php if ($ticket['rating_score'] > 0): ?>
                     <dt>คะแนน</dt>
-                    <dd>
+                    <dd class="star-display">
                         <?php for ($i = 1; $i <= 5; $i++): ?>
-                            <span style="color:<?= $i <= (int) $ticket['rating_score'] ? '#f59e0b' : '#d1d5db' ?>;font-size:1.1rem;">★</span>
+                            <span class="star-display-star<?= $i <= (int) $ticket['rating_score'] ? ' is-active' : '' ?>" aria-hidden="true">★</span>
                         <?php endfor; ?>
-                        <span style="margin-left:.3rem;color:var(--muted)"><?= e((string) $ticket['rating_score']) ?> / 5</span>
+                        <span class="star-display-score" aria-hidden="true"><?= e((string) $ticket['rating_score']) ?> / 5</span>
+                        <span class="sr-only">คะแนน <?= e((string) $ticket['rating_score']) ?> จาก 5</span>
                     </dd>
                 <?php endif; ?>
                 <?php if ($ticket['rating_feedback'] !== ''): ?>
@@ -449,9 +480,8 @@ if (!empty($workflow['canReview'])) {
         </section>
     <?php endif; ?>
 
-    <!-- Comments + Activity -->
-    <div class="content-grid">
-        <section class="panel-card stack-md" id="ticket-comments">
+    <!-- Comments -->
+    <section class="panel-card stack-md" id="ticket-comments">
             <div class="panel-head">
                 <h2 class="panel-title">ความเห็นและบทสนทนา</h2>
                 <span class="badge badge-default"><?= e((string) count($comments)) ?> รายการ</span>
@@ -471,9 +501,9 @@ if (!empty($workflow['canReview'])) {
                     </div>
                     <div class="comment-form-actions">
                         <?php if (!empty($workflow['canUseInternalComment'])): ?>
-                            <label class="checkbox-row" style="font-size:.78rem">
+                            <label class="checkbox-row checkbox-row-sm">
                                 <input type="checkbox" name="is_internal" value="1"<?= in_array((string) ($workflow['defaults']['comment_is_internal'] ?? ''), ['1', 'true', 'on'], true) ? ' checked' : '' ?>>
-                                <span>บันทึกเป็น Internal note (เฉพาะทีมงาน)</span>
+                                <span>บันทึกภายใน (เฉพาะทีมงาน)</span>
                             </label>
                         <?php endif; ?>
                         <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ส่งความเห็น', 'variant' => 'primary', 'icon' => 'send', 'iconPosition' => 'right']) ?>
@@ -493,7 +523,7 @@ if (!empty($workflow['canReview'])) {
                         <article class="comment-item<?= !empty($comment['is_internal']) ? ' comment-item-internal' : '' ?>" id="comment-<?= e((string) $comment['id']) ?>" data-comment-item>
                             <div class="comment-meta">
                                 <div>
-                                    <strong style="color:var(--text);font-size:.86rem"><?= e($comment['author_name']) ?></strong>
+                                    <strong class="comment-author"><?= e($comment['author_name']) ?></strong>
                                     <span class="helper-text"><?= e($comment['author_role']) ?> · <?= e(human_date($comment['created_at'])) ?></span>
                                 </div>
                                 <span data-comment-badge><?= render_partial('partials/components/badge', ['label' => $comment['visibility_label'], 'tone' => $comment['visibility_tone']]) ?></span>
@@ -504,21 +534,21 @@ if (!empty($workflow['canReview'])) {
                                     <div class="attachment-grid attachment-grid-compact">
                                         <?php foreach ($comment['attachments'] as $attachment): ?>
                                             <a class="attachment-card" href="<?= e(url($attachment['url'])) ?>" target="_blank" rel="noopener">
-                                                <img src="<?= e(url($attachment['url'])) ?>" alt="<?= e($attachment['name']) ?>">
+                                                <img src="<?= e(url($attachment['url'])) ?>" alt="<?= e($attachment['name']) ?>" loading="lazy">
                                                 <span><?= e($attachment['name']) ?></span>
                                             </a>
                                         <?php endforeach; ?>
                                     </div>
                                 <?php endif; ?>
                                 <?php if (!empty($comment['can_manage'])): ?>
-                                    <div class="button-row" style="margin-top:.7rem">
-                                        <a href="<?= e(url('/tickets/' . $ticket['id'] . '?edit_comment=' . $comment['id'] . '#comment-' . $comment['id'])) ?>" class="btn btn-ghost btn-sm" data-comment-edit-toggle onclick="(function(trigger){const item=trigger.closest('[data-comment-item]');const thread=trigger.closest('[data-comment-thread]');if(!item){return;}if(thread){thread.querySelectorAll('[data-comment-item]').forEach((currentItem)=>{const currentView=currentItem.querySelector('[data-comment-view]');const currentPanel=currentItem.querySelector('[data-comment-edit-panel]');const currentError=currentItem.querySelector('[data-comment-edit-error]');if(currentView){currentView.hidden=false;}if(currentPanel){currentPanel.hidden=true;}if(currentError){currentError.textContent='';currentError.hidden=true;}});}const view=item.querySelector('[data-comment-view]');const panel=item.querySelector('[data-comment-edit-panel]');const textarea=item.querySelector('[data-comment-edit-textarea]');if(view){view.hidden=true;}if(panel){panel.hidden=false;}if(textarea){textarea.focus();const length=textarea.value.length;textarea.setSelectionRange(length,length);}})(this); return false;">
+                                    <div class="button-row comment-actions">
+                                        <a href="<?= e(url('/tickets/' . $ticket['id'] . '?edit_comment=' . $comment['id'] . '#comment-' . $comment['id'])) ?>" class="btn btn-ghost btn-sm" aria-label="แก้ไขความเห็นของ <?= e($comment['author_name']) ?>" data-comment-edit-toggle onclick="return window.__toggleCommentEdit(this)">
                                             <?= lucide('pencil', 'button-icon') ?>
                                             <span>แก้ไข</span>
                                         </a>
-                                        <form method="post" action="<?= e(url('/tickets/' . $ticket['id'] . '/comments/' . $comment['id'] . '/delete')) ?>" onsubmit="return confirm('ยืนยันการลบความเห็นนี้?');" style="display:inline">
+                                        <form method="post" action="<?= e(url('/tickets/' . $ticket['id'] . '/comments/' . $comment['id'] . '/delete')) ?>" onsubmit="return confirm('ยืนยันการลบความเห็นนี้?');" class="inline-form">
                                             <?= csrf_field() ?>
-                                            <button type="submit" class="btn btn-ghost btn-sm" style="color:#be123c"><?= lucide('trash', 'button-icon') ?><span>ลบ</span></button>
+                                            <button type="submit" class="btn btn-ghost btn-sm btn-ghost-danger" aria-label="ลบความเห็นของ <?= e($comment['author_name']) ?>"><?= lucide('trash', 'button-icon') ?><span>ลบ</span></button>
                                         </form>
                                     </div>
                                 <?php endif; ?>
@@ -533,14 +563,14 @@ if (!empty($workflow['canReview'])) {
                                         </div>
                                         <p class="field-error" data-comment-edit-error hidden></p>
                                         <?php if (!empty($workflow['canUseInternalComment'])): ?>
-                                            <label class="checkbox-row" style="font-size:.76rem">
+                                            <label class="checkbox-row checkbox-row-sm">
                                                 <input type="checkbox" name="is_internal" value="1"<?= in_array((string) (!empty($workflow['defaults']['has_comment_is_internal_old_input']) ? ($workflow['defaults']['comment_is_internal'] ?? '') : ($comment['is_internal'] ? '1' : '')), ['1', 'true', 'on'], true) ? ' checked' : '' ?>>
-                                                <span>Internal note</span>
+                                                <span>บันทึกภายใน</span>
                                             </label>
                                         <?php endif; ?>
                                         <div class="button-row">
                                             <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'บันทึก', 'variant' => 'primary', 'size' => 'sm']) ?>
-                                            <a href="<?= e(url('/tickets/' . $ticket['id'] . '#comment-' . $comment['id'])) ?>" class="btn btn-ghost btn-sm" data-comment-edit-cancel onclick="(function(trigger){const item=trigger.closest('[data-comment-item]');if(!item){return;}const view=item.querySelector('[data-comment-view]');const panel=item.querySelector('[data-comment-edit-panel]');const error=item.querySelector('[data-comment-edit-error]');if(error){error.textContent='';error.hidden=true;}if(panel){panel.hidden=true;}if(view){view.hidden=false;}})(this); return false;">
+                                            <a href="<?= e(url('/tickets/' . $ticket['id'] . '#comment-' . $comment['id'])) ?>" class="btn btn-ghost btn-sm" data-comment-edit-cancel onclick="return window.__cancelCommentEdit(this)">
                                                 <span>ยกเลิก</span>
                                             </a>
                                         </div>
@@ -553,11 +583,15 @@ if (!empty($workflow['canReview'])) {
             <?php endif; ?>
         </section>
 
-        <section class="panel-card stack-md">
-            <div class="panel-head">
+    <details class="panel-card collapsible">
+        <summary class="collapsible-summary">
+            <div class="collapsible-title">
                 <h2 class="panel-title">ประวัติการเปลี่ยนสถานะ</h2>
                 <span class="badge badge-info"><?= e((string) count($activityLogs)) ?> รายการ</span>
             </div>
+            <span class="collapsible-chevron"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
+        </summary>
+        <div class="collapsible-body">
             <?php if ($activityLogs === []): ?>
                 <?= render_partial('partials/components/empty-state', [
                     'icon' => 'activity',
@@ -587,11 +621,46 @@ if (!empty($workflow['canReview'])) {
                     <?php endforeach; ?>
                 </ol>
             <?php endif; ?>
-        </section>
-    </div>
+        </div>
+    </details>
 </section>
 
 <script>
+window.__toggleCommentEdit = function (trigger) {
+    var item = trigger.closest('[data-comment-item]');
+    var thread = trigger.closest('[data-comment-thread]');
+    if (!item) { return false; }
+    if (thread) {
+        thread.querySelectorAll('[data-comment-item]').forEach(function (cur) {
+            var v = cur.querySelector('[data-comment-view]');
+            var p = cur.querySelector('[data-comment-edit-panel]');
+            var e = cur.querySelector('[data-comment-edit-error]');
+            if (v) { v.hidden = false; }
+            if (p) { p.hidden = true; }
+            if (e) { e.textContent = ''; e.hidden = true; }
+        });
+    }
+    var view = item.querySelector('[data-comment-view]');
+    var panel = item.querySelector('[data-comment-edit-panel]');
+    var textarea = item.querySelector('[data-comment-edit-textarea]');
+    if (view) { view.hidden = true; }
+    if (panel) { panel.hidden = false; }
+    if (textarea) { textarea.focus(); var len = textarea.value.length; textarea.setSelectionRange(len, len); }
+    return false;
+};
+
+window.__cancelCommentEdit = function (trigger) {
+    var item = trigger.closest('[data-comment-item]');
+    if (!item) { return false; }
+    var view = item.querySelector('[data-comment-view]');
+    var panel = item.querySelector('[data-comment-edit-panel]');
+    var error = item.querySelector('[data-comment-edit-error]');
+    if (error) { error.textContent = ''; error.hidden = true; }
+    if (panel) { panel.hidden = true; }
+    if (view) { view.hidden = false; }
+    return false;
+};
+
 if (typeof window.__handleInlineCommentSave !== 'function') {
     window.__handleInlineCommentSave = function (form, event) {
         if (event) { event.preventDefault(); }
