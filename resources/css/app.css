@@ -817,7 +817,7 @@ body > * { position: relative; z-index: 1; }
   align-items: center;
   gap: .25rem;
   color: #16a34a;
-  font-size: .7rem;
+  font-size: .75rem;
   font-weight: 700;
   padding: .22rem .55rem;
   background: rgba(22, 163, 74, .12);
@@ -848,7 +848,7 @@ body > * { position: relative; z-index: 1; }
 
 .dark .metric-value { background: linear-gradient(135deg, #fff, var(--indigo-200)); -webkit-background-clip: text; background-clip: text; }
 
-.metric-meta { margin-top: .25rem; font-size: .72rem; }
+.metric-meta { margin-top: .25rem; font-size: .75rem; }
 
 /* tone variants */
 .metric-card-danger .metric-icon { background: linear-gradient(135deg, #fee2e2, #fff1f2); color: #dc2626; }
@@ -1079,7 +1079,7 @@ textarea.input { resize: vertical; min-height: 110px; }
   z-index: 1;
   background: color-mix(in srgb, var(--indigo-50) 70%, var(--surface));
   color: var(--indigo-700);
-  font-size: .72rem;
+  font-size: .75rem;
   font-weight: 800;
   letter-spacing: .08em;
   text-transform: uppercase;
@@ -2335,6 +2335,9 @@ textarea.input { resize: vertical; min-height: 110px; }
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: .9rem;
 }
+.dashboard-filter-grid-5 {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
 
 .dashboard-chart-grid {
   display: grid;
@@ -2385,6 +2388,25 @@ textarea.input { resize: vertical; min-height: 110px; }
 }
 
 .dark .leaderboard-number { color: var(--indigo-300); }
+
+a.leaderboard-number {
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 2px;
+  text-decoration-color: color-mix(in srgb, var(--indigo-600) 40%, transparent);
+  transition: text-decoration-color .15s ease, color .15s ease;
+}
+a.leaderboard-number:hover {
+  text-decoration-color: var(--indigo-600);
+  color: var(--indigo-700);
+}
+.dark a.leaderboard-number {
+  text-decoration-color: color-mix(in srgb, var(--indigo-300) 40%, transparent);
+}
+.dark a.leaderboard-number:hover {
+  text-decoration-color: var(--indigo-300);
+  color: var(--indigo-200);
+}
 
 /* =========================================================================
    QR sheet + scanning
@@ -5038,6 +5060,162 @@ code.mono, .mono {
   box-shadow: 0 8px 18px -8px rgba(99, 102, 241, .55);
 }
 .admin-tab svg { flex: 0 0 16px; }
+
+/* Tab panel show/hide */
+.admin-tab-panel:not(.is-active) { display: none; }
+
+/* Admin tabs sticky */
+.admin-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+/* Admin stat cards – mobile horizontal scroll */
+@media (max-width: 700px) {
+  .admin-stat-scroll {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: .75rem;
+    padding-bottom: .25rem;
+  }
+  .admin-stat-scroll::-webkit-scrollbar { display: none; }
+  .admin-stat-scroll > * {
+    flex: 0 0 70%;
+    scroll-snap-align: start;
+  }
+}
+
+/* =========================================================================
+   Reports – collapsible filter & mobile
+   ========================================================================= */
+
+/* Export dropdown */
+.export-dropdown { position: relative; }
+.export-dropdown > summary { list-style: none; cursor: pointer; }
+.export-dropdown > summary::-webkit-details-marker { display: none; }
+
+.export-dropdown-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + .45rem);
+  min-width: 200px;
+  padding: .4rem;
+  border: 1px solid var(--glass-border-strong);
+  border-radius: 14px;
+  background: var(--surface);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  box-shadow: var(--shadow-lg);
+  z-index: 30;
+}
+
+.export-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  padding: .65rem .85rem;
+  border-radius: 10px;
+  color: var(--text);
+  font-size: .82rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background .12s ease;
+}
+.export-dropdown-item:hover {
+  background: color-mix(in srgb, var(--indigo-50) 60%, transparent);
+  color: var(--indigo-700);
+}
+.dark .export-dropdown-item:hover {
+  background: rgba(99, 102, 241, .12);
+  color: var(--indigo-300);
+}
+.export-dropdown-item + .export-dropdown-item {
+  border-top: 1px solid var(--line);
+}
+
+/* Table sorting indicators */
+.data-table th[data-sort-col] {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  padding-right: 1.6rem;
+}
+.data-table th[data-sort-col]::after {
+  content: '';
+  position: absolute;
+  right: .45rem;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 4px solid transparent;
+  border-top: 5px solid currentColor;
+  opacity: .25;
+}
+.data-table th[data-sort-col].sort-asc::after {
+  border-top: none;
+  border-bottom: 5px solid currentColor;
+  opacity: .7;
+}
+.data-table th[data-sort-col].sort-desc::after { opacity: .7; }
+.data-table th[data-sort-col]:hover {
+  background: color-mix(in srgb, var(--indigo-100) 70%, var(--surface));
+}
+.dark .data-table th[data-sort-col]:hover {
+  background: color-mix(in srgb, rgba(99, 102, 241, .25) 70%, var(--surface));
+}
+
+/* Collapsible filter */
+.report-filter-summary { cursor: pointer; list-style: none; }
+.report-filter-summary::-webkit-details-marker { display: none; }
+.report-filter-body { padding: 0 1.4rem 1.4rem; }
+
+@media (min-width: 701px) {
+  .report-filter-chevron { display: none; }
+}
+
+@media (max-width: 700px) {
+  .report-export-bar { display: none; }
+
+  .report-filter-summary {
+    flex-direction: row;
+    padding: .85rem 1.1rem;
+  }
+  .report-filter-summary:hover {
+    background: color-mix(in srgb, var(--indigo-50) 35%, var(--surface));
+  }
+  .dark .report-filter-summary:hover {
+    background: rgba(99, 102, 241, .08);
+  }
+  .report-filter-collapsible[open] > .report-filter-summary .collapsible-chevron {
+    transform: rotate(180deg);
+    color: var(--indigo-600);
+    background: var(--surface-muted);
+  }
+  .dark .report-filter-collapsible[open] > .report-filter-summary .collapsible-chevron {
+    color: var(--indigo-300);
+  }
+  .report-filter-body {
+    padding: 0 1rem 1rem;
+    border-top: 1px dashed var(--line);
+    padding-top: 1rem;
+  }
+
+  .report-stat-scroll {
+    display: flex;
+    gap: .75rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+    padding-bottom: .5rem;
+  }
+  .report-stat-scroll > * {
+    flex: 0 0 min(72vw, 240px);
+    scroll-snap-align: start;
+  }
+}
 
 /* =========================================================================
    Visually hidden (screen-reader only)

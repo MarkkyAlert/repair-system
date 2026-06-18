@@ -6,7 +6,7 @@
         'actions' => '<span class="badge badge-default">เฉพาะผู้ดูแลระบบ</span>',
     ]) ?>
 
-    <div class="stat-grid">
+    <div class="stat-grid admin-stat-scroll">
         <?= render_partial('partials/components/card', ['title' => 'ผู้ใช้งาน', 'value' => (string) count($users ?? []), 'meta' => 'บัญชีทั้งหมดในระบบ', 'tone' => 'default', 'icon' => 'users']) ?>
         <?= render_partial('partials/components/card', ['title' => 'แผนก', 'value' => (string) count($departments ?? []), 'meta' => 'หน่วยงานในองค์กร', 'tone' => 'info', 'icon' => 'building']) ?>
         <?= render_partial('partials/components/card', ['title' => 'สถานที่', 'value' => (string) count($locations ?? []), 'meta' => 'จุดติดตั้ง/แจ้งซ่อม', 'tone' => 'info', 'icon' => 'map-pin']) ?>
@@ -17,20 +17,20 @@
         <?= render_partial('partials/components/card', ['title' => 'Audit Log', 'value' => (string) (int) (($auditLogs['total'] ?? 0)), 'meta' => 'admin actions', 'tone' => 'info', 'icon' => 'file-text']) ?>
     </div>
 
-    <nav class="admin-tabs" aria-label="หมวดการตั้งค่า">
-        <a href="#tab-users" class="admin-tab is-active"><?= lucide('users', 'h-4 w-4') ?><span>ผู้ใช้งาน</span></a>
-        <a href="#tab-departments" class="admin-tab"><?= lucide('building', 'h-4 w-4') ?><span>แผนก</span></a>
-        <a href="#tab-locations" class="admin-tab"><?= lucide('map-pin', 'h-4 w-4') ?><span>สถานที่</span></a>
-        <a href="#tab-priorities" class="admin-tab"><?= lucide('clock', 'h-4 w-4') ?><span>Priority/SLA</span></a>
-        <a href="#tab-categories" class="admin-tab"><?= lucide('tag', 'h-4 w-4') ?><span>หมวดหมู่งาน</span></a>
-        <a href="#tab-asset-categories" class="admin-tab"><?= lucide('layers', 'h-4 w-4') ?><span>หมวดหมู่ Asset</span></a>
-        <a href="#tab-roles" class="admin-tab"><?= lucide('shield-check', 'h-4 w-4') ?><span>สิทธิ์ตาม Role</span></a>
-        <a href="#tab-audit" class="admin-tab"><?= lucide('file-text', 'h-4 w-4') ?><span>Audit Log</span></a>
-        <a href="#tab-email" class="admin-tab"><?= lucide('send', 'h-4 w-4') ?><span>Email</span></a>
-        <a href="#tab-settings" class="admin-tab"><?= lucide('settings', 'h-4 w-4') ?><span>การตั้งค่า</span></a>
+    <nav class="admin-tabs" role="tablist" aria-label="หมวดการตั้งค่า">
+        <a href="#tab-users" class="admin-tab is-active" role="tab" aria-selected="true" aria-controls="tab-users"><?= lucide('users', 'h-4 w-4') ?><span>ผู้ใช้งาน</span></a>
+        <a href="#tab-departments" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-departments"><?= lucide('building', 'h-4 w-4') ?><span>แผนก</span></a>
+        <a href="#tab-locations" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-locations"><?= lucide('map-pin', 'h-4 w-4') ?><span>สถานที่</span></a>
+        <a href="#tab-priorities" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-priorities"><?= lucide('clock', 'h-4 w-4') ?><span>Priority/SLA</span></a>
+        <a href="#tab-categories" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-categories"><?= lucide('tag', 'h-4 w-4') ?><span>หมวดหมู่งาน</span></a>
+        <a href="#tab-asset-categories" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-asset-categories"><?= lucide('layers', 'h-4 w-4') ?><span>หมวดหมู่ Asset</span></a>
+        <a href="#tab-roles" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-roles"><?= lucide('shield-check', 'h-4 w-4') ?><span>สิทธิ์ตาม Role</span></a>
+        <a href="#tab-audit" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-audit"><?= lucide('file-text', 'h-4 w-4') ?><span>Audit Log</span></a>
+        <a href="#tab-email" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-email"><?= lucide('send', 'h-4 w-4') ?><span>Email</span></a>
+        <a href="#tab-settings" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-settings"><?= lucide('settings', 'h-4 w-4') ?><span>การตั้งค่า</span></a>
     </nav>
 
-    <section id="tab-users" class="panel-card stack-md">
+    <section id="tab-users" class="panel-card stack-md admin-tab-panel" role="tabpanel">
         <div class="panel-head">
             <div>
                 <h2 class="panel-title">จัดการผู้ใช้งาน</h2>
@@ -195,7 +195,7 @@
         <?php endif; ?>
     </section>
 
-    <section id="tab-departments" class="panel-card stack-md">
+    <section id="tab-departments" class="panel-card stack-md admin-tab-panel" role="tabpanel">
         <div class="panel-head">
             <h2 class="panel-title">จัดการแผนก</h2>
             <span class="badge badge-info"><?= e((string) count($departments ?? [])) ?> รายการ</span>
@@ -294,7 +294,7 @@
         <?php endif; ?>
     </section>
 
-    <section id="tab-locations" class="panel-card stack-md">
+    <section id="tab-locations" class="panel-card stack-md admin-tab-panel" role="tabpanel">
         <div class="panel-head">
             <div>
                 <h2 class="panel-title">จัดการสถานที่</h2>
@@ -420,7 +420,7 @@
         <?php endif; ?>
     </section>
 
-    <section id="tab-priorities" class="panel-card stack-md">
+    <section id="tab-priorities" class="panel-card stack-md admin-tab-panel" role="tabpanel">
         <div class="panel-head">
             <div>
                 <h2 class="panel-title">จัดการ Priority และ SLA พื้นฐาน</h2>
@@ -509,7 +509,7 @@
         <?php endif; ?>
     </section>
 
-    <section id="tab-categories" class="panel-card stack-md">
+    <section id="tab-categories" class="panel-card stack-md admin-tab-panel" role="tabpanel">
         <div class="panel-head">
             <div>
                 <h2 class="panel-title">ตั้งค่าหมวดหมู่และ SLA</h2>
@@ -648,7 +648,7 @@
         <?php endif; ?>
     </section>
 
-    <section id="tab-asset-categories" class="panel-card stack-md">
+    <section id="tab-asset-categories" class="panel-card stack-md admin-tab-panel" role="tabpanel">
         <div class="panel-head">
             <div>
                 <h2 class="panel-title">จัดการหมวดหมู่ Asset</h2>
@@ -762,7 +762,7 @@
         <?php endif; ?>
     </section>
 
-    <section id="tab-roles" class="panel-card stack-md">
+    <section id="tab-roles" class="panel-card stack-md admin-tab-panel" role="tabpanel">
         <div class="panel-head">
             <div>
                 <h2 class="panel-title">Preview สิทธิ์ตาม Role</h2>
@@ -797,7 +797,7 @@
         </div>
     </section>
 
-    <section id="tab-audit" class="panel-card stack-md">
+    <section id="tab-audit" class="panel-card stack-md admin-tab-panel" role="tabpanel">
         <div class="panel-head">
             <div>
                 <h2 class="panel-title">Audit Log</h2>
@@ -924,7 +924,7 @@
         <?php endif; ?>
     </section>
 
-    <section id="tab-email" class="panel-card stack-md">
+    <section id="tab-email" class="panel-card stack-md admin-tab-panel" role="tabpanel">
         <div class="panel-head">
             <div>
                 <h2 class="panel-title">Email Template และ SMTP Test</h2>
@@ -1007,7 +1007,7 @@
         <?php endforeach; ?>
     </section>
 
-    <section id="tab-settings" class="panel-card stack-md">
+    <section id="tab-settings" class="panel-card stack-md admin-tab-panel" role="tabpanel">
         <div class="panel-head">
             <div>
                 <h2 class="panel-title">การตั้งค่ากลางของระบบ</h2>
@@ -1187,11 +1187,29 @@
 <script>
 (() => {
     const tabs = document.querySelectorAll('.admin-tab');
+    const panels = document.querySelectorAll('.admin-tab-panel');
     if (!tabs.length) return;
-    const setActive = (hash) => {
-        tabs.forEach((t) => t.classList.toggle('is-active', t.getAttribute('href') === hash));
+
+    const activate = (hash) => {
+        tabs.forEach((t) => {
+            const active = t.getAttribute('href') === hash;
+            t.classList.toggle('is-active', active);
+            t.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+        panels.forEach((p) => {
+            p.classList.toggle('is-active', '#' + p.id === hash);
+        });
     };
-    tabs.forEach((tab) => tab.addEventListener('click', () => setActive(tab.getAttribute('href'))));
-    if (location.hash) setActive(location.hash);
+
+    tabs.forEach((tab) => {
+        tab.addEventListener('click', (e) => {
+            e.preventDefault();
+            const hash = tab.getAttribute('href');
+            activate(hash);
+            history.replaceState(null, '', hash);
+        });
+    });
+
+    activate(location.hash || '#tab-users');
 })();
 </script>

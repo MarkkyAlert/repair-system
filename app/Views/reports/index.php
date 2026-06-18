@@ -3,42 +3,20 @@ $filterState = $filters['selected'] ?? [];
 $querySuffix = !empty($filters['query_string']) ? '?' . (string) $filters['query_string'] : '';
 ?>
 <section class="stack-lg">
-    <?php ob_start(); ?>
-                <?= render_partial('partials/components/button', [
-                    'label' => 'Export Excel',
-                    'variant' => 'primary',
-                    'href' => '/reports/export/excel' . $querySuffix,
-                    'icon' => 'download',
-                ]) ?>
-                <?= render_partial('partials/components/button', [
-                    'label' => 'Export PDF',
-                    'variant' => 'secondary',
-                    'href' => '/reports/export/pdf' . $querySuffix,
-                    'icon' => 'file-text',
-                ]) ?>
-                <?= render_partial('partials/components/button', [
-                    'label' => 'Export CSV',
-                    'variant' => 'secondary',
-                    'href' => '/reports/export/csv' . $querySuffix,
-                    'icon' => 'download',
-                ]) ?>
-    <?php $heroActions = (string) ob_get_clean(); ?>
     <?= render_partial('partials/components/page-header', [
         'eyebrow' => 'ข้อมูลเพื่อการตัดสินใจ',
         'title' => 'รายงานและวิเคราะห์งานซ่อม',
         'description' => 'วิเคราะห์ปริมาณงาน SLA และส่งออกรายงาน',
-        'actions' => $heroActions,
     ]) ?>
 
-    <section class="panel-card stack-md">
-        <div class="panel-head">
+    <details class="panel-card report-filter-collapsible" open>
+        <summary class="panel-head report-filter-summary">
             <h2 class="panel-title">กำหนดช่วงข้อมูลรายงาน</h2>
-            <div class="dashboard-filter-actions">
-                <?= render_partial('partials/components/button', ['label' => 'ล้างตัวกรอง', 'variant' => 'secondary', 'href' => '/reports']) ?>
-            </div>
-        </div>
+            <span class="collapsible-chevron report-filter-chevron"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
+        </summary>
+        <div class="report-filter-body">
         <form method="get" action="<?= e(url('/reports')) ?>" class="stack-md">
-            <div class="dashboard-filter-grid">
+            <div class="dashboard-filter-grid dashboard-filter-grid-5">
                 <div class="field-group">
                     <label for="from_date" class="field-label">วันที่เริ่มต้น</label>
                     <input id="from_date" name="from_date" type="date" class="input" value="<?= e((string) ($filterState['from_date'] ?? '')) ?>">
@@ -74,12 +52,14 @@ $querySuffix = !empty($filters['query_string']) ? '?' . (string) $filters['query
             </div>
             <div class="dashboard-filter-actions">
                 <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'กรองข้อมูล', 'variant' => 'primary']) ?>
+                <?= render_partial('partials/components/button', ['label' => 'ล้างตัวกรอง', 'variant' => 'ghost', 'href' => '/reports', 'icon' => 'x']) ?>
                 <span class="helper-text">ตัวกรองที่ใช้งาน: <?= e((string) ($filters['active_count'] ?? 0)) ?></span>
             </div>
         </form>
-    </section>
+        </div>
+    </details>
 
-    <div class="stat-grid">
+    <div class="stat-grid stat-grid-5 report-stat-scroll">
         <?= render_partial('partials/components/card', [
             'title' => 'Tickets ทั้งหมด',
             'value' => (string) ($summary['total'] ?? 0),
@@ -112,6 +92,36 @@ $querySuffix = !empty($filters['query_string']) ? '?' . (string) $filters['query
         ]) ?>
     </div>
 
+    <div class="action-bar report-export-bar">
+        <div class="action-bar-left">
+            <strong>ส่งออกรายงาน</strong>
+            <span class="helper-text"><?= e((string) count($rows ?? [])) ?> รายการ</span>
+        </div>
+        <div class="action-bar-right">
+            <details class="export-dropdown">
+                <summary class="btn btn-primary btn-md">
+                    <?= lucide('download', 'button-icon') ?>
+                    <span>ส่งออกรายงาน</span>
+                    <?= lucide('chevron-down', 'button-icon') ?>
+                </summary>
+                <div class="export-dropdown-menu">
+                    <a href="<?= e(url('/reports/export/excel' . $querySuffix)) ?>" class="export-dropdown-item">
+                        <?= lucide('clipboard-list', 'button-icon') ?>
+                        <span>Export Excel</span>
+                    </a>
+                    <a href="<?= e(url('/reports/export/pdf' . $querySuffix)) ?>" class="export-dropdown-item">
+                        <?= lucide('file-text', 'button-icon') ?>
+                        <span>Export PDF</span>
+                    </a>
+                    <a href="<?= e(url('/reports/export/csv' . $querySuffix)) ?>" class="export-dropdown-item">
+                        <?= lucide('download', 'button-icon') ?>
+                        <span>Export CSV</span>
+                    </a>
+                </div>
+            </details>
+        </div>
+    </div>
+
     <section class="panel-card stack-md">
         <div class="panel-head">
             <h2 class="panel-title">รายการ Ticket พร้อมสถานะ SLA</h2>
@@ -121,20 +131,21 @@ $querySuffix = !empty($filters['query_string']) ? '?' . (string) $filters['query
         <?php if (!empty($rows)): ?>
             <div class="table-wrap">
                 <table class="data-table">
+                    <caption class="sr-only">รายการ Ticket พร้อมสถานะ SLA จำนวน <?= e((string) count($rows ?? [])) ?> รายการ</caption>
                     <thead>
                     <tr>
-                        <th>Ticket</th>
-                        <th>Requester</th>
-                        <th>Department</th>
-                        <th>Category</th>
-                        <th>Technician</th>
-                        <th>Status</th>
-                        <th>Requested</th>
-                        <th>Resolved</th>
-                        <th>Resolution (hrs)</th>
-                        <th>เกิน SLA</th>
-                        <th>SLA Status</th>
-                        <th>Rating</th>
+                        <th data-sort-col="0">เลขที่</th>
+                        <th data-sort-col="1">ผู้แจ้ง</th>
+                        <th data-sort-col="2">แผนก</th>
+                        <th data-sort-col="3">หมวดหมู่</th>
+                        <th data-sort-col="4">ช่างเทคนิค</th>
+                        <th data-sort-col="5">สถานะ</th>
+                        <th data-sort-col="6" data-sort-type="date">วันที่แจ้ง</th>
+                        <th data-sort-col="7" data-sort-type="date">วันที่แก้ไข</th>
+                        <th data-sort-col="8" data-sort-type="number">เวลาแก้ไข (ชม.)</th>
+                        <th data-sort-col="9">เกิน SLA</th>
+                        <th data-sort-col="10">สถานะ SLA</th>
+                        <th data-sort-col="11" data-sort-type="number">คะแนน</th>
                     </tr>
                     </thead>
                     <tbody>
