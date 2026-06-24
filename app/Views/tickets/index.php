@@ -16,18 +16,24 @@ foreach (($filters['technicians'] ?? []) as $technician) {
         break;
     }
 }
+$chipDismissUrl = static function (string $removeKey) use ($qSearch, $qStatus, $qPriority, $qTechnician, $qSla): string {
+    $query = ['q' => $qSearch, 'status' => $qStatus, 'priority' => $qPriority, 'technician_id' => $qTechnician > 0 ? (string) $qTechnician : '', 'sla' => $qSla];
+    unset($query[$removeKey]);
+    $query = array_filter($query, static fn ($v): bool => (string) $v !== '');
+    return url('/tickets' . ($query !== [] ? '?' . http_build_query($query) : ''));
+};
 $activeFilterChips = [];
 if ($qStatus !== '') {
-    $activeFilterChips[] = 'สถานะ: ' . ($statusOptions[$qStatus] ?? $qStatus);
+    $activeFilterChips[] = ['label' => 'สถานะ: ' . ($statusOptions[$qStatus] ?? $qStatus), 'dismiss' => $chipDismissUrl('status')];
 }
 if ($qPriority !== '') {
-    $activeFilterChips[] = 'ความสำคัญ: ' . ($priorityOptions[$qPriority] ?? $qPriority);
+    $activeFilterChips[] = ['label' => 'ความสำคัญ: ' . ($priorityOptions[$qPriority] ?? $qPriority), 'dismiss' => $chipDismissUrl('priority')];
 }
 if ($qTechnician > 0) {
-    $activeFilterChips[] = 'ช่าง: ' . ($technicianLabel !== '' ? $technicianLabel : (string) $qTechnician);
+    $activeFilterChips[] = ['label' => 'ช่าง: ' . ($technicianLabel !== '' ? $technicianLabel : (string) $qTechnician), 'dismiss' => $chipDismissUrl('technician_id')];
 }
 if ($qSla === 'overdue') {
-    $activeFilterChips[] = 'SLA: เกินกำหนด';
+    $activeFilterChips[] = ['label' => 'SLA: เกินกำหนด', 'dismiss' => $chipDismissUrl('sla')];
 }
 $urgentAlerts = [];
 if ($metricCount('overdue') > 0) {
@@ -48,6 +54,7 @@ if ($metricCount('pendingApproval') > 0) {
 }
 ?>
 <section class="stack-lg">
+    <h1 class="sr-only">รายการแจ้งซ่อม — คิวงานปฏิบัติการ</h1>
     <?php ob_start(); ?>
     <span class="badge badge-info"><?= e((string) ($pagination['total'] ?? 0)) ?> รายการ</span>
     <?= render_partial('partials/components/button', ['label' => 'แจ้งปัญหาใหม่', 'variant' => 'primary', 'href' => '/tickets/create', 'icon' => 'plus']) ?>
@@ -120,8 +127,11 @@ if ($metricCount('pendingApproval') > 0) {
 
     <section class="panel-card stack-md">
         <div class="panel-head">
-            <h2 class="panel-title">คิวงานทั้งหมด</h2>
-            <span class="helper-text"><?= e((string) ($pagination['total'] ?? 0)) ?> รายการตรงตามตัวกรอง</span>
+            <div>
+                <h2 class="panel-title"><?= $isFilterActive ? 'ผลการกรอง' : 'คิวงานทั้งหมด' ?></h2>
+                <p class="field-hint"><?= e((string) ($pagination['total'] ?? 0)) ?> รายการ<?= $isFilterActive ? 'ตรงตามตัวกรอง' : '' ?></p>
+            </div>
+            <span class="metric-icon metric-icon-sm"><?= lucide('list', 'h-4 w-4') ?></span>
         </div>
 
         <form method="get" action="<?= e(url('/tickets')) ?>" class="ticket-filter-toolbar">
@@ -141,7 +151,7 @@ if ($metricCount('pendingApproval') > 0) {
             <?php if ($activeFilterChips !== []): ?>
                 <div class="ticket-filter-chips" aria-label="ตัวกรองที่กำลังใช้งาน">
                     <?php foreach ($activeFilterChips as $chip): ?>
-                        <span class="filter-chip"><?= e($chip) ?></span>
+                        <span class="filter-chip"><?= e($chip['label']) ?><a href="<?= e($chip['dismiss']) ?>" class="filter-chip-dismiss" aria-label="ลบตัวกรอง <?= e($chip['label']) ?>"><?= lucide('x', 'h-3 w-3') ?></a></span>
                     <?php endforeach; ?>
                 </div>
             <?php endif; ?>
@@ -194,10 +204,16 @@ if ($metricCount('pendingApproval') > 0) {
         </form>
 
         <?php if ($tickets === []): ?>
+            <?php if (!$isFilterActive): ?>
+                <?php ob_start(); ?>
+                    <?= render_partial('partials/components/button', ['label' => 'แจ้งปัญหาใหม่', 'variant' => 'primary', 'href' => '/tickets/create', 'icon' => 'plus', 'size' => 'sm']) ?>
+                <?php $emptySlot = (string) ob_get_clean(); ?>
+            <?php endif; ?>
             <?= render_partial('partials/components/empty-state', [
                 'icon' => 'clipboard-list',
                 'title' => $isFilterActive ? 'ไม่พบ Ticket ตามเงื่อนไข' : 'ยังไม่มี Ticket ในคิวงาน',
                 'description' => $isFilterActive ? 'ลองปรับคำค้นหรือล้างตัวกรองเพื่อดูรายการที่เกี่ยวข้อง' : 'เมื่อมีงานแจ้งซ่อมตามสิทธิ์ของคุณ รายการจะแสดงในคิวงานนี้',
+                'slot' => $emptySlot ?? '',
             ]) ?>
         <?php else: ?>
             <div class="sr-only" id="ticket-queue-title">รายการ Ticket ที่ตรงตามตัวกรอง</div>
@@ -243,7 +259,10 @@ if ($metricCount('pendingApproval') > 0) {
                                 </span>
                                 <span class="ticket-queue-cell ticket-queue-sla" data-label="SLA">
                                     <?= render_partial('partials/components/badge', ['label' => $ticket['sla_overview_label'], 'tone' => $ticket['sla_overview_tone']]) ?>
-                                    <span class="helper-text">ตอบ: <?= e($ticket['sla_response_label']) ?> · แก้: <?= e($ticket['sla_resolution_label']) ?></span>
+                                    <span class="ticket-queue-sla-detail">
+                                        <span class="helper-text">ตอบ: <?= e($ticket['sla_response_label']) ?></span>
+                                        <span class="helper-text">แก้: <?= e($ticket['sla_resolution_label']) ?></span>
+                                    </span>
                                 </span>
                                 <span class="ticket-queue-cell ticket-queue-meta" data-label="ผู้แจ้ง"><?= e($ticket['requester_name']) ?></span>
                                 <span class="ticket-queue-cell ticket-queue-meta" data-label="สถานที่"><?= e($ticket['location_name']) ?></span>

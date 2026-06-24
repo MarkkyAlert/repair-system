@@ -39,9 +39,13 @@ $chartSummary = static function (array $chart, string $unit) use ($formatChartNu
     $topIndex = $values === [] ? false : array_search($topValue, $values, true);
     $topLabel = $topIndex !== false && isset($labels[$topIndex]) ? (string) $labels[$topIndex] : '-';
 
+    $nonZero = array_filter($values, static fn (float $v): bool => $v > 0);
+    $avg = $nonZero === [] ? 0.0 : array_sum($nonZero) / count($nonZero);
+
     return [
         'total' => $formatChartNumber($total) . ' ' . $unit,
         'top' => $topLabel . ' ' . $formatChartNumber($topValue) . ' ' . $unit,
+        'avg' => $formatChartNumber($avg) . ' ' . $unit,
     ];
 };
 $urgentAlerts = [];
@@ -63,6 +67,7 @@ if ($metricCount('pendingApproval') > 0) {
 }
 ?>
 <section class="stack-lg">
+    <h1 class="sr-only">Dashboard — ภาพรวมการปฏิบัติงาน</h1>
     <?php ob_start(); ?>
     <span class="badge badge-info"><?= e($roleLabels[$role] ?? $role) ?></span>
     <?= render_partial('partials/components/button', [
@@ -82,8 +87,16 @@ if ($metricCount('pendingApproval') > 0) {
 
     <nav class="preset-bar" aria-label="ตัวกรองลัด Dashboard">
         <span class="helper-text">มุมมองด่วน</span>
-        <?php foreach (['mine' => 'งานของฉัน', 'overdue' => 'เกิน SLA', 'pending_approval' => 'รออนุมัติ', 'today' => 'วันนี้'] as $presetKey => $presetLabel): ?>
-            <a href="<?= e(url('/dashboard?preset=' . $presetKey)) ?>" class="preset-chip<?= (string) ($filterState['preset'] ?? '') === $presetKey ? ' is-active' : '' ?>"><?= e($presetLabel) ?></a>
+        <a href="<?= e(url('/dashboard')) ?>" class="preset-chip<?= empty($filterState['preset']) ? ' is-active' : '' ?>"><?= lucide('layout-dashboard', 'h-3.5 w-3.5') ?> ทั้งหมด</a>
+        <?php
+        $presets = [
+            'mine' => ['label' => 'งานของฉัน', 'icon' => 'wrench'],
+            'overdue' => ['label' => 'เกิน SLA', 'icon' => 'triangle-alert'],
+            'pending_approval' => ['label' => 'รออนุมัติ', 'icon' => 'clock'],
+            'today' => ['label' => 'วันนี้', 'icon' => 'calendar'],
+        ];
+        foreach ($presets as $presetKey => $preset): ?>
+            <a href="<?= e(url('/dashboard?preset=' . $presetKey)) ?>" class="preset-chip<?= (string) ($filterState['preset'] ?? '') === $presetKey ? ' is-active' : '' ?>"><?= lucide($preset['icon'], 'h-3.5 w-3.5') ?> <?= e($preset['label']) ?></a>
         <?php endforeach; ?>
     </nav>
 
@@ -163,7 +176,7 @@ if ($metricCount('pendingApproval') > 0) {
             </div>
             <?= render_partial('partials/components/button', [
                 'label' => 'ดูทั้งหมด',
-                'variant' => 'ghost',
+                'variant' => 'secondary',
                 'href' => '/tickets',
                 'icon' => 'arrow-right',
                 'iconPosition' => 'right',
@@ -202,10 +215,10 @@ if ($metricCount('pendingApproval') > 0) {
 
     <details class="collapsible" <?= ($filters['active_count'] ?? 0) > 0 ? 'open' : '' ?>>
         <summary class="collapsible-summary">
-            <span class="metric-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide('filter', 'h-4 w-4') ?></span>
+            <span class="metric-icon metric-icon-sm"><?= lucide('filter', 'h-4 w-4') ?></span>
             <div class="collapsible-summary-main">
                 <span class="collapsible-title">ตัวกรองข้อมูล</span>
-                <span class="collapsible-subtitle">วันที่, แผนก, หมวดหมู่, สถานะ และปีของกราฟ — ใช้ปรับข้อมูลในหน้านี้</span>
+                <span class="collapsible-subtitle">ปรับข้อมูลตามวันที่ แผนก หมวดหมู่ และสถานะ</span>
             </div>
             <div class="collapsible-meta">
                 <?php if (($filters['active_count'] ?? 0) > 0): ?>
@@ -284,10 +297,14 @@ if ($metricCount('pendingApproval') > 0) {
                     <div class="chart-loading" data-chart-loading><?= render_partial('partials/components/skeleton') ?></div>
                     <canvas class="chart-canvas" data-dashboard-chart="monthlyTickets" data-chart-type="bar" role="img" aria-label="กราฟปริมาณงานรายเดือน รวม <?= e($summary['total'] ?? '') ?>"></canvas>
                 <?php else: ?>
+                    <?php ob_start(); ?>
+                        <?= render_partial('partials/components/button', ['label' => 'แจ้งปัญหาใหม่', 'variant' => 'primary', 'href' => '/tickets/create', 'icon' => 'arrow-right', 'iconPosition' => 'right', 'size' => 'sm']) ?>
+                    <?php $emptySlot = (string) ob_get_clean(); ?>
                     <?= render_partial('partials/components/empty-state', [
                         'icon' => 'bar-chart-3',
                         'title' => 'ยังไม่มีปริมาณงานในช่วงนี้',
                         'description' => 'เมื่อมี Ticket ในปีที่เลือก กราฟรายเดือนจะแสดงที่นี่',
+                        'slot' => $emptySlot,
                     ]) ?>
                 <?php endif; ?>
             </div>
@@ -346,7 +363,7 @@ if ($metricCount('pendingApproval') > 0) {
             </div>
             <?php if ($chartHasData($chartPayload['resolutionTrend'] ?? [])): ?>
                 <?php $summary = $chartSummary($chartPayload['resolutionTrend'] ?? [], 'ชั่วโมง'); ?>
-                <p class="chart-summary">ค่าเฉลี่ยสูงสุด <?= e($summary['top']) ?></p>
+                <p class="chart-summary">เฉลี่ยรวม <?= e($summary['avg']) ?> · สูงสุด <?= e($summary['top']) ?></p>
             <?php endif; ?>
             <div class="chart-shell" data-chart-shell>
                 <?php if ($chartHasData($chartPayload['resolutionTrend'] ?? [])): ?>
@@ -365,12 +382,15 @@ if ($metricCount('pendingApproval') > 0) {
 
     <details class="collapsible">
         <summary class="collapsible-summary">
-            <span class="metric-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide('bar-chart-3', 'h-4 w-4') ?></span>
+            <span class="metric-icon metric-icon-sm"><?= lucide('bar-chart-3', 'h-4 w-4') ?></span>
             <div class="collapsible-summary-main">
                 <span class="collapsible-title">รายงานเชิงลึก</span>
                 <span class="collapsible-subtitle">5 อันดับช่างและหมวดหมู่ที่พบบ่อย</span>
             </div>
-            <span class="collapsible-chevron"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
+            <div class="collapsible-meta">
+                <span class="badge badge-info">5 อันดับ</span>
+                <span class="collapsible-chevron"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
+            </div>
         </summary>
         <div class="collapsible-body content-grid">
         <section class="panel-card stack-md">
@@ -381,6 +401,7 @@ if ($metricCount('pendingApproval') > 0) {
             <?php if (!empty($highlights['topTechnicians'])): ?>
                 <div class="table-wrap">
                     <table class="insight-table">
+                        <caption class="sr-only">5 อันดับช่างผู้ปฏิบัติงาน</caption>
                         <thead>
                         <tr>
                             <th>ช่างเทคนิค</th>
@@ -418,6 +439,7 @@ if ($metricCount('pendingApproval') > 0) {
             <?php if (!empty($highlights['topCategories'])): ?>
                 <div class="table-wrap">
                     <table class="insight-table">
+                        <caption class="sr-only">5 อันดับหมวดหมู่ที่พบบ่อย</caption>
                         <thead>
                         <tr>
                             <th>หมวดหมู่</th>
