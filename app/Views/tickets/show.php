@@ -77,10 +77,15 @@ if (!empty($workflow['canReview'])) {
         </div>
         <p class="body-text"><?= e($ticket['description']) ?></p>
         <?php if (!empty($attachments)): ?>
-            <div class="attachment-grid" aria-label="รูปแนบ Ticket">
+            <div class="attachment-grid" aria-label="ไฟล์แนบ Ticket">
                 <?php foreach ($attachments as $attachment): ?>
-                    <a class="attachment-card" href="<?= e(url($attachment['url'])) ?>" target="_blank" rel="noopener">
-                        <img src="<?= e(url($attachment['url'])) ?>" alt="<?= e($attachment['name']) ?>" loading="lazy">
+                    <?php $isImage = str_starts_with((string) ($attachment['mime_type'] ?? ''), 'image/'); ?>
+                    <a class="attachment-card<?= $isImage ? '' : ' attachment-card-doc' ?>" href="<?= e(url($attachment['url'])) ?>" target="_blank" rel="noopener">
+                        <?php if ($isImage): ?>
+                            <img src="<?= e(url($attachment['url'])) ?>" alt="<?= e($attachment['name']) ?>" loading="lazy">
+                        <?php else: ?>
+                            <span class="attachment-doc-icon"><?= lucide('file-text', 'h-8 w-8') ?></span>
+                        <?php endif; ?>
                         <span><?= e($attachment['name']) ?> · <?= e($attachment['size_label']) ?></span>
                     </a>
                 <?php endforeach; ?>
@@ -496,8 +501,8 @@ if (!empty($workflow['canReview'])) {
                     </div>
                     <div class="field-group">
                         <label for="comment_attachments" class="field-label">แนบรูปเพิ่มเติม</label>
-                        <input id="comment_attachments" name="attachments[]" type="file" class="input" accept="image/jpeg,image/png,image/webp" multiple>
-                        <p class="field-hint">สูงสุด 3 รูป รูปละไม่เกิน 5MB</p>
+                        <input id="comment_attachments" name="attachments[]" type="file" class="input" accept="image/jpeg,image/png,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,.pdf,.doc,.docx,.xls,.xlsx,.txt" multiple>
+                        <p class="field-hint">รองรับรูปภาพและเอกสาร (PDF/Word/Excel/Text) สูงสุด 3 ไฟล์ ไฟล์ละไม่เกิน 5MB</p>
                     </div>
                     <div class="comment-form-actions">
                         <?php if (!empty($workflow['canUseInternalComment'])): ?>
@@ -533,8 +538,13 @@ if (!empty($workflow['canReview'])) {
                                 <?php if (!empty($comment['attachments'])): ?>
                                     <div class="attachment-grid attachment-grid-compact">
                                         <?php foreach ($comment['attachments'] as $attachment): ?>
-                                            <a class="attachment-card" href="<?= e(url($attachment['url'])) ?>" target="_blank" rel="noopener">
-                                                <img src="<?= e(url($attachment['url'])) ?>" alt="<?= e($attachment['name']) ?>" loading="lazy">
+                                            <?php $isCommentImg = str_starts_with((string) ($attachment['mime_type'] ?? ''), 'image/'); ?>
+                                            <a class="attachment-card<?= $isCommentImg ? '' : ' attachment-card-doc' ?>" href="<?= e(url($attachment['url'])) ?>" target="_blank" rel="noopener">
+                                                <?php if ($isCommentImg): ?>
+                                                    <img src="<?= e(url($attachment['url'])) ?>" alt="<?= e($attachment['name']) ?>" loading="lazy">
+                                                <?php else: ?>
+                                                    <span class="attachment-doc-icon"><?= lucide('file-text', 'h-6 w-6') ?></span>
+                                                <?php endif; ?>
                                                 <span><?= e($attachment['name']) ?></span>
                                             </a>
                                         <?php endforeach; ?>

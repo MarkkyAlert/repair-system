@@ -1,4 +1,5 @@
 <?php
+$viewerRole = (string) ($currentUser['role'] ?? 'guest');
 $qSearch = (string) ($filters['q'] ?? '');
 $qStatus = (string) ($filters['status'] ?? '');
 $qPriority = (string) ($filters['priority'] ?? '');
@@ -216,9 +217,18 @@ if ($metricCount('pendingApproval') > 0) {
                 'slot' => $emptySlot ?? '',
             ]) ?>
         <?php else: ?>
+            <?php $canBulkApprove = in_array($viewerRole, ['manager', 'admin'], true) && $qStatus === 'pending_approval'; ?>
             <div class="sr-only" id="ticket-queue-title">รายการ Ticket ที่ตรงตามตัวกรอง</div>
             <p class="sr-only" id="ticket-queue-description">รายการ Ticket ที่ตรงตามตัวกรอง จำนวน <?= e((string) ($pagination['total'] ?? 0)) ?> รายการ</p>
-            <div class="ticket-queue-shell" aria-labelledby="ticket-queue-title" aria-describedby="ticket-queue-description">
+            <?php if ($canBulkApprove): ?>
+                <div class="ticket-bulk-toolbar" data-bulk-root>
+                    <label class="checkbox-row">
+                        <input type="checkbox" data-bulk-select-all aria-label="เลือกทุก ticket ในหน้านี้">
+                        <span>เลือกทุกรายการในหน้านี้</span>
+                    </label>
+                </div>
+            <?php endif; ?>
+            <div class="ticket-queue-shell<?= $canBulkApprove ? ' is-bulk-mode' : '' ?>" aria-labelledby="ticket-queue-title" aria-describedby="ticket-queue-description">
                 <div class="ticket-queue-head" aria-hidden="true">
                     <span>เลขที่ / หัวข้อ</span>
                     <span>ความสำคัญ</span>
@@ -238,7 +248,12 @@ if ($metricCount('pendingApproval') > 0) {
                             . ' ความสำคัญ ' . (string) $ticket['priority_label']
                             . ' SLA ' . (string) $ticket['sla_overview_label'];
                         ?>
-                        <li>
+                        <li class="<?= $canBulkApprove ? 'ticket-queue-item-bulk' : '' ?>">
+                            <?php if ($canBulkApprove): ?>
+                                <label class="ticket-queue-checkbox">
+                                    <input type="checkbox" data-bulk-checkbox value="<?= (int) $ticket['id'] ?>" aria-label="เลือก ticket <?= e($ticket['ticket_no']) ?>">
+                                </label>
+                            <?php endif; ?>
                             <a class="ticket-queue-row<?= !empty($ticket['is_overdue']) ? ' is-overdue' : '' ?>" href="<?= e(url($ticketHref)) ?>" aria-label="<?= e($ticketAria) ?>">
                                 <span class="ticket-queue-main">
                                     <span class="ticket-queue-kicker">
@@ -273,6 +288,24 @@ if ($metricCount('pendingApproval') > 0) {
                 </ul>
             </div>
             <?= render_partial('partials/components/pagination', ['pagination' => $pagination]) ?>
+
+            <?php if ($canBulkApprove): ?>
+                <div class="bulk-action-bar" id="bulk-action-bar" hidden>
+                    <span class="bulk-action-summary">
+                        <strong data-bulk-count>0</strong> รายการ
+                    </span>
+                    <form method="post" action="<?= e(url('/tickets/bulk/approve')) ?>" data-loading-submit onsubmit="return confirm('ยืนยัน Approve รายการที่เลือกทั้งหมด?');">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="ticket_ids" data-bulk-ids value="">
+                        <?= render_partial('partials/components/button', [
+                            'type' => 'submit',
+                            'label' => 'Approve รายการที่เลือก',
+                            'variant' => 'primary',
+                            'icon' => 'check-circle',
+                        ]) ?>
+                    </form>
+                </div>
+            <?php endif; ?>
         <?php endif; ?>
     </section>
 </section>

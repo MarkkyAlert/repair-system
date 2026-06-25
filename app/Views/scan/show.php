@@ -32,8 +32,11 @@
                 <p class="body-text">ระบบจะ prefill ค่า Asset และ Location ให้ในหน้าแจ้งซ่อมใหม่</p>
                 <?= render_partial('partials/components/button', ['label' => 'แจ้งปัญหาจาก Asset นี้', 'variant' => 'primary', 'href' => $ticketCreatePath, 'icon' => 'arrow-right']) ?>
             <?php else: ?>
-                <p class="body-text">กรุณาเข้าสู่ระบบก่อน จากนั้นระบบจะพาคุณไปหน้าสร้าง ticket พร้อม prefill ให้ทันที</p>
-                <?= render_partial('partials/components/button', ['label' => 'เข้าสู่ระบบเพื่อแจ้งปัญหา', 'variant' => 'primary', 'href' => $loginPath, 'icon' => 'arrow-right']) ?>
+                <p class="body-text">แจ้งปัญหาได้ทันทีโดยไม่ต้องมีบัญชี ใช้เวลาไม่ถึง 1 นาที</p>
+                <div class="stack-md">
+                    <?= render_partial('partials/components/button', ['label' => 'แจ้งปัญหา (ไม่ต้อง login)', 'variant' => 'primary', 'href' => $guestReportPath, 'icon' => 'zap']) ?>
+                    <?= render_partial('partials/components/button', ['label' => 'หรือเข้าสู่ระบบ (สำหรับช่าง/admin)', 'variant' => 'secondary', 'href' => $loginPath, 'icon' => 'arrow-right']) ?>
+                </div>
             <?php endif; ?>
         </section>
     </div>

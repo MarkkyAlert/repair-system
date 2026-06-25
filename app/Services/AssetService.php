@@ -11,12 +11,16 @@ use Endroid\QrCode\Writer\PngWriter;
 
 class AssetService
 {
-    public function __construct(private AssetRepository $assets)
-    {
+    public function __construct(
+        private AssetRepository $assets,
+        private TicketService $tickets,
+    ) {
     }
 
     public function getAssetIndexData(array $viewer, array $filters = []): array
     {
+        $this->assertManageable($viewer);
+
         $reference = $this->assets->getAssetFormReferenceData();
         $normalizedFilters = $this->normalizeAssetIndexFilters($filters);
         $result = $this->assets->getAssetListPage(max(1, (int) ($filters['page'] ?? 1)), 18, $normalizedFilters);
@@ -59,9 +63,13 @@ class AssetService
             return null;
         }
 
+        $history = $this->tickets->getRecentTicketsForAsset($assetId, 10);
+
         return [
             'asset' => $this->mapAssetDetail($asset),
             'canManage' => $this->canManageAssets($viewer),
+            'recentTickets' => $history['tickets'],
+            'recentTicketsTotal' => $history['total'],
         ];
     }
 
@@ -163,6 +171,8 @@ class AssetService
 
     public function generateQrPng(int $assetId, array $viewer): string
     {
+        $this->assertManageable($viewer);
+
         $asset = $this->assets->findAssetById($assetId);
         if ($asset === null || (string) ($asset['qr_token'] ?? '') === '') {
             throw new DomainException('ไม่พบ QR token สำหรับ asset นี้');

@@ -60,4 +60,22 @@ class AttachmentRepository
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
+
+    /**
+     * คืน disk_path ทุกแถวใน DB (สำหรับ orphan cleanup worker)
+     * คืนเป็น associative array [path => true] เพื่อ lookup เร็ว
+     */
+    public function getAllStoredPathsLookup(): array
+    {
+        $stmt = $this->db->query('SELECT disk_path FROM ticket_attachments');
+        $lookup = [];
+        foreach ($stmt as $row) {
+            $path = trim((string) ($row['disk_path'] ?? ''));
+            if ($path !== '') {
+                $lookup[$path] = true;
+            }
+        }
+
+        return $lookup;
+    }
 }

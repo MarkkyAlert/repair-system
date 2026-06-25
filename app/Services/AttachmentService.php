@@ -17,6 +17,12 @@ class AttachmentService
         'image/jpeg' => 'jpg',
         'image/png' => 'png',
         'image/webp' => 'webp',
+        'application/pdf' => 'pdf',
+        'application/msword' => 'doc',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'docx',
+        'application/vnd.ms-excel' => 'xls',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => 'xlsx',
+        'text/plain' => 'txt',
     ];
 
     public function __construct(
@@ -42,7 +48,7 @@ class AttachmentService
             }
             $mime = (string) $finfo->file((string) $file['tmp_name']);
             if (!isset(self::MIME_EXTENSIONS[$mime])) {
-                throw new DomainException('รองรับไฟล์แนบเฉพาะ JPEG, PNG และ WebP');
+                throw new DomainException('รองรับไฟล์แนบ: รูปภาพ (JPEG/PNG/WebP) และเอกสาร (PDF/Word/Excel/Text)');
             }
             $file['mime_type'] = $mime;
             $file['extension'] = self::MIME_EXTENSIONS[$mime];
@@ -153,6 +159,89 @@ class AttachmentService
             static fn (array $attachment): string => (string) ($attachment['disk_path'] ?? ''),
             $this->attachments->getByCommentId($commentId)
         ), static fn (string $path): bool => trim($path) !== ''));
+    }
+
+    /**
+     * สแกน storage/uploads/tickets/ หาไฟล์ที่ไม่มีอยู่ใน DB แล้วลบทิ้ง
+     * - skip ไฟล์ที่ mtime < $graceSeconds (กัน race condition กับ upload ที่กำลังทำ)
+     * - $dryRun = true จะ list อย่างเดียวไม่ลบ
+     * คืน array สรุปผล: scanned, orphans, deleted, skipped_recent, kept, errors
+     */
+    public function cleanupOrphanFiles(int $graceSeconds = 3600, bool $dryRun = false): array
+    {
+        $root = BASE_PATH . '/storage/uploads/tickets';
+        $rootReal = realpath($root);
+        if ($rootReal === false || !is_dir($rootReal)) {
+            return [
+                'scanned' => 0, 'orphans' => 0, 'deleted' => 0,
+                'skipped_recent' => 0, 'kept' => 0, 'errors' => 0,
+                'orphan_paths' => [],
+            ];
+        }
+
+        $known = $this->attachments->getAllStoredPathsLookup();
+        $cutoff = time() - max(0, $graceSeconds);
+        $scanned = 0;
+        $orphans = 0;
+        $deleted = 0;
+        $skippedRecent = 0;
+        $kept = 0;
+        $errors = 0;
+        $orphanPaths = [];
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($rootReal, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::LEAVES_ONLY
+        );
+
+        foreach ($iterator as $fileInfo) {
+            if (!$fileInfo->isFile()) {
+                continue;
+            }
+            $scanned++;
+
+            $absolute = $fileInfo->getPathname();
+            // ป้องกัน path traversal: ต้องอยู่ภายใต้ rootReal
+            if (!str_starts_with($absolute, $rootReal . DIRECTORY_SEPARATOR)) {
+                $errors++;
+                continue;
+            }
+
+            $relative = 'storage/uploads/tickets/' . str_replace('\\', '/', substr($absolute, strlen($rootReal) + 1));
+
+            if (isset($known[$relative])) {
+                $kept++;
+                continue;
+            }
+
+            if ($fileInfo->getMTime() > $cutoff) {
+                $skippedRecent++;
+                continue;
+            }
+
+            $orphans++;
+            $orphanPaths[] = $relative;
+
+            if ($dryRun) {
+                continue;
+            }
+
+            if (@unlink($absolute)) {
+                $deleted++;
+            } else {
+                $errors++;
+            }
+        }
+
+        return [
+            'scanned' => $scanned,
+            'orphans' => $orphans,
+            'deleted' => $deleted,
+            'skipped_recent' => $skippedRecent,
+            'kept' => $kept,
+            'errors' => $errors,
+            'orphan_paths' => $orphanPaths,
+        ];
     }
 
     private function normalizeFiles(array $files): array

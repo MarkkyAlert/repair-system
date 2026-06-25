@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+use App\Repositories\SettingsRepository;
 use App\Services\EmailQueueService;
 use App\Services\SlaService;
 
@@ -20,6 +21,14 @@ try {
 
     $slaResult = $slaService->processOverdueBreaches();
     $mailResult = $emailService->processDueEmails();
+
+    $settings = $container->get(SettingsRepository::class);
+    if ($settings instanceof SettingsRepository) {
+        $now = date('Y-m-d H:i:s');
+        $settings->upsert('cron_overdue_check_last_run_at', $now, 'string', false, 0);
+        $settings->upsert('cron_email_queue_last_run_at', $now, 'string', false, 0);
+        $settings->upsert('cron_maintenance_last_run_at', $now, 'string', false, 0);
+    }
 
     echo 'SLA processed: ' . (int) ($slaResult['processed'] ?? 0) . PHP_EOL;
     echo 'Emails processed: ' . (int) ($mailResult['processed'] ?? 0) . PHP_EOL;

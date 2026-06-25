@@ -300,6 +300,36 @@ class AdminService
         $this->recordAudit($viewer, 'priority.updated', 'priority', $priorityId, $payload);
     }
 
+    public function createPriority(array $viewer, array $input): void
+    {
+        $this->assertAdmin($viewer);
+        $payload = $this->buildPriorityCreatePayload($input);
+        $priorityId = $this->admin->createPriority($payload);
+        $this->recordAudit($viewer, 'priority.created', 'priority', $priorityId, $payload);
+    }
+
+    public function deletePriority(int $priorityId, array $viewer): void
+    {
+        $this->assertAdmin($viewer);
+        if ($priorityId <= 0) {
+            throw new DomainException('ไม่พบ Priority ที่ต้องการลบ');
+        }
+
+        $this->admin->deletePriority($priorityId);
+        $this->recordAudit($viewer, 'priority.deleted', 'priority', $priorityId, []);
+    }
+
+    public function deleteLocation(int $locationId, array $viewer): void
+    {
+        $this->assertAdmin($viewer);
+        if ($locationId <= 0) {
+            throw new DomainException('ไม่พบสถานที่ที่ต้องการลบ');
+        }
+
+        $this->admin->deleteLocation($locationId);
+        $this->recordAudit($viewer, 'location.deleted', 'location', $locationId, []);
+    }
+
     public function updateLogo(array $viewer, array $files, array $input): void
     {
         $this->assertAdmin($viewer);
@@ -330,16 +360,14 @@ class AdminService
             'image/png' => 'png',
             'image/jpeg' => 'jpg',
             'image/webp' => 'webp',
-            'image/svg+xml' => 'svg',
         ];
 
         $finfo = new \finfo(FILEINFO_MIME_TYPE);
         $mime = (string) $finfo->file((string) $file['tmp_name']);
         if (!isset($allowed[$mime])) {
-            throw new DomainException('รองรับเฉพาะไฟล์ PNG, JPEG, WebP หรือ SVG');
+            throw new DomainException('รองรับเฉพาะไฟล์ PNG, JPEG หรือ WebP');
         }
 
-        // RISK MAP: SVG uploads can carry active content if ever rendered inline; keep serving only as an image asset.
         $extension = $allowed[$mime];
         $relativeDirectory = 'storage/uploads/branding';
         $absoluteDirectory = BASE_PATH . '/' . $relativeDirectory;
@@ -413,12 +441,41 @@ class AdminService
         }
     }
 
+    /**
+     * Setting keys ที่ระบบจัดการผ่าน endpoint เฉพาะ ห้ามแก้ผ่าน /admin/settings (freeform)
+     * เพื่อกัน admin เขียนทับโดยไม่ผ่าน validation ของ form หลัก
+     */
+    private const PROTECTED_SETTING_KEYS = [
+        'app_logo_path',     // /admin/settings/logo
+        'app_name',          // /admin/system-settings
+        'default_timezone',  // /admin/system-settings
+        'ticket_prefix',     // /admin/system-settings
+        'business_hours',    // /admin/system-settings
+    ];
+
+    /**
+     * Setting key prefixes ที่ระบบจัดการผ่าน endpoint เฉพาะ
+     */
+    private const PROTECTED_SETTING_PREFIXES = [
+        'category_sla_',  // /admin/categories/*
+    ];
+
     public function updateSetting(array $viewer, array $input): void
     {
         $this->assertAdmin($viewer);
         $key = trim((string) ($input['setting_key'] ?? ''));
         if ($key === '') {
             throw new DomainException('กรุณาระบุ setting key');
+        }
+
+        if (in_array($key, self::PROTECTED_SETTING_KEYS, true)) {
+            throw new DomainException('Setting key "' . $key . '" ถูกควบคุมโดยระบบ กรุณาแก้ผ่านฟอร์มเฉพาะ');
+        }
+
+        foreach (self::PROTECTED_SETTING_PREFIXES as $prefix) {
+            if (str_starts_with($key, $prefix)) {
+                throw new DomainException('Setting key prefix "' . $prefix . '" ถูกควบคุมโดยระบบ');
+            }
         }
 
         $type = trim((string) ($input['value_type'] ?? 'string'));
@@ -732,6 +789,22 @@ class AdminService
             'floor' => trim((string) ($input['floor'] ?? '')),
             'room' => trim((string) ($input['room'] ?? '')),
         ]);
+    }
+
+    private function buildPriorityCreatePayload(array $input): array
+    {
+        $base = $this->buildPriorityPayload($input);
+        $code = strtoupper(trim((string) ($input['code'] ?? '')));
+        $level = (int) ($input['level'] ?? 0);
+
+        if ($code === '' || !preg_match('/^[A-Z0-9_-]{2,50}$/', $code)) {
+            throw new DomainException('รหัส Priority ต้องเป็น A-Z, 0-9, ขีดกลาง หรือขีดล่าง ความยาว 2-50 ตัวอักษร');
+        }
+        if ($level < 1 || $level > 99) {
+            throw new DomainException('ระดับ Priority ต้องอยู่ระหว่าง 1-99');
+        }
+
+        return $base + ['code' => $code, 'level' => $level];
     }
 
     private function buildPriorityPayload(array $input): array

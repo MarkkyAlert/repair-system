@@ -61,6 +61,7 @@ return [
         'secure' => Env::bool('SESSION_SECURE', false),
         'httponly' => true,
         'same_site' => 'Strict',
+        'idle_timeout_minutes' => (int) Env::get('SESSION_IDLE_TIMEOUT_MINUTES', 60),
     ],
     'paths' => [
         'views' => BASE_PATH . '/app/Views',

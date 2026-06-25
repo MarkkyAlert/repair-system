@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Repositories\NotificationPreferenceRepository;
 use App\Repositories\NotificationRepository;
 use App\Repositories\TicketRepository;
 use DomainException;
@@ -10,10 +11,19 @@ use Throwable;
 
 class NotificationService
 {
+    public const NOTIFICATION_TYPES = [
+        'ticket_approved' => 'Ticket ได้รับการอนุมัติ / รออนุมัติ',
+        'ticket_rejected' => 'Ticket ถูกปฏิเสธ',
+        'ticket_status_changed' => 'ความเคลื่อนไหวสถานะ ticket (assigned/started/resolved/completed/reopened/cancelled)',
+        'comment_added' => 'มี comment ใหม่ใน ticket',
+        'sla_breached' => 'SLA เกินกำหนด',
+    ];
+
     public function __construct(
         private NotificationRepository $notifications,
         private TicketRepository $tickets,
         private EmailQueueService $emails,
+        private NotificationPreferenceRepository $preferences,
     ) {
     }
 
@@ -149,6 +159,9 @@ class NotificationService
         }
 
         $recipientIds = $this->filterRecipientIds($recipients, $actorId);
+        $notificationType = $this->notificationTypeFor($eventType);
+        $inAppRecipients = $this->filterByPreference($recipientIds, $notificationType, 'in_app');
+        $emailRecipients = $this->filterByPreference($recipientIds, $notificationType, 'email');
 
         $this->dispatchNotification([
             'type' => $eventType,
@@ -160,11 +173,12 @@ class NotificationService
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             'related_type' => 'ticket',
             'related_id' => $ticketId,
-        ], $recipientIds);
+        ], $inAppRecipients);
 
         try {
-            $this->emails->queueTicketEventEmails($context, $recipientIds, $eventType, $title, $message);
-        } catch (Throwable) {
+            $this->emails->queueTicketEventEmails($context, $emailRecipients, $eventType, $title, $message);
+        } catch (Throwable $exception) {
+            error_log('[notify.email.ticket] ' . $eventType . ' ticket ' . $ticketId . ': ' . $exception->getMessage());
         }
     }
 
@@ -201,6 +215,8 @@ class NotificationService
         }
 
         $recipientIds = $this->filterRecipientIds($recipients, $actorId);
+        $inAppRecipients = $this->filterByPreference($recipientIds, 'comment_added', 'in_app');
+        $emailRecipients = $this->filterByPreference($recipientIds, 'comment_added', 'email');
 
         $this->dispatchNotification([
             'type' => 'ticket.comment.' . $action,
@@ -214,11 +230,12 @@ class NotificationService
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             'related_type' => 'ticket',
             'related_id' => $ticketId,
-        ], $recipientIds);
+        ], $inAppRecipients);
 
         try {
-            $this->emails->queueCommentEventEmails($context, $recipientIds, $commentId, $isInternal, $body, $action, $title, $message);
-        } catch (Throwable) {
+            $this->emails->queueCommentEventEmails($context, $emailRecipients, $commentId, $isInternal, $body, $action, $title, $message);
+        } catch (Throwable $exception) {
+            error_log('[notify.email.comment] ' . $action . ' comment ' . $commentId . ' ticket ' . $ticketId . ': ' . $exception->getMessage());
         }
     }
 
@@ -236,6 +253,8 @@ class NotificationService
             (int) ($context['assigned_manager_id'] ?? 0),
             (int) ($context['assigned_technician_id'] ?? 0),
         ], 0);
+        $inAppRecipients = $this->filterByPreference($recipientIds, 'sla_breached', 'in_app');
+        $emailRecipients = $this->filterByPreference($recipientIds, 'sla_breached', 'email');
 
         $title = $metricLabel . ' เกินกำหนด';
         $message = 'Ticket ' . (string) ($context['ticket_no'] ?? '-') . ' มีสถานะเกินกำหนดตาม ' . $metricLabel;
@@ -251,11 +270,12 @@ class NotificationService
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             'related_type' => 'ticket',
             'related_id' => $ticketId,
-        ], $recipientIds);
+        ], $inAppRecipients);
 
         try {
-            $this->emails->queueSlaBreachedEmails($context, $recipientIds, $metricType, $title, $message);
-        } catch (Throwable) {
+            $this->emails->queueSlaBreachedEmails($context, $emailRecipients, $metricType, $title, $message);
+        } catch (Throwable $exception) {
+            error_log('[notify.email.sla] ' . $metricType . ' ticket ' . $ticketId . ': ' . $exception->getMessage());
         }
     }
 
@@ -267,7 +287,8 @@ class NotificationService
 
         try {
             $this->notifications->createNotification($payload, $recipientIds);
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            error_log('[notify.dispatch] type=' . (string) ($payload['type'] ?? '?') . ' related=' . (string) ($payload['related_type'] ?? '?') . ':' . (string) ($payload['related_id'] ?? '?') . ' err=' . $exception->getMessage());
         }
     }
 
@@ -277,6 +298,35 @@ class NotificationService
             array_map('intval', $recipientIds),
             static fn (int $id): bool => $id > 0 && $id !== $actorId
         )));
+    }
+
+    private function notificationTypeFor(string $eventType): string
+    {
+        if (str_starts_with($eventType, 'ticket.comment.')) {
+            return 'comment_added';
+        }
+        if (str_starts_with($eventType, 'ticket.sla_breached.')) {
+            return 'sla_breached';
+        }
+
+        return match ($eventType) {
+            'ticket.approved' => 'ticket_approved',
+            'ticket.created' => 'ticket_approved',
+            'ticket.rejected' => 'ticket_rejected',
+            default => 'ticket_status_changed',
+        };
+    }
+
+    private function filterByPreference(array $recipientIds, string $notificationType, string $channel): array
+    {
+        if ($recipientIds === []) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $recipientIds,
+            fn (int $userId): bool => $this->preferences->isEnabled($userId, $notificationType, $channel)
+        ));
     }
 
     private function mapNotifications(array $notifications, array $viewer): array

@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+use App\Repositories\SettingsRepository;
 use App\Services\SlaService;
 
 [$container] = require dirname(__DIR__) . '/bootstrap.php';
@@ -12,6 +13,11 @@ try {
     }
 
     $result = $service->processOverdueBreaches();
+
+    $settings = $container->get(SettingsRepository::class);
+    if ($settings instanceof SettingsRepository) {
+        $settings->upsert('cron_overdue_check_last_run_at', date('Y-m-d H:i:s'), 'string', false, 0);
+    }
 
     echo 'Processed overdue SLA breaches: ' . (int) ($result['processed'] ?? 0) . PHP_EOL;
 

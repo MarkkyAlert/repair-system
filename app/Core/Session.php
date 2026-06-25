@@ -81,4 +81,23 @@ class Session
     {
         $_SESSION = [];
     }
+
+    public static function isIdleExpired(int $timeoutMinutes): bool
+    {
+        if ($timeoutMinutes <= 0) {
+            return false;
+        }
+
+        $lastActivity = (int) ($_SESSION['_last_activity'] ?? 0);
+        if ($lastActivity <= 0) {
+            return false;
+        }
+
+        return $lastActivity + ($timeoutMinutes * 60) < time();
+    }
+
+    public static function touchActivity(): void
+    {
+        $_SESSION['_last_activity'] = time();
+    }
 }

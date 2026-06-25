@@ -84,11 +84,13 @@ class LoginRateLimiter
         // RISK MAP: If storage is not writable, login throttling silently degrades; deployment must verify permissions.
         $handle = fopen($this->filePath, 'c+');
         if ($handle === false) {
+            error_log('[ratelimit] cannot open ' . $this->filePath . ' — login throttle DISABLED');
             return;
         }
 
         try {
             if (!flock($handle, LOCK_EX)) {
+                error_log('[ratelimit] flock failed on ' . $this->filePath . ' — login throttle DISABLED');
                 return;
             }
 

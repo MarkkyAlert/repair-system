@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+use App\Repositories\SettingsRepository;
 use App\Services\EmailQueueService;
 
 [$container] = require dirname(__DIR__) . '/bootstrap.php';
@@ -13,6 +14,11 @@ try {
 
     $limit = isset($argv[1]) ? max(1, (int) $argv[1]) : null;
     $result = $service->processDueEmails($limit);
+
+    $settings = $container->get(SettingsRepository::class);
+    if ($settings instanceof SettingsRepository) {
+        $settings->upsert('cron_email_queue_last_run_at', date('Y-m-d H:i:s'), 'string', false, 0);
+    }
 
     echo 'Processed emails: ' . (int) ($result['processed'] ?? 0) . PHP_EOL;
     echo 'Sent: ' . (int) ($result['sent'] ?? 0) . PHP_EOL;

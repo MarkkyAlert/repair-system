@@ -17,10 +17,11 @@ class AuthService
         private LoginRateLimiter $rateLimiter,
         private AuthManager $auth,
         private EmailQueueService $emails,
+        private RememberMeService $rememberMe,
     ) {
     }
 
-    public function attemptLogin(string $login, string $password, string $ipAddress): array
+    public function attemptLogin(string $login, string $password, string $ipAddress, bool $remember = false): array
     {
         $login = trim($login);
         $limiterKey = $this->limiterKey($login, $ipAddress);
@@ -50,11 +51,18 @@ class AuthService
         Session::regenerate();
         $this->auth->login($user);
 
+        $this->users->updateLastLoginAt((int) ($user['id'] ?? 0));
+
+        if ($remember) {
+            $this->rememberMe->issueFor((int) ($user['id'] ?? 0));
+        }
+
         return $this->auth->user() ?? [];
     }
 
     public function logout(): void
     {
+        $this->rememberMe->clearCurrent();
         $this->auth->logout();
         Session::forget('_csrf_token');
         Session::regenerate();
@@ -78,7 +86,7 @@ class AuthService
 
         $this->passwordResets->replaceForEmail($email, $tokenHash, $expiresAt);
 
-        $resetUrl = url('/reset-password?email=' . rawurlencode($email) . '&token=' . rawurlencode($token));
+        $resetUrl = url('/reset-password/' . rawurlencode($token) . '?email=' . rawurlencode($email));
         $this->emails->queuePasswordResetEmail($user, $resetUrl, $expiresAt);
 
         return $resetUrl;
@@ -153,6 +161,8 @@ class AuthService
         }
 
         $this->users->updatePassword($userId, password_hash($password, PASSWORD_BCRYPT));
+        // Password change revokes all remember-me sessions on this device.
+        $this->rememberMe->clearCurrent();
         Session::regenerate();
 
         // Re-issue the current session with the new password stamp so this device stays logged in
@@ -193,6 +203,19 @@ class AuthService
 
         if ($this->users->emailExistsForOtherUser($email, $userId)) {
             throw new DomainException('อีเมลนี้ถูกใช้โดยบัญชีอื่นแล้ว');
+        }
+
+        // Require current password confirmation when changing the email
+        // (email is the login identifier + password reset destination)
+        $currentEmail = strtolower(trim((string) ($user['email'] ?? '')));
+        if ($email !== $currentEmail) {
+            $currentPassword = (string) ($input['current_password'] ?? '');
+            if ($currentPassword === '') {
+                throw new DomainException('การเปลี่ยนอีเมลต้องยืนยันด้วยรหัสผ่านปัจจุบัน');
+            }
+            if (!password_verify($currentPassword, (string) ($user['password_hash'] ?? ''))) {
+                throw new DomainException('รหัสผ่านปัจจุบันไม่ถูกต้อง');
+            }
         }
 
         $this->users->updateProfile($userId, [

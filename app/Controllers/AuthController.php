@@ -6,14 +6,22 @@ namespace App\Controllers;
 use App\Middleware\AuthMiddleware;
 use App\Middleware\GuestMiddleware;
 use App\Core\Response;
+use App\Repositories\NotificationPreferenceRepository;
+use App\Repositories\UserRepository;
 use App\Services\AuthService;
+use App\Services\NotificationService;
+use App\Services\RememberMeService;
 use DomainException;
 use RuntimeException;
 
 class AuthController
 {
-    public function __construct(private AuthService $service)
-    {
+    public function __construct(
+        private AuthService $service,
+        private NotificationPreferenceRepository $preferences,
+        private UserRepository $users,
+        private RememberMeService $rememberMe,
+    ) {
     }
 
     public function home(): void
@@ -36,7 +44,6 @@ class AuthController
             'oldInput' => pull_old_input(),
             'errorMessage' => flash_message('error'),
             'successMessage' => flash_message('success'),
-            'debugResetLink' => flash_message('debug_reset_link'),
         ], 'guest');
     }
 
@@ -54,7 +61,8 @@ class AuthController
             $this->service->attemptLogin(
                 $login,
                 (string) ($_POST['password'] ?? ''),
-                (string) ($_SERVER['REMOTE_ADDR'] ?? '')
+                (string) ($_SERVER['REMOTE_ADDR'] ?? ''),
+                in_array((string) ($_POST['remember'] ?? '0'), ['1', 'true', 'on'], true)
             );
 
             flash('success', 'เข้าสู่ระบบเรียบร้อยแล้ว');
@@ -91,7 +99,6 @@ class AuthController
             'oldInput' => pull_old_input(),
             'errorMessage' => flash_message('error'),
             'successMessage' => flash_message('success'),
-            'debugResetLink' => flash_message('debug_reset_link'),
         ], 'guest');
     }
 
@@ -109,7 +116,7 @@ class AuthController
             flash('success', 'หากอีเมลนี้มีอยู่ในระบบ ระบบได้สร้างคำขอรีเซ็ตรหัสผ่านให้แล้ว');
 
             if ((bool) config('app.debug', false) && $resetLink !== null) {
-                flash('debug_reset_link', $resetLink);
+                error_log('[debug.reset_link] ' . $email . ' -> ' . $resetLink);
             }
         } catch (DomainException|RuntimeException $exception) {
             with_old_input(['email' => $email]);
@@ -119,12 +126,12 @@ class AuthController
         Response::redirect('/forgot-password');
     }
 
-    public function showResetPassword(): void
+    public function showResetPassword(?string $token = null): void
     {
         GuestMiddleware::handle();
 
         $email = trim((string) ($_GET['email'] ?? ''));
-        $token = trim((string) ($_GET['token'] ?? ''));
+        $token = trim((string) ($token ?? $_GET['token'] ?? ''));
 
         if ($email === '' || $token === '') {
             flash('error', 'ลิงก์รีเซ็ตรหัสผ่านไม่ถูกต้อง');
@@ -141,12 +148,12 @@ class AuthController
         ], 'guest');
     }
 
-    public function resetPassword(): void
+    public function resetPassword(?string $token = null): void
     {
         GuestMiddleware::handle();
 
         $email = trim((string) ($_POST['email'] ?? ''));
-        $token = trim((string) ($_POST['token'] ?? ''));
+        $token = trim((string) ($token ?? $_POST['token'] ?? ''));
 
         try {
             csrf_validate();
@@ -162,7 +169,7 @@ class AuthController
             Response::redirect('/login');
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
-            Response::redirect('/reset-password?email=' . rawurlencode($email) . '&token=' . rawurlencode($token));
+            Response::redirect('/reset-password/' . rawurlencode($token) . '?email=' . rawurlencode($email));
         }
     }
 
@@ -203,6 +210,21 @@ class AuthController
 
         $viewer = auth()->user() ?? [];
         $oldInput = pull_old_input();
+        $userId = (int) ($viewer['id'] ?? 0);
+        $fresh = $userId > 0 ? ($this->users->findById($userId) ?? []) : [];
+
+        $passwordChangedAt = (string) ($fresh['password_changed_at'] ?? '');
+        $lastLoginAt = (string) ($fresh['last_login_at'] ?? '');
+        $createdAt = (string) ($fresh['created_at'] ?? '');
+        $hasRememberToken = ((string) ($fresh['remember_token'] ?? '')) !== '';
+
+        $passwordAgeDays = null;
+        if ($passwordChangedAt !== '') {
+            $ts = strtotime($passwordChangedAt);
+            if ($ts !== false) {
+                $passwordAgeDays = (int) floor((time() - $ts) / 86400);
+            }
+        }
 
         Response::view('auth/profile', [
             'title' => 'ข้อมูลบัญชี',
@@ -214,10 +236,38 @@ class AuthController
                 'phone' => (string) ($oldInput['phone'] ?? ($viewer['phone'] ?? '')),
                 'username' => (string) ($viewer['username'] ?? ''),
                 'role' => (string) ($viewer['role'] ?? 'guest'),
+                'created_at' => $createdAt,
+                'last_login_at' => $lastLoginAt,
+            ],
+            'security' => [
+                'password_changed_at' => $passwordChangedAt,
+                'password_age_days' => $passwordAgeDays,
+                'has_remember_token' => $hasRememberToken,
             ],
             'errorMessage' => flash_message('error'),
             'successMessage' => flash_message('success'),
         ]);
+    }
+
+    public function revokeRememberMe(): void
+    {
+        AuthMiddleware::handle();
+        $viewer = auth()->user() ?? [];
+        $userId = (int) ($viewer['id'] ?? 0);
+
+        try {
+            csrf_validate();
+            if ($userId <= 0) {
+                throw new DomainException('ไม่พบบัญชีผู้ใช้งาน');
+            }
+            $this->users->updateRememberToken($userId, null);
+            $this->rememberMe->clearCurrent();
+            flash('success', 'ยกเลิกการจดจำการเข้าระบบทุกอุปกรณ์เรียบร้อยแล้ว');
+        } catch (DomainException|RuntimeException $exception) {
+            flash('error', $exception->getMessage());
+        }
+
+        Response::redirect('/profile');
     }
 
     public function updateProfile(): void
@@ -239,5 +289,56 @@ class AuthController
         }
 
         Response::redirect('/profile');
+    }
+
+    public function showNotificationPreferences(): void
+    {
+        AuthMiddleware::handle();
+        $viewer = auth()->user() ?? [];
+        $userId = (int) ($viewer['id'] ?? 0);
+        $matrix = $this->preferences->getMatrix($userId);
+
+        $rendered = [];
+        foreach (NotificationService::NOTIFICATION_TYPES as $type => $label) {
+            $rendered[$type] = [
+                'label' => $label,
+                'email' => $matrix[$type]['email'] ?? true,
+                'in_app' => $matrix[$type]['in_app'] ?? true,
+            ];
+        }
+
+        Response::view('auth/notification-preferences', [
+            'title' => 'ตั้งค่าการแจ้งเตือน',
+            'pageHeading' => 'ตั้งค่าการแจ้งเตือน',
+            'currentUser' => $viewer,
+            'preferences' => $rendered,
+            'errorMessage' => flash_message('error'),
+            'successMessage' => flash_message('success'),
+        ]);
+    }
+
+    public function updateNotificationPreferences(): void
+    {
+        AuthMiddleware::handle();
+        $viewer = auth()->user() ?? [];
+        $userId = (int) ($viewer['id'] ?? 0);
+
+        try {
+            csrf_validate();
+            $input = (array) ($_POST['pref'] ?? []);
+            $matrix = [];
+            foreach (NotificationService::NOTIFICATION_TYPES as $type => $_label) {
+                $matrix[$type] = [
+                    'email' => isset($input[$type]['email']),
+                    'in_app' => isset($input[$type]['in_app']),
+                ];
+            }
+            $this->preferences->upsertMatrix($userId, $matrix);
+            flash('success', 'บันทึกการตั้งค่าการแจ้งเตือนเรียบร้อยแล้ว');
+        } catch (DomainException|RuntimeException $exception) {
+            flash('error', $exception->getMessage());
+        }
+
+        Response::redirect('/profile/notifications');
     }
 }

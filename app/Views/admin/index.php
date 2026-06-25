@@ -3,7 +3,12 @@
         'eyebrow' => 'จัดการระบบ',
         'title' => 'ตั้งค่าและดูแลระบบ',
         'description' => 'ตั้งค่า master data, ผู้ใช้, แผนก, หมวดหมู่ และ SLA',
-        'actions' => '<span class="badge badge-warning">' . lucide('shield-check', 'h-4 w-4') . ' เฉพาะผู้ดูแลระบบ</span>',
+        'actions' => render_partial('partials/components/button', [
+            'label' => 'คำขอ Guest QR',
+            'variant' => 'secondary',
+            'href' => '/admin/guest-requests',
+            'icon' => 'qr-code',
+        ]) . '<span class="badge badge-warning">' . lucide('shield-check', 'h-4 w-4') . ' เฉพาะผู้ดูแลระบบ</span>',
     ]) ?>
 
     <div class="stat-grid admin-stat-scroll">
@@ -36,7 +41,15 @@
                 <h2 class="panel-title">จัดการผู้ใช้งาน</h2>
                 <p class="field-hint">สร้างบัญชีใหม่ หรือคลิกชื่อผู้ใช้เพื่อแก้ไขข้อมูลเดิม</p>
             </div>
-            <span class="badge badge-info"><?= e((string) count($users ?? [])) ?> บัญชี</span>
+            <div class="button-row">
+                <?= render_partial('partials/components/button', [
+                    'label' => 'นำเข้าผู้ใช้ (CSV)',
+                    'variant' => 'secondary',
+                    'href' => '/admin/users/import',
+                    'icon' => 'send',
+                ]) ?>
+                <span class="badge badge-info"><?= e((string) count($users ?? [])) ?> บัญชี</span>
+            </div>
         </div>
 
         <div class="admin-search-box">
@@ -424,6 +437,12 @@
                                     <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'บันทึก', 'variant' => 'primary', 'icon' => 'check-circle']) ?>
                                 </div>
                             </form>
+                            <div class="delete-zone">
+                                <form method="post" action="<?= e(url('/admin/locations/' . $locationId . '/delete')) ?>" class="button-row" onsubmit="return confirm('ยืนยันการลบสถานที่นี้? ลบได้เฉพาะรายการที่ยังไม่ถูกใช้งาน หากถูกใช้งานแล้วให้ปิดใช้งานแทน');">
+                                    <?= csrf_field() ?>
+                                    <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ลบสถานที่', 'variant' => 'danger', 'icon' => 'trash']) ?>
+                                </form>
+                            </div>
                         </div>
                     </details>
                 <?php endforeach; ?>
@@ -434,11 +453,76 @@
     <section id="tab-priorities" class="panel-card stack-md admin-tab-panel" role="tabpanel">
         <div class="panel-head">
             <div>
-                <h2 class="panel-title">จัดการ Priority และ SLA พื้นฐาน</h2>
-                <p class="field-hint">แก้ชื่อ สี และเวลาตอบกลับ/แก้ไขของ 4 ระดับเดิม โดยไม่เปลี่ยน code หรือ level</p>
+                <h2 class="panel-title">จัดการ Priority และ SLA</h2>
+                <p class="field-hint">สร้าง/แก้/ลบระดับ Priority และเวลา SLA · ลบได้เฉพาะระดับที่ยังไม่ถูกใช้กับ ticket</p>
             </div>
             <span class="badge badge-info"><?= e((string) count($priorities ?? [])) ?> ระดับ</span>
         </div>
+
+        <details class="collapsible">
+            <summary class="collapsible-summary">
+                <span class="metric-icon metric-icon-sm"><?= lucide('plus', 'h-4 w-4') ?></span>
+                <div class="collapsible-summary-main">
+                    <span class="collapsible-title">เพิ่ม Priority ใหม่</span>
+                    <span class="collapsible-subtitle">กำหนด code, level, ชื่อ, สี และ SLA เริ่มต้น</span>
+                </div>
+                <span class="collapsible-chevron"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
+            </summary>
+            <div class="collapsible-body">
+                <form method="post" action="<?= e(url('/admin/priorities')) ?>" class="stack-md">
+                    <?= csrf_field() ?>
+                    <div class="content-grid">
+                        <div class="field-group">
+                            <label class="field-label" for="new_priority_code">รหัส Priority <span class="required">*</span></label>
+                            <input id="new_priority_code" class="input" type="text" name="code" required maxlength="50" placeholder="เช่น EMERGENCY">
+                            <p class="field-hint">A-Z, 0-9, ขีดกลาง, ขีดล่าง · ความยาว 2-50 ตัว</p>
+                        </div>
+                        <div class="field-group">
+                            <label class="field-label" for="new_priority_level">ระดับ (1-99) <span class="required">*</span></label>
+                            <input id="new_priority_level" class="input" type="number" name="level" required min="1" max="99" value="5">
+                        </div>
+                    </div>
+                    <div class="content-grid">
+                        <div class="field-group">
+                            <label class="field-label" for="new_priority_name">ชื่อ Priority <span class="required">*</span></label>
+                            <input id="new_priority_name" class="input" type="text" name="name" required maxlength="100">
+                        </div>
+                        <div class="field-group">
+                            <label class="field-label" for="new_priority_color">สี</label>
+                            <select id="new_priority_color" class="input" name="color">
+                                <?php foreach (['slate', 'sky', 'amber', 'rose', 'emerald', 'violet'] as $color): ?>
+                                    <option value="<?= e($color) ?>"><?= e($color) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="content-grid">
+                        <div class="field-group">
+                            <label class="field-label" for="new_priority_response">เวลาตอบกลับ (ชม.)</label>
+                            <input id="new_priority_response" class="input" type="number" min="0" step="0.25" name="response_hours" value="1">
+                        </div>
+                        <div class="field-group">
+                            <label class="field-label" for="new_priority_resolution">เวลาแก้ไข (ชม.)</label>
+                            <input id="new_priority_resolution" class="input" type="number" min="0" step="0.25" name="resolution_hours" value="8">
+                        </div>
+                    </div>
+                    <div class="content-grid">
+                        <div class="field-group">
+                            <label class="field-label" for="new_priority_sort">ลำดับการแสดง</label>
+                            <input id="new_priority_sort" class="input" type="number" min="1" name="sort_order" value="1">
+                        </div>
+                    </div>
+                    <label class="checkbox-row">
+                        <input type="checkbox" name="is_active" value="1" checked>
+                        <span>เปิดใช้งานทันที</span>
+                    </label>
+                    <div class="button-row">
+                        <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'เพิ่ม Priority', 'variant' => 'primary', 'icon' => 'plus']) ?>
+                    </div>
+                </form>
+            </div>
+        </details>
+
         <?php if (($priorities ?? []) === []): ?>
             <?= render_partial('partials/components/empty-state', [
                 'icon' => 'clock',
@@ -513,6 +597,12 @@
                                     <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'บันทึก Priority/SLA', 'variant' => 'primary', 'icon' => 'check-circle']) ?>
                                 </div>
                             </form>
+                            <div class="delete-zone">
+                                <form method="post" action="<?= e(url('/admin/priorities/' . $priorityId . '/delete')) ?>" class="button-row" onsubmit="return confirm('ยืนยันการลบ Priority นี้? ลบได้เฉพาะระดับที่ยังไม่ถูกใช้กับ ticket หากถูกใช้งานแล้วให้ปิดใช้งานแทน');">
+                                    <?= csrf_field() ?>
+                                    <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ลบ Priority', 'variant' => 'danger', 'icon' => 'trash']) ?>
+                                </form>
+                            </div>
                         </div>
                     </details>
                 <?php endforeach; ?>
@@ -943,7 +1033,21 @@
                 <h2 class="panel-title">Email Template และ SMTP Test</h2>
                 <p class="field-hint">ดูตัวอย่างอีเมลจริงของระบบและส่งทดสอบผ่าน MailerService เดิม โดยไม่แสดงรหัสผ่าน SMTP</p>
             </div>
-            <span class="badge badge-info"><?= e((string) (($mailDiagnostics['driver'] ?? 'log'))) ?></span>
+            <div class="button-row">
+                <?= render_partial('partials/components/button', [
+                    'label' => 'ดูคิวอีเมล',
+                    'variant' => 'secondary',
+                    'href' => '/admin/email-queue',
+                    'icon' => 'send',
+                ]) ?>
+                <?= render_partial('partials/components/button', [
+                    'label' => 'แก้ template ข้อความ',
+                    'variant' => 'secondary',
+                    'href' => '/admin/email-templates',
+                    'icon' => 'pencil',
+                ]) ?>
+                <span class="badge badge-info"><?= e((string) (($mailDiagnostics['driver'] ?? 'log'))) ?></span>
+            </div>
         </div>
 
         <?php $mail = $mailDiagnostics ?? []; ?>
@@ -1080,7 +1184,7 @@
             <div class="panel-head">
                 <div>
                     <h3 class="panel-title panel-title-lg">โลโก้องค์กร</h3>
-                    <p class="field-hint">รองรับ PNG, JPEG, WebP, SVG ขนาดไม่เกิน 1MB · จะแสดงในหัวเว็บ หน้า login และอีเมลแจ้งเตือน</p>
+                    <p class="field-hint">รองรับ PNG, JPEG, WebP ขนาดไม่เกิน 1MB · จะแสดงในหัวเว็บ หน้า login และอีเมลแจ้งเตือน</p>
                 </div>
                 <?php if ($currentLogoUrl !== null): ?>
                     <img src="<?= e($currentLogoUrl) ?>" alt="โลโก้ปัจจุบัน" class="logo-preview">
@@ -1092,7 +1196,7 @@
                 <?= csrf_field() ?>
                 <div class="field-group">
                     <label class="field-label" for="logo">เลือกไฟล์โลโก้ใหม่</label>
-                    <input id="logo" class="input" type="file" name="logo" accept="image/png,image/jpeg,image/webp,image/svg+xml">
+                    <input id="logo" class="input" type="file" name="logo" accept="image/png,image/jpeg,image/webp">
                 </div>
                 <div class="button-row">
                     <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'อัปโหลดโลโก้', 'variant' => 'primary', 'icon' => 'upload']) ?>

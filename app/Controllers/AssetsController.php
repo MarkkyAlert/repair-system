@@ -4,15 +4,19 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Core\Response;
+use App\Core\Session;
 use App\Middleware\AuthMiddleware;
+use App\Services\AssetImportService;
 use App\Services\AssetService;
 use DomainException;
 use RuntimeException;
 
 class AssetsController
 {
-    public function __construct(private AssetService $assets)
-    {
+    public function __construct(
+        private AssetService $assets,
+        private AssetImportService $importer,
+    ) {
     }
 
     public function index(): void
@@ -20,7 +24,13 @@ class AssetsController
         AuthMiddleware::handle();
 
         $viewer = auth()->user() ?? [];
-        $data = $this->assets->getAssetIndexData($viewer, request()?->query ?? []);
+
+        try {
+            $data = $this->assets->getAssetIndexData($viewer, request()?->query ?? []);
+        } catch (DomainException $exception) {
+            flash('error', $exception->getMessage());
+            Response::redirect('/dashboard');
+        }
 
         Response::view('assets/index', [
             'title' => 'ทรัพย์สินและ QR',
@@ -101,6 +111,8 @@ class AssetsController
             'currentUser' => $viewer,
             'asset' => $detail['asset'],
             'canManage' => $detail['canManage'],
+            'recentTickets' => $detail['recentTickets'] ?? [],
+            'recentTicketsTotal' => $detail['recentTicketsTotal'] ?? 0,
         ]);
     }
 
@@ -207,6 +219,92 @@ class AssetsController
             'brandName' => $data['brandName'],
             'brandLogoUrl' => $data['brandLogoUrl'],
         ]);
+    }
+
+    public function importForm(): void
+    {
+        AuthMiddleware::handle();
+        $viewer = auth()->user() ?? [];
+
+        Response::view('assets/import', [
+            'title' => 'Import Assets (CSV)',
+            'pageHeading' => 'นำเข้าทรัพย์สินจาก CSV',
+            'currentUser' => $viewer,
+            'preview' => null,
+            'errorMessage' => flash_message('error'),
+        ]);
+    }
+
+    public function importPreview(): void
+    {
+        AuthMiddleware::handle();
+        $viewer = auth()->user() ?? [];
+
+        try {
+            csrf_validate();
+            $rows = $this->importer->parseUploadedFile($_FILES['csv'] ?? []);
+            $preview = $this->importer->validateRows($rows);
+
+            Session::put('asset_import_valid_rows', $preview['valid']);
+
+            Response::view('assets/import', [
+                'title' => 'Preview Import Assets',
+                'pageHeading' => 'ตรวจสอบก่อนนำเข้า',
+                'currentUser' => $viewer,
+                'preview' => $preview,
+                'errorMessage' => null,
+            ]);
+        } catch (DomainException|RuntimeException $exception) {
+            flash('error', $exception->getMessage());
+            Response::redirect('/asset-registry/import');
+        }
+    }
+
+    public function importExecute(): void
+    {
+        AuthMiddleware::handle();
+        $viewer = auth()->user() ?? [];
+
+        try {
+            csrf_validate();
+            $validRows = Session::get('asset_import_valid_rows', []);
+            if (!is_array($validRows) || $validRows === []) {
+                throw new DomainException('ไม่พบข้อมูลที่ผ่านการตรวจสอบ กรุณาเริ่มกระบวนการนำเข้าใหม่');
+            }
+
+            $result = $this->importer->executeImport($validRows, $viewer);
+            Session::forget('asset_import_valid_rows');
+
+            $skipped = count($result['skipped'] ?? []);
+            $summary = 'นำเข้า ' . (int) $result['imported'] . ' รายการ';
+            if ($skipped > 0) {
+                $summary .= ' · ข้าม ' . $skipped . ' รายการ (อาจซ้ำหรือผิดพลาด)';
+            }
+            flash('success', $summary);
+        } catch (DomainException|RuntimeException $exception) {
+            flash('error', $exception->getMessage());
+            Response::redirect('/asset-registry/import');
+        }
+
+        Response::redirect('/asset-registry');
+    }
+
+    public function importTemplate(): void
+    {
+        AuthMiddleware::handle();
+        $columns = AssetImportService::CSV_COLUMNS;
+        $sample = [
+            'ASSET-001', 'Notebook Dell Latitude 5420', 'SN-12345', 'IT_HW', 'HQ-FL2',
+            'IT', 'admin', 'Dell', 'Latitude 5420', 'Dell Thailand',
+            '2024-01-15', '2027-01-15', 'active', 'ใช้งานในแผนก IT',
+        ];
+
+        $csv = implode(',', $columns) . "\r\n" . implode(',', array_map(static fn ($v): string => '"' . str_replace('"', '""', (string) $v) . '"', $sample)) . "\r\n";
+
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="asset-import-template.csv"');
+        echo "\xEF\xBB\xBF" . $csv;
+        exit;
     }
 
     private function assetOldInput(array $input): array

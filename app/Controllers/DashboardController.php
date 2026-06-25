@@ -29,6 +29,7 @@ class DashboardController
             'filters' => $dashboard['filters'],
             'charts' => $dashboard['charts'],
             'highlights' => $dashboard['highlights'],
+            'csat' => $dashboard['csat'],
         ]);
     }
 }

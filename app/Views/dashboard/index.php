@@ -48,6 +48,26 @@ $chartSummary = static function (array $chart, string $unit) use ($formatChartNu
         'avg' => $formatChartNumber($avg) . ' ' . $unit,
     ];
 };
+$cronHealth = [];
+if ($role === 'admin') {
+    $cronChecks = [
+        ['key' => 'cron_email_queue_last_run_at', 'label' => 'คิวอีเมล', 'staleMinutes' => 30],
+        ['key' => 'cron_overdue_check_last_run_at', 'label' => 'ตรวจ SLA เกินกำหนด', 'staleMinutes' => 60],
+        ['key' => 'cron_orphan_cleanup_last_run_at', 'label' => 'ล้างไฟล์แนบกำพร้า', 'staleMinutes' => 60 * 24 * 8],
+    ];
+    foreach ($cronChecks as $check) {
+        $lastRun = (string) setting($check['key'], '');
+        $lastTs = $lastRun !== '' ? strtotime($lastRun) : false;
+        $isStale = $lastTs === false || $lastTs < (time() - ($check['staleMinutes'] * 60));
+        if ($isStale) {
+            $cronHealth[] = [
+                'label' => $check['label'],
+                'last_run' => $lastRun,
+            ];
+        }
+    }
+}
+
 $urgentAlerts = [];
 if ($metricCount('overdue') > 0) {
     $urgentAlerts[] = [
@@ -99,6 +119,26 @@ if ($metricCount('pendingApproval') > 0) {
             <a href="<?= e(url('/dashboard?preset=' . $presetKey)) ?>" class="preset-chip<?= (string) ($filterState['preset'] ?? '') === $presetKey ? ' is-active' : '' ?>"><?= lucide($preset['icon'], 'h-3.5 w-3.5') ?> <?= e($preset['label']) ?></a>
         <?php endforeach; ?>
     </nav>
+
+    <?php if ($cronHealth !== []): ?>
+        <section class="operations-alert-strip" aria-label="สถานะ cron ที่อาจหยุดทำงาน">
+            <div class="operations-alert-copy">
+                <span class="operations-alert-icon"><?= lucide('triangle-alert', 'h-5 w-5') ?></span>
+                <div>
+                    <strong>Cron บางตัวอาจหยุดทำงาน</strong>
+                    <span>ตรวจสอบ schedule บน server เพื่อให้ระบบส่งอีเมลและตรวจ SLA ได้ตามปกติ</span>
+                </div>
+            </div>
+            <div class="operations-alert-actions">
+                <?php foreach ($cronHealth as $cron): ?>
+                    <a class="operations-alert-chip tone-warning" href="<?= e(url('/admin/email-queue')) ?>">
+                        <?= lucide('clock', 'h-4 w-4') ?>
+                        <span><?= e($cron['label']) ?> · <?= e($cron['last_run'] !== '' ? 'รัน ' . human_date($cron['last_run']) : 'ยังไม่เคยรัน') ?></span>
+                    </a>
+                <?php endforeach; ?>
+            </div>
+        </section>
+    <?php endif; ?>
 
     <?php if ($urgentAlerts !== []): ?>
         <section class="operations-alert-strip" aria-label="งานด่วนที่ควรจัดการก่อน">
@@ -391,6 +431,50 @@ if ($metricCount('pendingApproval') > 0) {
             </div>
         </section>
     </div>
+
+    <?php if (in_array($role, ['manager', 'admin'], true)): ?>
+        <?php $csat = $csat ?? ['total_ratings' => 0, 'average_label' => '0.0', 'positive_percent' => 0, 'distribution' => [5 => 0, 4 => 0, 3 => 0, 2 => 0, 1 => 0]]; ?>
+        <section class="panel-card stack-md">
+            <div class="panel-head">
+                <div>
+                    <h2 class="panel-title">ความพึงพอใจของผู้แจ้ง (CSAT)</h2>
+                    <p class="field-hint">คะแนนเฉลี่ยจากผู้แจ้งหลังปิดงาน · ใช้ตัวกรองเดียวกับ dashboard</p>
+                </div>
+                <span class="badge badge-info"><?= e((string) $csat['total_ratings']) ?> รีวิว</span>
+            </div>
+
+            <?php if ((int) $csat['total_ratings'] === 0): ?>
+                <?= render_partial('partials/components/empty-state', [
+                    'icon' => 'message-circle',
+                    'title' => 'ยังไม่มี ticket ที่ได้รับคะแนน',
+                    'description' => 'หลังจากผู้แจ้งกดปิดงาน + ให้คะแนน ระบบจะสรุปสัดส่วนความพึงพอใจให้ที่นี่',
+                ]) ?>
+            <?php else: ?>
+                <div class="csat-grid">
+                    <div class="csat-summary-card">
+                        <div class="csat-score-line">
+                            <span class="csat-score-number"><?= e($csat['average_label']) ?></span>
+                            <span class="csat-score-suffix">/ 5</span>
+                        </div>
+                        <p class="helper-text">คะแนนเฉลี่ย · บวก (4-5⭐) <?= e((string) $csat['positive_percent']) ?>%</p>
+                    </div>
+                    <div class="csat-distribution">
+                        <?php for ($star = 5; $star >= 1; $star--): ?>
+                            <?php
+                            $count = (int) ($csat['distribution'][$star] ?? 0);
+                            $percent = (int) $csat['total_ratings'] > 0 ? (int) round($count * 100 / (int) $csat['total_ratings']) : 0;
+                            ?>
+                            <div class="csat-row">
+                                <span class="csat-row-label"><?= str_repeat('⭐', $star) ?></span>
+                                <span class="csat-row-bar" aria-hidden="true"><span style="width:<?= $percent ?>%"></span></span>
+                                <span class="csat-row-count"><?= e((string) $count) ?> · <?= $percent ?>%</span>
+                            </div>
+                        <?php endfor; ?>
+                    </div>
+                </div>
+            <?php endif; ?>
+        </section>
+    <?php endif; ?>
 
     <details class="collapsible">
         <summary class="collapsible-summary">

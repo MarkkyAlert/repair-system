@@ -16,7 +16,7 @@ class UserRepository
     public function findByLogin(string $login): ?array
     {
         $stmt = $this->db->prepare(
-            'SELECT id, username, email, password_hash, password_changed_at, full_name, phone, role, department_id, avatar, is_active, remember_token, created_at, updated_at
+            'SELECT id, username, email, password_hash, password_changed_at, full_name, phone, role, department_id, avatar, is_active, remember_token, last_login_at, created_at, updated_at
              FROM users
              WHERE username = :username OR email = :email
              LIMIT 1'
@@ -32,7 +32,7 @@ class UserRepository
     public function findByEmail(string $email): ?array
     {
         $stmt = $this->db->prepare(
-            'SELECT id, username, email, password_hash, password_changed_at, full_name, phone, role, department_id, avatar, is_active, remember_token, created_at, updated_at
+            'SELECT id, username, email, password_hash, password_changed_at, full_name, phone, role, department_id, avatar, is_active, remember_token, last_login_at, created_at, updated_at
              FROM users
              WHERE email = :email
              LIMIT 1'
@@ -45,7 +45,7 @@ class UserRepository
     public function findById(int $userId): ?array
     {
         $stmt = $this->db->prepare(
-            'SELECT id, username, email, password_hash, password_changed_at, full_name, phone, role, department_id, avatar, is_active, remember_token, created_at, updated_at
+            'SELECT id, username, email, password_hash, password_changed_at, full_name, phone, role, department_id, avatar, is_active, remember_token, last_login_at, created_at, updated_at
              FROM users
              WHERE id = :id
              LIMIT 1'
@@ -53,6 +53,40 @@ class UserRepository
         $stmt->execute(['id' => $userId]);
 
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    public function findByRememberToken(string $tokenHash): ?array
+    {
+        if ($tokenHash === '') {
+            return null;
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT id, username, email, password_hash, password_changed_at, full_name, phone, role, department_id, avatar, is_active, remember_token, last_login_at, created_at, updated_at
+             FROM users
+             WHERE remember_token = :token
+               AND is_active = 1
+             LIMIT 1'
+        );
+        $stmt->execute(['token' => $tokenHash]);
+
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    public function updateRememberToken(int $userId, ?string $tokenHash): void
+    {
+        if ($userId <= 0) {
+            return;
+        }
+
+        $stmt = $this->db->prepare(
+            'UPDATE users SET remember_token = :token, updated_at = :updated_at WHERE id = :id'
+        );
+        $stmt->execute([
+            'token' => $tokenHash,
+            'updated_at' => date('Y-m-d H:i:s'),
+            'id' => $userId,
+        ]);
     }
 
     public function findActiveUsersByIds(array $userIds): array
@@ -74,6 +108,15 @@ class UserRepository
         $stmt->execute($userIds);
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public function updateLastLoginAt(int $userId): void
+    {
+        if ($userId <= 0) {
+            return;
+        }
+        $stmt = $this->db->prepare('UPDATE users SET last_login_at = :now WHERE id = :id LIMIT 1');
+        $stmt->execute(['now' => date('Y-m-d H:i:s'), 'id' => $userId]);
     }
 
     public function updatePassword(int $userId, string $passwordHash): bool

@@ -102,6 +102,36 @@ class TicketsController
         ]);
     }
 
+    public function bulkApprove(): void
+    {
+        AuthMiddleware::handle();
+
+        $viewer = auth()->user() ?? [];
+        $role = (string) ($viewer['role'] ?? 'guest');
+        if (!in_array($role, ['manager', 'admin'], true)) {
+            flash('error', 'เฉพาะผู้จัดการหรือผู้ดูแลระบบเท่านั้น');
+            Response::redirect('/tickets');
+        }
+
+        try {
+            csrf_validate();
+            $raw = (string) ($_POST['ticket_ids'] ?? '');
+            $ids = array_filter(array_map('trim', explode(',', $raw)), static fn (string $v): bool => $v !== '' && ctype_digit($v));
+            $result = $this->tickets->bulkApproveTickets($ids, $viewer);
+
+            $message = 'Approve สำเร็จ ' . (int) $result['approved'] . ' รายการ';
+            $failedCount = count($result['failed'] ?? []);
+            if ($failedCount > 0) {
+                $message .= ' · ล้มเหลว ' . $failedCount . ' รายการ (สถานะอาจเปลี่ยนไปแล้ว)';
+            }
+            flash('success', $message);
+        } catch (DomainException|RuntimeException $exception) {
+            flash('error', $exception->getMessage());
+        }
+
+        Response::redirect('/tickets?status=pending_approval');
+    }
+
     public function approve(string $ticketId): void
     {
         AuthMiddleware::handle();

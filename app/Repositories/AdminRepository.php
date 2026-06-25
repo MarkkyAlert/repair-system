@@ -557,6 +557,93 @@ class AdminRepository
         }
     }
 
+    public function deleteLocation(int $locationId): void
+    {
+        try {
+            $this->db->beginTransaction();
+            $this->lockRecord('locations', $locationId, 'ไม่พบสถานที่ที่ต้องการลบ');
+
+            if ($this->locationInUse($locationId)) {
+                throw new DomainException('สถานที่นี้ถูกใช้งานแล้ว กรุณาปิดใช้งานแทนการลบ');
+            }
+
+            $stmt = $this->db->prepare('DELETE FROM locations WHERE id = :id');
+            $stmt->execute(['id' => $locationId]);
+            $this->db->commit();
+        } catch (Throwable $exception) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            if ($exception instanceof PDOException && (string) $exception->getCode() === '23000') {
+                throw new DomainException('สถานที่นี้ถูกใช้งานแล้ว กรุณาปิดใช้งานแทนการลบ');
+            }
+
+            throw $exception;
+        }
+    }
+
+    public function createPriority(array $payload): int
+    {
+        try {
+            $stmt = $this->db->prepare(
+                'INSERT INTO priorities (code, name, level, color, response_time_minutes, resolution_time_minutes, sort_order, is_active, created_at, updated_at)
+                 VALUES (:code, :name, :level, :color, :response_time_minutes, :resolution_time_minutes, :sort_order, :is_active, :created_at, :updated_at)'
+            );
+            $createdAt = date('Y-m-d H:i:s');
+            $stmt->execute([
+                'code' => $payload['code'],
+                'name' => $payload['name'],
+                'level' => $payload['level'],
+                'color' => $payload['color'] !== '' ? $payload['color'] : null,
+                'response_time_minutes' => $payload['response_time_minutes'],
+                'resolution_time_minutes' => $payload['resolution_time_minutes'],
+                'sort_order' => $payload['sort_order'],
+                'is_active' => $payload['is_active'] ? 1 : 0,
+                'created_at' => $createdAt,
+                'updated_at' => $createdAt,
+            ]);
+
+            return (int) $this->db->lastInsertId();
+        } catch (PDOException $exception) {
+            if ((string) $exception->getCode() === '23000') {
+                $message = strtolower($exception->getMessage());
+                if (str_contains($message, 'code')) {
+                    throw new DomainException('รหัส Priority นี้มีอยู่แล้ว');
+                }
+                if (str_contains($message, 'level')) {
+                    throw new DomainException('ระดับ Priority นี้ถูกใช้งานแล้ว');
+                }
+                throw new DomainException('Priority ซ้ำกับข้อมูลที่มีอยู่');
+            }
+            throw $exception;
+        }
+    }
+
+    public function deletePriority(int $priorityId): void
+    {
+        try {
+            $this->db->beginTransaction();
+            $this->lockRecord('priorities', $priorityId, 'ไม่พบ Priority ที่ต้องการลบ');
+
+            if ($this->priorityInUse($priorityId)) {
+                throw new DomainException('Priority นี้ถูกใช้งานในรายการแจ้งซ่อมแล้ว กรุณาปิดใช้งานแทนการลบ');
+            }
+
+            $stmt = $this->db->prepare('DELETE FROM priorities WHERE id = :id');
+            $stmt->execute(['id' => $priorityId]);
+            $this->db->commit();
+        } catch (Throwable $exception) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            if ($exception instanceof PDOException && (string) $exception->getCode() === '23000') {
+                throw new DomainException('Priority นี้ถูกใช้งานแล้ว กรุณาปิดใช้งานแทนการลบ');
+            }
+
+            throw $exception;
+        }
+    }
+
     public function updatePriority(int $priorityId, array $payload): void
     {
         $stmt = $this->db->prepare(
@@ -598,6 +685,29 @@ class AdminRepository
         if ($stmt->rowCount() === 0 && !$this->recordExists('priorities', $priorityId)) {
             throw new DomainException('ไม่พบ Priority ที่ต้องการแก้ไข');
         }
+    }
+
+    private function locationInUse(int $locationId): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT
+                EXISTS(SELECT 1 FROM assets WHERE location_id = :asset_location_id)
+                OR EXISTS(SELECT 1 FROM tickets WHERE location_id = :ticket_location_id)'
+        );
+        $stmt->execute([
+            'asset_location_id' => $locationId,
+            'ticket_location_id' => $locationId,
+        ]);
+
+        return (bool) $stmt->fetchColumn();
+    }
+
+    private function priorityInUse(int $priorityId): bool
+    {
+        $stmt = $this->db->prepare('SELECT EXISTS(SELECT 1 FROM tickets WHERE priority_id = :priority_id)');
+        $stmt->execute(['priority_id' => $priorityId]);
+
+        return (bool) $stmt->fetchColumn();
     }
 
     private function departmentInUse(int $departmentId): bool

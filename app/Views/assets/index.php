@@ -54,6 +54,7 @@ if ($assetStatus !== '') {
     <?php ob_start(); ?>
                 <?php if (!empty($canManage)): ?>
                     <?= render_partial('partials/components/button', ['label' => 'เพิ่มทรัพย์สิน', 'variant' => 'primary', 'href' => '/asset-registry/create', 'icon' => 'arrow-right']) ?>
+                    <?= render_partial('partials/components/button', ['label' => 'นำเข้า CSV', 'variant' => 'secondary', 'href' => '/asset-registry/import', 'icon' => 'send']) ?>
                     <?= render_partial('partials/components/button', ['label' => 'พิมพ์แผ่น QR', 'variant' => 'secondary', 'href' => '/asset-registry/print']) ?>
                 <?php endif; ?>
     <?php $heroActions = (string) ob_get_clean(); ?>

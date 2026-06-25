@@ -1378,6 +1378,89 @@ class TicketRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    public function getCsatSummary(array $viewer, array $filters = []): array
+    {
+        $params = [];
+        $visibility = $this->visibilityClause($viewer, $params);
+        $conditions = [$visibility];
+        $this->applyDashboardFilters($conditions, $filters, $params);
+        $whereClause = implode(' AND ', $conditions);
+
+        $stmt = $this->db->prepare(
+            "SELECT
+                COUNT(tr.id) AS total_ratings,
+                COALESCE(ROUND(AVG(tr.score), 2), 0) AS average_score,
+                SUM(CASE WHEN tr.score = 5 THEN 1 ELSE 0 END) AS s5,
+                SUM(CASE WHEN tr.score = 4 THEN 1 ELSE 0 END) AS s4,
+                SUM(CASE WHEN tr.score = 3 THEN 1 ELSE 0 END) AS s3,
+                SUM(CASE WHEN tr.score = 2 THEN 1 ELSE 0 END) AS s2,
+                SUM(CASE WHEN tr.score = 1 THEN 1 ELSE 0 END) AS s1,
+                SUM(CASE WHEN tr.score >= 4 THEN 1 ELSE 0 END) AS positive_ratings
+             FROM ticket_ratings tr
+             INNER JOIN tickets t ON t.id = tr.ticket_id
+             WHERE $whereClause"
+        );
+        $stmt->execute($params);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+
+        $total = (int) ($row['total_ratings'] ?? 0);
+        $positive = (int) ($row['positive_ratings'] ?? 0);
+
+        return [
+            'total_ratings' => $total,
+            'average_score' => (float) ($row['average_score'] ?? 0),
+            'positive_percent' => $total > 0 ? (int) round($positive * 100 / $total) : 0,
+            'distribution' => [
+                5 => (int) ($row['s5'] ?? 0),
+                4 => (int) ($row['s4'] ?? 0),
+                3 => (int) ($row['s3'] ?? 0),
+                2 => (int) ($row['s2'] ?? 0),
+                1 => (int) ($row['s1'] ?? 0),
+            ],
+        ];
+    }
+
+    public function findRecentTicketsByAssetId(int $assetId, int $limit = 10): array
+    {
+        $limit = max(1, min($limit, 50));
+
+        $stmt = $this->db->prepare(
+            "SELECT
+                t.id,
+                t.ticket_no,
+                t.title,
+                t.status,
+                t.approval_status,
+                t.requested_at,
+                t.first_response_at,
+                t.response_due_at,
+                t.resolved_at,
+                t.resolution_due_at,
+                p.code AS priority_code,
+                p.name AS priority_name,
+                l.name AS location_name,
+                requester.full_name AS requester_name
+             FROM tickets t
+             INNER JOIN priorities p ON p.id = t.priority_id
+             INNER JOIN locations l ON l.id = t.location_id
+             INNER JOIN users requester ON requester.id = t.requester_id
+             WHERE t.asset_id = :asset_id
+             ORDER BY t.requested_at DESC, t.id DESC
+             LIMIT $limit"
+        );
+        $stmt->execute(['asset_id' => $assetId]);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public function countTicketsByAssetId(int $assetId): int
+    {
+        $stmt = $this->db->prepare('SELECT COUNT(*) FROM tickets WHERE asset_id = :asset_id');
+        $stmt->execute(['asset_id' => $assetId]);
+
+        return (int) $stmt->fetchColumn();
+    }
+
     public function findTicketNotificationContextById(int $ticketId): ?array
     {
         $stmt = $this->db->prepare(

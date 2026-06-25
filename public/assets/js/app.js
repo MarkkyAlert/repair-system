@@ -763,6 +763,66 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // ── Ticket bulk approve ──
+  (function () {
+    var checkboxes = document.querySelectorAll('[data-bulk-checkbox]');
+    var bar = document.getElementById('bulk-action-bar');
+    var idsInput = document.querySelector('[data-bulk-ids]');
+    var countEl = document.querySelector('[data-bulk-count]');
+    var selectAll = document.querySelector('[data-bulk-select-all]');
+    if (checkboxes.length === 0 || !bar || !idsInput || !countEl) return;
+
+    function refresh() {
+      var ids = [];
+      checkboxes.forEach(function (cb) {
+        if (cb.checked) ids.push(cb.value);
+      });
+      idsInput.value = ids.join(',');
+      countEl.textContent = String(ids.length);
+      if (ids.length === 0) {
+        bar.setAttribute('hidden', 'hidden');
+      } else {
+        bar.removeAttribute('hidden');
+      }
+      if (selectAll) {
+        selectAll.checked = ids.length === checkboxes.length;
+      }
+    }
+
+    checkboxes.forEach(function (cb) {
+      cb.addEventListener('change', refresh);
+    });
+
+    if (selectAll) {
+      selectAll.addEventListener('change', function () {
+        checkboxes.forEach(function (cb) { cb.checked = selectAll.checked; });
+        refresh();
+      });
+    }
+  })();
+
+  // ── Reveal field when source input is changed from initial value ──
+  document.querySelectorAll('[data-reveal-when-changed]').forEach(function (target) {
+    var fieldName = target.getAttribute('data-reveal-when-changed');
+    if (!fieldName) return;
+    var sourceInput = document.querySelector('input[name="' + fieldName + '"]');
+    if (!sourceInput) return;
+
+    var initialValue = sourceInput.value;
+    var update = function () {
+      var changed = sourceInput.value.trim().toLowerCase() !== initialValue.trim().toLowerCase();
+      if (changed) {
+        target.removeAttribute('hidden');
+      } else {
+        target.setAttribute('hidden', 'hidden');
+        // Clear any input inside when hiding so it doesn't submit
+        target.querySelectorAll('input').forEach(function (i) { i.value = ''; });
+      }
+    };
+    sourceInput.addEventListener('input', update);
+    sourceInput.addEventListener('change', update);
+  });
+
   // ── Unsaved changes warning ──
   document.querySelectorAll('form[data-warn-unsaved]').forEach(function (form) {
     var isDirty = false;

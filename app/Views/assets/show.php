@@ -146,4 +146,43 @@
             <?php endif; ?>
         </section>
     </div>
+
+    <section class="panel-card stack-md">
+        <div class="panel-head">
+            <div>
+                <h2 class="panel-title">ประวัติการแจ้งซ่อมของทรัพย์สินนี้</h2>
+                <p class="field-hint">10 รายการล่าสุดที่อ้างอิงทรัพย์สินนี้ — ช่วยให้ทีมตรวจปัญหาซ้ำได้เร็วขึ้น</p>
+            </div>
+            <span class="badge badge-info"><?= e((string) ($recentTicketsTotal ?? 0)) ?> รายการ</span>
+        </div>
+
+        <?php if (($recentTickets ?? []) === []): ?>
+            <?= render_partial('partials/components/empty-state', [
+                'icon' => 'clipboard-list',
+                'title' => 'ยังไม่มีการแจ้งซ่อมในทรัพย์สินนี้',
+                'description' => 'เมื่อมีการแจ้งซ่อมที่อ้างอิงทรัพย์สินนี้ ระบบจะสรุปประวัติให้ที่นี่',
+            ]) ?>
+        <?php else: ?>
+            <ul class="list-rows">
+                <?php foreach ($recentTickets as $ticket): ?>
+                    <li>
+                        <a class="list-row<?= !empty($ticket['is_overdue']) ? ' is-overdue' : '' ?>" href="<?= e(url('/tickets/' . $ticket['id'])) ?>">
+                            <span class="list-row-main">
+                                <span class="list-row-title">
+                                    <code class="mono"><?= e($ticket['ticket_no']) ?></code>
+                                    <strong><?= e($ticket['title']) ?></strong>
+                                </span>
+                                <span class="list-row-meta"><?= e($ticket['requester_name']) ?> · <?= e($ticket['location_name']) ?> · <?= e($ticket['requested_at']) ?></span>
+                            </span>
+                            <span class="list-row-side">
+                                <?= render_partial('partials/components/badge', ['label' => $ticket['priority_label'], 'tone' => $ticket['priority_tone']]) ?>
+                                <?= render_partial('partials/components/badge', ['label' => $ticket['status_label'], 'tone' => $ticket['status_tone']]) ?>
+                                <span class="list-row-arrow"><?= lucide('chevron-right', 'h-4 w-4') ?></span>
+                            </span>
+                        </a>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
+    </section>
 </section>

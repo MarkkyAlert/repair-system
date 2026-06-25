@@ -5,6 +5,7 @@ namespace App\Services;
 
 use App\Repositories\EmailQueueRepository;
 use App\Repositories\UserRepository;
+use DomainException;
 use Throwable;
 
 class EmailQueueService
@@ -121,6 +122,39 @@ class EmailQueueService
             'failed' => $failed,
             'items' => $items,
         ];
+    }
+
+    public function listJobsPaginated(string $status, int $page, int $perPage = 25): array
+    {
+        $perPage = max(5, min($perPage, 100));
+        $page = max(1, $page);
+        $offset = ($page - 1) * $perPage;
+
+        $totals = $this->queue->countByStatus();
+        $matched = $this->queue->countJobs($status);
+        $totalPages = $matched > 0 ? (int) ceil($matched / $perPage) : 1;
+
+        return [
+            'jobs' => $this->queue->listJobs($status, $perPage, $offset),
+            'totals' => $totals,
+            'pagination' => [
+                'page' => $page,
+                'perPage' => $perPage,
+                'total' => $matched,
+                'totalPages' => $totalPages,
+            ],
+        ];
+    }
+
+    public function retryJob(int $emailId): void
+    {
+        if ($emailId <= 0) {
+            throw new DomainException('ไม่พบรายการอีเมลที่ต้องการลองใหม่');
+        }
+
+        if (!$this->queue->requeueForRetry($emailId)) {
+            throw new DomainException('ไม่สามารถลองส่งอีเมลใหม่ได้ (อาจกำลังประมวลผลอยู่หรืออยู่ในคิวอยู่แล้ว)');
+        }
     }
 
     private function enqueueForRecipient(array $recipient, array $email): void

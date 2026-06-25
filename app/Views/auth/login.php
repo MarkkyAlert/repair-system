@@ -66,16 +66,6 @@
                     <p><?= e((string) $successMessage) ?></p>
                 </div>
             <?php endif; ?>
-            <?php if (!empty($debugResetLink)): ?>
-                <div class="auth-alert auth-alert-info">
-                    <span class="auth-alert-icon"><?= lucide('info', 'h-4 w-4') ?></span>
-                    <div>
-                        <strong>Debug Reset Link</strong>
-                        <a href="<?= e((string) $debugResetLink) ?>">เปิดลิงก์รีเซ็ตรหัสผ่าน →</a>
-                    </div>
-                </div>
-            <?php endif; ?>
-
             <div class="field-group">
                 <label for="login" class="field-label">ชื่อผู้ใช้หรืออีเมล</label>
                 <input id="login" name="login" type="text" class="input" placeholder="admin หรือ admin@example.com" value="<?= e((string) (($oldInput['login'] ?? ''))) ?>" autocomplete="username">
@@ -84,6 +74,11 @@
                 <label for="password" class="field-label">รหัสผ่าน</label>
                 <input id="password" name="password" type="password" class="input" placeholder="••••••••" autocomplete="current-password">
             </div>
+
+            <label class="checkbox-row">
+                <input type="checkbox" name="remember" value="1">
+                <span>จดจำการเข้าสู่ระบบ 30 วัน</span>
+            </label>
 
             <?= render_partial('partials/components/button', [
                 'type' => 'submit',

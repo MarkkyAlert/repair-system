@@ -4,21 +4,83 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Core\View;
+use App\Repositories\EmailTemplateRepository;
 
 class EmailTemplateService
 {
+    public const TEMPLATE_REGISTRY = [
+        'ticket_created' => [
+            'label' => 'Ticket ใหม่รออนุมัติ',
+            'fields' => ['heading', 'intro', 'footer_note'],
+        ],
+        'ticket_approved' => [
+            'label' => 'Ticket ได้รับการอนุมัติ',
+            'fields' => ['heading', 'intro', 'footer_note'],
+        ],
+        'ticket_rejected' => [
+            'label' => 'Ticket ถูกปฏิเสธ',
+            'fields' => ['heading', 'intro', 'footer_note'],
+        ],
+        'ticket_assigned' => [
+            'label' => 'มีการมอบหมายงานช่าง',
+            'fields' => ['heading', 'intro', 'footer_note'],
+        ],
+        'ticket_status_changed' => [
+            'label' => 'สถานะงานเปลี่ยน (started/resolved/completed/reopened/cancelled)',
+            'fields' => ['heading', 'intro', 'footer_note'],
+        ],
+        'ticket_event' => [
+            'label' => 'อีเมล ticket event เริ่มต้น (fallback)',
+            'fields' => ['heading', 'intro', 'footer_note'],
+        ],
+        'comment_event' => [
+            'label' => 'มี comment ใหม่หรือแก้ไข',
+            'fields' => ['heading', 'intro', 'footer_note'],
+        ],
+        'sla_breached' => [
+            'label' => 'SLA เกินกำหนด',
+            'fields' => ['heading', 'intro', 'footer_note'],
+        ],
+    ];
+
+    private ?array $overridesCache = null;
+
+    public function __construct(private EmailTemplateRepository $templates)
+    {
+    }
+
+    private function override(string $templateKey, string $fieldKey, string $default): string
+    {
+        if ($this->overridesCache === null) {
+            $this->overridesCache = $this->templates->getAllOverrides();
+        }
+
+        $value = $this->overridesCache[$templateKey][$fieldKey] ?? null;
+        if (is_string($value) && trim($value) !== '') {
+            return $value;
+        }
+
+        return $default;
+    }
+
+    public function refreshOverrides(): void
+    {
+        $this->overridesCache = null;
+    }
+
     public function buildTicketEvent(array $context, array $recipient, string $eventType, string $title, string $message): array
     {
         $ticketNo = (string) ($context['ticket_no'] ?? '-');
         $ticketId = (int) ($context['id'] ?? 0);
         $ticketTitle = (string) ($context['title'] ?? '-');
         $ticketUrl = $ticketId > 0 ? url('/tickets/' . $ticketId) : url('/tickets');
+        $templateKey = $this->ticketEventTemplateKey($eventType);
         $subject = '[' . (string) setting('app_name', config('app.name', 'Repair System')) . '] ' . $title . ' - ' . $ticketNo;
 
         return $this->renderNotificationTemplate([
             'subject' => $subject,
-            'heading' => $title,
-            'intro' => 'มีการอัปเดตสถานะ ticket ที่เกี่ยวข้องกับคุณ',
+            'heading' => $this->override($templateKey, 'heading', $title),
+            'intro' => $this->override($templateKey, 'intro', 'มีการอัปเดตสถานะ ticket ที่เกี่ยวข้องกับคุณ'),
             'message' => $message,
             'recipient_name' => (string) ($recipient['full_name'] ?? $recipient['email'] ?? 'ผู้ใช้งาน'),
             'ticket_url' => $ticketUrl,
@@ -29,15 +91,27 @@ class EmailTemplateService
                 ['label' => 'เหตุการณ์', 'value' => $this->labelize($eventType)],
                 ['label' => 'สถานะล่าสุด', 'value' => $this->labelize((string) ($context['status'] ?? '-'))],
             ],
-            'footer_note' => 'อีเมลฉบับนี้ถูกสร้างอัตโนมัติจากระบบแจ้งซ่อม',
+            'footer_note' => $this->override($templateKey, 'footer_note', 'อีเมลฉบับนี้ถูกสร้างอัตโนมัติจากระบบแจ้งซ่อม'),
             'payload' => [
-                'template' => 'ticket_event',
+                'template' => $templateKey,
                 'event_type' => $eventType,
                 'ticket_id' => $ticketId,
                 'ticket_no' => $ticketNo,
                 'recipient_id' => (int) ($recipient['id'] ?? 0),
             ],
         ]);
+    }
+
+    private function ticketEventTemplateKey(string $eventType): string
+    {
+        return match ($eventType) {
+            'ticket.created' => 'ticket_created',
+            'ticket.approved' => 'ticket_approved',
+            'ticket.rejected' => 'ticket_rejected',
+            'ticket.assigned' => 'ticket_assigned',
+            'ticket.accepted', 'ticket.started', 'ticket.resolved', 'ticket.completed', 'ticket.reopened', 'ticket.cancelled' => 'ticket_status_changed',
+            default => 'ticket_event',
+        };
     }
 
     public function buildCommentEvent(array $context, array $recipient, int $commentId, bool $isInternal, string $body, string $action, string $title, string $message): array
@@ -50,10 +124,12 @@ class EmailTemplateService
             $preview = function_exists('mb_substr') ? mb_substr($preview, 0, 200) : substr($preview, 0, 200);
         }
 
+        $defaultFooter = $isInternal ? 'อีเมลนี้เกี่ยวข้องกับ internal note ภายในทีม' : 'อีเมลฉบับนี้ถูกสร้างอัตโนมัติจากระบบแจ้งซ่อม';
+
         return $this->renderNotificationTemplate([
             'subject' => '[' . (string) setting('app_name', config('app.name', 'Repair System')) . '] ' . $title . ' - ' . $ticketNo,
-            'heading' => $title,
-            'intro' => 'มีความเคลื่อนไหวใหม่ใน comment ของ ticket',
+            'heading' => $this->override('comment_event', 'heading', $title),
+            'intro' => $this->override('comment_event', 'intro', 'มีความเคลื่อนไหวใหม่ใน comment ของ ticket'),
             'message' => $message,
             'recipient_name' => (string) ($recipient['full_name'] ?? $recipient['email'] ?? 'ผู้ใช้งาน'),
             'ticket_url' => $ticketUrl,
@@ -65,7 +141,7 @@ class EmailTemplateService
                 ['label' => 'Visibility', 'value' => $isInternal ? 'Internal note' : 'Public comment'],
                 ['label' => 'Preview', 'value' => $preview !== '' ? $preview : '-'],
             ],
-            'footer_note' => $isInternal ? 'อีเมลนี้เกี่ยวข้องกับ internal note ภายในทีม' : 'อีเมลฉบับนี้ถูกสร้างอัตโนมัติจากระบบแจ้งซ่อม',
+            'footer_note' => $this->override('comment_event', 'footer_note', $defaultFooter),
             'payload' => [
                 'template' => 'comment_event',
                 'ticket_id' => $ticketId,
@@ -87,8 +163,8 @@ class EmailTemplateService
 
         return $this->renderNotificationTemplate([
             'subject' => '[' . (string) setting('app_name', config('app.name', 'Repair System')) . '] ' . $title . ' - ' . $ticketNo,
-            'heading' => $title,
-            'intro' => 'ระบบตรวจพบ ticket ที่เกินกำหนด SLA',
+            'heading' => $this->override('sla_breached', 'heading', $title),
+            'intro' => $this->override('sla_breached', 'intro', 'ระบบตรวจพบ ticket ที่เกินกำหนด SLA'),
             'message' => $message,
             'recipient_name' => (string) ($recipient['full_name'] ?? $recipient['email'] ?? 'ผู้ใช้งาน'),
             'ticket_url' => $ticketUrl,
@@ -99,7 +175,7 @@ class EmailTemplateService
                 ['label' => 'Metric', 'value' => $metricLabel],
                 ['label' => 'สถานะล่าสุด', 'value' => $this->labelize((string) ($context['status'] ?? '-'))],
             ],
-            'footer_note' => 'กรุณาติดตามรายการนี้โดยเร็วเพื่อไม่ให้กระทบ SLA เพิ่มเติม',
+            'footer_note' => $this->override('sla_breached', 'footer_note', 'กรุณาติดตามรายการนี้โดยเร็วเพื่อไม่ให้กระทบ SLA เพิ่มเติม'),
             'payload' => [
                 'template' => 'sla_breached',
                 'ticket_id' => $ticketId,

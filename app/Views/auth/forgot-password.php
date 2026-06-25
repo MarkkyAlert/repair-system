@@ -44,12 +44,6 @@
                     <p class="helper-text"><?= e((string) $successMessage) ?></p>
                 </div>
             <?php endif; ?>
-            <?php if (!empty($debugResetLink)): ?>
-                <div class="stack-md">
-                    <span class="badge badge-info">Debug Reset Link</span>
-                    <a class="btn btn-secondary" href="<?= e((string) $debugResetLink) ?>">เปิดลิงก์รีเซ็ตรหัสผ่าน</a>
-                </div>
-            <?php endif; ?>
             <div class="field-group">
                 <label for="email" class="field-label">อีเมล</label>
                 <input id="email" name="email" type="email" class="input" placeholder="admin@example.com" value="<?= e((string) (($oldInput['email'] ?? ''))) ?>">

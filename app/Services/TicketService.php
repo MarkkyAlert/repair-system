@@ -44,6 +44,7 @@ class TicketService
         $resolutionTrend = $this->tickets->getDashboardMonthlyResolutionAverages($viewer, $normalizedFilters, $year);
         $topTechnicians = $this->tickets->getDashboardTopTechnicians($viewer, $normalizedFilters, 5);
         $topCategories = $this->tickets->getDashboardTopCategories($viewer, $normalizedFilters, 5);
+        $csat = $this->tickets->getCsatSummary($viewer, $normalizedFilters);
 
         return [
             'metrics' => [
@@ -90,6 +91,13 @@ class TicketService
                     'ticket_count' => (int) ($row['total_tickets'] ?? 0),
                     'overdue_count' => (int) ($row['overdue_count'] ?? 0),
                 ], $topCategories),
+            ],
+            'csat' => [
+                'total_ratings' => (int) ($csat['total_ratings'] ?? 0),
+                'average_score' => (float) ($csat['average_score'] ?? 0),
+                'average_label' => number_format((float) ($csat['average_score'] ?? 0), 1),
+                'positive_percent' => (int) ($csat['positive_percent'] ?? 0),
+                'distribution' => $csat['distribution'] ?? [5 => 0, 4 => 0, 3 => 0, 2 => 0, 1 => 0],
             ],
         ];
     }
@@ -421,6 +429,34 @@ class TicketService
         $this->notifications->notifyTicketEvent($ticketId, 'ticket.approved', (int) ($viewer['id'] ?? 0));
     }
 
+    public function bulkApproveTickets(array $ticketIds, array $viewer, string $note = ''): array
+    {
+        $ticketIds = array_values(array_unique(array_filter(array_map('intval', $ticketIds), static fn (int $id): bool => $id > 0)));
+        if ($ticketIds === []) {
+            throw new DomainException('กรุณาเลือกอย่างน้อย 1 รายการ');
+        }
+        if (count($ticketIds) > 50) {
+            throw new DomainException('Approve ได้สูงสุด 50 รายการต่อครั้ง');
+        }
+
+        $approved = 0;
+        $failed = [];
+
+        foreach ($ticketIds as $ticketId) {
+            try {
+                $this->approveTicket($ticketId, $viewer, ['note' => $note]);
+                $approved++;
+            } catch (DomainException $exception) {
+                $failed[] = ['ticket_id' => $ticketId, 'reason' => $exception->getMessage()];
+            }
+        }
+
+        return [
+            'approved' => $approved,
+            'failed' => $failed,
+        ];
+    }
+
     public function rejectTicket(int $ticketId, array $viewer, array $input): void
     {
         $ticket = $this->requireManageableTicket($ticketId, $viewer);
@@ -604,6 +640,24 @@ class TicketService
             (string) ($ticket['status'] ?? '')
         );
         $this->notifications->notifyTicketEvent($ticketId, 'ticket.cancelled', (int) ($viewer['id'] ?? 0));
+    }
+
+    public function getRecentTicketsForAsset(int $assetId, int $limit = 10): array
+    {
+        if ($assetId <= 0) {
+            return [
+                'tickets' => [],
+                'total' => 0,
+            ];
+        }
+
+        $rows = $this->tickets->findRecentTicketsByAssetId($assetId, $limit);
+        $total = $this->tickets->countTicketsByAssetId($assetId);
+
+        return [
+            'tickets' => array_map(fn (array $row): array => $this->mapTicketSummary($row), $rows),
+            'total' => $total,
+        ];
     }
 
     private function mapTicketSummary(array $ticket): array

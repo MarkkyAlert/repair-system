@@ -195,6 +195,88 @@ class EmailQueueRepository
         ]);
     }
 
+    public function countByStatus(): array
+    {
+        $stmt = $this->db->query(
+            "SELECT status, COUNT(*) AS total
+             FROM email_queue
+             GROUP BY status"
+        );
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $totals = ['queued' => 0, 'processing' => 0, 'sent' => 0, 'failed' => 0];
+        foreach ($rows as $row) {
+            $key = (string) ($row['status'] ?? '');
+            if (isset($totals[$key])) {
+                $totals[$key] = (int) $row['total'];
+            }
+        }
+
+        return $totals;
+    }
+
+    public function listJobs(string $status, int $limit, int $offset): array
+    {
+        $limit = max(1, min($limit, 100));
+        $offset = max(0, $offset);
+
+        $where = '';
+        $params = [];
+        if (in_array($status, ['queued', 'processing', 'sent', 'failed'], true)) {
+            $where = 'WHERE status = :status';
+            $params['status'] = $status;
+        }
+
+        $stmt = $this->db->prepare(
+            "SELECT id, to_email, to_name, subject, status, attempts, max_attempts, error_message, available_at, sent_at, failed_at, created_at, updated_at
+             FROM email_queue
+             $where
+             ORDER BY id DESC
+             LIMIT $limit OFFSET $offset"
+        );
+        $stmt->execute($params);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public function countJobs(string $status): int
+    {
+        $where = '';
+        $params = [];
+        if (in_array($status, ['queued', 'processing', 'sent', 'failed'], true)) {
+            $where = 'WHERE status = :status';
+            $params['status'] = $status;
+        }
+
+        $stmt = $this->db->prepare("SELECT COUNT(*) FROM email_queue $where");
+        $stmt->execute($params);
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    public function requeueForRetry(int $emailId): bool
+    {
+        $now = date('Y-m-d H:i:s');
+        $stmt = $this->db->prepare(
+            "UPDATE email_queue
+             SET status = 'queued',
+                 attempts = 0,
+                 error_message = NULL,
+                 available_at = :available_at,
+                 failed_at = NULL,
+                 sent_at = NULL,
+                 updated_at = :updated_at
+             WHERE id = :id
+               AND status IN ('failed', 'sent')"
+        );
+        $stmt->execute([
+            'available_at' => $now,
+            'updated_at' => $now,
+            'id' => $emailId,
+        ]);
+
+        return $stmt->rowCount() > 0;
+    }
+
     private function truncateError(string $errorMessage): string
     {
         $errorMessage = trim($errorMessage);
