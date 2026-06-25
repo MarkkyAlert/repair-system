@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Repositories;
 
+use DomainException;
 use PDO;
 use Throwable;
 
@@ -80,21 +81,39 @@ class CommentRepository
         }
     }
 
-    public function updateComment(int $commentId, string $body, bool $isInternal): void
+    public function updateComment(int $commentId, string $body, bool $isInternal, string $originalUpdatedAt): void
     {
         $stmt = $this->db->prepare(
             'UPDATE ticket_comments
              SET body = :body,
                  is_internal = :is_internal,
                  updated_at = :updated_at
-             WHERE id = :comment_id'
+             WHERE id = :comment_id
+               AND updated_at = :original_updated_at'
         );
         $stmt->execute([
             'body' => $body,
             'is_internal' => $isInternal ? 1 : 0,
             'updated_at' => date('Y-m-d H:i:s'),
             'comment_id' => $commentId,
+            'original_updated_at' => $originalUpdatedAt,
         ]);
+
+        if ($stmt->rowCount() > 0) {
+            return;
+        }
+
+        $existsStmt = $this->db->prepare('SELECT updated_at FROM ticket_comments WHERE id = :comment_id LIMIT 1');
+        $existsStmt->execute(['comment_id' => $commentId]);
+        $currentUpdatedAt = $existsStmt->fetchColumn();
+
+        if ($currentUpdatedAt === false) {
+            throw new DomainException('ไม่พบ comment ที่ต้องการแก้ไข');
+        }
+
+        if ((string) $currentUpdatedAt !== $originalUpdatedAt) {
+            throw new DomainException('Comment ถูกแก้ไขโดยผู้ใช้อื่นแล้ว กรุณารีเฟรชหน้าแล้วลองอีกครั้ง');
+        }
     }
 
     public function deleteComment(int $commentId): void

@@ -110,6 +110,7 @@ CREATE TABLE users (
     username VARCHAR(50) NOT NULL,
     email VARCHAR(190) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
+    password_changed_at DATETIME NULL,
     full_name VARCHAR(150) NOT NULL,
     phone VARCHAR(30) NULL,
     role ENUM('requester','manager','technician','admin') NOT NULL,

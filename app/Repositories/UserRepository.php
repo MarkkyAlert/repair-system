@@ -3,7 +3,9 @@ declare(strict_types=1);
 
 namespace App\Repositories;
 
+use DomainException;
 use PDO;
+use PDOException;
 
 class UserRepository
 {
@@ -14,7 +16,7 @@ class UserRepository
     public function findByLogin(string $login): ?array
     {
         $stmt = $this->db->prepare(
-            'SELECT id, username, email, password_hash, full_name, phone, role, department_id, avatar, is_active, remember_token, created_at, updated_at
+            'SELECT id, username, email, password_hash, password_changed_at, full_name, phone, role, department_id, avatar, is_active, remember_token, created_at, updated_at
              FROM users
              WHERE username = :username OR email = :email
              LIMIT 1'
@@ -30,7 +32,7 @@ class UserRepository
     public function findByEmail(string $email): ?array
     {
         $stmt = $this->db->prepare(
-            'SELECT id, username, email, password_hash, full_name, phone, role, department_id, avatar, is_active, remember_token, created_at, updated_at
+            'SELECT id, username, email, password_hash, password_changed_at, full_name, phone, role, department_id, avatar, is_active, remember_token, created_at, updated_at
              FROM users
              WHERE email = :email
              LIMIT 1'
@@ -43,7 +45,7 @@ class UserRepository
     public function findById(int $userId): ?array
     {
         $stmt = $this->db->prepare(
-            'SELECT id, username, email, password_hash, full_name, phone, role, department_id, avatar, is_active, remember_token, created_at, updated_at
+            'SELECT id, username, email, password_hash, password_changed_at, full_name, phone, role, department_id, avatar, is_active, remember_token, created_at, updated_at
              FROM users
              WHERE id = :id
              LIMIT 1'
@@ -78,15 +80,19 @@ class UserRepository
     {
         $stmt = $this->db->prepare(
             'UPDATE users
-             SET password_hash = :password_hash, updated_at = :updated_at
+             SET password_hash = :password_hash,
+                 password_changed_at = :password_changed_at,
+                 updated_at = :updated_at
              WHERE id = :id
              LIMIT 1'
         );
 
+        $now = date('Y-m-d H:i:s');
         return $stmt->execute([
             'id' => $userId,
             'password_hash' => $passwordHash,
-            'updated_at' => date('Y-m-d H:i:s'),
+            'password_changed_at' => $now,
+            'updated_at' => $now,
         ]);
     }
 
@@ -102,13 +108,23 @@ class UserRepository
              LIMIT 1'
         );
 
-        return $stmt->execute([
-            'id' => $userId,
-            'full_name' => (string) ($data['full_name'] ?? ''),
-            'email' => (string) ($data['email'] ?? ''),
-            'phone' => (string) ($data['phone'] ?? ''),
-            'updated_at' => date('Y-m-d H:i:s'),
-        ]);
+        try {
+            return $stmt->execute([
+                'id' => $userId,
+                'full_name' => (string) ($data['full_name'] ?? ''),
+                'email' => (string) ($data['email'] ?? ''),
+                'phone' => (string) ($data['phone'] ?? ''),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+        } catch (PDOException $exception) {
+            if ((string) $exception->getCode() === '23000') {
+                $message = strtolower($exception->getMessage());
+                if (str_contains($message, 'email')) {
+                    throw new DomainException('อีเมลนี้มีอยู่ในระบบแล้ว');
+                }
+            }
+            throw $exception;
+        }
     }
 
     public function emailExistsForOtherUser(string $email, int $excludeUserId): bool

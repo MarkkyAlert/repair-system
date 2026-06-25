@@ -40,6 +40,8 @@ class AssetService
 
     public function getEditFormData(int $assetId, array $viewer, array $oldInput = []): ?array
     {
+        $this->assertManageable($viewer);
+
         $asset = $this->assets->findAssetById($assetId);
         if ($asset === null) {
             return null;
@@ -50,6 +52,8 @@ class AssetService
 
     public function getAssetDetailData(int $assetId, array $viewer): ?array
     {
+        $this->assertManageable($viewer);
+
         $asset = $this->assets->findAssetById($assetId);
         if ($asset === null) {
             return null;

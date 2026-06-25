@@ -83,7 +83,13 @@ class AssetsController
         AuthMiddleware::handle();
 
         $viewer = auth()->user() ?? [];
-        $detail = $this->assets->getAssetDetailData((int) $assetId, $viewer);
+
+        try {
+            $detail = $this->assets->getAssetDetailData((int) $assetId, $viewer);
+        } catch (DomainException $exception) {
+            flash('error', $exception->getMessage());
+            Response::redirect('/dashboard');
+        }
 
         if ($detail === null) {
             Response::abort(404, 'ไม่พบ Asset ที่ต้องการเปิดดู');

@@ -7,6 +7,7 @@ use App\Repositories\AuditLogRepository;
 use App\Repositories\AdminRepository;
 use App\Repositories\SettingsRepository;
 use DomainException;
+use PDO;
 use Throwable;
 
 class AdminService
@@ -17,6 +18,7 @@ class AdminService
         private AuditLogRepository $auditLogs,
         private EmailTemplateService $emailTemplates,
         private MailerService $mailer,
+        private PDO $db,
     ) {
     }
 
@@ -182,9 +184,20 @@ class AdminService
     {
         $this->assertAdmin($viewer);
         $payload = $this->buildCategoryPayload($input, 'หมวดหมู่');
-        $categoryId = $this->admin->createTicketCategory($payload);
         $slaPayload = $this->encodeSlaPayload($input);
-        $this->settings->upsert('category_sla_' . $categoryId, $slaPayload, 'json', false, (int) ($viewer['id'] ?? 0));
+
+        try {
+            $this->db->beginTransaction();
+            $categoryId = $this->admin->createTicketCategory($payload);
+            $this->settings->upsert('category_sla_' . $categoryId, $slaPayload, 'json', false, (int) ($viewer['id'] ?? 0));
+            $this->db->commit();
+        } catch (Throwable $exception) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw $exception;
+        }
+
         $this->recordAudit($viewer, 'ticket_category.created', 'ticket_category', $categoryId, $payload + ['sla' => json_decode($slaPayload, true)]);
     }
 
@@ -197,8 +210,19 @@ class AdminService
 
         $payload = $this->buildCategoryPayload($input, 'หมวดหมู่');
         $slaPayload = $this->encodeSlaPayload($input);
-        $this->admin->updateTicketCategory($categoryId, $payload);
-        $this->settings->upsert('category_sla_' . $categoryId, $slaPayload, 'json', false, (int) ($viewer['id'] ?? 0));
+
+        try {
+            $this->db->beginTransaction();
+            $this->admin->updateTicketCategory($categoryId, $payload);
+            $this->settings->upsert('category_sla_' . $categoryId, $slaPayload, 'json', false, (int) ($viewer['id'] ?? 0));
+            $this->db->commit();
+        } catch (Throwable $exception) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw $exception;
+        }
+
         $this->recordAudit($viewer, 'ticket_category.updated', 'ticket_category', $categoryId, $payload + ['sla' => json_decode($slaPayload, true)]);
     }
 
@@ -456,13 +480,23 @@ class AdminService
             throw new DomainException('เวลาเริ่มทำการต้องน้อยกว่าเวลาสิ้นสุด');
         }
 
-        $this->settings->upsert('app_name', $appName, 'string', true, $updatedBy);
-        $this->settings->upsert('default_timezone', $timezone, 'string', false, $updatedBy);
-        $this->settings->upsert('ticket_prefix', $ticketPrefix, 'string', false, $updatedBy);
-        $this->settings->upsert('business_hours', json_encode([
-            'start' => $businessStart,
-            'end' => $businessEnd,
-        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 'json', false, $updatedBy);
+        try {
+            $this->db->beginTransaction();
+            $this->settings->upsert('app_name', $appName, 'string', true, $updatedBy);
+            $this->settings->upsert('default_timezone', $timezone, 'string', false, $updatedBy);
+            $this->settings->upsert('ticket_prefix', $ticketPrefix, 'string', false, $updatedBy);
+            $this->settings->upsert('business_hours', json_encode([
+                'start' => $businessStart,
+                'end' => $businessEnd,
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 'json', false, $updatedBy);
+            $this->db->commit();
+        } catch (Throwable $exception) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw $exception;
+        }
+
         $this->recordAudit($viewer, 'system_settings.updated', 'system_setting', null, [
             'app_name' => $appName,
             'default_timezone' => $timezone,

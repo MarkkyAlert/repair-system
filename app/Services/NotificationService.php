@@ -94,7 +94,7 @@ class NotificationService
             'ticket.created' => [
                 'มี ticket ใหม่รออนุมัติ',
                 'Ticket ' . (string) ($context['ticket_no'] ?? '-') . ' ถูกสร้างใหม่และรอการอนุมัติ',
-                [(int) ($context['assigned_manager_id'] ?? 0)],
+                $this->tickets->findActiveApproverIds(),
             ],
             'ticket.approved' => [
                 'Ticket ได้รับการอนุมัติ',

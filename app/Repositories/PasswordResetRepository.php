@@ -35,6 +35,34 @@ class PasswordResetRepository
         ]);
     }
 
+    public function replaceForEmail(string $email, string $tokenHash, string $expiresAt): void
+    {
+        try {
+            $this->db->beginTransaction();
+
+            $deleteStmt = $this->db->prepare('DELETE FROM password_resets WHERE email = :email');
+            $deleteStmt->execute(['email' => $email]);
+
+            $insertStmt = $this->db->prepare(
+                'INSERT INTO password_resets (email, token, created_at, expires_at)
+                 VALUES (:email, :token, :created_at, :expires_at)'
+            );
+            $insertStmt->execute([
+                'email' => $email,
+                'token' => $tokenHash,
+                'created_at' => date('Y-m-d H:i:s'),
+                'expires_at' => $expiresAt,
+            ]);
+
+            $this->db->commit();
+        } catch (Throwable $exception) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw $exception;
+        }
+    }
+
     public function findLatestByEmail(string $email): ?array
     {
         $stmt = $this->db->prepare(
@@ -83,13 +111,17 @@ class PasswordResetRepository
 
             $userStmt = $this->db->prepare(
                 'UPDATE users
-                 SET password_hash = :password_hash, updated_at = :updated_at
+                 SET password_hash = :password_hash,
+                     password_changed_at = :password_changed_at,
+                     updated_at = :updated_at
                  WHERE email = :email
                  LIMIT 1'
             );
+            $now = date('Y-m-d H:i:s');
             $userStmt->execute([
                 'password_hash' => $passwordHash,
-                'updated_at' => date('Y-m-d H:i:s'),
+                'password_changed_at' => $now,
+                'updated_at' => $now,
                 'email' => $email,
             ]);
 

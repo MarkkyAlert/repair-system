@@ -81,12 +81,17 @@ class CommentService
         $comment = $this->requireEditableComment($ticketId, $commentId, $viewer);
         $body = trim((string) ($input['body'] ?? ''));
         $isInternal = $this->parseInternalFlag($viewer, $input, (bool) ($comment['is_internal'] ?? false));
+        $originalUpdatedAt = trim((string) ($input['original_updated_at'] ?? ''));
 
         if ($body === '') {
             throw new DomainException('กรุณากรอกข้อความ comment ก่อนบันทึก');
         }
 
-        $this->comments->updateComment($commentId, $body, $isInternal);
+        if ($originalUpdatedAt === '') {
+            throw new DomainException('ข้อมูล comment ไม่ครบถ้วน กรุณารีเฟรชหน้าแล้วลองอีกครั้ง');
+        }
+
+        $this->comments->updateComment($commentId, $body, $isInternal, $originalUpdatedAt);
         $this->notifications->notifyCommentEvent($ticketId, $commentId, (int) ($viewer['id'] ?? 0), $isInternal, $body, 'updated');
 
         return [
@@ -104,16 +109,35 @@ class CommentService
         $comment = $this->requireEditableComment($ticketId, $commentId, $viewer);
 
         $paths = $this->attachments->getCommentFilePaths($commentId);
-        $this->comments->deleteComment($commentId);
-        $this->attachments->deleteStoredFiles($paths);
-        $this->notifications->notifyCommentEvent(
-            $ticketId,
-            $commentId,
-            (int) ($viewer['id'] ?? 0),
-            (bool) ($comment['is_internal'] ?? false),
-            (string) ($comment['body'] ?? ''),
-            'deleted'
-        );
+
+        try {
+            $this->db->beginTransaction();
+            $this->comments->deleteComment($commentId);
+            $this->db->commit();
+        } catch (Throwable $exception) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw $exception;
+        }
+
+        try {
+            $this->attachments->deleteStoredFiles($paths);
+        } catch (Throwable $exception) {
+            error_log('[comment.delete] file cleanup failed for comment ' . $commentId . ': ' . $exception->getMessage());
+        }
+
+        try {
+            $this->notifications->notifyCommentEvent(
+                $ticketId,
+                $commentId,
+                (int) ($viewer['id'] ?? 0),
+                (bool) ($comment['is_internal'] ?? false),
+                (string) ($comment['body'] ?? ''),
+                'deleted'
+            );
+        } catch (Throwable) {
+        }
     }
 
     private function requireVisibleTicket(int $ticketId, array $viewer): array

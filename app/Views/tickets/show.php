@@ -557,6 +557,7 @@ if (!empty($workflow['canReview'])) {
                                 <div data-comment-edit-panel<?= $isEditingComment ? '' : ' hidden' ?>>
                                     <form method="post" action="<?= e(url('/tickets/' . $ticket['id'] . '/comments/' . $comment['id'] . '/update')) ?>" class="stack-md" data-comment-edit-form onsubmit="return window.__handleInlineCommentSave ? window.__handleInlineCommentSave(this, event) : true;">
                                         <?= csrf_field() ?>
+                                        <input type="hidden" name="original_updated_at" value="<?= e((string) ($comment['updated_at'] ?? '')) ?>">
                                         <div class="field-group">
                                             <label for="comment_edit_<?= e((string) $comment['id']) ?>" class="field-label">แก้ไขความเห็น</label>
                                             <textarea id="comment_edit_<?= e((string) $comment['id']) ?>" name="body" class="input" rows="3" data-comment-edit-textarea><?= e((string) (!empty($workflow['defaults']['has_comment_body_old_input']) ? ($workflow['defaults']['comment_body'] ?? '') : $comment['body'])) ?></textarea>

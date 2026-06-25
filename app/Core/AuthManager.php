@@ -8,6 +8,7 @@ use App\Repositories\UserRepository;
 class AuthManager
 {
     private const SESSION_KEY = '_auth_user';
+    private const PASSWORD_STAMP_KEY = '_auth_password_stamp';
 
     public function __construct(private UserRepository $users)
     {
@@ -34,13 +35,16 @@ class AuthManager
 
     public function login(array $user): void
     {
+        $passwordStamp = (string) ($user['password_changed_at'] ?? '');
         unset($user['password_hash'], $user['remember_token']);
         Session::put(self::SESSION_KEY, $user);
+        Session::put(self::PASSWORD_STAMP_KEY, $passwordStamp);
     }
 
     public function logout(): void
     {
         Session::forget(self::SESSION_KEY);
+        Session::forget(self::PASSWORD_STAMP_KEY);
     }
 
     public function guest(): bool
@@ -61,7 +65,17 @@ class AuthManager
             return false;
         }
 
-        $this->login($user);
+        $storedStamp = (string) (Session::get(self::PASSWORD_STAMP_KEY) ?? '');
+        $currentStamp = (string) ($user['password_changed_at'] ?? '');
+        if ($storedStamp !== $currentStamp) {
+            // Password changed in another session after this one was issued -> force re-login
+            $this->logout();
+            return false;
+        }
+
+        // Refresh cached user data while preserving the original session stamp.
+        unset($user['password_hash'], $user['remember_token']);
+        Session::put(self::SESSION_KEY, $user);
 
         return true;
     }

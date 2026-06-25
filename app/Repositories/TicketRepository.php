@@ -588,7 +588,7 @@ class TicketRepository
                     'asset_id' => $payload['asset_id'],
                     'ticket_category_id' => $payload['ticket_category_id'],
                     'priority_id' => $payload['priority_id'],
-                    'assigned_manager_id' => $approverId,
+                    'assigned_manager_id' => null,
                     'assigned_technician_id' => null,
                     'approval_status' => 'pending',
                     'status' => 'pending_approval',
@@ -766,11 +766,24 @@ class TicketRepository
             $this->db->beginTransaction();
             $this->lockTicketForTransition($ticketId, ['approved', 'assigned'], 'approved');
 
+            $isReassign = $currentStatus === 'assigned';
+            $existingResponseDueAt = '';
+            if ($isReassign) {
+                // Refresh response_due_at within the locked row so the SLA reset uses the current target.
+                $dueStmt = $this->db->prepare(
+                    'SELECT response_due_at FROM tickets WHERE id = :ticket_id LIMIT 1'
+                );
+                $dueStmt->execute(['ticket_id' => $ticketId]);
+                $existingResponseDueAt = (string) ($dueStmt->fetchColumn() ?: '');
+            }
+
+            $firstResponseClause = $isReassign ? 'first_response_at = NULL,' : '';
             $ticketStmt = $this->db->prepare(
                 'UPDATE tickets
                  SET assigned_technician_id = :technician_id,
                      status = :status,
                      assigned_at = :assigned_at,
+                     ' . $firstResponseClause . '
                      updated_at = :updated_at
                  WHERE id = :ticket_id'
             );
@@ -877,6 +890,12 @@ class TicketRepository
             }
 
             $this->insertActivityLog($ticketId, $actorId, 'technician_assigned', $currentStatus, 'assigned', $details);
+
+            if ($isReassign && $existingResponseDueAt !== '') {
+                // Reassigning a ticket invalidates the previous technician's first response;
+                // reset the response SLA row so the new technician starts from pending state.
+                $this->resetSlaTrack($ticketId, 'response', $existingResponseDueAt);
+            }
 
             $this->db->commit();
         } catch (Throwable $exception) {
@@ -1181,8 +1200,7 @@ class TicketRepository
                 throw new RuntimeException('ไม่พบ work order สำหรับ ticket นี้');
             }
 
-            $ratingStmt = $this->db->prepare('DELETE FROM ticket_ratings WHERE ticket_id = :ticket_id');
-            $ratingStmt->execute(['ticket_id' => $ticketId]);
+            // Keep ticket_ratings row to preserve audit trail; upsertTicketRating will overwrite it if rated again.
 
             $this->resetSlaTrack($ticketId, 'response', $responseDueAt);
             $this->resetSlaTrack($ticketId, 'resolution', $resolutionDueAt);
@@ -1440,6 +1458,18 @@ class TicketRepository
         $approverId = $stmt->fetchColumn();
 
         return $approverId !== false ? (int) $approverId : null;
+    }
+
+    public function findActiveApproverIds(): array
+    {
+        $stmt = $this->db->query(
+            "SELECT id
+             FROM users
+             WHERE is_active = 1 AND role IN ('manager', 'admin')
+             ORDER BY CASE role WHEN 'manager' THEN 1 ELSE 2 END, id ASC"
+        );
+
+        return array_map(static fn (mixed $id): int => (int) $id, $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
     }
 
     private function upsertApprovalDecision(int $ticketId, int $approverId, string $action, string $note, string $actedAt): void

@@ -5,6 +5,7 @@ namespace App\Repositories;
 
 use DomainException;
 use PDO;
+use PDOException;
 use RuntimeException;
 use Throwable;
 
@@ -186,6 +187,20 @@ class AssetRepository
         ];
     }
 
+    private function translateAssetUniqueViolation(Throwable $exception): void
+    {
+        if (!$exception instanceof PDOException || (string) $exception->getCode() !== '23000') {
+            return;
+        }
+        $message = strtolower($exception->getMessage());
+        if (str_contains($message, 'asset_code')) {
+            throw new DomainException('รหัส Asset นี้มีอยู่ในระบบแล้ว');
+        }
+        if (str_contains($message, 'serial_number')) {
+            throw new DomainException('Serial number นี้มีอยู่ในระบบแล้ว');
+        }
+    }
+
     public function createAsset(array $payload): int
     {
         $createdAt = date('Y-m-d H:i:s');
@@ -261,6 +276,8 @@ class AssetRepository
                 $this->db->rollBack();
             }
 
+            $this->translateAssetUniqueViolation($exception);
+
             throw $exception;
         }
     }
@@ -288,25 +305,30 @@ class AssetRepository
              WHERE id = :asset_id
                AND updated_at = :original_updated_at'
         );
-        $stmt->execute([
-            'asset_code' => $payload['asset_code'],
-            'name' => $payload['name'],
-            'serial_number' => $payload['serial_number'] ?: null,
-            'asset_category_id' => $payload['asset_category_id'],
-            'department_id' => $payload['department_id'],
-            'location_id' => $payload['location_id'],
-            'custodian_user_id' => $payload['custodian_user_id'],
-            'brand' => $payload['brand'] ?: null,
-            'model' => $payload['model'] ?: null,
-            'vendor' => $payload['vendor'] ?: null,
-            'purchase_date' => $payload['purchase_date'] ?: null,
-            'warranty_expires_at' => $payload['warranty_expires_at'] ?: null,
-            'status' => $payload['status'],
-            'notes' => $payload['notes'] ?: null,
-            'updated_at' => date('Y-m-d H:i:s'),
-            'asset_id' => $assetId,
-            'original_updated_at' => (string) ($payload['original_updated_at'] ?? ''),
-        ]);
+        try {
+            $stmt->execute([
+                'asset_code' => $payload['asset_code'],
+                'name' => $payload['name'],
+                'serial_number' => $payload['serial_number'] ?: null,
+                'asset_category_id' => $payload['asset_category_id'],
+                'department_id' => $payload['department_id'],
+                'location_id' => $payload['location_id'],
+                'custodian_user_id' => $payload['custodian_user_id'],
+                'brand' => $payload['brand'] ?: null,
+                'model' => $payload['model'] ?: null,
+                'vendor' => $payload['vendor'] ?: null,
+                'purchase_date' => $payload['purchase_date'] ?: null,
+                'warranty_expires_at' => $payload['warranty_expires_at'] ?: null,
+                'status' => $payload['status'],
+                'notes' => $payload['notes'] ?: null,
+                'updated_at' => date('Y-m-d H:i:s'),
+                'asset_id' => $assetId,
+                'original_updated_at' => (string) ($payload['original_updated_at'] ?? ''),
+            ]);
+        } catch (PDOException $exception) {
+            $this->translateAssetUniqueViolation($exception);
+            throw $exception;
+        }
 
         if ($stmt->rowCount() > 0) {
             return;

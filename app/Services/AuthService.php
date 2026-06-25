@@ -42,6 +42,7 @@ class AuthService
         }
 
         if (!(bool) $user['is_active']) {
+            $this->rateLimiter->hit($limiterKey);
             throw new DomainException('บัญชีนี้ถูกปิดใช้งาน');
         }
 
@@ -75,8 +76,7 @@ class AuthService
         $tokenHash = hash('sha256', $token);
         $expiresAt = date('Y-m-d H:i:s', time() + 3600);
 
-        $this->passwordResets->deleteByEmail($email);
-        $this->passwordResets->create($email, $tokenHash, $expiresAt);
+        $this->passwordResets->replaceForEmail($email, $tokenHash, $expiresAt);
 
         $resetUrl = url('/reset-password?email=' . rawurlencode($email) . '&token=' . rawurlencode($token));
         $this->emails->queuePasswordResetEmail($user, $resetUrl, $expiresAt);
@@ -154,7 +154,13 @@ class AuthService
 
         $this->users->updatePassword($userId, password_hash($password, PASSWORD_BCRYPT));
         Session::regenerate();
-        $this->auth->refresh();
+
+        // Re-issue the current session with the new password stamp so this device stays logged in
+        // while other sessions of the same user get kicked out on their next AuthMiddleware refresh.
+        $freshUser = $this->users->findById($userId);
+        if ($freshUser !== null) {
+            $this->auth->login($freshUser);
+        }
     }
 
     public function updateProfile(array $viewer, array $input): array
