@@ -1,4 +1,5 @@
 <section class="stack-lg">
+    <h1 class="sr-only">แจ้งซ่อมใหม่ — กรอกข้อมูลปัญหาเพื่อเปิด Ticket</h1>
     <?= render_partial('partials/components/page-header', [
         'eyebrow' => 'แจ้งซ่อมใหม่',
         'title' => 'แจ้งซ่อมใหม่',
@@ -17,7 +18,7 @@
         <details class="panel-card stack-md ticket-create-info-card" open data-mobile-collapsible-info>
             <summary class="panel-head ticket-create-info-summary">
                 <h2 class="panel-title">ข้อมูลผู้แจ้ง</h2>
-                <span class="metric-icon ticket-create-info-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide('user', 'h-4 w-4') ?></span>
+                <span class="metric-icon metric-icon-sm ticket-create-info-icon"><?= lucide('user', 'h-4 w-4') ?></span>
                 <span class="collapsible-chevron ticket-create-info-chevron" aria-hidden="true"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
             </summary>
             <div class="ticket-create-info-body stack-md">
@@ -34,7 +35,7 @@
         <details class="panel-card stack-md ticket-create-info-card" open data-mobile-collapsible-info>
             <summary class="panel-head ticket-create-info-summary">
                 <h2 class="panel-title">หลังจากกดส่ง</h2>
-                <span class="metric-icon ticket-create-info-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide('zap', 'h-4 w-4') ?></span>
+                <span class="metric-icon metric-icon-sm ticket-create-info-icon"><?= lucide('zap', 'h-4 w-4') ?></span>
                 <span class="collapsible-chevron ticket-create-info-chevron" aria-hidden="true"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
             </summary>
             <div class="ticket-create-info-body stack-md">
@@ -62,13 +63,13 @@
             </div>
         <?php endif; ?>
 
-        <form method="post" action="<?= e(url('/tickets')) ?>" class="stack-lg" enctype="multipart/form-data" aria-describedby="create-ticket-form-description">
+        <form method="post" action="<?= e(url('/tickets')) ?>" class="stack-lg" enctype="multipart/form-data" aria-describedby="create-ticket-form-description" data-loading-submit data-warn-unsaved>
             <?= csrf_field() ?>
             <input type="hidden" name="submission_token" value="<?= e((string) ($form['defaults']['submission_token'] ?? '')) ?>">
 
             <div class="action-bar ticket-create-action-bar">
                 <div class="action-bar-left">
-                    <span class="metric-icon" style="width:36px;height:36px;flex:0 0 36px"><?= lucide('send', 'h-4 w-4') ?></span>
+                    <span class="metric-icon metric-icon-sm"><?= lucide('send', 'h-4 w-4') ?></span>
                     <div>
                         <strong>พร้อมส่งเมื่อกรอกข้อมูลจำเป็นครบ</strong>
                         <p class="helper-text">ระบบจะสร้าง Ticket และส่งเข้าสู่ขั้นตอนอนุมัติ</p>
@@ -176,19 +177,26 @@
                 </div>
             </section>
 
-            <section class="ticket-form-section">
-                <div class="ticket-form-section-head">
+            <?php
+            $impactCurrent = (string) ($form['defaults']['impact_level'] ?? 'medium');
+            $urgencyCurrent = (string) ($form['defaults']['urgency_level'] ?? 'medium');
+            $impactOpen = $impactCurrent !== 'medium' || $urgencyCurrent !== 'medium';
+            ?>
+            <details class="ticket-form-section ticket-form-section-collapsible"<?= $impactOpen ? ' open' : '' ?>>
+                <summary class="ticket-form-section-head">
                     <div>
                         <h3>ผลกระทบและความเร่งด่วน</h3>
-                        <p id="impact-section-help">ข้อมูลส่วนนี้ช่วยให้ทีมประเมินลำดับงานได้แม่นขึ้น</p>
+                        <p id="impact-section-help">ข้อมูลส่วนนี้ช่วยให้ทีมประเมินลำดับงานได้แม่นขึ้น (ไม่บังคับ)</p>
                     </div>
-                </div>
+                    <span class="badge badge-default">ไม่บังคับ</span>
+                    <span class="collapsible-chevron" aria-hidden="true"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
+                </summary>
                 <div class="ticket-form-grid">
                     <div class="field-group">
                         <label for="impact_level" class="field-label">ผลกระทบ (Impact)</label>
                         <select id="impact_level" name="impact_level" class="input" aria-describedby="impact-help">
                             <?php foreach (($form['impactOptions'] ?? []) as $option): ?>
-                                <option value="<?= e($option['value']) ?>"<?= (string) ($form['defaults']['impact_level'] ?? 'medium') === (string) $option['value'] ? ' selected' : '' ?>><?= e($option['label']) ?></option>
+                                <option value="<?= e($option['value']) ?>"<?= $impactCurrent === (string) $option['value'] ? ' selected' : '' ?>><?= e($option['label']) ?></option>
                             <?php endforeach; ?>
                         </select>
                         <p id="impact-help" class="field-hint">ปัญหานี้กระทบผู้ใช้กี่คนหรือกี่หน่วยงาน?</p>
@@ -198,13 +206,13 @@
                         <label for="urgency_level" class="field-label">ความเร่งด่วน (Urgency)</label>
                         <select id="urgency_level" name="urgency_level" class="input" aria-describedby="urgency-help">
                             <?php foreach (($form['urgencyOptions'] ?? []) as $option): ?>
-                                <option value="<?= e($option['value']) ?>"<?= (string) ($form['defaults']['urgency_level'] ?? 'medium') === (string) $option['value'] ? ' selected' : '' ?>><?= e($option['label']) ?></option>
+                                <option value="<?= e($option['value']) ?>"<?= $urgencyCurrent === (string) $option['value'] ? ' selected' : '' ?>><?= e($option['label']) ?></option>
                             <?php endforeach; ?>
                         </select>
                         <p id="urgency-help" class="field-hint">รอได้นานแค่ไหน? ค่ายิ่งสูง หมายถึงควรเข้าดำเนินการเร็วขึ้น</p>
                     </div>
                 </div>
-            </section>
+            </details>
 
             <section class="ticket-form-section">
                 <div class="ticket-form-section-head">

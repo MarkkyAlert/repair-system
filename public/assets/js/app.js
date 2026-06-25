@@ -44,6 +44,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     sidebar.classList.toggle('is-open', isOpen);
 
+    if (sidebarToggle) {
+      sidebarToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    }
+
     if (sidebarOverlay) {
       if (isOpen) {
         sidebarOverlay.removeAttribute('hidden');
@@ -71,6 +75,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (localStorage.getItem('sidebar-collapsed') === 'true') {
     document.body.classList.add('sidebar-collapsed');
+    if (sidebarCollapse) {
+      sidebarCollapse.setAttribute('aria-expanded', 'false');
+      sidebarCollapse.setAttribute('aria-label', 'ขยายเมนูด้านข้าง');
+    }
   }
 
   if (themeToggle) {
@@ -91,6 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const collapsed = document.body.classList.toggle('sidebar-collapsed');
       localStorage.setItem('sidebar-collapsed', collapsed ? 'true' : 'false');
       sidebarCollapse.setAttribute('aria-label', collapsed ? 'ขยายเมนูด้านข้าง' : 'ย่อเมนูด้านข้าง');
+      sidebarCollapse.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
     });
   }
 
@@ -737,6 +746,34 @@ document.addEventListener('DOMContentLoaded', () => {
       if (countEl) {
         countEl.textContent = q ? shown + ' / ' + items.length + ' รายการ' : '';
       }
+    });
+  });
+
+  // ── Form submit loading state ──
+  document.querySelectorAll('form[data-loading-submit]').forEach(function (form) {
+    form.addEventListener('submit', function () {
+      var btn = form.querySelector('button[type="submit"]');
+      if (!btn || btn.disabled) return;
+      btn.classList.add('is-loading');
+      btn.disabled = true;
+      setTimeout(function () {
+        btn.classList.remove('is-loading');
+        btn.disabled = false;
+      }, 8000);
+    });
+  });
+
+  // ── Unsaved changes warning ──
+  document.querySelectorAll('form[data-warn-unsaved]').forEach(function (form) {
+    var isDirty = false;
+    var markDirty = function () { isDirty = true; };
+    form.addEventListener('input', markDirty);
+    form.addEventListener('change', markDirty);
+    form.addEventListener('submit', function () { isDirty = false; });
+    window.addEventListener('beforeunload', function (e) {
+      if (!isDirty) return;
+      e.preventDefault();
+      e.returnValue = '';
     });
   });
 });

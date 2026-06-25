@@ -4,6 +4,7 @@ $returnQuery = $_GET ?? [];
 $returnTo = '/notifications' . ($returnQuery === [] ? '' : '?' . http_build_query($returnQuery));
 ?>
 <section class="stack-lg notification-page">
+    <h1 class="sr-only">ศูนย์การแจ้งเตือน — งานและบทสนทนาที่ต้องติดตาม</h1>
     <?php ob_start(); ?>
     <?php if (($unreadCount ?? 0) > 0): ?>
         <form method="post" action="<?= e(url('/notifications/read-all')) ?>">
@@ -20,7 +21,7 @@ $returnTo = '/notifications' . ($returnQuery === [] ? '' : '?' . http_build_quer
     <?php $heroActions = (string) ob_get_clean(); ?>
 
     <?= render_partial('partials/components/page-header', [
-        'eyebrow' => 'Operations Inbox',
+        'eyebrow' => 'กล่องแจ้งเตือนของฉัน',
         'title' => 'ศูนย์การแจ้งเตือน',
         'description' => 'กล่องแจ้งเตือนของคุณ — งานที่ต้องทำและบทสนทนาในที่เดียว',
         'actions' => $heroActions,
@@ -39,15 +40,15 @@ $returnTo = '/notifications' . ($returnQuery === [] ? '' : '?' . http_build_quer
                 </div>
                 <div class="notification-summary-metrics" aria-label="สรุปการแจ้งเตือน">
                     <span class="notification-summary-card tone-danger">
-                        <i><?= lucide('triangle-alert', 'h-4 w-4') ?></i>
+                        <span class="notification-summary-icon" aria-hidden="true"><?= lucide('triangle-alert', 'h-4 w-4') ?></span>
                         <span><strong><?= e((string) ($actionCount ?? 0)) ?></strong><small>รายการเร่งด่วน</small></span>
                     </span>
                     <span class="notification-summary-card tone-info">
-                        <i><?= lucide('message-circle', 'h-4 w-4') ?></i>
+                        <span class="notification-summary-icon" aria-hidden="true"><?= lucide('message-circle', 'h-4 w-4') ?></span>
                         <span><strong><?= e((string) ($unreadThreadCount ?? 0)) ?></strong><small>Ticket มีข้อความใหม่</small></span>
                     </span>
                     <span class="notification-summary-card tone-default">
-                        <i><?= lucide('clipboard-list', 'h-4 w-4') ?></i>
+                        <span class="notification-summary-icon" aria-hidden="true"><?= lucide('clipboard-list', 'h-4 w-4') ?></span>
                         <span><strong><?= e((string) ($threadCount ?? 0)) ?></strong><small>Ticket ทั้งหมด</small></span>
                     </span>
                 </div>

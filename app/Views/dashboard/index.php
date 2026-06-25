@@ -324,10 +324,14 @@ if ($metricCount('pendingApproval') > 0) {
                     <div class="chart-loading" data-chart-loading><?= render_partial('partials/components/skeleton') ?></div>
                     <canvas class="chart-canvas" data-dashboard-chart="categoryBreakdown" data-chart-type="doughnut" role="img" aria-label="กราฟสัดส่วนตามหมวดหมู่ รวม <?= e($summary['total'] ?? '') ?>"></canvas>
                 <?php else: ?>
+                    <?php ob_start(); ?>
+                        <?= render_partial('partials/components/button', ['label' => 'แจ้งปัญหาใหม่', 'variant' => 'primary', 'href' => '/tickets/create', 'icon' => 'arrow-right', 'iconPosition' => 'right', 'size' => 'sm']) ?>
+                    <?php $emptySlot = (string) ob_get_clean(); ?>
                     <?= render_partial('partials/components/empty-state', [
                         'icon' => 'tag',
                         'title' => 'ยังไม่มีข้อมูลหมวดหมู่',
                         'description' => 'เมื่อมี Ticket ตามหมวดหมู่ ระบบจะสรุปสัดส่วนให้ที่นี่',
+                        'slot' => $emptySlot,
                     ]) ?>
                 <?php endif; ?>
             </div>
@@ -347,10 +351,14 @@ if ($metricCount('pendingApproval') > 0) {
                     <div class="chart-loading" data-chart-loading><?= render_partial('partials/components/skeleton') ?></div>
                     <canvas class="chart-canvas" data-dashboard-chart="departmentBreakdown" data-chart-type="doughnut" role="img" aria-label="กราฟปริมาณงานตามแผนก รวม <?= e($summary['total'] ?? '') ?>"></canvas>
                 <?php else: ?>
+                    <?php ob_start(); ?>
+                        <?= render_partial('partials/components/button', ['label' => 'แจ้งปัญหาใหม่', 'variant' => 'primary', 'href' => '/tickets/create', 'icon' => 'arrow-right', 'iconPosition' => 'right', 'size' => 'sm']) ?>
+                    <?php $emptySlot = (string) ob_get_clean(); ?>
                     <?= render_partial('partials/components/empty-state', [
                         'icon' => 'building',
                         'title' => 'ยังไม่มีข้อมูลตามแผนก',
                         'description' => 'เมื่อมี Ticket จากแผนกต่าง ๆ ระบบจะแสดงสัดส่วนให้ที่นี่',
+                        'slot' => $emptySlot,
                     ]) ?>
                 <?php endif; ?>
             </div>
@@ -370,10 +378,14 @@ if ($metricCount('pendingApproval') > 0) {
                     <div class="chart-loading" data-chart-loading><?= render_partial('partials/components/skeleton') ?></div>
                     <canvas class="chart-canvas" data-dashboard-chart="resolutionTrend" data-chart-type="line" role="img" aria-label="กราฟเวลาแก้ไขเฉลี่ย ค่าเฉลี่ยสูงสุด <?= e($summary['top'] ?? '') ?>"></canvas>
                 <?php else: ?>
+                    <?php ob_start(); ?>
+                        <?= render_partial('partials/components/button', ['label' => 'ดูงานที่กำลังดำเนินการ', 'variant' => 'secondary', 'href' => '/tickets?status=in_progress', 'icon' => 'arrow-right', 'iconPosition' => 'right', 'size' => 'sm']) ?>
+                    <?php $emptySlot = (string) ob_get_clean(); ?>
                     <?= render_partial('partials/components/empty-state', [
                         'icon' => 'clock',
                         'title' => 'ยังไม่มีเวลาแก้ไขเฉลี่ย',
                         'description' => 'เมื่อมีงานที่แก้ไขเสร็จ ระบบจะคำนวณแนวโน้มให้ที่นี่',
+                        'slot' => $emptySlot,
                     ]) ?>
                 <?php endif; ?>
             </div>

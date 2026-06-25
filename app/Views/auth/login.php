@@ -3,7 +3,7 @@
 <section class="guest-panel">
     <div class="guest-brand">
         <?php if ($authLogoUrl !== null): ?>
-            <div class="brand-mark brand-mark-logo" aria-hidden="true"><img src="<?= e($authLogoUrl) ?>" alt="<?= e($authAppName) ?>" style="max-width:100%;max-height:100%;object-fit:contain;"></div>
+            <div class="brand-mark brand-mark-logo" aria-hidden="true"><img src="<?= e($authLogoUrl) ?>" alt="<?= e($authAppName) ?>"></div>
         <?php else: ?>
             <div class="brand-mark" aria-hidden="true"><?= lucide("wrench", "brand-icon") ?></div>
         <?php endif; ?>
@@ -44,7 +44,7 @@
             </ul>
         </div>
 
-        <form class="auth-card" method="post" action="<?= e(url('/login')) ?>">
+        <form class="auth-card" method="post" action="<?= e(url('/login')) ?>" data-loading-submit>
             <?= csrf_field() ?>
             <input type="hidden" name="return_to" value="<?= e($returnTo ?? '/dashboard') ?>">
 

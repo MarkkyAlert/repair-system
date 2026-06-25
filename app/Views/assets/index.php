@@ -1,15 +1,56 @@
 <?php
 $assetFilters = $filters ?? ['q' => '', 'category_id' => 0, 'location_id' => 0, 'status' => ''];
 $assetFilterOptions = $filterOptions ?? ['categories' => [], 'locations' => [], 'statuses' => []];
-$assetActiveFilters = $activeFilters ?? [];
 $assetSearch = (string) ($assetFilters['q'] ?? '');
 $assetCategoryId = (int) ($assetFilters['category_id'] ?? 0);
 $assetLocationId = (int) ($assetFilters['location_id'] ?? 0);
 $assetStatus = (string) ($assetFilters['status'] ?? '');
 $isAssetFilterActive = $assetSearch !== '' || $assetCategoryId > 0 || $assetLocationId > 0 || $assetStatus !== '';
 $isAssetAdvancedFilterActive = $assetCategoryId > 0 || $assetLocationId > 0 || $assetStatus !== '';
+
+$assetCategoryLabel = '';
+foreach (($assetFilterOptions['categories'] ?? []) as $option) {
+    if ((int) ($option['id'] ?? 0) === $assetCategoryId) {
+        $assetCategoryLabel = (string) ($option['label'] ?? '');
+        break;
+    }
+}
+$assetLocationLabel = '';
+foreach (($assetFilterOptions['locations'] ?? []) as $option) {
+    if ((int) ($option['id'] ?? 0) === $assetLocationId) {
+        $assetLocationLabel = (string) ($option['label'] ?? '');
+        break;
+    }
+}
+$assetStatusLabel = (string) (($assetFilterOptions['statuses'] ?? [])[$assetStatus] ?? '');
+
+$assetChipDismissUrl = static function (string $removeKey) use ($assetSearch, $assetCategoryId, $assetLocationId, $assetStatus): string {
+    $query = [
+        'q' => $assetSearch,
+        'category_id' => $assetCategoryId > 0 ? (string) $assetCategoryId : '',
+        'location_id' => $assetLocationId > 0 ? (string) $assetLocationId : '',
+        'status' => $assetStatus,
+    ];
+    unset($query[$removeKey]);
+    $query = array_filter($query, static fn ($v): bool => (string) $v !== '');
+    return url('/asset-registry' . ($query !== [] ? '?' . http_build_query($query) : ''));
+};
+$assetActiveChips = [];
+if ($assetSearch !== '') {
+    $assetActiveChips[] = ['label' => 'คำค้น: ' . $assetSearch, 'dismiss' => $assetChipDismissUrl('q')];
+}
+if ($assetCategoryId > 0) {
+    $assetActiveChips[] = ['label' => 'หมวดหมู่: ' . ($assetCategoryLabel !== '' ? $assetCategoryLabel : (string) $assetCategoryId), 'dismiss' => $assetChipDismissUrl('category_id')];
+}
+if ($assetLocationId > 0) {
+    $assetActiveChips[] = ['label' => 'สถานที่: ' . ($assetLocationLabel !== '' ? $assetLocationLabel : (string) $assetLocationId), 'dismiss' => $assetChipDismissUrl('location_id')];
+}
+if ($assetStatus !== '') {
+    $assetActiveChips[] = ['label' => 'สถานะ: ' . ($assetStatusLabel !== '' ? $assetStatusLabel : $assetStatus), 'dismiss' => $assetChipDismissUrl('status')];
+}
 ?>
 <section class="stack-lg">
+    <h1 class="sr-only">ทรัพย์สินและ QR — ทะเบียนทรัพย์สินขององค์กร</h1>
     <?php ob_start(); ?>
                 <?php if (!empty($canManage)): ?>
                     <?= render_partial('partials/components/button', ['label' => 'เพิ่มทรัพย์สิน', 'variant' => 'primary', 'href' => '/asset-registry/create', 'icon' => 'arrow-right']) ?>
@@ -25,7 +66,12 @@ $isAssetAdvancedFilterActive = $assetCategoryId > 0 || $assetLocationId > 0 || $
 
     <section class="panel-card stack-md">
         <div class="panel-head">
-            <h2 class="panel-title">ทรัพย์สินทั้งหมด</h2>
+            <div>
+                <h2 class="panel-title"><?= $isAssetFilterActive ? 'ผลการกรองทรัพย์สิน' : 'ทรัพย์สินทั้งหมด' ?></h2>
+                <p class="field-hint"><?= $isAssetFilterActive
+                    ? 'รายการที่ตรงกับเงื่อนไขที่เลือก ปรับตัวกรองเพื่อขยายผลลัพธ์'
+                    : 'รายการทรัพย์สินทั้งหมดในระบบ พร้อม QR สำหรับสแกนแจ้งซ่อม' ?></p>
+            </div>
             <span class="badge badge-info"><?= e($roleLabel ?? '-') ?></span>
         </div>
 
@@ -43,10 +89,10 @@ $isAssetAdvancedFilterActive = $assetCategoryId > 0 || $assetLocationId > 0 || $
                 </div>
             </div>
 
-            <?php if ($assetActiveFilters !== []): ?>
+            <?php if ($assetActiveChips !== []): ?>
                 <div class="asset-filter-chips" aria-label="ตัวกรองทรัพย์สินที่กำลังใช้งาน">
-                    <?php foreach ($assetActiveFilters as $chip): ?>
-                        <span class="filter-chip"><?= e((string) $chip) ?></span>
+                    <?php foreach ($assetActiveChips as $chip): ?>
+                        <span class="filter-chip"><?= e($chip['label']) ?><a href="<?= e($chip['dismiss']) ?>" class="filter-chip-dismiss" aria-label="ลบตัวกรอง <?= e($chip['label']) ?>"><?= lucide('x', 'h-3 w-3') ?></a></span>
                     <?php endforeach; ?>
                 </div>
             <?php endif; ?>
@@ -55,7 +101,7 @@ $isAssetAdvancedFilterActive = $assetCategoryId > 0 || $assetLocationId > 0 || $
                 <summary>
                     <span><?= lucide('filter', 'h-4 w-4') ?> ตัวกรองเพิ่มเติม</span>
                     <?php if ($isAssetAdvancedFilterActive): ?>
-                        <span class="badge badge-info"><?= e((string) count($assetActiveFilters)) ?> ตัวกรอง</span>
+                        <span class="badge badge-info"><?= e((string) count($assetActiveChips)) ?> ตัวกรอง</span>
                     <?php endif; ?>
                     <span class="collapsible-chevron"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
                 </summary>
@@ -92,10 +138,18 @@ $isAssetAdvancedFilterActive = $assetCategoryId > 0 || $assetLocationId > 0 || $
         </form>
 
         <?php if ($assets === []): ?>
+            <?php ob_start(); ?>
+                <?php if ($isAssetFilterActive): ?>
+                    <?= render_partial('partials/components/button', ['label' => 'ล้างตัวกรอง', 'variant' => 'ghost', 'href' => '/asset-registry', 'icon' => 'x', 'size' => 'sm']) ?>
+                <?php elseif (!empty($canManage)): ?>
+                    <?= render_partial('partials/components/button', ['label' => 'เพิ่มทรัพย์สิน', 'variant' => 'primary', 'href' => '/asset-registry/create', 'icon' => 'arrow-right', 'iconPosition' => 'right', 'size' => 'sm']) ?>
+                <?php endif; ?>
+            <?php $assetEmptySlot = (string) ob_get_clean(); ?>
             <?= render_partial('partials/components/empty-state', [
                 'icon' => 'qr-code',
                 'title' => $isAssetFilterActive ? 'ไม่พบทรัพย์สินตามเงื่อนไข' : 'ยังไม่มีทรัพย์สินในระบบ',
                 'description' => $isAssetFilterActive ? 'ลองปรับคำค้นหรือล้างตัวกรองเพื่อดูทรัพย์สินที่เกี่ยวข้อง' : 'เพิ่มทรัพย์สินรายการแรกเพื่อสร้าง QR สำหรับสแกนแจ้งซ่อมได้ทันที',
+                'slot' => $assetEmptySlot,
             ]) ?>
         <?php else: ?>
             <div class="asset-grid">
@@ -112,7 +166,7 @@ $isAssetAdvancedFilterActive = $assetCategoryId > 0 || $assetLocationId > 0 || $
                                 </header>
                             </div>
                             <a class="asset-card-qr" href="<?= e($asset['qr_png_url']) ?>" target="_blank" rel="noopener" aria-label="ดู QR ของทรัพย์สิน <?= e($asset['asset_code']) ?>">
-                                <img src="<?= e($asset['qr_png_url']) ?>" alt="QR สำหรับทรัพย์สิน <?= e($asset['asset_code']) ?>">
+                                <img src="<?= e($asset['qr_png_url']) ?>" alt="QR สำหรับทรัพย์สิน <?= e($asset['asset_code']) ?>" loading="lazy" decoding="async">
                                 <span>ดู QR</span>
                             </a>
                         </div>

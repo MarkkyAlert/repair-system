@@ -44,7 +44,7 @@
     <aside class="sidebar" id="app-sidebar">
         <div class="brand-block">
             <?php if ($brandLogoUrl !== null): ?>
-                <div class="brand-mark brand-mark-logo" aria-hidden="true"><img src="<?= e($brandLogoUrl) ?>" alt="<?= e($appName) ?>" style="max-width:100%;max-height:100%;object-fit:contain;"></div>
+                <div class="brand-mark brand-mark-logo" aria-hidden="true"><img src="<?= e($brandLogoUrl) ?>" alt="<?= e($appName) ?>"></div>
             <?php else: ?>
                 <div class="brand-mark" aria-hidden="true"><?= lucide('wrench', 'brand-icon') ?></div>
             <?php endif; ?>
@@ -52,7 +52,7 @@
                 <p class="brand-title"><?= e($appName) ?></p>
                 <p class="brand-subtitle">Maintenance Operations</p>
             </div>
-            <button type="button" class="sidebar-collapse-button" data-sidebar-collapse aria-label="ย่อเมนูด้านข้าง"><?= lucide('chevrons-left', 'h-5 w-5') ?></button>
+            <button type="button" class="sidebar-collapse-button" data-sidebar-collapse aria-label="ย่อเมนูด้านข้าง" aria-controls="app-sidebar" aria-expanded="true"><?= lucide('chevrons-left', 'h-5 w-5') ?></button>
         </div>
 
         <nav class="sidebar-nav">
@@ -62,9 +62,13 @@
                 <span class="nav-label">Dashboard</span>
             </a>
             <p class="nav-section-label">งานปฏิบัติการ</p>
-            <a href="<?= e(url('/tickets')) ?>" class="nav-link<?= $isTicketsPath ? ' is-active' : '' ?>" data-tooltip="รายการแจ้งซ่อม">
+            <a href="<?= e(url('/tickets')) ?>" class="nav-link<?= $isTicketsPath && !is_path('/tickets/create') ? ' is-active' : '' ?>" data-tooltip="รายการแจ้งซ่อม">
                 <?= lucide('clipboard-list', 'nav-icon') ?>
                 <span class="nav-label">รายการแจ้งซ่อม</span>
+            </a>
+            <a href="<?= e(url('/tickets/create')) ?>" class="nav-link nav-link-sub<?= is_path('/tickets/create') ? ' is-active' : '' ?>" data-tooltip="แจ้งซ่อมใหม่">
+                <?= lucide('plus-circle', 'nav-icon') ?>
+                <span class="nav-label">แจ้งซ่อมใหม่</span>
             </a>
             <a href="<?= e(url('/asset-registry')) ?>" class="nav-link<?= $isAssetsPath ? ' is-active' : '' ?>" data-tooltip="ทรัพย์สินและ QR">
                 <?= lucide('qr-code', 'nav-icon') ?>
@@ -94,12 +98,12 @@
     <div class="main-shell">
         <header class="topbar no-print">
             <div class="topbar-left">
-                <button type="button" class="icon-button mobile-only" data-sidebar-toggle aria-label="Toggle navigation">
+                <button type="button" class="icon-button mobile-only" data-sidebar-toggle aria-label="Toggle navigation" aria-controls="app-sidebar" aria-expanded="false">
                     <?= lucide('menu', 'h-5 w-5') ?>
                 </button>
                 <div>
                     <p class="page-kicker">ศูนย์ควบคุมงานซ่อมบำรุง</p>
-                    <h1 class="page-title"><?= e($pageHeading ?? $title ?? $appName) ?></h1>
+                    <p class="page-title" aria-hidden="true"><?= e($pageHeading ?? $title ?? $appName) ?></p>
                 </div>
             </div>
             <div class="topbar-actions">

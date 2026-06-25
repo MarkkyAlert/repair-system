@@ -1,4 +1,5 @@
 <section class="stack-lg">
+    <h1 class="sr-only">ข้อมูลบัญชีของฉัน — แก้ไขชื่อ อีเมล และเบอร์โทรศัพท์</h1>
     <?= render_partial('partials/components/page-header', [
         'eyebrow' => 'บัญชีผู้ใช้งาน',
         'title' => 'ข้อมูลบัญชีของฉัน',
@@ -22,27 +23,27 @@
         </div>
     <?php endif; ?>
 
-    <section class="panel-card stack-md" style="max-width:780px">
+    <section class="panel-card stack-md panel-narrow">
         <div class="panel-head">
             <div>
                 <h2 class="panel-title">รายละเอียดบัญชี</h2>
                 <p class="field-hint">ชื่อผู้ใช้และสิทธิ์ของคุณกำหนดโดยผู้ดูแลระบบ ไม่สามารถแก้ไขจากที่นี่ได้</p>
             </div>
-            <span class="metric-icon" style="width:40px;height:40px;flex:0 0 40px"><?= lucide('user', 'h-5 w-5') ?></span>
+            <span class="metric-icon metric-icon-md"><?= lucide('user', 'h-5 w-5') ?></span>
         </div>
 
         <div class="content-grid">
             <div class="field-group">
-                <label class="field-label">ชื่อผู้ใช้ (username)</label>
+                <label class="field-label">ชื่อผู้ใช้ (Username)</label>
                 <input class="input" type="text" value="<?= e($profile['username'] ?? '') ?>" disabled>
             </div>
             <div class="field-group">
-                <label class="field-label">บทบาท (role)</label>
+                <label class="field-label">บทบาท (Role)</label>
                 <input class="input" type="text" value="<?= e($profile['role'] ?? 'guest') ?>" disabled>
             </div>
         </div>
 
-        <form method="post" action="<?= e(url('/profile')) ?>" class="stack-md">
+        <form method="post" action="<?= e(url('/profile')) ?>" class="stack-md" data-loading-submit data-warn-unsaved>
             <?= csrf_field() ?>
             <div class="field-group">
                 <label for="full_name" class="field-label">ชื่อ-นามสกุล <span class="required">*</span></label>
@@ -66,13 +67,13 @@
         </form>
     </section>
 
-    <section class="panel-card stack-md" style="max-width:780px">
+    <section class="panel-card stack-md panel-narrow">
         <div class="panel-head">
             <div>
                 <h2 class="panel-title">ความปลอดภัย</h2>
                 <p class="field-hint">เปลี่ยนรหัสผ่านเป็นระยะเพื่อความปลอดภัยของบัญชี</p>
             </div>
-            <span class="metric-icon" style="width:40px;height:40px;flex:0 0 40px"><?= lucide('shield-check', 'h-5 w-5') ?></span>
+            <span class="metric-icon metric-icon-md"><?= lucide('shield-check', 'h-5 w-5') ?></span>
         </div>
         <div class="button-row">
             <?= render_partial('partials/components/button', ['label' => 'เปลี่ยนรหัสผ่าน', 'variant' => 'secondary', 'href' => '/change-password', 'icon' => 'key-round']) ?>
