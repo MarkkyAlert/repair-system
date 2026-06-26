@@ -41,6 +41,10 @@ class EmailTemplateService
             'label' => 'SLA เกินกำหนด',
             'fields' => ['heading', 'intro', 'footer_note'],
         ],
+        'system_announcement' => [
+            'label' => 'ประกาศจากผู้ดูแลระบบ (broadcast)',
+            'fields' => ['heading', 'intro', 'footer_note'],
+        ],
     ];
 
     private ?array $overridesCache = null;
@@ -181,6 +185,28 @@ class EmailTemplateService
                 'ticket_id' => $ticketId,
                 'ticket_no' => $ticketNo,
                 'metric_type' => $metricType,
+                'recipient_id' => (int) ($recipient['id'] ?? 0),
+            ],
+        ]);
+    }
+
+    public function buildSystemAnnouncement(array $recipient, string $title, string $message): array
+    {
+        $appName = (string) setting('app_name', config('app.name', 'Repair System'));
+        $subject = '[' . $appName . '] ' . $title;
+
+        return $this->renderNotificationTemplate([
+            'subject' => $subject,
+            'heading' => $this->override('system_announcement', 'heading', $title),
+            'intro' => $this->override('system_announcement', 'intro', 'มีประกาศจากผู้ดูแลระบบ'),
+            'message' => $message,
+            'recipient_name' => (string) ($recipient['full_name'] ?? $recipient['email'] ?? 'ผู้ใช้งาน'),
+            'ticket_url' => url('/dashboard'),
+            'button_label' => 'เปิดระบบ',
+            'sections' => [],
+            'footer_note' => $this->override('system_announcement', 'footer_note', 'อีเมลฉบับนี้ถูกส่งโดยผู้ดูแลระบบ'),
+            'payload' => [
+                'template' => 'system_announcement',
                 'recipient_id' => (int) ($recipient['id'] ?? 0),
             ],
         ]);

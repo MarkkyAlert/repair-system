@@ -302,6 +302,8 @@ class AuthController
         foreach (NotificationService::NOTIFICATION_TYPES as $type => $label) {
             $rendered[$type] = [
                 'label' => $label,
+                'hint' => NotificationService::NOTIFICATION_TYPE_HINTS[$type] ?? '',
+                'off_impact' => NotificationService::NOTIFICATION_TYPE_OFF_IMPACT[$type] ?? '',
                 'email' => $matrix[$type]['email'] ?? true,
                 'in_app' => $matrix[$type]['in_app'] ?? true,
             ];

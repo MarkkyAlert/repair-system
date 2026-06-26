@@ -6,6 +6,7 @@ namespace App\Services;
 use App\Repositories\NotificationPreferenceRepository;
 use App\Repositories\NotificationRepository;
 use App\Repositories\TicketRepository;
+use App\Repositories\UserRepository;
 use DomainException;
 use Throwable;
 
@@ -14,9 +15,23 @@ class NotificationService
     public const NOTIFICATION_TYPES = [
         'ticket_approved' => 'Ticket ได้รับการอนุมัติ / รออนุมัติ',
         'ticket_rejected' => 'Ticket ถูกปฏิเสธ',
-        'ticket_status_changed' => 'ความเคลื่อนไหวสถานะ ticket (assigned/started/resolved/completed/reopened/cancelled)',
-        'comment_added' => 'มี comment ใหม่ใน ticket',
+        'ticket_status_changed' => 'สถานะ Ticket เปลี่ยน',
+        'comment_added' => 'มี comment ใหม่ใน Ticket',
         'sla_breached' => 'SLA เกินกำหนด',
+        'system_announcement' => 'ประกาศจากผู้ดูแลระบบ',
+    ];
+
+    public const NOTIFICATION_TYPE_HINTS = [
+        'ticket_status_changed' => 'assigned · started · resolved · completed · reopened · cancelled',
+    ];
+
+    public const NOTIFICATION_TYPE_OFF_IMPACT = [
+        'ticket_approved' => 'ปิดแล้วจะไม่ทราบทันทีว่า ticket ของคุณได้รับการอนุมัติหรือไม่',
+        'ticket_rejected' => 'ปิดแล้วจะไม่ทราบเมื่อ ticket ถูกปฏิเสธ — อาจตกหล่นการแก้ไข',
+        'ticket_status_changed' => 'ปิดแล้วจะไม่ทราบเมื่อช่างเริ่มงาน / สรุปงาน / ปิดงาน',
+        'comment_added' => 'ปิดแล้วจะไม่ทราบเมื่อมีคนตอบกลับใน ticket ของคุณ',
+        'sla_breached' => 'แนะนำให้เปิดไว้ — ปิดแล้วจะไม่ทราบเมื่องานเกินกำหนด SLA',
+        'system_announcement' => 'ปิดแล้วจะไม่ได้รับประกาศจากผู้ดูแล เช่น maintenance / นโยบายใหม่',
     ];
 
     public function __construct(
@@ -24,6 +39,7 @@ class NotificationService
         private TicketRepository $tickets,
         private EmailQueueService $emails,
         private NotificationPreferenceRepository $preferences,
+        private UserRepository $users,
     ) {
     }
 
@@ -237,6 +253,42 @@ class NotificationService
         } catch (Throwable $exception) {
             error_log('[notify.email.comment] ' . $action . ' comment ' . $commentId . ' ticket ' . $ticketId . ': ' . $exception->getMessage());
         }
+    }
+
+    public function notifySystemAnnouncement(string $title, string $message, int $actorId, ?string $roleFilter = null): array
+    {
+        $recipientIds = $this->users->findActiveUserIds($roleFilter);
+        $recipientIds = $this->filterRecipientIds($recipientIds, $actorId);
+
+        if ($recipientIds === []) {
+            return ['in_app_count' => 0, 'email_count' => 0];
+        }
+
+        $inAppRecipients = $this->filterByPreference($recipientIds, 'system_announcement', 'in_app');
+        $emailRecipients = $this->filterByPreference($recipientIds, 'system_announcement', 'email');
+
+        $this->dispatchNotification([
+            'type' => 'system.announcement',
+            'title' => $title,
+            'message' => $message,
+            'payload' => json_encode([
+                'announcement' => true,
+                'role_filter' => $roleFilter,
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            'related_type' => 'system',
+            'related_id' => null,
+        ], $inAppRecipients);
+
+        try {
+            $this->emails->queueSystemAnnouncementEmails($emailRecipients, $title, $message);
+        } catch (Throwable $exception) {
+            error_log('[notify.email.broadcast] ' . $exception->getMessage());
+        }
+
+        return [
+            'in_app_count' => count($inAppRecipients),
+            'email_count' => count($emailRecipients),
+        ];
     }
 
     public function notifySlaBreached(int $ticketId, string $metricType): void

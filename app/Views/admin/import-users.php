@@ -12,6 +12,10 @@ $total = (int) ($preview['total'] ?? 0);
         'description' => $hasPreview
             ? 'ตรวจรายการที่ระบบเตรียมไว้ ก่อนสร้างบัญชีจริง'
             : 'อัปโหลดไฟล์ CSV เพื่อสร้างหลายบัญชีพร้อมกัน',
+        'breadcrumbs' => [
+            ['label' => 'Admin', 'href' => '/admin'],
+            ['label' => 'นำเข้าผู้ใช้ (CSV)'],
+        ],
         'actions' => render_partial('partials/components/button', [
             'label' => 'กลับหน้าตั้งค่า',
             'variant' => 'secondary',

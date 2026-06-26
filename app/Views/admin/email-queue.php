@@ -89,7 +89,7 @@ $tabUrl = static function (string $status): string {
             ]) ?>
         <?php else: ?>
             <div class="table-wrap">
-                <table class="insight-table">
+                <table class="insight-table" data-mobile-card>
                     <caption class="sr-only">รายการอีเมลในคิว</caption>
                     <thead>
                     <tr>
@@ -107,19 +107,19 @@ $tabUrl = static function (string $status): string {
                     <?php foreach ($jobs as $job): ?>
                         <?php $jobStatus = (string) ($job['status'] ?? 'queued'); ?>
                         <tr>
-                            <td><code class="mono">#<?= e((string) ($job['id'] ?? 0)) ?></code></td>
-                            <td><?= render_partial('partials/components/badge', [
+                            <td data-label="#"><code class="mono">#<?= e((string) ($job['id'] ?? 0)) ?></code></td>
+                            <td data-label="สถานะ"><?= render_partial('partials/components/badge', [
                                 'label' => $statusOptions[$jobStatus] ?? $jobStatus,
                                 'tone' => $statusTone[$jobStatus] ?? 'default',
                             ]) ?></td>
-                            <td>
+                            <td data-label="ผู้รับ">
                                 <strong><?= e((string) ($job['to_name'] ?? '-')) ?></strong>
                                 <p class="helper-text"><?= e((string) ($job['to_email'] ?? '-')) ?></p>
                             </td>
-                            <td><?= e((string) ($job['subject'] ?? '-')) ?></td>
-                            <td><?= e((string) ($job['attempts'] ?? 0)) ?> / <?= e((string) ($job['max_attempts'] ?? 0)) ?></td>
-                            <td><?= e(human_date((string) ($job['updated_at'] ?? $job['created_at'] ?? ''))) ?></td>
-                            <td>
+                            <td data-label="หัวข้อ"><?= e((string) ($job['subject'] ?? '-')) ?></td>
+                            <td data-label="ครั้งที่"><?= e((string) ($job['attempts'] ?? 0)) ?> / <?= e((string) ($job['max_attempts'] ?? 0)) ?></td>
+                            <td data-label="เวลาล่าสุด"><?= e(human_date((string) ($job['updated_at'] ?? $job['created_at'] ?? ''))) ?></td>
+                            <td data-label="ข้อผิดพลาด">
                                 <?php $err = trim((string) ($job['error_message'] ?? '')); ?>
                                 <?php if ($err !== ''): ?>
                                     <span class="helper-text" title="<?= e($err) ?>"><?= e(mb_strimwidth($err, 0, 60, '…')) ?></span>
@@ -127,7 +127,7 @@ $tabUrl = static function (string $status): string {
                                     <span class="helper-text">—</span>
                                 <?php endif; ?>
                             </td>
-                            <td>
+                            <td data-label="การจัดการ">
                                 <?php if (in_array($jobStatus, ['failed', 'sent'], true)): ?>
                                     <form method="post" action="<?= e(url('/admin/email-queue/' . (int) $job['id'] . '/retry')) ?>">
                                         <?= csrf_field() ?>

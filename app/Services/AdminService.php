@@ -7,6 +7,7 @@ use App\Repositories\AuditLogRepository;
 use App\Repositories\AdminRepository;
 use App\Repositories\SettingsRepository;
 use DomainException;
+use App\Repositories\LoginAttemptRepository;
 use PDO;
 use Throwable;
 
@@ -19,6 +20,7 @@ class AdminService
         private EmailTemplateService $emailTemplates,
         private MailerService $mailer,
         private PDO $db,
+        private LoginAttemptRepository $loginAttempts,
     ) {
     }
 
@@ -60,6 +62,10 @@ class AdminService
             'auditFilterOptions' => $this->auditLogs->getFilterOptions(),
             'mailDiagnostics' => $this->buildMailDiagnostics(),
             'emailPreviews' => $this->buildEmailPreviews($viewer),
+            'loginAttempts' => $this->loginAttempts->getRecent(50),
+            'loginAttemptStats' => [
+                'recent_failures' => $this->loginAttempts->countRecentFailures(60),
+            ],
         ];
     }
 
@@ -563,6 +569,44 @@ class AdminService
                 'end' => $businessEnd,
             ],
         ]);
+    }
+
+    public function sendBroadcast(array $viewer, array $input, NotificationService $notifications): array
+    {
+        $this->assertAdmin($viewer);
+
+        $title = trim((string) ($input['title'] ?? ''));
+        $message = trim((string) ($input['message'] ?? ''));
+        $roleFilter = trim((string) ($input['role_filter'] ?? ''));
+
+        if ($title === '' || $message === '') {
+            throw new DomainException('กรุณากรอกหัวข้อและข้อความ');
+        }
+        if (mb_strlen($title) > 200) {
+            throw new DomainException('หัวข้อยาวเกินกำหนด (สูงสุด 200 ตัวอักษร)');
+        }
+        if (mb_strlen($message) > 2000) {
+            throw new DomainException('ข้อความยาวเกินกำหนด (สูงสุด 2,000 ตัวอักษร)');
+        }
+        if ($roleFilter !== '' && !in_array($roleFilter, ['requester', 'manager', 'technician', 'admin'], true)) {
+            throw new DomainException('Role filter ไม่ถูกต้อง');
+        }
+
+        $result = $notifications->notifySystemAnnouncement(
+            $title,
+            $message,
+            (int) ($viewer['id'] ?? 0),
+            $roleFilter !== '' ? $roleFilter : null
+        );
+
+        $this->recordAudit($viewer, 'broadcast.sent', 'system', null, [
+            'title' => $title,
+            'role_filter' => $roleFilter !== '' ? $roleFilter : 'all',
+            'in_app_count' => $result['in_app_count'],
+            'email_count' => $result['email_count'],
+        ]);
+
+        return $result;
     }
 
     public function sendTestEmail(array $viewer, array $input): void

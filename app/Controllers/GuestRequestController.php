@@ -25,8 +25,7 @@ class GuestRequestController
         AuthMiddleware::handle();
         $viewer = auth()->user() ?? [];
         if (!in_array((string) ($viewer['role'] ?? 'guest'), ['manager', 'admin'], true)) {
-            flash('error', 'เฉพาะผู้จัดการหรือผู้ดูแลระบบเท่านั้น');
-            Response::redirect('/dashboard');
+            Response::abort(403, 'หน้านี้สงวนสำหรับผู้จัดการหรือผู้ดูแลระบบเท่านั้น');
         }
 
         $query = request()?->query ?? [];

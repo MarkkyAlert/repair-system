@@ -166,8 +166,8 @@ class TicketService
                 'location_id' => (int) ($asset['location_id'] ?? 0),
                 'label' => (string) ($asset['asset_code'] ?? '') . ' - ' . (string) ($asset['name'] ?? ''),
             ], $reference['assets'] ?? []),
-            'impactOptions' => $this->enumOptions(['low', 'medium', 'high', 'critical']),
-            'urgencyOptions' => $this->enumOptions(['low', 'medium', 'high', 'critical']),
+            'impactOptions' => $this->enumOptions(['low', 'medium', 'high', 'critical'], self::SEVERITY_LABELS_TH),
+            'urgencyOptions' => $this->enumOptions(['low', 'medium', 'high', 'critical'], self::SEVERITY_LABELS_TH),
             'prefill' => [
                 'has_asset' => $prefillAsset !== null,
                 'asset_label' => $prefillAsset !== null ? (string) ($prefillAsset['label'] ?? '') : '',
@@ -1192,11 +1192,18 @@ class TicketService
         ];
     }
 
-    private function enumOptions(array $values): array
+    private const SEVERITY_LABELS_TH = [
+        'low' => 'ต่ำ (Low)',
+        'medium' => 'ปานกลาง (Medium)',
+        'high' => 'สูง (High)',
+        'critical' => 'วิกฤต (Critical)',
+    ];
+
+    private function enumOptions(array $values, array $labelMap = []): array
     {
         return array_map(fn (string $value): array => [
             'value' => $value,
-            'label' => $this->labelize($value),
+            'label' => $labelMap[$value] ?? $this->labelize($value),
         ], $values);
     }
 

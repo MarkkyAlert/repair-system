@@ -5,14 +5,19 @@ namespace App\Controllers;
 
 use App\Core\Response;
 use App\Middleware\AuthMiddleware;
+use App\Repositories\UserRepository;
 use App\Services\AdminService;
+use App\Services\NotificationService;
 use DomainException;
 use RuntimeException;
 
 class AdminController
 {
-    public function __construct(private AdminService $admin)
-    {
+    public function __construct(
+        private AdminService $admin,
+        private NotificationService $notifications,
+        private UserRepository $users,
+    ) {
     }
 
     public function index(): void
@@ -48,6 +53,8 @@ class AdminController
             'auditFilterOptions' => $data['auditFilterOptions'],
             'mailDiagnostics' => $data['mailDiagnostics'],
             'emailPreviews' => $data['emailPreviews'],
+            'loginAttempts' => $data['loginAttempts'],
+            'loginAttemptStats' => $data['loginAttemptStats'],
         ]);
     }
 
@@ -196,6 +203,59 @@ class AdminController
         $this->handleUpdate(function (array $viewer): void {
             $this->admin->updateLogo($viewer, $_FILES, $_POST);
         }, 'อัปเดตโลโก้องค์กรเรียบร้อยแล้ว');
+    }
+
+    public function broadcastForm(): void
+    {
+        AuthMiddleware::handle();
+        $viewer = auth()->user() ?? [];
+        if ((string) ($viewer['role'] ?? 'guest') !== 'admin') {
+            Response::abort(403, 'หน้านี้สงวนสำหรับผู้ดูแลระบบเท่านั้น');
+        }
+
+        $actorId = (int) ($viewer['id'] ?? 0);
+        $recipientCounts = [
+            '' => max(0, count($this->users->findActiveUserIds(null)) - 1),
+        ];
+        foreach (['requester', 'manager', 'technician', 'admin'] as $role) {
+            $ids = $this->users->findActiveUserIds($role);
+            $recipientCounts[$role] = count(array_filter($ids, static fn (int $id): bool => $id !== $actorId));
+        }
+
+        Response::view('admin/broadcast', [
+            'title' => 'ส่งประกาศถึงผู้ใช้',
+            'pageHeading' => 'ประกาศจากผู้ดูแลระบบ',
+            'currentUser' => $viewer,
+            'errorMessage' => flash_message('error'),
+            'successMessage' => flash_message('success'),
+            'oldInput' => pull_old_input(),
+            'recipientCounts' => $recipientCounts,
+        ]);
+    }
+
+    public function sendBroadcast(): void
+    {
+        AuthMiddleware::handle();
+        $viewer = auth()->user() ?? [];
+
+        try {
+            csrf_validate();
+            $result = $this->admin->sendBroadcast($viewer, $_POST, $this->notifications);
+            flash('success', sprintf(
+                'ส่งประกาศแล้ว — in-app: %d คน · email: %d คน',
+                (int) ($result['in_app_count'] ?? 0),
+                (int) ($result['email_count'] ?? 0)
+            ));
+            Response::redirect('/admin/broadcast');
+        } catch (DomainException | RuntimeException $exception) {
+            with_old_input([
+                'title' => (string) ($_POST['title'] ?? ''),
+                'message' => (string) ($_POST['message'] ?? ''),
+                'role_filter' => (string) ($_POST['role_filter'] ?? ''),
+            ]);
+            flash('error', $exception->getMessage());
+            Response::redirect('/admin/broadcast');
+        }
     }
 
     private function handleUpdate(callable $callback, string $successMessage = 'บันทึกข้อมูลเรียบร้อยแล้ว', string $redirectTo = '/admin'): void

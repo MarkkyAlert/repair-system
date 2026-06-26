@@ -21,8 +21,7 @@ class EmailQueueController
         $viewer = auth()->user() ?? [];
 
         if ((string) ($viewer['role'] ?? 'guest') !== 'admin') {
-            flash('error', 'เฉพาะผู้ดูแลระบบเท่านั้น');
-            Response::redirect('/dashboard');
+            Response::abort(403, 'หน้านี้สงวนสำหรับผู้ดูแลระบบเท่านั้น');
         }
 
         $query = request()?->query ?? [];

@@ -105,15 +105,15 @@ $querySuffix = !empty($filters['query_string']) ? '?' . (string) $filters['query
                     <?= lucide('chevron-down', 'button-icon') ?>
                 </summary>
                 <div class="export-dropdown-menu">
-                    <a href="<?= e(url('/reports/export/excel' . $querySuffix)) ?>" class="export-dropdown-item">
+                    <a href="<?= e(url('/reports/export/excel' . $querySuffix)) ?>" class="export-dropdown-item" data-export-link>
                         <?= lucide('clipboard-list', 'button-icon') ?>
                         <span>Export Excel</span>
                     </a>
-                    <a href="<?= e(url('/reports/export/pdf' . $querySuffix)) ?>" class="export-dropdown-item">
+                    <a href="<?= e(url('/reports/export/pdf' . $querySuffix)) ?>" class="export-dropdown-item" data-export-link>
                         <?= lucide('file-text', 'button-icon') ?>
                         <span>Export PDF</span>
                     </a>
-                    <a href="<?= e(url('/reports/export/csv' . $querySuffix)) ?>" class="export-dropdown-item">
+                    <a href="<?= e(url('/reports/export/csv' . $querySuffix)) ?>" class="export-dropdown-item" data-export-link>
                         <?= lucide('download', 'button-icon') ?>
                         <span>Export CSV</span>
                     </a>

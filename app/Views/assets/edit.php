@@ -1,4 +1,12 @@
 <section class="stack-lg">
+    <?php $assetCodeLabel = (string) ($form['defaults']['asset_code'] ?? ('#' . (int) $assetId)); ?>
+    <?= render_partial('partials/components/breadcrumb', [
+        'items' => [
+            ['label' => 'Asset Registry', 'href' => '/asset-registry'],
+            ['label' => $assetCodeLabel, 'href' => '/asset-registry/' . (int) $assetId],
+            ['label' => 'แก้ไข'],
+        ],
+    ]) ?>
     <section class="panel-card">
         <div class="panel-head">
             <h2 class="panel-title">แก้ไขข้อมูลทรัพย์สิน</h2>

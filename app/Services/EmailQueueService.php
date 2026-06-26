@@ -42,6 +42,14 @@ class EmailQueueService
         }
     }
 
+    public function queueSystemAnnouncementEmails(array $recipientIds, string $title, string $message): void
+    {
+        foreach ($this->users->findActiveUsersByIds($recipientIds) as $recipient) {
+            $email = $this->templates->buildSystemAnnouncement($recipient, $title, $message);
+            $this->enqueueForRecipient($recipient, $email);
+        }
+    }
+
     public function queuePasswordResetEmail(array $user, string $resetUrl, string $expiresAt): void
     {
         if (trim((string) ($user['email'] ?? '')) === '') {

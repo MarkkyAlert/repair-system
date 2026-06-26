@@ -1,5 +1,11 @@
 <section class="stack-lg">
     <h1 class="sr-only"><?= e($asset['name']) ?> — <?= e($asset['asset_code']) ?></h1>
+    <?= render_partial('partials/components/breadcrumb', [
+        'items' => [
+            ['label' => 'Asset Registry', 'href' => '/asset-registry'],
+            ['label' => (string) $asset['asset_code']],
+        ],
+    ]) ?>
     <div class="action-bar no-print">
         <div class="action-bar-left">
             <a href="<?= e(url('/asset-registry')) ?>" class="icon-button" aria-label="กลับทะเบียนทรัพย์สิน"><?= lucide('chevrons-left', 'h-4 w-4') ?></a>

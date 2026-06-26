@@ -89,6 +89,20 @@ class UserRepository
         ]);
     }
 
+    public function findActiveUserIds(?string $role = null): array
+    {
+        $sql = 'SELECT id FROM users WHERE is_active = 1';
+        $params = [];
+        if ($role !== null && $role !== '') {
+            $sql .= ' AND role = :role';
+            $params['role'] = $role;
+        }
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+
+        return array_map('intval', array_column($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [], 'id'));
+    }
+
     public function findActiveUsersByIds(array $userIds): array
     {
         $userIds = array_values(array_unique(array_filter(array_map('intval', $userIds), static fn (int $id): bool => $id > 0)));

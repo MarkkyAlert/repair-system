@@ -70,6 +70,8 @@ return static function (Router $router): void {
     $router->post('/admin/priorities/{priorityId}', [AdminController::class, 'updatePriority']);
     $router->post('/admin/priorities/{priorityId}/delete', [AdminController::class, 'deletePriority']);
     $router->post('/admin/system-settings', [AdminController::class, 'updateSystemSettings']);
+    $router->get('/admin/broadcast', [AdminController::class, 'broadcastForm']);
+    $router->post('/admin/broadcast', [AdminController::class, 'sendBroadcast']);
     $router->post('/admin/email/test', [AdminController::class, 'sendTestEmail']);
     $router->get('/admin/email-queue', [EmailQueueController::class, 'index']);
     $router->post('/admin/email-queue/{emailId}/retry', [EmailQueueController::class, 'retry']);

@@ -12,6 +12,11 @@ $hasOverride = ($values ?? []) !== [];
         'eyebrow' => 'Email Template',
         'title' => (string) ($meta['label'] ?? $templateKey),
         'description' => 'แก้ข้อความที่ผู้รับเห็นในอีเมล โดยไม่ต้องแก้โค้ด',
+        'breadcrumbs' => [
+            ['label' => 'Admin', 'href' => '/admin'],
+            ['label' => 'Email Templates', 'href' => '/admin/email-templates'],
+            ['label' => (string) ($meta['label'] ?? $templateKey)],
+        ],
         'actions' => render_partial('partials/components/button', [
             'label' => 'กลับรายการ template',
             'variant' => 'secondary',

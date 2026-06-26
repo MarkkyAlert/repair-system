@@ -294,17 +294,36 @@ if ($metricCount('pendingApproval') > 0) {
                     <span class="bulk-action-summary">
                         <strong data-bulk-count>0</strong> รายการ
                     </span>
-                    <form method="post" action="<?= e(url('/tickets/bulk/approve')) ?>" data-loading-submit onsubmit="return confirm('ยืนยัน Approve รายการที่เลือกทั้งหมด?');">
+                    <form method="post" action="<?= e(url('/tickets/bulk/approve')) ?>" data-loading-submit data-bulk-approve-form>
                         <?= csrf_field() ?>
                         <input type="hidden" name="ticket_ids" data-bulk-ids value="">
-                        <?= render_partial('partials/components/button', [
-                            'type' => 'submit',
-                            'label' => 'Approve รายการที่เลือก',
-                            'variant' => 'primary',
-                            'icon' => 'check-circle',
-                        ]) ?>
+                        <button type="button" class="btn btn-primary btn-md" data-confirm-modal-trigger="bulk-approve-confirm">
+                            <?= lucide('check-circle', 'button-icon') ?>
+                            <span>Approve รายการที่เลือก</span>
+                        </button>
                     </form>
                 </div>
+                <?= render_partial('partials/components/confirm-modal', [
+                    'id' => 'bulk-approve-confirm',
+                    'title' => 'ยืนยันการอนุมัติแบบกลุ่ม',
+                    'icon' => 'check-circle',
+                    'lead' => 'ระบบจะอนุมัติทุก ticket ที่เลือกพร้อมกัน — การกระทำนี้ไม่สามารถย้อนกลับได้',
+                    'tone' => 'primary',
+                    'confirm_label' => 'ยืนยันอนุมัติ',
+                    'cancel_label' => 'ยกเลิก',
+                    'summary_slot' => '<dl class="confirm-modal-summary"><div><dt>จะอนุมัติ</dt><dd><strong data-bulk-approve-count>0</strong> รายการ</dd></div></dl>',
+                ]) ?>
+                <script>
+                    (function () {
+                        var trigger = document.querySelector('[data-confirm-modal-trigger="bulk-approve-confirm"]');
+                        var countEl = document.querySelector('[data-bulk-count]');
+                        var summaryEl = document.querySelector('[data-bulk-approve-count]');
+                        if (!trigger || !countEl || !summaryEl) return;
+                        trigger.__beforeConfirmOpen = function () {
+                            summaryEl.textContent = (countEl.textContent || '0').trim();
+                        };
+                    })();
+                </script>
             <?php endif; ?>
         <?php endif; ?>
     </section>

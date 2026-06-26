@@ -467,7 +467,15 @@ document.addEventListener('DOMContentLoaded', () => {
       closeButton.addEventListener('click', dismiss);
     }
 
-    window.setTimeout(dismiss, 4200);
+    // Errors/warnings stay until dismissed (user must read them); success/info
+    // auto-dismiss after 4.2s. Hovering pauses the auto-dismiss timer.
+    var isPersistent = toast.classList.contains('toast-danger')
+      || toast.classList.contains('toast-warning');
+    if (!isPersistent) {
+      var timer = window.setTimeout(dismiss, 4200);
+      toast.addEventListener('mouseenter', function () { window.clearTimeout(timer); });
+      toast.addEventListener('mouseleave', function () { timer = window.setTimeout(dismiss, 2000); });
+    }
   });
 
   const dashboardChartPayload = document.getElementById('dashboard-charts-data');
@@ -697,8 +705,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
       table.querySelectorAll('th[data-sort-col]').forEach(function (s) {
         s.classList.remove('sort-asc', 'sort-desc');
+        s.removeAttribute('aria-sort');
       });
       th.classList.add(asc ? 'sort-asc' : 'sort-desc');
+      th.setAttribute('aria-sort', asc ? 'ascending' : 'descending');
 
       var rows = Array.from(tbody.querySelectorAll('tr'));
       rows.sort(function (a, b) {
@@ -836,4 +846,136 @@ document.addEventListener('DOMContentLoaded', () => {
       e.returnValue = '';
     });
   });
+
+  // ── Inline help tooltips for form fields ──
+  document.querySelectorAll('[data-info-toggle]').forEach(function (trigger) {
+    trigger.addEventListener('click', function (event) {
+      event.preventDefault();
+      var targetId = trigger.getAttribute('data-info-toggle');
+      var target = document.getElementById(targetId);
+      if (!target) return;
+      var expanded = trigger.getAttribute('aria-expanded') === 'true';
+      trigger.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+      target.hidden = expanded;
+    });
+  });
+
+  // ── Shared confirm modal handler ──
+  // Triggered by [data-confirm-modal-trigger="<modal-id>"]. Finds parent form
+  // (if any) and submits via requestSubmit() on confirm so that submit listeners
+  // (like data-warn-unsaved) fire correctly. ESC and backdrop close the modal.
+  // Pages can hook into population by registering a callback on the trigger:
+  //   trigger.__beforeConfirmOpen = (modal) => { ... };
+  (function () {
+    var triggers = document.querySelectorAll('[data-confirm-modal-trigger]');
+    if (triggers.length === 0) return;
+    var activeModal = null;
+    var activeTrigger = null;
+
+    var closeModal = function () {
+      if (!activeModal) return;
+      activeModal.hidden = true;
+      if (activeTrigger) activeTrigger.focus();
+      activeModal = null;
+      activeTrigger = null;
+    };
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && activeModal) closeModal();
+    });
+
+    triggers.forEach(function (trigger) {
+      trigger.addEventListener('click', function (event) {
+        event.preventDefault();
+        var modalId = trigger.getAttribute('data-confirm-modal-trigger');
+        var modal = document.getElementById(modalId);
+        if (!modal) return;
+
+        var form = trigger.closest('form');
+        if (form && !form.reportValidity()) return;
+
+        if (typeof trigger.__beforeConfirmOpen === 'function') {
+          trigger.__beforeConfirmOpen(modal);
+        }
+
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+
+        activeModal = modal;
+        activeTrigger = trigger;
+        modal.hidden = false;
+
+        var confirmBtn = modal.querySelector('[data-modal-submit]');
+        if (confirmBtn) confirmBtn.focus();
+
+        modal.querySelectorAll('[data-modal-close]').forEach(function (el) {
+          if (el.__confirmModalBound) return;
+          el.__confirmModalBound = true;
+          el.addEventListener('click', closeModal);
+        });
+
+        if (confirmBtn && !confirmBtn.__confirmModalSubmitBound) {
+          confirmBtn.__confirmModalSubmitBound = true;
+          confirmBtn.addEventListener('click', function () {
+            confirmBtn.disabled = true;
+            if (!form) { closeModal(); return; }
+            if (typeof form.requestSubmit === 'function') {
+              form.requestSubmit();
+            } else {
+              form.submit();
+            }
+          });
+        }
+      });
+    });
+  })();
+
+  // ── Export loading overlay ──
+  // Heavy export links (Excel/PDF/CSV) take 5-10s to prepare server-side. Show
+  // a blocking overlay while the browser waits for the response.
+  (function () {
+    var links = document.querySelectorAll('[data-export-link]');
+    if (links.length === 0) return;
+
+    var overlay = null;
+    var hideTimer = null;
+
+    var ensureOverlay = function () {
+      if (overlay) return overlay;
+      overlay = document.createElement('div');
+      overlay.className = 'export-loading-overlay';
+      overlay.hidden = true;
+      overlay.setAttribute('role', 'status');
+      overlay.setAttribute('aria-live', 'polite');
+      overlay.innerHTML = '<div class="export-loading-card">'
+        + '<span class="export-loading-spinner" aria-hidden="true"></span>'
+        + '<p>กำลังเตรียมไฟล์...</p>'
+        + '<p class="helper-text">หน้าจะ download ไฟล์อัตโนมัติเมื่อพร้อม</p>'
+        + '</div>';
+      document.body.appendChild(overlay);
+      return overlay;
+    };
+
+    var hide = function () {
+      if (overlay) overlay.hidden = true;
+      if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+    };
+
+    // When download triggers, browser focus may shift — use that as hide signal.
+    window.addEventListener('blur', function () { setTimeout(hide, 500); });
+    window.addEventListener('pagehide', hide);
+
+    links.forEach(function (link) {
+      link.addEventListener('click', function () {
+        // Don't intercept — let browser handle the download.
+        // Just show overlay; browser navigation/download will continue.
+        var ov = ensureOverlay();
+        ov.hidden = false;
+        // Fallback: auto-hide after 30s in case browser never signals back.
+        if (hideTimer) clearTimeout(hideTimer);
+        hideTimer = setTimeout(hide, 30000);
+      });
+    });
+  })();
 });

@@ -5,6 +5,7 @@ namespace App\Services;
 
 use App\Core\AuthManager;
 use App\Core\Session;
+use App\Repositories\LoginAttemptRepository;
 use App\Repositories\PasswordResetRepository;
 use App\Repositories\UserRepository;
 use DomainException;
@@ -18,6 +19,7 @@ class AuthService
         private AuthManager $auth,
         private EmailQueueService $emails,
         private RememberMeService $rememberMe,
+        private LoginAttemptRepository $loginAttempts,
     ) {
     }
 
@@ -25,26 +27,40 @@ class AuthService
     {
         $login = trim($login);
         $limiterKey = $this->limiterKey($login, $ipAddress);
+        $userAgent = (string) ($_SERVER['HTTP_USER_AGENT'] ?? '');
 
         if ($this->rateLimiter->tooManyAttempts($limiterKey)) {
             $seconds = $this->rateLimiter->availableIn($limiterKey);
+            $this->logAttempt($login, null, $ipAddress, $userAgent, false, 'rate_limited');
             throw new DomainException('คุณพยายามเข้าสู่ระบบเกินกำหนด กรุณาลองใหม่ในอีก ' . max(1, $seconds) . ' วินาที');
         }
 
         if ($login === '' || $password === '') {
             $this->rateLimiter->hit($limiterKey);
+            $this->logAttempt($login, null, $ipAddress, $userAgent, false, 'empty_credentials');
             throw new DomainException('กรุณากรอกชื่อผู้ใช้หรืออีเมล และรหัสผ่านให้ครบถ้วน');
         }
 
         $user = $this->users->findByLogin($login);
         if (!$user || !password_verify($password, (string) $user['password_hash'])) {
             $this->rateLimiter->hit($limiterKey);
+            $this->logAttempt(
+                $login,
+                $user ? (int) ($user['id'] ?? 0) : null,
+                $ipAddress,
+                $userAgent,
+                false,
+                $user ? 'wrong_password' : 'unknown_user'
+            );
             throw new DomainException('ชื่อผู้ใช้ อีเมล หรือรหัสผ่านไม่ถูกต้อง');
         }
 
         if (!(bool) $user['is_active']) {
             $this->rateLimiter->hit($limiterKey);
-            throw new DomainException('บัญชีนี้ถูกปิดใช้งาน');
+            $this->logAttempt($login, (int) ($user['id'] ?? 0), $ipAddress, $userAgent, false, 'account_disabled');
+            // Generic message to prevent user enumeration via account-state probing.
+            // Real reason is recorded in login_attempts for admin Security tab.
+            throw new DomainException('ชื่อผู้ใช้ อีเมล หรือรหัสผ่านไม่ถูกต้อง');
         }
 
         $this->rateLimiter->clear($limiterKey);
@@ -52,12 +68,22 @@ class AuthService
         $this->auth->login($user);
 
         $this->users->updateLastLoginAt((int) ($user['id'] ?? 0));
+        $this->logAttempt($login, (int) ($user['id'] ?? 0), $ipAddress, $userAgent, true);
 
         if ($remember) {
             $this->rememberMe->issueFor((int) ($user['id'] ?? 0));
         }
 
         return $this->auth->user() ?? [];
+    }
+
+    private function logAttempt(string $login, ?int $userId, string $ipAddress, string $userAgent, bool $success, ?string $reason = null): void
+    {
+        try {
+            $this->loginAttempts->record($login, $userId, $ipAddress, $userAgent !== '' ? $userAgent : null, $success, $reason);
+        } catch (\Throwable $e) {
+            error_log('[login_attempts] ' . $e->getMessage());
+        }
     }
 
     public function logout(): void

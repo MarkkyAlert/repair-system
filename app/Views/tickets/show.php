@@ -27,6 +27,12 @@ if (!empty($workflow['canReview'])) {
 ?>
 <section class="stack-lg">
     <h1 class="sr-only"><?= e($ticket['title']) ?> — <?= e($ticket['ticket_no']) ?></h1>
+    <?= render_partial('partials/components/breadcrumb', [
+        'items' => [
+            ['label' => 'Tickets', 'href' => '/tickets'],
+            ['label' => (string) $ticket['ticket_no']],
+        ],
+    ]) ?>
     <!-- Sticky Action Bar -->
     <div class="action-bar no-print">
         <div class="action-bar-left">

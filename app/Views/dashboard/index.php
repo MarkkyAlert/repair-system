@@ -124,7 +124,7 @@ if ($metricCount('pendingApproval') > 0) {
     <?php if ($cronHealth !== []): ?>
         <section class="operations-alert-strip" aria-label="สถานะ cron ที่อาจหยุดทำงาน">
             <div class="operations-alert-copy">
-                <span class="operations-alert-icon"><?= lucide('triangle-alert', 'h-5 w-5') ?></span>
+                <span class="operations-alert-icon"><?= lucide('refresh-cw', 'h-5 w-5') ?></span>
                 <div>
                     <strong>Cron บางตัวอาจหยุดทำงาน</strong>
                     <span>ตรวจสอบ schedule บน server เพื่อให้ระบบส่งอีเมลและตรวจ SLA ได้ตามปกติ</span>
@@ -165,7 +165,7 @@ if ($metricCount('pendingApproval') > 0) {
         <?= render_partial('partials/components/card', [
             'title' => 'งานทั้งหมด',
             'value' => (string) $metricCount('total'),
-            'meta' => 'เปิดรายการ Ticket',
+            'meta' => 'ทุกสถานะรวมกัน',
             'tone' => 'default',
             'icon' => 'clipboard-list',
             'href' => '/tickets',
@@ -174,7 +174,7 @@ if ($metricCount('pendingApproval') > 0) {
         <?= render_partial('partials/components/card', [
             'title' => 'รออนุมัติ',
             'value' => (string) $metricCount('pendingApproval'),
-            'meta' => 'เปิดรายการ Ticket',
+            'meta' => 'รอผู้จัดการตรวจ',
             'tone' => 'warning',
             'icon' => 'clock',
             'href' => '/tickets?status=pending_approval',
@@ -183,7 +183,7 @@ if ($metricCount('pendingApproval') > 0) {
         <?= render_partial('partials/components/card', [
             'title' => 'กำลังดำเนินการ',
             'value' => (string) $metricCount('inProgress'),
-            'meta' => 'เปิดรายการ Ticket',
+            'meta' => 'อยู่ระหว่างซ่อม',
             'tone' => 'info',
             'icon' => 'activity',
             'href' => '/tickets?status=in_progress',
@@ -192,7 +192,7 @@ if ($metricCount('pendingApproval') > 0) {
         <?= render_partial('partials/components/card', [
             'title' => 'เสร็จเดือนนี้',
             'value' => (string) $metricCount('completedThisMonth'),
-            'meta' => 'เปิดรายการ Ticket',
+            'meta' => 'ปิดงานแล้ว',
             'tone' => 'success',
             'icon' => 'check-circle',
             'href' => '/tickets?status=completed',
@@ -201,7 +201,7 @@ if ($metricCount('pendingApproval') > 0) {
         <?= render_partial('partials/components/card', [
             'title' => 'เกินกำหนด',
             'value' => (string) $metricCount('overdue'),
-            'meta' => 'เปิดรายการ Ticket',
+            'meta' => 'ต้องเร่งจัดการ',
             'tone' => 'danger',
             'icon' => 'triangle-alert',
             'href' => '/tickets',
@@ -308,11 +308,12 @@ if ($metricCount('pendingApproval') > 0) {
                 </div>
                 <div class="field-group">
                     <label for="year" class="field-label">ปีของกราฟ</label>
-                    <select id="year" name="year" class="input">
+                    <select id="year" name="year" class="input" aria-describedby="year-hint">
                         <?php foreach (($filters['yearOptions'] ?? []) as $option): ?>
                             <option value="<?= e((string) ($option['value'] ?? '')) ?>"<?= (string) ($filterState['year'] ?? '') === (string) ($option['value'] ?? '') ? ' selected' : '' ?>><?= e((string) ($option['label'] ?? '-')) ?></option>
                         <?php endforeach; ?>
                     </select>
+                    <p id="year-hint" class="field-hint">ใช้กับกราฟด้านล่างเท่านั้น ไม่กระทบการ์ดสรุปและรายการ</p>
                 </div>
             </div>
             <div class="dashboard-filter-actions">
@@ -497,7 +498,7 @@ if ($metricCount('pendingApproval') > 0) {
             </div>
             <?php if (!empty($highlights['topTechnicians'])): ?>
                 <div class="table-wrap">
-                    <table class="insight-table">
+                    <table class="insight-table leaderboard-table" data-mobile-card>
                         <caption class="sr-only">5 อันดับช่างผู้ปฏิบัติงาน</caption>
                         <thead>
                         <tr>
@@ -510,10 +511,10 @@ if ($metricCount('pendingApproval') > 0) {
                         <tbody>
                         <?php foreach (($highlights['topTechnicians'] ?? []) as $row): ?>
                             <tr>
-                                <td><?= e($row['name']) ?></td>
-                                <td class="leaderboard-number"><?= e((string) $row['ticket_count']) ?></td>
-                                <td><?= e((string) $row['avg_rating_label']) ?></td>
-                                <td><?= e((string) $row['overdue_count']) ?></td>
+                                <td data-label="ช่างเทคนิค"><?= e($row['name']) ?></td>
+                                <td data-label="จำนวนงาน" class="leaderboard-number"><?= e((string) $row['ticket_count']) ?></td>
+                                <td data-label="คะแนนเฉลี่ย"><?= e((string) $row['avg_rating_label']) ?></td>
+                                <td data-label="เกินกำหนด"><?= e((string) $row['overdue_count']) ?></td>
                             </tr>
                         <?php endforeach; ?>
                         </tbody>
@@ -535,7 +536,7 @@ if ($metricCount('pendingApproval') > 0) {
             </div>
             <?php if (!empty($highlights['topCategories'])): ?>
                 <div class="table-wrap">
-                    <table class="insight-table">
+                    <table class="insight-table leaderboard-table" data-mobile-card>
                         <caption class="sr-only">5 อันดับหมวดหมู่ที่พบบ่อย</caption>
                         <thead>
                         <tr>
@@ -547,9 +548,9 @@ if ($metricCount('pendingApproval') > 0) {
                         <tbody>
                         <?php foreach (($highlights['topCategories'] ?? []) as $row): ?>
                             <tr>
-                                <td><?= e($row['name']) ?></td>
-                                <td class="leaderboard-number"><?= e((string) $row['ticket_count']) ?></td>
-                                <td><?= e((string) $row['overdue_count']) ?></td>
+                                <td data-label="หมวดหมู่"><?= e($row['name']) ?></td>
+                                <td data-label="จำนวนงาน" class="leaderboard-number"><?= e((string) $row['ticket_count']) ?></td>
+                                <td data-label="เกินกำหนด"><?= e((string) $row['overdue_count']) ?></td>
                             </tr>
                         <?php endforeach; ?>
                         </tbody>

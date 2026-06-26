@@ -22,7 +22,7 @@
         </div>
 
         <div class="table-wrap">
-            <table class="insight-table">
+            <table class="insight-table" data-mobile-card>
                 <thead>
                 <tr>
                     <th>Template</th>
@@ -34,16 +34,16 @@
                 <tbody>
                 <?php foreach ($registry as $key => $meta): ?>
                     <tr>
-                        <td><code class="mono"><?= e($key) ?></code></td>
-                        <td><?= e((string) $meta['label']) ?></td>
-                        <td>
+                        <td data-label="Template"><code class="mono"><?= e($key) ?></code></td>
+                        <td data-label="คำอธิบาย"><?= e((string) $meta['label']) ?></td>
+                        <td data-label="สถานะ">
                             <?php if (!empty($meta['is_customized'])): ?>
                                 <?= render_partial('partials/components/badge', ['label' => 'customized', 'tone' => 'warning']) ?>
                             <?php else: ?>
                                 <?= render_partial('partials/components/badge', ['label' => 'default', 'tone' => 'default']) ?>
                             <?php endif; ?>
                         </td>
-                        <td>
+                        <td data-label="การจัดการ">
                             <?= render_partial('partials/components/button', [
                                 'label' => 'แก้ไข',
                                 'variant' => 'secondary',

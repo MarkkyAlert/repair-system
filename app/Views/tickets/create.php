@@ -122,13 +122,26 @@
                 </div>
                 <div class="ticket-form-grid">
                     <div class="field-group">
-                        <label for="priority_id" class="field-label">ระดับความสำคัญ <span class="required">*</span></label>
+                        <label for="priority_id" class="field-label">
+                            ระดับความสำคัญ <span class="required">*</span>
+                            <button type="button" class="field-info-icon" data-info-toggle="priority-info" aria-expanded="false" aria-controls="priority-info" aria-label="ดูคำอธิบายระดับความสำคัญ">
+                                <?= lucide('info', 'h-4 w-4') ?>
+                            </button>
+                        </label>
                         <select id="priority_id" name="priority_id" class="input" required aria-describedby="priority-help">
                             <option value="">เลือกระดับ</option>
                             <?php foreach (($form['priorities'] ?? []) as $priority): ?>
                                 <option value="<?= e((string) $priority['id']) ?>"<?= (string) ($form['defaults']['priority_id'] ?? '') === (string) $priority['id'] ? ' selected' : '' ?>><?= e($priority['label']) ?></option>
                             <?php endforeach; ?>
                         </select>
+                        <div id="priority-info" class="field-info-popover" hidden>
+                            <p><strong>ระดับความสำคัญ</strong> ใช้คำนวณ SLA และจัดลำดับงานในคิว</p>
+                            <ul>
+                                <li>เลือกระดับให้สอดคล้องกับ <em>ผลกระทบ × ความเร่งด่วน</em> ที่กรอกในส่วนล่าง</li>
+                                <li>แต่ละระดับมีเวลา SLA ที่ admin ตั้งไว้ — ระบบจะเตือนเมื่อเกินกำหนด</li>
+                                <li>ถ้าไม่แน่ใจ เลือก <em>Medium/ปานกลาง</em> ก่อน — manager สามารถปรับให้ได้ภายหลัง</li>
+                            </ul>
+                        </div>
                         <p id="priority-help" class="field-hint">เลือกระดับที่สะท้อนผลกระทบจริงของงานนี้</p>
                     </div>
 
@@ -193,22 +206,50 @@
                 </summary>
                 <div class="ticket-form-grid">
                     <div class="field-group">
-                        <label for="impact_level" class="field-label">ผลกระทบ (Impact)</label>
+                        <label for="impact_level" class="field-label">
+                            ผลกระทบ (Impact)
+                            <button type="button" class="field-info-icon" data-info-toggle="impact-info" aria-expanded="false" aria-controls="impact-info" aria-label="ดูคำอธิบายระดับ Impact">
+                                <?= lucide('info', 'h-4 w-4') ?>
+                            </button>
+                        </label>
                         <select id="impact_level" name="impact_level" class="input" aria-describedby="impact-help">
                             <?php foreach (($form['impactOptions'] ?? []) as $option): ?>
                                 <option value="<?= e($option['value']) ?>"<?= $impactCurrent === (string) $option['value'] ? ' selected' : '' ?>><?= e($option['label']) ?></option>
                             <?php endforeach; ?>
                         </select>
+                        <div id="impact-info" class="field-info-popover" hidden>
+                            <p><strong>Impact</strong> = ปัญหานี้กระทบใครบ้าง?</p>
+                            <dl class="field-info-levels">
+                                <dt>Low</dt><dd>คน 1 คน หรือเครื่องเดียว · ทำงานอย่างอื่นต่อได้</dd>
+                                <dt>Medium</dt><dd>1 แผนก หรือผู้ใช้ 2-5 คน</dd>
+                                <dt>High</dt><dd>หลายแผนก หรือผู้ใช้ 10+ คน</dd>
+                                <dt>Critical</dt><dd>ทั้งองค์กร หรือบริการให้ลูกค้าสะดุด</dd>
+                            </dl>
+                        </div>
                         <p id="impact-help" class="field-hint">ปัญหานี้กระทบผู้ใช้กี่คนหรือกี่หน่วยงาน?</p>
                     </div>
 
                     <div class="field-group">
-                        <label for="urgency_level" class="field-label">ความเร่งด่วน (Urgency)</label>
+                        <label for="urgency_level" class="field-label">
+                            ความเร่งด่วน (Urgency)
+                            <button type="button" class="field-info-icon" data-info-toggle="urgency-info" aria-expanded="false" aria-controls="urgency-info" aria-label="ดูคำอธิบายระดับ Urgency">
+                                <?= lucide('info', 'h-4 w-4') ?>
+                            </button>
+                        </label>
                         <select id="urgency_level" name="urgency_level" class="input" aria-describedby="urgency-help">
                             <?php foreach (($form['urgencyOptions'] ?? []) as $option): ?>
                                 <option value="<?= e($option['value']) ?>"<?= $urgencyCurrent === (string) $option['value'] ? ' selected' : '' ?>><?= e($option['label']) ?></option>
                             <?php endforeach; ?>
                         </select>
+                        <div id="urgency-info" class="field-info-popover" hidden>
+                            <p><strong>Urgency</strong> = รอได้นานแค่ไหนก่อนต้องแก้?</p>
+                            <dl class="field-info-levels">
+                                <dt>Low</dt><dd>รอได้ 1+ สัปดาห์ · ไม่กระทบทันที</dd>
+                                <dt>Medium</dt><dd>ควรแก้ภายใน 2-3 วัน</dd>
+                                <dt>High</dt><dd>ต้องแก้ภายในวันนี้</dd>
+                                <dt>Critical</dt><dd>ต้องแก้ภายในชั่วโมงนี้ — งานหยุดชะงัก</dd>
+                            </dl>
+                        </div>
                         <p id="urgency-help" class="field-hint">รอได้นานแค่ไหน? ค่ายิ่งสูง หมายถึงควรเข้าดำเนินการเร็วขึ้น</p>
                     </div>
                 </div>

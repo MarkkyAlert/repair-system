@@ -2,6 +2,11 @@
 <?php $notificationItems = is_array($bell['items'] ?? null) ? $bell['items'] : []; ?>
 <?php $unreadCount = (int) ($bell['unreadCount'] ?? 0); ?>
 <?php $actionCount = (int) ($bell['actionCount'] ?? 0); ?>
+<?php
+$isActionItem = static fn (array $item): bool => in_array((string) ($item['category'] ?? ''), ['action', 'sla'], true);
+$actionItems = array_values(array_filter($notificationItems, $isActionItem));
+$recentItems = array_values(array_filter($notificationItems, static fn (array $item): bool => !in_array((string) ($item['category'] ?? ''), ['action', 'sla'], true)));
+?>
 <div class="notification-shell" data-notification-root data-feed-url="<?= e(url('/notifications/feed')) ?>" data-index-url="<?= e(url('/notifications')) ?>">
     <button type="button" class="icon-button notification-button" aria-label="การแจ้งเตือน" aria-haspopup="dialog" aria-expanded="false" data-notification-toggle>
         <?= lucide('bell', 'h-5 w-5') ?>
@@ -35,7 +40,8 @@
                     </div>
                 </div>
             <?php else: ?>
-                <?php foreach ($notificationItems as $item): ?>
+                <?php
+                $renderItem = function (array $item): void { ?>
                     <a href="<?= e($item['link_url'] ?? '/notifications') ?>" class="notification-item<?= !empty($item['is_read']) ? '' : ' is-unread' ?>">
                         <span class="notification-status-dot"></span>
                         <span class="notification-item-body">
@@ -50,7 +56,25 @@
                         </span>
                         <span class="notification-item-arrow" title="<?= e((string) ($item['action_label'] ?? 'เปิด Ticket')) ?>"><?= lucide('arrow-right', 'h-5 w-5') ?></span>
                     </a>
-                <?php endforeach; ?>
+                <?php };
+                ?>
+
+                <?php if ($actionItems !== []): ?>
+                    <div class="notification-section-head notification-section-head-action">
+                        <?= lucide('alert-circle', 'h-4 w-4') ?>
+                        <span>งานต้องทำ</span>
+                        <span class="notification-section-count"><?= count($actionItems) ?></span>
+                    </div>
+                    <?php foreach ($actionItems as $item) $renderItem($item); ?>
+                <?php endif; ?>
+
+                <?php if ($recentItems !== []): ?>
+                    <div class="notification-section-head<?= $actionItems !== [] ? ' has-separator' : '' ?>">
+                        <?= lucide('clock', 'h-4 w-4') ?>
+                        <span>ล่าสุด</span>
+                    </div>
+                    <?php foreach ($recentItems as $item) $renderItem($item); ?>
+                <?php endif; ?>
             <?php endif; ?>
         </div>
         <a href="<?= e(url('/notifications')) ?>" class="notification-menu-footer">
