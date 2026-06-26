@@ -53,6 +53,7 @@ if ($role === 'admin') {
     $cronChecks = [
         ['key' => 'cron_email_queue_last_run_at', 'label' => 'คิวอีเมล', 'staleMinutes' => 30],
         ['key' => 'cron_overdue_check_last_run_at', 'label' => 'ตรวจ SLA เกินกำหนด', 'staleMinutes' => 60],
+        ['key' => 'cron_backup_last_run_at', 'label' => 'สำรอง database', 'staleMinutes' => 60 * 24 * 2],
         ['key' => 'cron_orphan_cleanup_last_run_at', 'label' => 'ล้างไฟล์แนบกำพร้า', 'staleMinutes' => 60 * 24 * 8],
     ];
     foreach ($cronChecks as $check) {

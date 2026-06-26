@@ -1420,6 +1420,59 @@ class TicketRepository
         ];
     }
 
+    public function countAllTickets(): int
+    {
+        return (int) $this->db->query('SELECT COUNT(*) FROM tickets')->fetchColumn();
+    }
+
+    public function createSeedTicket(array $payload): int
+    {
+        $stmt = $this->db->prepare(
+            'INSERT IGNORE INTO tickets (
+                ticket_no, title, description, requester_id, location_id, asset_id, ticket_category_id, priority_id,
+                assigned_manager_id, assigned_technician_id, approval_status, status, channel, impact_level, urgency_level,
+                requested_at, response_due_at, resolution_due_at, approved_at, completed_at, created_at, updated_at
+             ) VALUES (
+                :ticket_no, :title, :description, :requester_id, :location_id, :asset_id, :ticket_category_id, :priority_id,
+                :manager_id, :technician_id, :approval_status, :status, "web", "medium", "medium",
+                NOW(), DATE_ADD(NOW(), INTERVAL 1 HOUR), DATE_ADD(NOW(), INTERVAL 8 HOUR), :approved_at, :completed_at, NOW(), NOW()
+             )'
+        );
+        $stmt->execute([
+            'ticket_no' => (string) ($payload['ticket_no'] ?? ''),
+            'title' => (string) ($payload['title'] ?? ''),
+            'description' => (string) ($payload['description'] ?? ''),
+            'requester_id' => (int) ($payload['requester_id'] ?? 0),
+            'location_id' => (int) ($payload['location_id'] ?? 0),
+            'asset_id' => isset($payload['asset_id']) && (int) $payload['asset_id'] > 0 ? (int) $payload['asset_id'] : null,
+            'ticket_category_id' => (int) ($payload['ticket_category_id'] ?? 0),
+            'priority_id' => (int) ($payload['priority_id'] ?? 0),
+            'manager_id' => isset($payload['manager_id']) && (int) $payload['manager_id'] > 0 ? (int) $payload['manager_id'] : null,
+            'technician_id' => isset($payload['technician_id']) && (int) $payload['technician_id'] > 0 ? (int) $payload['technician_id'] : null,
+            'approval_status' => (string) ($payload['approval_status'] ?? 'pending'),
+            'status' => (string) ($payload['status'] ?? 'pending_approval'),
+            'approved_at' => $payload['approved_at'] ?? null,
+            'completed_at' => $payload['completed_at'] ?? null,
+        ]);
+
+        return (int) $this->db->lastInsertId();
+    }
+
+    public function createSeedRating(int $ticketId, int $requesterId, ?int $technicianId, int $score, string $feedback): void
+    {
+        $stmt = $this->db->prepare(
+            'INSERT IGNORE INTO ticket_ratings (ticket_id, requester_id, technician_id, score, feedback, created_at, updated_at)
+             VALUES (:ticket_id, :requester_id, :technician_id, :score, :feedback, NOW(), NOW())'
+        );
+        $stmt->execute([
+            'ticket_id' => $ticketId,
+            'requester_id' => $requesterId,
+            'technician_id' => $technicianId,
+            'score' => max(1, min(5, $score)),
+            'feedback' => $feedback,
+        ]);
+    }
+
     public function findRecentTicketsByAssetId(int $assetId, int $limit = 10): array
     {
         $limit = max(1, min($limit, 50));
