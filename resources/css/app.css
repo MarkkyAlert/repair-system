@@ -2964,6 +2964,30 @@ a.leaderboard-number:hover {
   animation: workflow-pulse-active 1.6s ease-out infinite;
 }
 
+/* Terminal (negative) outcome — rejected / cancelled. The workflow left the
+   happy path here, so this node is rendered red instead of indigo. */
+.workflow-progress-step.is-terminal { color: #be123c; }
+.dark .workflow-progress-step.is-terminal { color: #fda4af; }
+
+.workflow-progress-step.is-terminal::before {
+  background: linear-gradient(90deg, var(--indigo-500), #f43f5e);
+}
+
+.workflow-progress-step.is-terminal i {
+  border-color: #be123c;
+  background: linear-gradient(135deg, #f43f5e, #be123c);
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, #f43f5e 18%, transparent),
+    0 4px 10px -2px rgba(244, 63, 94, .5);
+  animation: workflow-pulse .55s ease-out;
+}
+
+/* Steps that were never reached because the ticket terminated early. */
+.workflow-progress-step.is-skipped i {
+  border-style: dashed;
+  opacity: .55;
+}
+
 /* Very narrow screens: keep all 6 steps visible (grid) but ease the label
    crowding by shrinking type, dot and padding. */
 @media (max-width: 480px) {

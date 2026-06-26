@@ -75,7 +75,7 @@ if (!empty($workflow['canReview'])) {
     <!-- Ticket Status Hero -->
     <section class="panel-card ticket-status-hero">
         <div class="panel-head">
-            <h2 class="panel-title"><?= e($ticket['title']) ?></h2>
+            <h2 class="panel-title">สถานะและความคืบหน้า</h2>
             <div class="button-row">
                 <?= render_partial('partials/components/badge', ['label' => $ticket['approval_label'], 'tone' => $ticket['approval_tone']]) ?>
                 <?= render_partial('partials/components/badge', ['label' => $ticket['sla_overview_label'], 'tone' => $ticket['sla_overview_tone']]) ?>
@@ -97,17 +97,63 @@ if (!empty($workflow['canReview'])) {
                 <?php endforeach; ?>
             </div>
         <?php endif; ?>
+        <?php
+            $currentStatus = (string) ($ticket['status'] ?? '');
+            $progressSteps = ['pending_approval' => 'รออนุมัติ', 'approved' => 'อนุมัติ', 'assigned' => 'มอบหมาย', 'in_progress' => 'ดำเนินการ', 'resolved' => 'รอตรวจรับ', 'completed' => 'เสร็จสิ้น'];
+            $stepKeys = array_keys($progressSteps);
+
+            // Furthest stage actually reached, inferred from milestone timestamps —
+            // reliable even when the ticket has left the happy path.
+            $reachedIndex = 0;
+            foreach (['approved' => 'approved_at', 'assigned' => 'assigned_at', 'in_progress' => 'started_at', 'resolved' => 'resolved_at', 'completed' => 'completed_at'] as $stage => $field) {
+                if ((string) ($ticket[$field] ?? '-') !== '-') {
+                    $reachedIndex = array_search($stage, $stepKeys, true);
+                }
+            }
+
+            // Terminal (negative) states leave the happy path; on_hold pauses it; closed completes it.
+            $terminalLabels = ['rejected' => 'ถูกปฏิเสธ', 'cancelled' => 'ยกเลิกแล้ว'];
+            $isTerminal = array_key_exists($currentStatus, $terminalLabels);
+            $isOnHold = $currentStatus === 'on_hold';
+            if ($currentStatus === 'closed') {
+                $reachedIndex = array_search('completed', $stepKeys, true);
+            }
+
+            $activeStatus = $isOnHold ? 'in_progress' : $currentStatus;
+            $currentIndex = array_search($activeStatus, $stepKeys, true);
+            if ($currentIndex === false) {
+                $currentIndex = $reachedIndex;
+            }
+        ?>
+        <?php if ($isOnHold): ?>
+            <div class="button-row">
+                <?= render_partial('partials/components/badge', ['label' => 'พักงานชั่วคราว', 'tone' => 'warning']) ?>
+                <span class="helper-text">งานถูกพักไว้ชั่วคราว จะกลับมาดำเนินการต่อในขั้น “ดำเนินการ”</span>
+            </div>
+        <?php endif; ?>
         <ol class="workflow-progress" aria-label="สถานะการดำเนินงาน">
-            <?php $statusOrder = ['pending_approval','approved','assigned','accepted','in_progress','resolved','completed']; ?>
-            <?php $currentIndex = array_search((string) ($ticket['status'] ?? ''), $statusOrder, true); ?>
-            <?php $progressSteps = ['pending_approval' => 'รออนุมัติ', 'approved' => 'อนุมัติ', 'assigned' => 'มอบหมาย', 'in_progress' => 'ดำเนินการ', 'resolved' => 'รอตรวจรับ', 'completed' => 'เสร็จสิ้น']; ?>
-            <?php $currentStatus = (string) ($ticket['status'] ?? ''); ?>
             <?php foreach ($progressSteps as $statusKey => $statusLabel): ?>
-                <?php $stepIndex = array_search($statusKey, $statusOrder, true); ?>
-                <?php $isComplete = $currentIndex !== false && $stepIndex !== false && $stepIndex <= $currentIndex; ?>
-                <?php $isCurrent  = $statusKey === $currentStatus || ($currentStatus === 'accepted' && $statusKey === 'assigned'); ?>
-                <li class="workflow-progress-step<?= $isComplete ? ' is-complete' : '' ?><?= $isCurrent ? ' is-current' : '' ?>">
-                    <i></i><?= e($statusLabel) ?>
+                <?php
+                    $stepIndex = array_search($statusKey, $stepKeys, true);
+                    if ($isTerminal) {
+                        $isComplete = $stepIndex < $reachedIndex;
+                        $isCurrent = false;
+                        $isTerminalStep = $stepIndex === $reachedIndex;
+                        $isSkipped = $stepIndex > $reachedIndex;
+                    } else {
+                        $isComplete = $currentIndex !== false && $stepIndex <= $currentIndex;
+                        $isCurrent = $statusKey === $activeStatus || ($currentStatus === 'accepted' && $statusKey === 'assigned');
+                        $isTerminalStep = false;
+                        $isSkipped = false;
+                    }
+                    $stepClasses = 'workflow-progress-step'
+                        . ($isComplete ? ' is-complete' : '')
+                        . ($isCurrent ? ' is-current' : '')
+                        . ($isTerminalStep ? ' is-terminal' : '')
+                        . ($isSkipped ? ' is-skipped' : '');
+                ?>
+                <li class="<?= $stepClasses ?>">
+                    <i></i><?= e($isTerminalStep ? $terminalLabels[$currentStatus] : $statusLabel) ?>
                 </li>
             <?php endforeach; ?>
         </ol>
@@ -144,8 +190,8 @@ if (!empty($workflow['canReview'])) {
             <div class="panel-head">
                 <h2 class="panel-title">การมอบหมายและ SLA</h2>
                 <div class="button-row">
-                    <?= render_partial('partials/components/badge', ['label' => $ticket['sla_response']['label'], 'tone' => $ticket['sla_response']['tone']]) ?>
-                    <?= render_partial('partials/components/badge', ['label' => $ticket['sla_resolution']['label'], 'tone' => $ticket['sla_resolution']['tone']]) ?>
+                    <?= render_partial('partials/components/badge', ['label' => 'ตอบรับ · ' . $ticket['sla_response']['label'], 'tone' => $ticket['sla_response']['tone']]) ?>
+                    <?= render_partial('partials/components/badge', ['label' => 'แก้ไข · ' . $ticket['sla_resolution']['label'], 'tone' => $ticket['sla_resolution']['tone']]) ?>
                 </div>
             </div>
             <dl class="detail-list">
@@ -204,23 +250,27 @@ if (!empty($workflow['canReview'])) {
             </div>
 
             <?php if (!empty($workflow['canReview'])): ?>
-                <div class="content-grid">
-                    <form method="post" action="<?= e(url('/tickets/' . $ticket['id'] . '/approve')) ?>" class="action-form action-form-success">
-                        <?= csrf_field() ?>
-                        <div class="action-form-head">
-                            <span class="action-form-icon tone-success"><?= lucide('check-circle', 'h-5 w-5') ?></span>
-                            <div>
-                                <h3>อนุมัติรายการ</h3>
-                                <p>ส่งต่อให้ทีมจัดสรรช่าง</p>
-                            </div>
+                <form method="post" action="<?= e(url('/tickets/' . $ticket['id'] . '/approve')) ?>" class="action-form action-form-success">
+                    <?= csrf_field() ?>
+                    <div class="action-form-head">
+                        <span class="action-form-icon tone-success"><?= lucide('check-circle', 'h-5 w-5') ?></span>
+                        <div>
+                            <h3>อนุมัติรายการ</h3>
+                            <p>ส่งต่อให้ทีมจัดสรรช่าง</p>
                         </div>
-                        <div class="field-group">
-                            <label for="approval-note" class="field-label">หมายเหตุ (ไม่บังคับ)</label>
-                            <textarea id="approval-note" name="note" class="input" rows="3" placeholder="เช่น อนุมัติให้ช่างเข้าดำเนินการภายใน SLA"><?= e((string) ($workflow['defaults']['note'] ?? '')) ?></textarea>
-                        </div>
-                        <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'อนุมัติ', 'variant' => 'primary', 'icon' => 'check-circle']) ?>
-                    </form>
+                    </div>
+                    <div class="field-group">
+                        <label for="approval-note" class="field-label">หมายเหตุ (ไม่บังคับ)</label>
+                        <textarea id="approval-note" name="note" class="input" rows="3" placeholder="เช่น อนุมัติให้ช่างเข้าดำเนินการภายใน SLA"><?= e((string) ($workflow['defaults']['note'] ?? '')) ?></textarea>
+                    </div>
+                    <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'อนุมัติ', 'variant' => 'primary', 'icon' => 'check-circle']) ?>
+                </form>
 
+                <details class="reject-disclosure">
+                    <summary class="btn btn-ghost btn-sm">
+                        <?= lucide('triangle-alert', 'button-icon') ?>
+                        <span>ปฏิเสธรายการนี้แทน</span>
+                    </summary>
                     <form method="post" action="<?= e(url('/tickets/' . $ticket['id'] . '/reject')) ?>" class="action-form action-form-danger">
                         <?= csrf_field() ?>
                         <div class="action-form-head">
@@ -236,7 +286,7 @@ if (!empty($workflow['canReview'])) {
                         </div>
                         <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ปฏิเสธ', 'variant' => 'danger', 'icon' => 'x']) ?>
                     </form>
-                </div>
+                </details>
             <?php endif; ?>
 
             <?php if (!empty($workflow['canAssign'])): ?>
@@ -600,7 +650,7 @@ if (!empty($workflow['canReview'])) {
             <?php endif; ?>
         </section>
 
-    <details class="panel-card collapsible">
+    <details class="panel-card collapsible" open>
         <summary class="collapsible-summary">
             <div class="collapsible-title">
                 <h2 class="panel-title">ประวัติการเปลี่ยนสถานะ</h2>
