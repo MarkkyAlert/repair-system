@@ -8,14 +8,14 @@ $chartPayload = [
 ];
 $role = (string) ($currentUser['role'] ?? 'guest');
 $roleLabels = [
-    'requester' => 'ผู้แจ้ง',
-    'manager' => 'ผู้จัดการ',
-    'technician' => 'ช่างเทคนิค',
-    'admin' => 'ผู้ดูแลระบบ',
+    'requester' => role_label_th('requester'),
+    'manager' => role_label_th('manager'),
+    'technician' => role_label_th('technician'),
+    'admin' => role_label_th('admin'),
 ];
 $primaryCta = match ($role) {
     'manager' => ['label' => 'ตรวจงานรออนุมัติ', 'href' => '/dashboard?preset=pending_approval', 'icon' => 'clipboard-list'],
-    'technician' => ['label' => 'ดูงานของฉัน', 'href' => '/dashboard?preset=mine', 'icon' => 'wrench'],
+    'technician' => ['label' => 'ดูงานของฉัน', 'href' => '/tickets', 'icon' => 'wrench'],
     default => ['label' => 'แจ้งปัญหาใหม่', 'href' => '/tickets/create', 'icon' => 'arrow-right'],
 };
 $chartHasData = static function (array $chart): bool {

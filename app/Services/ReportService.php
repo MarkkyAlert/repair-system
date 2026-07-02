@@ -25,12 +25,16 @@ class ReportService
         $normalizedFilters = $this->normalizeReportFilters($filters);
         $reference = $this->reports->getFilterReferenceData();
         $summary = $this->reports->getSummary($viewer, $normalizedFilters);
-        $rows = array_map(fn (array $row): array => $this->mapReportRow($row), $this->reports->getRows($viewer, $normalizedFilters, 250));
+        $rowLimit = 250;
+        $rows = array_map(fn (array $row): array => $this->mapReportRow($row), $this->reports->getRows($viewer, $normalizedFilters, $rowLimit));
+
+        $totalTickets = (int) ($summary['total_tickets'] ?? 0);
+        $displayedCount = count($rows);
 
         return [
             'filters' => $this->buildFilterData($normalizedFilters, $reference),
             'summary' => [
-                'total' => (int) ($summary['total_tickets'] ?? 0),
+                'total' => $totalTickets,
                 'resolved' => (int) ($summary['resolved_tickets'] ?? 0),
                 'overdue' => (int) ($summary['overdue_tickets'] ?? 0),
                 'avgResolutionHours' => round(((float) ($summary['avg_resolution_minutes'] ?? 0)) / 60, 1),
@@ -38,6 +42,14 @@ class ReportService
                 'avgRatingLabel' => (float) ($summary['avg_rating'] ?? 0) > 0 ? number_format((float) ($summary['avg_rating'] ?? 0), 1) : '-',
             ],
             'rows' => $rows,
+            // The on-screen table is capped; this meta lets the view show an honest count
+            // and warn when data is truncated (full data is available via export).
+            'rowsMeta' => [
+                'displayed' => $displayedCount,
+                'total' => max($totalTickets, $displayedCount),
+                'limit' => $rowLimit,
+                'capped' => $totalTickets > $displayedCount,
+            ],
         ];
     }
 
@@ -54,24 +66,24 @@ class ReportService
         try {
             $spreadsheet = new Spreadsheet();
             $sheet = $spreadsheet->getActiveSheet();
-            $sheet->setTitle('Ticket Report');
+            $sheet->setTitle('รายงาน Ticket');
 
             $headers = [
-                'Ticket No',
-                'Title',
-                'Requester',
-                'Department',
-                'Category',
-                'Technician',
-                'Priority',
-                'Status',
-                'Requested At',
-                'Resolved At',
-                'Resolution Hours',
+                'เลขที่',
+                'หัวข้อ',
+                'ผู้แจ้ง',
+                'แผนก',
+                'หมวดหมู่',
+                'ช่างเทคนิค',
+                'ความสำคัญ',
+                'สถานะ',
+                'วันที่แจ้ง',
+                'วันที่แก้ไข',
+                'เวลาแก้ไข (ชม.)',
                 'เกิน SLA',
-                'SLA Status',
-                'Rating',
-                'Location',
+                'สถานะ SLA',
+                'คะแนน',
+                'สถานที่',
             ];
 
             $column = 'A';
@@ -151,7 +163,7 @@ class ReportService
             $options = new Options();
             $options->setTempDir('/private/tmp');
             $options->set('isRemoteEnabled', false);
-            $options->set('defaultFont', 'DejaVu Sans');
+            $options->set('defaultFont', 'sarabun');
             $dompdf = new Dompdf($options);
             $dompdf->loadHtml($html, 'UTF-8');
             $dompdf->setPaper('A4', 'landscape');
@@ -186,7 +198,7 @@ class ReportService
                 throw new RuntimeException('ไม่สามารถเตรียมไฟล์ CSV ได้');
             }
             fwrite($stream, "\xEF\xBB\xBF");
-            fputcsv($stream, ['Ticket No', 'Title', 'Requester', 'Department', 'Category', 'Technician', 'Priority', 'Status', 'Requested At', 'Resolved At', 'Resolution Hours', 'เกิน SLA', 'SLA Status', 'Rating', 'Location']);
+            fputcsv($stream, ['เลขที่', 'หัวข้อ', 'ผู้แจ้ง', 'แผนก', 'หมวดหมู่', 'ช่างเทคนิค', 'ความสำคัญ', 'สถานะ', 'วันที่แจ้ง', 'วันที่แก้ไข', 'เวลาแก้ไข (ชม.)', 'เกิน SLA', 'สถานะ SLA', 'คะแนน', 'สถานที่']);
             foreach ($rows as $row) {
                 fputcsv($stream, $this->sanitizeExportRow([
                     $row['ticket_no'], $row['title'], $row['requester_name'], $row['department_name'],
@@ -360,7 +372,7 @@ class ReportService
             'to_date' => (string) ($filters['to_date'] ?? '') !== '' ? (string) ($filters['to_date'] ?? '') : 'ไม่ระบุ',
             'department' => $departmentName,
             'category' => $categoryName,
-            'status' => (string) ($filters['status'] ?? '') !== '' ? $this->labelize((string) ($filters['status'] ?? '')) : 'ทุกสถานะ',
+            'status' => (string) ($filters['status'] ?? '') !== '' ? ticket_status_label_th((string) ($filters['status'] ?? '')) : 'ทุกสถานะ',
         ];
     }
 
@@ -369,6 +381,9 @@ class ReportService
         $sla = $this->buildSlaSummary($row);
         $resolutionMinutes = isset($row['resolution_minutes']) ? (int) $row['resolution_minutes'] : 0;
         $ratingScore = (int) ($row['rating_score'] ?? 0);
+        $status = (string) ($row['status'] ?? 'submitted');
+        $priorityCode = strtoupper((string) ($row['priority_code'] ?? 'MEDIUM'));
+        $isOverdue = (bool) ($sla['is_overdue'] ?? false);
 
         return [
             'id' => (int) ($row['id'] ?? 0),
@@ -378,16 +393,19 @@ class ReportService
             'department_name' => (string) ($row['department_name'] ?? '-'),
             'category_name' => (string) ($row['category_name'] ?? '-'),
             'technician_name' => (string) ($row['technician_name'] ?? '-'),
-            'priority_label' => (string) ($row['priority_name'] ?? strtoupper((string) ($row['priority_code'] ?? 'MEDIUM'))),
-            'status' => (string) ($row['status'] ?? 'submitted'),
-            'status_label' => $this->labelize((string) ($row['status'] ?? 'submitted')),
+            // Thai labels — shared by both the on-screen table and the Excel/PDF/CSV exporters.
+            'priority_label' => in_array($priorityCode, ['LOW', 'MEDIUM', 'HIGH', 'URGENT'], true)
+                ? priority_label_th($priorityCode)
+                : (string) ($row['priority_name'] ?? $priorityCode),
+            'status' => $status,
+            'status_label' => ticket_status_label_th($status),
             'requested_at' => $this->formatDateTime($row['requested_at'] ?? null),
             'resolved_at' => $this->formatDateTime($row['resolved_at'] ?? null),
             'resolution_hours' => $resolutionMinutes > 0 ? round($resolutionMinutes / 60, 1) : 0,
             'resolution_hours_label' => $resolutionMinutes > 0 ? number_format(round($resolutionMinutes / 60, 1), 1) : '-',
             'sla_label' => (string) ($sla['label'] ?? '-'),
-            'sla_overdue' => (bool) ($sla['is_overdue'] ?? false),
-            'sla_overdue_label' => !empty($sla['is_overdue']) ? 'Yes' : 'No',
+            'sla_overdue' => $isOverdue,
+            'sla_overdue_label' => $isOverdue ? 'ใช่' : 'ไม่ใช่',
             'rating_score' => $ratingScore,
             'rating_label' => $ratingScore > 0 ? (string) $ratingScore : '-',
             'location_name' => (string) ($row['location_name'] ?? '-'),
@@ -399,7 +417,7 @@ class ReportService
     {
         if ((string) ($ticket['status'] ?? '') === 'cancelled') {
             return [
-                'label' => 'SLA not applicable',
+                'label' => 'ไม่คิด SLA',
                 'is_overdue' => false,
             ];
         }
@@ -409,17 +427,17 @@ class ReportService
         $isOverdue = ($response['status'] ?? '') === 'breached' || ($resolution['status'] ?? '') === 'breached' || (bool) ($ticket['is_overdue'] ?? false);
 
         if (($resolution['status'] ?? '') === 'breached') {
-            $label = 'Resolution overdue';
+            $label = 'แก้ไขเกินกำหนด';
         } elseif (($response['status'] ?? '') === 'breached') {
-            $label = 'Response overdue';
+            $label = 'ตอบรับเกินกำหนด';
         } elseif (($response['status'] ?? '') === 'met' && ($resolution['status'] ?? '') === 'met') {
-            $label = 'Within SLA';
+            $label = 'อยู่ใน SLA';
         } elseif (($response['status'] ?? '') === 'pending') {
-            $label = 'Response pending';
+            $label = 'รอตอบรับ';
         } elseif (($resolution['status'] ?? '') === 'pending') {
-            $label = 'Resolution pending';
+            $label = 'รอแก้ไข';
         } else {
-            $label = 'SLA tracked';
+            $label = 'กำลังติดตาม SLA';
         }
 
         return [
@@ -492,19 +510,10 @@ class ReportService
 
     private function enumOptions(array $values): array
     {
-        return array_map(fn (string $value): array => [
+        // Used only for the on-screen ticket-status filter dropdown.
+        return array_map(static fn (string $value): array => [
             'value' => $value,
-            'label' => $this->labelize($value),
+            'label' => ticket_status_label_th($value),
         ], $values);
-    }
-
-    private function labelize(string $value): string
-    {
-        $normalized = trim($value);
-        if ($normalized === '') {
-            return '-';
-        }
-
-        return ucwords(str_replace('_', ' ', $normalized));
     }
 }

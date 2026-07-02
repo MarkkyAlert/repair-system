@@ -9,13 +9,13 @@
         <?php endif; ?>
         <div>
             <p class="brand-title"><?= e($authAppName) ?></p>
-            <p class="brand-subtitle">Reset Password</p>
+            <p class="brand-subtitle">รีเซ็ตรหัสผ่าน</p>
         </div>
     </div>
 
     <div class="hero-card">
         <div class="hero-copy">
-            <span class="pill">Secure Reset</span>
+            <span class="pill">รีเซ็ตอย่างปลอดภัย</span>
             <h1 class="hero-title">ตั้งรหัสผ่านใหม่</h1>
             <p class="hero-text">กำหนดรหัสผ่านใหม่อย่างน้อย 8 ตัวอักษร ระบบจะลบโทเค็นรีเซ็ตทิ้งทันทีหลังตั้งค่ารหัสผ่านสำเร็จ</p>
         </div>
@@ -26,18 +26,18 @@
             <input type="hidden" name="token" value="<?= e($token ?? '') ?>">
             <?php if (!empty($errorMessage)): ?>
                 <div class="stack-md">
-                    <span class="badge badge-danger">Error</span>
+                    <span class="badge badge-danger">ข้อผิดพลาด</span>
                     <p class="helper-text"><?= e((string) $errorMessage) ?></p>
                 </div>
             <?php endif; ?>
             <?php if (!empty($successMessage)): ?>
                 <div class="stack-md">
-                    <span class="badge badge-success">Success</span>
+                    <span class="badge badge-success">สำเร็จ</span>
                     <p class="helper-text"><?= e((string) $successMessage) ?></p>
                 </div>
             <?php endif; ?>
             <div class="field-group">
-                <label for="reset-email" class="field-label">Email</label>
+                <label for="reset-email" class="field-label">อีเมล</label>
                 <input id="reset-email" type="email" class="input" value="<?= e($email ?? '') ?>" disabled>
             </div>
             <div class="field-group">

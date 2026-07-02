@@ -11,7 +11,7 @@ $total = (int) ($preview['total'] ?? 0);
         'title' => $hasPreview ? 'ตรวจสอบก่อนนำเข้า' : 'นำเข้าทรัพย์สินจาก CSV',
         'description' => $hasPreview
             ? 'ตรวจรายการที่ระบบเตรียมไว้ ก่อนยืนยันสร้างจริงในระบบ'
-            : 'อัปโหลดไฟล์ CSV ที่ใช้รูปแบบเดียวกับ template ระบบ',
+            : 'อัปโหลดไฟล์ CSV ที่ใช้รูปแบบเดียวกับเทมเพลตของระบบ',
         'actions' => render_partial('partials/components/button', [
             'label' => 'กลับรายการทรัพย์สิน',
             'variant' => 'secondary',
@@ -32,10 +32,10 @@ $total = (int) ($preview['total'] ?? 0);
             <div class="panel-head">
                 <div>
                     <h2 class="panel-title">ขั้นตอนนำเข้า</h2>
-                    <p class="field-hint">ดาวน์โหลด template → กรอกข้อมูล → อัปโหลด → ตรวจ preview → ยืนยัน</p>
+                    <p class="field-hint">ดาวน์โหลดเทมเพลต → กรอกข้อมูล → อัปโหลด → ตรวจสอบตัวอย่าง → ยืนยัน</p>
                 </div>
                 <?= render_partial('partials/components/button', [
-                    'label' => 'ดาวน์โหลด template CSV',
+                    'label' => 'ดาวน์โหลดเทมเพลต CSV',
                     'variant' => 'secondary',
                     'href' => '/asset-registry/import/template.csv',
                     'icon' => 'arrow-right',
@@ -44,8 +44,8 @@ $total = (int) ($preview['total'] ?? 0);
             </div>
 
             <ol class="ticket-flow-list">
-                <li><span>1</span><div><strong>ใช้ template เท่านั้น</strong><span>Column ครบทุกตัว แม้บางตัวจะเว้นค่าได้</span></div></li>
-                <li><span>2</span><div><strong>FK lookup ด้วย code</strong><span>category_code, location_code, department_code จากตั้งค่าระบบ และ custodian_username จากบัญชีผู้ใช้</span></div></li>
+                <li><span>1</span><div><strong>ใช้เทมเพลตเท่านั้น</strong><span>คอลัมน์ครบทุกตัว แม้บางตัวจะเว้นค่าได้</span></div></li>
+                <li><span>2</span><div><strong>เชื่อมข้อมูลด้วยรหัส</strong><span>category_code, location_code, department_code จากตั้งค่าระบบ และ custodian_username จากบัญชีผู้ใช้</span></div></li>
                 <li><span>3</span><div><strong>วันที่</strong><span>รูปแบบ YYYY-MM-DD (เช่น 2024-01-15)</span></div></li>
                 <li><span>4</span><div><strong>สูงสุด 500 รายการต่อรอบ</strong><span>ไฟล์ขนาดไม่เกิน 2MB</span></div></li>
             </ol>
@@ -162,7 +162,7 @@ $total = (int) ($preview['total'] ?? 0);
                                 <td><?= e((string) $row['name']) ?></td>
                                 <td><?= e((string) $row['asset_category_id']) ?></td>
                                 <td><?= e((string) $row['location_id']) ?></td>
-                                <td><?= e((string) $row['status']) ?></td>
+                                <td><?= e(asset_status_label_th((string) $row['status'])) ?></td>
                             </tr>
                         <?php endforeach; ?>
                         </tbody>

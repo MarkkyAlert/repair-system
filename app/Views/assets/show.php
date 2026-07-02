@@ -2,7 +2,7 @@
     <h1 class="sr-only"><?= e($asset['name']) ?> — <?= e($asset['asset_code']) ?></h1>
     <?= render_partial('partials/components/breadcrumb', [
         'items' => [
-            ['label' => 'Asset Registry', 'href' => '/asset-registry'],
+            ['label' => 'ทะเบียนทรัพย์สิน', 'href' => '/asset-registry'],
             ['label' => (string) $asset['asset_code']],
         ],
     ]) ?>

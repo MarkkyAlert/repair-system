@@ -1,24 +1,24 @@
 <?php
 $fieldLabels = [
-    'heading' => ['label' => 'หัวข้อ (Heading)', 'hint' => 'ข้อความหัวเรื่องใหญ่ในเนื้ออีเมล หากเว้นว่างระบบจะใช้ค่า default ตาม event'],
-    'intro' => ['label' => 'คำนำ (Intro)', 'hint' => 'ข้อความแนะนำสั้น ๆ ก่อนเนื้อหา'],
-    'footer_note' => ['label' => 'ข้อความท้ายอีเมล (Footer)', 'hint' => 'มักใช้ระบุที่มาของระบบ เช่น "ส่งจากระบบแจ้งซ่อม"'],
+    'heading' => ['label' => 'หัวข้อ', 'hint' => 'ข้อความหัวเรื่องใหญ่ในเนื้ออีเมล หากเว้นว่างระบบจะใช้ค่าเริ่มต้นตามเหตุการณ์'],
+    'intro' => ['label' => 'คำนำ', 'hint' => 'ข้อความแนะนำสั้น ๆ ก่อนเนื้อหา'],
+    'footer_note' => ['label' => 'ข้อความท้ายอีเมล', 'hint' => 'มักใช้ระบุที่มาของระบบ เช่น "ส่งจากระบบแจ้งซ่อม"'],
 ];
 $hasOverride = ($values ?? []) !== [];
 ?>
 <section class="stack-lg">
-    <h1 class="sr-only">แก้ไข email template</h1>
+    <h1 class="sr-only">แก้ไขเทมเพลตอีเมล</h1>
     <?= render_partial('partials/components/page-header', [
-        'eyebrow' => 'Email Template',
+        'eyebrow' => 'เทมเพลตอีเมล',
         'title' => (string) ($meta['label'] ?? $templateKey),
         'description' => 'แก้ข้อความที่ผู้รับเห็นในอีเมล โดยไม่ต้องแก้โค้ด',
         'breadcrumbs' => [
-            ['label' => 'Admin', 'href' => '/admin'],
-            ['label' => 'Email Templates', 'href' => '/admin/email-templates'],
+            ['label' => 'ตั้งค่าระบบ', 'href' => '/admin'],
+            ['label' => 'เทมเพลตอีเมล', 'href' => '/admin/email-templates'],
             ['label' => (string) ($meta['label'] ?? $templateKey)],
         ],
         'actions' => render_partial('partials/components/button', [
-            'label' => 'กลับรายการ template',
+            'label' => 'กลับรายการเทมเพลต',
             'variant' => 'secondary',
             'href' => '/admin/email-templates',
             'icon' => 'arrow-left',
@@ -45,9 +45,9 @@ $hasOverride = ($values ?? []) !== [];
                 <p class="field-hint">เว้นช่องว่างเพื่อใช้ค่าเริ่มต้น</p>
             </div>
             <?php if ($hasOverride): ?>
-                <?= render_partial('partials/components/badge', ['label' => 'customized', 'tone' => 'warning']) ?>
+                <?= render_partial('partials/components/badge', ['label' => 'ปรับแต่งแล้ว', 'tone' => 'warning']) ?>
             <?php else: ?>
-                <?= render_partial('partials/components/badge', ['label' => 'default', 'tone' => 'default']) ?>
+                <?= render_partial('partials/components/badge', ['label' => 'ค่าเริ่มต้น', 'tone' => 'default']) ?>
             <?php endif; ?>
         </div>
 

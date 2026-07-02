@@ -17,45 +17,45 @@
     <section class="print-document panel-card stack-lg">
         <div class="print-header">
             <div>
-                <p class="panel-kicker">Work Order</p>
+                <p class="panel-kicker">ใบสั่งงาน</p>
                 <h2 class="panel-title"><?= e($ticket['ticket_no']) ?> · <?= e($ticket['title']) ?></h2>
                 <p class="body-text">พิมพ์เมื่อ <?= e($printedAt ?? '-') ?></p>
             </div>
             <div class="print-qr-box">
-                <img src="<?= e($ticket['print_qr_url']) ?>" alt="QR for <?= e($ticket['ticket_no']) ?>" class="print-qr-image">
-                <p class="helper-text">สแกนเพื่อเปิด ticket</p>
+                <img src="<?= e($ticket['print_qr_url']) ?>" alt="QR สำหรับ <?= e($ticket['ticket_no']) ?>" class="print-qr-image">
+                <p class="helper-text">สแกนเพื่อเปิด Ticket</p>
             </div>
         </div>
 
         <div class="print-grid-two">
             <section class="stack-md">
                 <div>
-                    <p class="panel-kicker">Requester</p>
+                    <p class="panel-kicker">ผู้แจ้ง</p>
                     <h3 class="panel-title">ข้อมูลผู้แจ้ง</h3>
                 </div>
                 <p class="body-text"><strong>ชื่อ:</strong> <?= e($ticket['requester_name']) ?></p>
-                <p class="body-text"><strong>Email:</strong> <?= e($ticket['requester_email']) ?></p>
-                <p class="body-text"><strong>Phone:</strong> <?= e($ticket['requester_phone']) ?></p>
-                <p class="body-text"><strong>Location:</strong> <?= e($ticket['location_detail']) ?></p>
-                <p class="body-text"><strong>Asset:</strong> <?= e($ticket['asset_code']) ?> - <?= e($ticket['asset_name']) ?></p>
+                <p class="body-text"><strong>อีเมล:</strong> <?= e($ticket['requester_email']) ?></p>
+                <p class="body-text"><strong>เบอร์โทร:</strong> <?= e($ticket['requester_phone']) ?></p>
+                <p class="body-text"><strong>สถานที่:</strong> <?= e($ticket['location_detail']) ?></p>
+                <p class="body-text"><strong>ทรัพย์สิน:</strong> <?= e($ticket['asset_code']) ?> - <?= e($ticket['asset_name']) ?></p>
             </section>
 
             <section class="stack-md">
                 <div>
-                    <p class="panel-kicker">Assignment</p>
+                    <p class="panel-kicker">การมอบหมาย</p>
                     <h3 class="panel-title">การมอบหมายงาน</h3>
                 </div>
-                <p class="body-text"><strong>Manager:</strong> <?= e($ticket['manager_name']) ?></p>
-                <p class="body-text"><strong>Technician:</strong> <?= e($ticket['technician_name']) ?></p>
-                <p class="body-text"><strong>Work Order:</strong> <?= e($ticket['work_order_no']) ?></p>
-                <p class="body-text"><strong>Status:</strong> <?= e($ticket['status_label']) ?> / <?= e($ticket['approval_label']) ?></p>
-                <p class="body-text"><strong>Priority:</strong> <?= e($ticket['priority_label']) ?></p>
+                <p class="body-text"><strong>หัวหน้างาน:</strong> <?= e($ticket['manager_name']) ?></p>
+                <p class="body-text"><strong>ช่างเทคนิค:</strong> <?= e($ticket['technician_name']) ?></p>
+                <p class="body-text"><strong>ใบสั่งงาน:</strong> <?= e($ticket['work_order_no']) ?></p>
+                <p class="body-text"><strong>สถานะ:</strong> <?= e($ticket['status_label']) ?> / <?= e($ticket['approval_label']) ?></p>
+                <p class="body-text"><strong>ความสำคัญ:</strong> <?= e($ticket['priority_label']) ?></p>
             </section>
         </div>
 
         <section class="stack-md">
             <div>
-                <p class="panel-kicker">Problem</p>
+                <p class="panel-kicker">ปัญหา</p>
                 <h3 class="panel-title">รายละเอียดปัญหา</h3>
             </div>
             <p class="body-text"><?= nl2br(e($ticket['description'])) ?></p>
@@ -67,37 +67,37 @@
                     <p class="panel-kicker">SLA</p>
                     <h3 class="panel-title">เวลาเป้าหมาย</h3>
                 </div>
-                <p class="body-text"><strong>Response:</strong> <?= e($ticket['sla_response']['label'] ?? '-') ?> · Due <?= e($ticket['sla_response']['target_at'] ?? '-') ?></p>
-                <p class="body-text"><strong>Resolution:</strong> <?= e($ticket['sla_resolution']['label'] ?? '-') ?> · Due <?= e($ticket['sla_resolution']['target_at'] ?? '-') ?></p>
-                <p class="body-text"><strong>Overview:</strong> <?= e($ticket['sla_overview']['label'] ?? '-') ?></p>
+                <p class="body-text"><strong>ตอบรับ:</strong> <?= e($ticket['sla_response']['label'] ?? '-') ?> · กำหนด <?= e($ticket['sla_response']['target_at'] ?? '-') ?></p>
+                <p class="body-text"><strong>แก้ไข:</strong> <?= e($ticket['sla_resolution']['label'] ?? '-') ?> · กำหนด <?= e($ticket['sla_resolution']['target_at'] ?? '-') ?></p>
+                <p class="body-text"><strong>ภาพรวม:</strong> <?= e($ticket['sla_overview']['label'] ?? '-') ?></p>
             </section>
 
             <section class="stack-md">
                 <div>
-                    <p class="panel-kicker">Work Notes</p>
+                    <p class="panel-kicker">บันทึกงาน</p>
                     <h3 class="panel-title">คำสั่งงาน / ผลการดำเนินงาน</h3>
                 </div>
-                <p class="body-text"><strong>Instructions:</strong> <?= e($ticket['work_order_instructions']) ?></p>
-                <p class="body-text"><strong>Diagnosis:</strong> <?= e($ticket['work_order_diagnosis_summary']) ?></p>
-                <p class="body-text"><strong>Resolution:</strong> <?= e($ticket['work_order_resolution_summary']) ?></p>
-                <p class="body-text"><strong>Labor minutes:</strong> <?= e((string) $ticket['work_order_labor_minutes']) ?></p>
+                <p class="body-text"><strong>คำสั่งงาน:</strong> <?= e($ticket['work_order_instructions']) ?></p>
+                <p class="body-text"><strong>การวินิจฉัย:</strong> <?= e($ticket['work_order_diagnosis_summary']) ?></p>
+                <p class="body-text"><strong>การแก้ไข:</strong> <?= e($ticket['work_order_resolution_summary']) ?></p>
+                <p class="body-text"><strong>เวลาปฏิบัติงาน (นาที):</strong> <?= e((string) $ticket['work_order_labor_minutes']) ?></p>
             </section>
         </div>
 
         <section class="stack-md">
             <div>
-                <p class="panel-kicker">Timeline</p>
+                <p class="panel-kicker">ลำดับเวลา</p>
                 <h3 class="panel-title">เวลาสำคัญ</h3>
             </div>
             <div class="print-grid-two">
-                <p class="body-text"><strong>Requested:</strong> <?= e($ticket['requested_at']) ?></p>
-                <p class="body-text"><strong>Approved:</strong> <?= e($ticket['approved_at']) ?></p>
-                <p class="body-text"><strong>Assigned:</strong> <?= e($ticket['assigned_at']) ?></p>
-                <p class="body-text"><strong>First response:</strong> <?= e($ticket['first_response_at']) ?></p>
-                <p class="body-text"><strong>Started:</strong> <?= e($ticket['started_at']) ?></p>
-                <p class="body-text"><strong>Resolved:</strong> <?= e($ticket['resolved_at']) ?></p>
-                <p class="body-text"><strong>Completed:</strong> <?= e($ticket['completed_at']) ?></p>
-                <p class="body-text"><strong>Ticket URL:</strong> <?= e($ticket['ticket_url']) ?></p>
+                <p class="body-text"><strong>แจ้งเมื่อ:</strong> <?= e($ticket['requested_at']) ?></p>
+                <p class="body-text"><strong>อนุมัติเมื่อ:</strong> <?= e($ticket['approved_at']) ?></p>
+                <p class="body-text"><strong>มอบหมายเมื่อ:</strong> <?= e($ticket['assigned_at']) ?></p>
+                <p class="body-text"><strong>ตอบรับครั้งแรก:</strong> <?= e($ticket['first_response_at']) ?></p>
+                <p class="body-text"><strong>เริ่มงานเมื่อ:</strong> <?= e($ticket['started_at']) ?></p>
+                <p class="body-text"><strong>แก้ไขเสร็จเมื่อ:</strong> <?= e($ticket['resolved_at']) ?></p>
+                <p class="body-text"><strong>ปิดงานเมื่อ:</strong> <?= e($ticket['completed_at']) ?></p>
+                <p class="body-text"><strong>ลิงก์ Ticket:</strong> <?= e($ticket['ticket_url']) ?></p>
             </div>
         </section>
 

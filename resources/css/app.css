@@ -137,6 +137,16 @@ textarea:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--indigo-500) 38%, transparent);
   outline-offset: 2px;
 }
+/* Ensure buttons + admin tabs get the same 3px indigo focus ring as inputs.
+   transition:none is required — these components use `transition: .15s/.18s ease`
+   (implicit `all`), which otherwise animates the outline in from currentColor and
+   leaves the ring looking like the thin UA default. Focus rings must appear instantly. */
+.btn:focus-visible,
+.admin-tab:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--indigo-500) 38%, transparent) !important;
+  outline-offset: 2px;
+  transition: none;
+}
 
 ::selection { background: color-mix(in srgb, var(--violet-500) 35%, transparent); color: inherit; }
 
@@ -669,6 +679,13 @@ body > * { position: relative; z-index: 1; }
   display: flex;
   gap: .65rem;
   flex-wrap: wrap;
+}
+
+/* Narrow screens: stack hero action buttons full-width so labels don't wrap
+   (e.g. "เพิ่มทรัพย์สิน") when three buttons compete for one row. */
+@media (max-width: 560px) {
+  .page-hero-actions { flex-direction: column; }
+  .page-hero-actions .btn { flex: none; width: 100%; }
 }
 
 .page-hero-title {
@@ -1238,6 +1255,25 @@ select.input::-ms-expand { display: none; }
 .dark .insight-table th {
   background: color-mix(in srgb, rgba(99, 102, 241, .15) 70%, var(--surface));
   color: var(--indigo-300);
+}
+
+/* Freeze the first column ("เลขที่") so it stays visible while the wide report
+   table scrolls horizontally. Needs an opaque background so scrolled cells
+   don't bleed through, plus a right divider to signal the frozen edge. */
+.data-table th:first-child,
+.data-table td:first-child {
+  position: sticky;
+  left: 0;
+  background: var(--surface-strong);
+  box-shadow: 1px 0 0 var(--glass-border);
+}
+.data-table td:first-child { z-index: 1; }
+.data-table thead th:first-child { z-index: 3; }
+.data-table tbody tr:hover td:first-child {
+  background: color-mix(in srgb, var(--indigo-50) 50%, var(--surface-strong));
+}
+.dark .data-table tbody tr:hover td:first-child {
+  background: color-mix(in srgb, rgba(99, 102, 241, .12) 80%, var(--surface-strong));
 }
 
 .data-table tbody tr,
@@ -2740,6 +2776,28 @@ a.leaderboard-number:hover {
   z-index: 1;
 }
 
+/* Graceful fallback shown (via inline onerror) when a QR image fails to load —
+   avoids the raw broken-image glyph on the printed sheet. */
+.qr-code-frame { display: inline-flex; position: relative; z-index: 1; }
+.qr-code-fallback { display: none; }
+.qr-code-fallback.is-shown {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .35rem;
+  width: 120px;
+  height: 120px;
+  padding: .6rem;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: var(--shadow-xs);
+  color: #9ca3af;
+  font-size: .7rem;
+  line-height: 1.25;
+  text-align: center;
+}
+
 .qr-label-brand {
   display: flex;
   align-items: center;
@@ -3858,6 +3916,22 @@ input[type="checkbox"].switch:checked::after { left: 20px; }
 .dark .action-form-danger  { background: rgba(244, 63, 94, .08);  border-color: rgba(244, 63, 94, .25); }
 .dark .action-form-warning { background: rgba(245, 158, 11, .08); border-color: rgba(245, 158, 11, .25); }
 .dark .action-form-info    { background: rgba(99, 102, 241, .1);  border-color: rgba(99, 102, 241, .3); }
+
+.table-cap-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: .55rem;
+  padding: .7rem .9rem;
+  border-radius: .7rem;
+  border: 1px solid rgba(245, 158, 11, .35);
+  background: color-mix(in srgb, #fffbeb 50%, var(--surface));
+  color: var(--text);
+  font-size: .82rem;
+  line-height: 1.5;
+}
+.table-cap-notice svg { flex: none; color: #d97706; margin-top: .1rem; }
+.dark .table-cap-notice { background: rgba(245, 158, 11, .08); border-color: rgba(245, 158, 11, .25); }
+.dark .table-cap-notice svg { color: #fbbf24; }
 
 .action-form-head { display: flex; align-items: center; gap: .8rem; }
 .action-form-head h3 { margin: 0; font-size: 1rem; font-weight: 700; color: var(--text); }
@@ -5506,6 +5580,7 @@ code.mono, .mono {
    ========================================================================= */
 .admin-tabs {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: .35rem;
   padding: .3rem;
@@ -5514,7 +5589,7 @@ code.mono, .mono {
   background: var(--surface);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  overflow-x: auto;
+  overflow-x: visible;
   scrollbar-width: none;
 }
 .admin-tabs::-webkit-scrollbar { display: none; }
@@ -5561,12 +5636,35 @@ code.mono, .mono {
 /* Tab panel show/hide */
 .admin-tab-panel:not(.is-active) { display: none; }
 
-/* Admin tabs sticky */
-.admin-tabs {
+/* Admin tabs sticky + scroll affordance wrapper */
+.admin-tabs-scroller {
   position: sticky;
   top: 0;
   z-index: 20;
 }
+.admin-tabs-scroller::before,
+.admin-tabs-scroller::after {
+  content: "";
+  position: absolute;
+  top: .3rem;
+  bottom: .3rem;
+  width: 2.75rem;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity .2s ease;
+  border-radius: 12px;
+}
+.admin-tabs-scroller::before {
+  left: 2px;
+  background: linear-gradient(90deg, var(--surface-strong) 30%, transparent);
+}
+.admin-tabs-scroller::after {
+  right: 2px;
+  background: linear-gradient(270deg, var(--surface-strong) 30%, transparent);
+}
+.admin-tabs-scroller.can-scroll-left::before { opacity: 1; }
+.admin-tabs-scroller.can-scroll-right::after { opacity: 1; }
 
 /* Delete zone separator */
 .delete-zone {
@@ -5990,6 +6088,7 @@ code.mono, .mono {
 /* =========================================================================
    Print media
    ========================================================================= */
+@page { size: A4 portrait; margin: 10mm; }
 @media print {
   body::before, body::after { display: none; }
   .no-print, .sidebar, .topbar { display: none !important; }
@@ -6029,6 +6128,14 @@ code.mono, .mono {
     border-radius: 6px;
     box-shadow: none;
   }
+  .qr-code-fallback.is-shown {
+    width: 112px;
+    height: 112px;
+    padding: .24rem;
+    border-radius: 6px;
+    box-shadow: none;
+    color: #6b7280;
+  }
   .qr-label-brand {
     gap: .22rem;
     color: #3730a3 !important;
@@ -6048,6 +6155,9 @@ code.mono, .mono {
     max-width: 22ch;
     font-size: .78rem;
     line-height: 1.2;
+    /* Force dark ink on the white printed sheet — the theme's --text is light
+       in dark mode, which would print near-invisible on paper. */
+    color: #111827 !important;
   }
   .qr-label-code {
     padding: .14rem .38rem;
@@ -6062,5 +6172,7 @@ code.mono, .mono {
     font-size: .65rem;
     line-height: 1.2;
   }
+  .qr-label-location { color: #374151 !important; }
+  .qr-instruction { color: #3730a3 !important; }
   .print-only { display: block !important; }
 }

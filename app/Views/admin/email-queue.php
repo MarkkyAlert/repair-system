@@ -36,14 +36,14 @@ $tabUrl = static function (string $status): string {
         <?= render_partial('partials/components/card', [
             'title' => 'รอส่ง',
             'value' => (string) ($totals['queued'] ?? 0),
-            'meta' => 'พร้อมส่งโดย cron',
+            'meta' => 'พร้อมส่งตามรอบเวลา',
             'tone' => 'info',
             'icon' => 'clock',
         ]) ?>
         <?= render_partial('partials/components/card', [
             'title' => 'กำลังประมวลผล',
             'value' => (string) ($totals['processing'] ?? 0),
-            'meta' => 'กำลังถูก worker ดำเนินการ',
+            'meta' => 'ระบบกำลังดำเนินการส่ง',
             'tone' => 'warning',
             'icon' => 'activity',
         ]) ?>
@@ -57,7 +57,7 @@ $tabUrl = static function (string $status): string {
         <?= render_partial('partials/components/card', [
             'title' => 'ล้มเหลว',
             'value' => (string) ($totals['failed'] ?? 0),
-            'meta' => 'ครบรอบ retry แล้ว',
+            'meta' => 'ครบรอบส่งซ้ำแล้ว',
             'tone' => 'danger',
             'icon' => 'triangle-alert',
         ]) ?>

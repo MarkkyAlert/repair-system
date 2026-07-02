@@ -92,8 +92,8 @@ class EmailTemplateService
             'sections' => [
                 ['label' => 'Ticket No', 'value' => $ticketNo],
                 ['label' => 'หัวข้อ', 'value' => $ticketTitle],
-                ['label' => 'เหตุการณ์', 'value' => $this->labelize($eventType)],
-                ['label' => 'สถานะล่าสุด', 'value' => $this->labelize((string) ($context['status'] ?? '-'))],
+                ['label' => 'เหตุการณ์', 'value' => humanize_label($eventType)],
+                ['label' => 'สถานะล่าสุด', 'value' => ticket_status_label_th((string) ($context['status'] ?? '-'))],
             ],
             'footer_note' => $this->override($templateKey, 'footer_note', 'อีเมลฉบับนี้ถูกสร้างอัตโนมัติจากระบบแจ้งซ่อม'),
             'payload' => [
@@ -141,7 +141,7 @@ class EmailTemplateService
             'sections' => [
                 ['label' => 'Ticket No', 'value' => $ticketNo],
                 ['label' => 'หัวข้อ', 'value' => (string) ($context['title'] ?? '-')],
-                ['label' => 'Action', 'value' => $this->labelize($action)],
+                ['label' => 'Action', 'value' => humanize_label($action)],
                 ['label' => 'Visibility', 'value' => $isInternal ? 'Internal note' : 'Public comment'],
                 ['label' => 'Preview', 'value' => $preview !== '' ? $preview : '-'],
             ],
@@ -177,7 +177,7 @@ class EmailTemplateService
                 ['label' => 'Ticket No', 'value' => $ticketNo],
                 ['label' => 'หัวข้อ', 'value' => (string) ($context['title'] ?? '-')],
                 ['label' => 'Metric', 'value' => $metricLabel],
-                ['label' => 'สถานะล่าสุด', 'value' => $this->labelize((string) ($context['status'] ?? '-'))],
+                ['label' => 'สถานะล่าสุด', 'value' => ticket_status_label_th((string) ($context['status'] ?? '-'))],
             ],
             'footer_note' => $this->override('sla_breached', 'footer_note', 'กรุณาติดตามรายการนี้โดยเร็วเพื่อไม่ให้กระทบ SLA เพิ่มเติม'),
             'payload' => [
@@ -281,15 +281,6 @@ class EmailTemplateService
         ];
     }
 
-    private function labelize(string $value): string
-    {
-        $value = trim(str_replace(['_', '-'], ' ', strtolower($value)));
-        if ($value === '') {
-            return '-';
-        }
-
-        return ucwords($value);
-    }
 
     private function formatDateTime(string $value): string
     {

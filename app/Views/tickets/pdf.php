@@ -2,10 +2,10 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <title>Job Order PDF</title>
+    <title>ใบงานซ่อมบำรุง PDF</title>
     <style>
         @page { margin: 24px; }
-        body { font-family: 'DejaVu Sans', sans-serif; font-size: 11px; color: #102a3a; }
+        body { font-family: 'sarabun', sans-serif; font-size: 11px; color: #102a3a; }
         h1, h2, h3, p { margin: 0; }
         .stack { margin-bottom: 14px; }
         .grid { width: 100%; }
@@ -23,7 +23,7 @@
 </head>
 <body>
 <div class="document-header">
-    <p class="document-kicker">MAINTENANCE OPERATIONS · JOB ORDER</p>
+    <p class="document-kicker">MAINTENANCE OPERATIONS · ใบสั่งงาน</p>
     <h1>ใบงานซ่อมบำรุง</h1>
     <p>พิมพ์เมื่อ <?= e($printedAt ?? '-') ?> · กระดาษ <?= e($paperLabel ?? 'A4') ?></p>
 </div>
@@ -61,7 +61,7 @@
             <div class="value"><?= e((string) ($ticket['location_detail'] ?? '-')) ?></div>
         </td>
         <td>
-            <div class="label">Asset</div>
+            <div class="label">ทรัพย์สิน</div>
             <div class="value"><?= e((string) ($ticket['asset_code'] ?? '-')) ?> - <?= e((string) ($ticket['asset_name'] ?? '-')) ?></div>
         </td>
     </tr>
@@ -90,11 +90,11 @@
     </tr>
     <tr>
         <td>
-            <div class="label">Response SLA</div>
+            <div class="label">SLA ตอบรับ</div>
             <div class="value"><?= e((string) (($ticket['sla_response']['label'] ?? '-'))) ?> / <?= e((string) (($ticket['sla_response']['target_at'] ?? '-'))) ?></div>
         </td>
         <td>
-            <div class="label">Resolution SLA</div>
+            <div class="label">SLA แก้ไข</div>
             <div class="value"><?= e((string) (($ticket['sla_resolution']['label'] ?? '-'))) ?> / <?= e((string) (($ticket['sla_resolution']['target_at'] ?? '-'))) ?></div>
         </td>
     </tr>

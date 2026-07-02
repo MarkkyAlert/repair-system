@@ -389,7 +389,12 @@ class TicketRepository
              INNER JOIN users requester ON requester.id = t.requester_id
              LEFT JOIN users technician ON technician.id = t.assigned_technician_id
              WHERE $whereClause
-             ORDER BY t.requested_at DESC, t.id DESC
+             ORDER BY
+                CASE WHEN t.status IN ('resolved','completed','rejected','cancelled','closed') THEN 1 ELSE 0 END,
+                CASE WHEN t.status NOT IN ('resolved','completed','rejected','cancelled','closed')
+                          AND t.resolution_due_at IS NOT NULL AND t.resolution_due_at < NOW() THEN 0 ELSE 1 END,
+                p.level DESC,
+                t.requested_at DESC, t.id DESC
              LIMIT $perPage OFFSET $offset"
         );
         $stmt->execute($params);

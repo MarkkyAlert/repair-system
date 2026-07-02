@@ -135,6 +135,12 @@ if ($assetStatus !== '') {
                         </select>
                     </div>
                 </div>
+                <div class="button-row" style="margin-top: 1rem;">
+                    <button type="submit" class="btn btn-primary btn-sm"><?= lucide('filter', 'button-icon') ?><span>ใช้ตัวกรอง</span></button>
+                    <?php if ($isAssetFilterActive): ?>
+                        <a href="<?= e(url('/asset-registry')) ?>" class="btn btn-ghost btn-sm"><?= lucide('x', 'button-icon') ?><span>ล้างตัวกรอง</span></a>
+                    <?php endif; ?>
+                </div>
             </details>
         </form>
 
@@ -179,7 +185,10 @@ if ($assetStatus !== '') {
                         <footer class="asset-card-actions">
                             <a class="asset-card-cta" href="<?= e(url($asset['prefill_ticket_url'])) ?>" aria-label="แจ้งซ่อมจากทรัพย์สิน <?= e($asset['asset_code']) ?>"><?= lucide('zap', 'h-3.5 w-3.5') ?>แจ้งซ่อม</a>
                             <a class="asset-card-link" href="<?= e(url('/asset-registry/' . $asset['id'])) ?>" aria-label="ดูรายละเอียดทรัพย์สิน <?= e($asset['asset_code']) ?>">รายละเอียด</a>
-                            <a class="asset-card-link" href="<?= e($asset['qr_png_url']) ?>" target="_blank" rel="noopener" aria-label="เปิด QR PNG ของทรัพย์สิน <?= e($asset['asset_code']) ?>">เปิด QR</a>
+                            <?php if (!empty($canManage)): ?>
+                                <a class="asset-card-link" href="<?= e(url('/asset-registry/' . $asset['id'] . '/edit')) ?>" aria-label="แก้ไขทรัพย์สิน <?= e($asset['asset_code']) ?>"><?= lucide('pencil', 'h-3.5 w-3.5') ?>แก้ไข</a>
+                            <?php endif; ?>
+                            <a class="asset-card-link" href="<?= e($asset['qr_png_url']) ?>" download="QR-<?= e($asset['asset_code']) ?>.png" aria-label="ดาวน์โหลด QR ของทรัพย์สิน <?= e($asset['asset_code']) ?>">ดาวน์โหลด QR</a>
                         </footer>
                     </article>
                 <?php endforeach; ?>

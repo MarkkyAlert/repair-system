@@ -18,7 +18,7 @@ $tabUrl = static fn (string $status): string => url('/admin/guest-requests' . ($
     <?= render_partial('partials/components/page-header', [
         'eyebrow' => 'ผู้ดูแลระบบ',
         'title' => 'คำขอแจ้งซ่อมจาก Guest QR',
-        'description' => 'ผู้ที่สแกน QR แล้วแจ้งปัญหาโดยไม่ login ระบบเก็บไว้รอตรวจสอบก่อนแปลงเป็น ticket',
+        'description' => 'ผู้ที่สแกน QR แล้วแจ้งปัญหาโดยไม่ต้องล็อกอิน ระบบเก็บไว้รอตรวจสอบก่อนแปลงเป็น Ticket',
         'actions' => render_partial('partials/components/button', [
             'label' => 'กลับหน้าตั้งค่า',
             'variant' => 'secondary',
@@ -29,8 +29,8 @@ $tabUrl = static fn (string $status): string => url('/admin/guest-requests' . ($
 
     <div class="stat-grid stat-grid-3">
         <?= render_partial('partials/components/card', ['title' => 'รอตรวจ', 'value' => (string) ($totals['new'] ?? 0), 'meta' => 'ต้องดำเนินการ', 'tone' => 'warning', 'icon' => 'clock']) ?>
-        <?= render_partial('partials/components/card', ['title' => 'แปลงแล้ว', 'value' => (string) ($totals['converted'] ?? 0), 'meta' => 'กลายเป็น ticket', 'tone' => 'success', 'icon' => 'check-circle']) ?>
-        <?= render_partial('partials/components/card', ['title' => 'ปฏิเสธ', 'value' => (string) ($totals['rejected'] ?? 0), 'meta' => 'ไม่ valid', 'tone' => 'danger', 'icon' => 'triangle-alert']) ?>
+        <?= render_partial('partials/components/card', ['title' => 'แปลงแล้ว', 'value' => (string) ($totals['converted'] ?? 0), 'meta' => 'กลายเป็น Ticket', 'tone' => 'success', 'icon' => 'check-circle']) ?>
+        <?= render_partial('partials/components/card', ['title' => 'ปฏิเสธ', 'value' => (string) ($totals['rejected'] ?? 0), 'meta' => 'ไม่ผ่านเกณฑ์', 'tone' => 'danger', 'icon' => 'triangle-alert']) ?>
     </div>
 
     <section class="panel-card stack-md">
@@ -81,6 +81,7 @@ $tabUrl = static fn (string $status): string => url('/admin/guest-requests' . ($
                         </summary>
                         <div class="collapsible-body stack-md">
                             <dl class="description-list">
+                                <dt>รายละเอียด</dt><dd><?= nl2br(e((string) ($request['description'] ?? '-'))) ?></dd>
                                 <dt>ผู้แจ้ง</dt><dd><?= e((string) $request['guest_name']) ?></dd>
                                 <?php if (!empty($request['guest_email'])): ?>
                                     <dt>อีเมล</dt><dd><?= e((string) $request['guest_email']) ?></dd>
@@ -102,18 +103,18 @@ $tabUrl = static fn (string $status): string => url('/admin/guest-requests' . ($
                                     <?= csrf_field() ?>
                                     <div class="content-grid">
                                         <div class="field-group">
-                                            <label class="field-label">Priority <span class="required">*</span></label>
+                                            <label class="field-label">ความสำคัญ <span class="required">*</span></label>
                                             <select name="priority_id" class="input" required>
-                                                <option value="">เลือก Priority</option>
+                                                <option value="">เลือกความสำคัญ</option>
                                                 <?php foreach (($priorities ?? []) as $p): ?>
                                                     <option value="<?= e((string) $p['id']) ?>"><?= e((string) $p['name']) ?></option>
                                                 <?php endforeach; ?>
                                             </select>
                                         </div>
                                         <div class="field-group">
-                                            <label class="field-label">Category <span class="required">*</span></label>
+                                            <label class="field-label">หมวดหมู่ <span class="required">*</span></label>
                                             <select name="ticket_category_id" class="input" required>
-                                                <option value="">เลือก Category</option>
+                                                <option value="">เลือกหมวดหมู่</option>
                                                 <?php foreach (($categories ?? []) as $c): ?>
                                                     <option value="<?= e((string) $c['id']) ?>"><?= e((string) $c['name']) ?></option>
                                                 <?php endforeach; ?>

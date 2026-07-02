@@ -35,6 +35,7 @@ class ReportsController
             'filters' => $data['filters'],
             'summary' => $data['summary'],
             'rows' => $data['rows'],
+            'rowsMeta' => $data['rowsMeta'],
         ]);
     }
 

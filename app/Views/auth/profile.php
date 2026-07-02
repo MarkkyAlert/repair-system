@@ -60,10 +60,10 @@ $lastLoginLabel = !empty($profile['last_login_at']) ? human_date((string) $profi
         </div>
 
         <dl class="description-list">
-            <dt>ชื่อผู้ใช้ (Username)</dt>
+            <dt>ชื่อผู้ใช้</dt>
             <dd><code class="mono"><?= e($profile['username'] ?? '-') ?></code></dd>
-            <dt>บทบาท (Role)</dt>
-            <dd><?= e($profile['role'] ?? 'guest') ?></dd>
+            <dt>บทบาท</dt>
+            <dd><?= e(role_label_th((string) ($profile['role'] ?? 'guest'))) ?></dd>
             <?php if (!empty($profile['created_at'])): ?>
                 <dt>สมาชิกตั้งแต่</dt>
                 <dd><?= e(human_date((string) $profile['created_at'], false)) ?></dd>
@@ -95,7 +95,7 @@ $lastLoginLabel = !empty($profile['last_login_at']) ? human_date((string) $profi
             <div class="field-group" data-reveal-when-changed="email" hidden>
                 <label for="current_password" class="field-label">ยืนยันด้วยรหัสผ่านปัจจุบัน <span class="required" aria-hidden="true">*</span></label>
                 <input id="current_password" name="current_password" type="password" class="input" autocomplete="current-password" placeholder="••••••••" aria-describedby="current-password-hint">
-                <p id="current-password-hint" class="field-hint">จำเป็นเพราะมีการเปลี่ยนอีเมล (login + password reset)</p>
+                <p id="current-password-hint" class="field-hint">จำเป็นเพราะมีการเปลี่ยนอีเมล (ใช้เข้าสู่ระบบ + รีเซ็ตรหัสผ่าน)</p>
             </div>
             <div class="button-row profile-save-row">
                 <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'บันทึกข้อมูลบัญชี', 'variant' => 'primary', 'icon' => 'check-circle', 'size' => 'lg']) ?>

@@ -28,13 +28,16 @@ $qrItems = $items ?? [];
                     <div class="qr-cut-guide" aria-hidden="true"></div>
                     <div class="qr-label-brand">
                         <?php if ($qrBrandLogoUrl !== ''): ?>
-                            <img src="<?= e($qrBrandLogoUrl) ?>" alt="" aria-hidden="true" class="qr-label-logo">
+                            <img src="<?= e($qrBrandLogoUrl) ?>" alt="" aria-hidden="true" class="qr-label-logo" onerror="this.remove()">
                         <?php else: ?>
                             <?= lucide('wrench', 'qr-label-icon') ?>
                         <?php endif; ?>
                         <strong><?= e($qrBrandName !== '' ? $qrBrandName : 'แจ้งซ่อม') ?></strong>
                     </div>
-                    <img src="<?= e($item['qr_png_url'] ?? '') ?>" alt="QR สำหรับแจ้งซ่อม <?= e($assetCode) ?> <?= e($assetName) ?> ที่ <?= e($assetLocation) ?>" class="qr-code-image">
+                    <span class="qr-code-frame">
+                        <img src="<?= e($item['qr_png_url'] ?? '') ?>" alt="QR สำหรับแจ้งซ่อม <?= e($assetCode) ?> <?= e($assetName) ?> ที่ <?= e($assetLocation) ?>" class="qr-code-image" onerror="this.style.display='none';this.nextElementSibling.classList.add('is-shown');">
+                        <span class="qr-code-fallback" aria-hidden="true"><?= lucide('qr-code', 'h-8 w-8') ?><span>QR ไม่พร้อมใช้งาน</span></span>
+                    </span>
                     <div class="qr-label-meta">
                         <p class="qr-label-title"><?= e($assetName) ?></p>
                         <span class="qr-label-code"><?= e($assetCode) ?></span>

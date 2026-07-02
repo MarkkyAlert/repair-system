@@ -299,7 +299,7 @@ if ($metricCount('pendingApproval') > 0) {
                         <input type="hidden" name="ticket_ids" data-bulk-ids value="">
                         <button type="button" class="btn btn-primary btn-md" data-confirm-modal-trigger="bulk-approve-confirm">
                             <?= lucide('check-circle', 'button-icon') ?>
-                            <span>Approve รายการที่เลือก</span>
+                            <span>อนุมัติรายการที่เลือก</span>
                         </button>
                     </form>
                 </div>

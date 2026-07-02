@@ -34,13 +34,13 @@
             </div>
             <?php if (!empty($errorMessage)): ?>
                 <div class="stack-md">
-                    <span class="badge badge-danger">Error</span>
+                    <span class="badge badge-danger">ข้อผิดพลาด</span>
                     <p class="helper-text"><?= e((string) $errorMessage) ?></p>
                 </div>
             <?php endif; ?>
             <?php if (!empty($successMessage)): ?>
                 <div class="stack-md">
-                    <span class="badge badge-success">Success</span>
+                    <span class="badge badge-success">สำเร็จ</span>
                     <p class="helper-text"><?= e((string) $successMessage) ?></p>
                 </div>
             <?php endif; ?>

@@ -6,6 +6,7 @@ namespace App\Services;
 use App\Repositories\AssetRepository;
 use App\Repositories\GuestTicketRequestRepository;
 use DomainException;
+use Throwable;
 
 class GuestTicketService
 {
@@ -115,6 +116,12 @@ class GuestTicketService
             throw new DomainException('Request นี้ถูกดำเนินการแล้ว');
         }
 
+        // Atomically claim the request (new → converted) BEFORE creating the ticket.
+        // If a concurrent convert/reject already claimed it, stop here so no duplicate ticket is created.
+        if (!$this->requests->claimForConversion($requestId, (int) ($viewer['id'] ?? 0))) {
+            throw new DomainException('Request นี้ถูกดำเนินการแล้ว');
+        }
+
         $contact = trim(((string) $request['guest_email']) . ' ' . ((string) $request['guest_phone']));
         $titlePrefix = '[จาก Guest: ' . (string) $request['guest_name'] . '] ';
         $descriptionPrefix = "ผู้แจ้ง (Guest): " . (string) $request['guest_name'] . "\n"
@@ -133,8 +140,15 @@ class GuestTicketService
             'submission_token' => bin2hex(random_bytes(32)),
         ];
 
-        $ticketId = $tickets->createTicket($viewer, $ticketInput, []);
-        $this->requests->markConverted($requestId, $ticketId, (int) ($viewer['id'] ?? 0));
+        try {
+            $ticketId = $tickets->createTicket($viewer, $ticketInput, []);
+        } catch (Throwable $exception) {
+            // Ticket creation failed after the claim — release it so the request returns to the queue.
+            $this->requests->revertConversionClaim($requestId);
+            throw $exception;
+        }
+
+        $this->requests->attachConvertedTicket($requestId, $ticketId);
 
         return $ticketId;
     }
@@ -149,7 +163,11 @@ class GuestTicketService
             throw new DomainException('Request นี้ถูกดำเนินการแล้ว');
         }
 
-        $this->requests->markRejected($requestId, (int) ($viewer['id'] ?? 0), $note);
+        // Atomic conditional update (WHERE status='new'); false means a concurrent convert/reject
+        // already claimed it, so surface that instead of reporting a misleading success.
+        if (!$this->requests->markRejected($requestId, (int) ($viewer['id'] ?? 0), $note)) {
+            throw new DomainException('Request นี้ถูกดำเนินการแล้ว');
+        }
     }
 
     private function generateRequestNo(): string

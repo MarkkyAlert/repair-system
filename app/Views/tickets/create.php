@@ -207,8 +207,8 @@
                 <div class="ticket-form-grid">
                     <div class="field-group">
                         <label for="impact_level" class="field-label">
-                            ผลกระทบ (Impact)
-                            <button type="button" class="field-info-icon" data-info-toggle="impact-info" aria-expanded="false" aria-controls="impact-info" aria-label="ดูคำอธิบายระดับ Impact">
+                            ผลกระทบ
+                            <button type="button" class="field-info-icon" data-info-toggle="impact-info" aria-expanded="false" aria-controls="impact-info" aria-label="ดูคำอธิบายระดับผลกระทบ">
                                 <?= lucide('info', 'h-4 w-4') ?>
                             </button>
                         </label>
@@ -218,12 +218,12 @@
                             <?php endforeach; ?>
                         </select>
                         <div id="impact-info" class="field-info-popover" hidden>
-                            <p><strong>Impact</strong> = ปัญหานี้กระทบใครบ้าง?</p>
+                            <p><strong>ผลกระทบ</strong> = ปัญหานี้กระทบใครบ้าง?</p>
                             <dl class="field-info-levels">
-                                <dt>Low</dt><dd>คน 1 คน หรือเครื่องเดียว · ทำงานอย่างอื่นต่อได้</dd>
-                                <dt>Medium</dt><dd>1 แผนก หรือผู้ใช้ 2-5 คน</dd>
-                                <dt>High</dt><dd>หลายแผนก หรือผู้ใช้ 10+ คน</dd>
-                                <dt>Critical</dt><dd>ทั้งองค์กร หรือบริการให้ลูกค้าสะดุด</dd>
+                                <dt>ต่ำ</dt><dd>คน 1 คน หรือเครื่องเดียว · ทำงานอย่างอื่นต่อได้</dd>
+                                <dt>ปานกลาง</dt><dd>1 แผนก หรือผู้ใช้ 2-5 คน</dd>
+                                <dt>สูง</dt><dd>หลายแผนก หรือผู้ใช้ 10+ คน</dd>
+                                <dt>วิกฤต</dt><dd>ทั้งองค์กร หรือบริการให้ลูกค้าสะดุด</dd>
                             </dl>
                         </div>
                         <p id="impact-help" class="field-hint">ปัญหานี้กระทบผู้ใช้กี่คนหรือกี่หน่วยงาน?</p>
@@ -231,8 +231,8 @@
 
                     <div class="field-group">
                         <label for="urgency_level" class="field-label">
-                            ความเร่งด่วน (Urgency)
-                            <button type="button" class="field-info-icon" data-info-toggle="urgency-info" aria-expanded="false" aria-controls="urgency-info" aria-label="ดูคำอธิบายระดับ Urgency">
+                            ความเร่งด่วน
+                            <button type="button" class="field-info-icon" data-info-toggle="urgency-info" aria-expanded="false" aria-controls="urgency-info" aria-label="ดูคำอธิบายระดับความเร่งด่วน">
                                 <?= lucide('info', 'h-4 w-4') ?>
                             </button>
                         </label>
@@ -242,12 +242,12 @@
                             <?php endforeach; ?>
                         </select>
                         <div id="urgency-info" class="field-info-popover" hidden>
-                            <p><strong>Urgency</strong> = รอได้นานแค่ไหนก่อนต้องแก้?</p>
+                            <p><strong>ความเร่งด่วน</strong> = รอได้นานแค่ไหนก่อนต้องแก้?</p>
                             <dl class="field-info-levels">
-                                <dt>Low</dt><dd>รอได้ 1+ สัปดาห์ · ไม่กระทบทันที</dd>
-                                <dt>Medium</dt><dd>ควรแก้ภายใน 2-3 วัน</dd>
-                                <dt>High</dt><dd>ต้องแก้ภายในวันนี้</dd>
-                                <dt>Critical</dt><dd>ต้องแก้ภายในชั่วโมงนี้ — งานหยุดชะงัก</dd>
+                                <dt>ต่ำ</dt><dd>รอได้ 1+ สัปดาห์ · ไม่กระทบทันที</dd>
+                                <dt>ปานกลาง</dt><dd>ควรแก้ภายใน 2-3 วัน</dd>
+                                <dt>สูง</dt><dd>ต้องแก้ภายในวันนี้</dd>
+                                <dt>วิกฤต</dt><dd>ต้องแก้ภายในชั่วโมงนี้ — งานหยุดชะงัก</dd>
                             </dl>
                         </div>
                         <p id="urgency-help" class="field-hint">รอได้นานแค่ไหน? ค่ายิ่งสูง หมายถึงควรเข้าดำเนินการเร็วขึ้น</p>

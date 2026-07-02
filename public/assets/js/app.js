@@ -720,10 +720,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 - (parseFloat(vb.replace(/[^0-9.\-]/g, '')) || 0)) * (asc ? 1 : -1);
         }
         if (type === 'date') {
-          var pa = va.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-          var pb = vb.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-          var da = pa ? new Date(pa[3] + '-' + pa[2] + '-' + pa[1]).getTime() : 0;
-          var db = pb ? new Date(pb[3] + '-' + pb[2] + '-' + pb[1]).getTime() : 0;
+          // Capture DD/MM/YYYY plus optional HH:MM so same-day rows sort by time too.
+          var pa = va.match(/(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}))?/);
+          var pb = vb.match(/(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}))?/);
+          var da = pa ? new Date(pa[3], pa[2] - 1, pa[1], pa[4] || 0, pa[5] || 0).getTime() : 0;
+          var db = pb ? new Date(pb[3], pb[2] - 1, pb[1], pb[4] || 0, pb[5] || 0).getTime() : 0;
           return (da - db) * (asc ? 1 : -1);
         }
         return va.localeCompare(vb, 'th') * (asc ? 1 : -1);
@@ -951,7 +952,7 @@ document.addEventListener('DOMContentLoaded', () => {
       overlay.innerHTML = '<div class="export-loading-card">'
         + '<span class="export-loading-spinner" aria-hidden="true"></span>'
         + '<p>กำลังเตรียมไฟล์...</p>'
-        + '<p class="helper-text">หน้าจะ download ไฟล์อัตโนมัติเมื่อพร้อม</p>'
+        + '<p class="helper-text">ระบบจะดาวน์โหลดไฟล์อัตโนมัติเมื่อพร้อม</p>'
         + '</div>';
       document.body.appendChild(overlay);
       return overlay;

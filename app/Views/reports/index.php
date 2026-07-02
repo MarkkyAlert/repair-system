@@ -1,6 +1,9 @@
 <?php
 $filterState = $filters['selected'] ?? [];
 $querySuffix = !empty($filters['query_string']) ? '?' . (string) $filters['query_string'] : '';
+$rowCount = count($rows ?? []);
+$rowsMeta = $rowsMeta ?? ['displayed' => $rowCount, 'total' => $rowCount, 'limit' => 250, 'capped' => false];
+$isCapped = !empty($rowsMeta['capped']);
 ?>
 <section class="stack-lg">
     <?= render_partial('partials/components/page-header', [
@@ -92,10 +95,11 @@ $querySuffix = !empty($filters['query_string']) ? '?' . (string) $filters['query
         ]) ?>
     </div>
 
+    <?php if (!empty($rows)): ?>
     <div class="action-bar report-export-bar">
         <div class="action-bar-left">
-            <strong>ส่งออกรายงาน</strong>
-            <span class="helper-text"><?= e((string) count($rows ?? [])) ?> รายการ</span>
+            <strong>รายงานตามตัวกรองปัจจุบัน</strong>
+            <span class="helper-text">เลือกรูปแบบไฟล์เพื่อดาวน์โหลด (Excel · PDF · CSV)</span>
         </div>
         <div class="action-bar-right">
             <details class="export-dropdown">
@@ -107,31 +111,43 @@ $querySuffix = !empty($filters['query_string']) ? '?' . (string) $filters['query
                 <div class="export-dropdown-menu">
                     <a href="<?= e(url('/reports/export/excel' . $querySuffix)) ?>" class="export-dropdown-item" data-export-link>
                         <?= lucide('clipboard-list', 'button-icon') ?>
-                        <span>Export Excel</span>
+                        <span>ส่งออก Excel</span>
                     </a>
                     <a href="<?= e(url('/reports/export/pdf' . $querySuffix)) ?>" class="export-dropdown-item" data-export-link>
                         <?= lucide('file-text', 'button-icon') ?>
-                        <span>Export PDF</span>
+                        <span>ส่งออก PDF</span>
                     </a>
                     <a href="<?= e(url('/reports/export/csv' . $querySuffix)) ?>" class="export-dropdown-item" data-export-link>
                         <?= lucide('download', 'button-icon') ?>
-                        <span>Export CSV</span>
+                        <span>ส่งออก CSV</span>
                     </a>
                 </div>
             </details>
         </div>
     </div>
+    <?php endif; ?>
 
     <section class="panel-card stack-md">
         <div class="panel-head">
             <h2 class="panel-title">รายการ Ticket พร้อมสถานะ SLA</h2>
-            <span class="badge badge-default"><?= e((string) count($rows ?? [])) ?> รายการ</span>
+            <?php if ($isCapped): ?>
+                <span class="badge badge-warning">แสดง <?= e((string) $rowsMeta['displayed']) ?> จาก <?= e((string) $rowsMeta['total']) ?> รายการ</span>
+            <?php else: ?>
+                <span class="badge badge-default"><?= e((string) $rowsMeta['total']) ?> รายการ</span>
+            <?php endif; ?>
         </div>
+
+        <?php if ($isCapped): ?>
+            <div class="table-cap-notice" role="status">
+                <?= lucide('info', 'h-4 w-4') ?>
+                <span>แสดงเฉพาะ <strong><?= e((string) $rowsMeta['displayed']) ?></strong> รายการล่าสุด จากทั้งหมด <strong><?= e((string) $rowsMeta['total']) ?></strong> รายการ — กรองข้อมูลให้แคบลง หรือ<strong>ส่งออกไฟล์</strong>เพื่อดูข้อมูลครบทุกรายการ</span>
+            </div>
+        <?php endif; ?>
 
         <?php if (!empty($rows)): ?>
             <div class="table-wrap">
                 <table class="data-table">
-                    <caption class="sr-only">รายการ Ticket พร้อมสถานะ SLA จำนวน <?= e((string) count($rows ?? [])) ?> รายการ</caption>
+                    <caption class="sr-only">รายการ Ticket พร้อมสถานะ SLA<?= $isCapped ? ' แสดง ' . e((string) $rowsMeta['displayed']) . ' จาก ' . e((string) $rowsMeta['total']) . ' รายการ' : ' จำนวน ' . e((string) $rowsMeta['total']) . ' รายการ' ?></caption>
                     <thead>
                     <tr>
                         <th data-sort-col="0">เลขที่</th>
@@ -143,9 +159,8 @@ $querySuffix = !empty($filters['query_string']) ? '?' . (string) $filters['query
                         <th data-sort-col="6" data-sort-type="date">วันที่แจ้ง</th>
                         <th data-sort-col="7" data-sort-type="date">วันที่แก้ไข</th>
                         <th data-sort-col="8" data-sort-type="number">เวลาแก้ไข (ชม.)</th>
-                        <th data-sort-col="9">เกิน SLA</th>
-                        <th data-sort-col="10">สถานะ SLA</th>
-                        <th data-sort-col="11" data-sort-type="number">คะแนน</th>
+                        <th data-sort-col="9">สถานะ SLA</th>
+                        <th data-sort-col="10" data-sort-type="number">คะแนน</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -163,7 +178,6 @@ $querySuffix = !empty($filters['query_string']) ? '?' . (string) $filters['query
                             <td><?= e($row['requested_at']) ?></td>
                             <td><?= e($row['resolved_at']) ?></td>
                             <td><?= e($row['resolution_hours_label']) ?></td>
-                            <td><?= e($row['sla_overdue_label']) ?></td>
                             <td><?= e($row['sla_label']) ?></td>
                             <td><?= e($row['rating_label']) ?></td>
                         </tr>
@@ -175,7 +189,7 @@ $querySuffix = !empty($filters['query_string']) ? '?' . (string) $filters['query
             <?= render_partial('partials/components/empty-state', [
                 'icon' => 'file-text',
                 'title' => 'ไม่พบข้อมูลรายงานตามตัวกรองนี้',
-                'description' => 'ลองล้างตัวกรองหรือเปลี่ยนช่วงเวลาเพื่อดูข้อมูลและ export report',
+                'description' => 'ลองล้างตัวกรองหรือเปลี่ยนช่วงเวลาเพื่อดูข้อมูลและส่งออกรายงาน',
             ]) ?>
         <?php endif; ?>
     </section>

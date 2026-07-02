@@ -70,11 +70,11 @@
                 <?= lucide('plus-circle', 'nav-icon') ?>
                 <span class="nav-label">แจ้งซ่อมใหม่</span>
             </a>
-            <a href="<?= e(url('/asset-registry')) ?>" class="nav-link<?= $isAssetsPath ? ' is-active' : '' ?>" data-tooltip="ทรัพย์สินและ QR">
-                <?= lucide('qr-code', 'nav-icon') ?>
-                <span class="nav-label">ทรัพย์สินและ QR</span>
-            </a>
             <?php if (in_array((string) ($viewer['role'] ?? 'guest'), ['manager', 'admin'], true)): ?>
+                <a href="<?= e(url('/asset-registry')) ?>" class="nav-link<?= $isAssetsPath ? ' is-active' : '' ?>" data-tooltip="ทรัพย์สินและ QR">
+                    <?= lucide('qr-code', 'nav-icon') ?>
+                    <span class="nav-label">ทรัพย์สินและ QR</span>
+                </a>
                 <a href="<?= e(url('/reports')) ?>" class="nav-link<?= $isReportsPath ? ' is-active' : '' ?>" data-tooltip="รายงาน">
                     <?= lucide('bar-chart-3', 'nav-icon') ?>
                     <span class="nav-label">รายงานและวิเคราะห์</span>
@@ -116,7 +116,7 @@
                     <span class="user-chip-avatar"><?= e($viewerInitials) ?></span>
                     <div>
                         <p class="user-chip-name"><?= e($viewer['full_name'] ?? 'User') ?></p>
-                        <p class="user-chip-role"><?= e($viewer['role'] ?? 'guest') ?></p>
+                        <p class="user-chip-role"><?= e(role_label_th((string) ($viewer['role'] ?? 'guest'))) ?></p>
                     </div>
                 </a>
                 <form method="post" action="<?= e(url('/logout')) ?>">

@@ -24,7 +24,7 @@
                     <span class="hero-feature-icon"><?= lucide('zap', 'h-4 w-4') ?></span>
                     <div>
                         <strong>ลองใช้พร้อมข้อมูลตัวอย่าง</strong>
-                        <span>โหลด assets, tickets, ratings เพื่อทดลองได้ทันที</span>
+                        <span>โหลดทรัพย์สิน, Ticket, คะแนน เพื่อทดลองได้ทันที</span>
                     </div>
                 </li>
             </ul>
@@ -34,7 +34,7 @@
             <?= csrf_field() ?>
 
             <div class="auth-card-header">
-                <p class="page-kicker">Setup Wizard</p>
+                <p class="page-kicker">ตัวช่วยติดตั้งระบบ</p>
                 <h2 class="auth-card-title">ตั้งค่าระบบครั้งแรก</h2>
                 <p class="helper-text">กรอกครั้งเดียว ระบบจะข้ามหน้านี้ไปในครั้งต่อไป</p>
             </div>
@@ -64,13 +64,13 @@
             <?php else: ?>
                 <div class="auth-alert auth-alert-info">
                     <span class="auth-alert-icon"><?= lucide('info', 'h-4 w-4') ?></span>
-                    <p>ตรวจพบบัญชีผู้ดูแลระบบในระบบแล้ว ข้ามขั้นตอนสร้าง admin</p>
+                    <p>ตรวจพบบัญชีผู้ดูแลระบบในระบบแล้ว ข้ามขั้นตอนสร้างผู้ดูแลระบบ</p>
                 </div>
             <?php endif; ?>
 
             <label class="checkbox-row">
                 <input type="checkbox" name="load_demo" value="1" checked>
-                <span>โหลดข้อมูลตัวอย่าง (3 departments, 5 locations, 8 assets, 3 sample tickets)</span>
+                <span>โหลดข้อมูลตัวอย่าง (3 แผนก, 5 สถานที่, 8 ทรัพย์สิน, 3 Ticket ตัวอย่าง)</span>
             </label>
 
             <?= render_partial('partials/components/button', [

@@ -52,10 +52,10 @@ class GuestRequestController
             $priorityId = (int) ($_POST['priority_id'] ?? 0);
             $categoryId = (int) ($_POST['ticket_category_id'] ?? 0);
             if ($priorityId <= 0 || $categoryId <= 0) {
-                throw new DomainException('กรุณาเลือก Priority และ Category');
+                throw new DomainException('กรุณาเลือกความสำคัญและหมวดหมู่');
             }
             $this->guests->convertToTicket((int) $requestId, $viewer, $priorityId, $categoryId, $this->tickets);
-        }, 'แปลงเป็น ticket เรียบร้อยแล้ว', '/admin/guest-requests');
+        }, 'แปลงเป็น Ticket เรียบร้อยแล้ว', '/admin/guest-requests');
     }
 
     public function reject(string $requestId): void
@@ -69,6 +69,11 @@ class GuestRequestController
     {
         AuthMiddleware::handle();
         $viewer = auth()->user() ?? [];
+        // Moderation actions (convert/reject) are manager/admin only — same gate as index().
+        // Without this, any authenticated user could POST convert/reject directly.
+        if (!in_array((string) ($viewer['role'] ?? 'guest'), ['manager', 'admin'], true)) {
+            Response::abort(403, 'หน้านี้สงวนสำหรับผู้จัดการหรือผู้ดูแลระบบเท่านั้น');
+        }
 
         try {
             csrf_validate();

@@ -786,3 +786,45 @@ if (typeof window.__handleInlineCommentSave !== 'function') {
     };
 }
 </script>
+
+<style>
+    /* Fallback for native anchor jump / no-JS: keep action sections clear of the sticky header + action bar */
+    [id^="action-"] { scroll-margin-top: 14rem; }
+</style>
+
+<script>
+    // Action CTAs (อนุมัติ/ปฏิเสธ, มอบหมาย ฯลฯ) jump to #action-* sections. Offset the scroll by the
+    // real sticky stack (topbar + sticky .action-bar) so the target box lands below them, not hidden under.
+    (function () {
+        var pad = 16;
+        function stickyOffset() {
+            var topbar = document.querySelector('.topbar') || document.querySelector('header');
+            var topH = topbar ? topbar.getBoundingClientRect().height : 0;
+            var bar = document.querySelector('.action-bar');
+            var barBottom = 0;
+            if (bar && getComputedStyle(bar).position === 'sticky') {
+                barBottom = (parseInt(getComputedStyle(bar).top, 10) || 0) + bar.offsetHeight;
+            }
+            return Math.max(topH, barBottom) + pad;
+        }
+        function goTo(hash, smooth) {
+            var target = document.querySelector(hash);
+            if (!target) return;
+            var y = target.getBoundingClientRect().top + window.scrollY - stickyOffset();
+            window.scrollTo({ top: Math.max(0, y), behavior: smooth ? 'smooth' : 'auto' });
+        }
+        document.querySelectorAll('a[href^="#action-"]').forEach(function (a) {
+            a.addEventListener('click', function (e) {
+                var hash = a.getAttribute('href');
+                if (!document.querySelector(hash)) return;
+                e.preventDefault();
+                goTo(hash, true);
+                history.replaceState(null, '', hash);
+            });
+        });
+        // Direct load with an #action-* hash (bookmarked/shared link).
+        if (/^#action-/.test(location.hash) && document.querySelector(location.hash)) {
+            setTimeout(function () { goTo(location.hash, false); }, 60);
+        }
+    })();
+</script>

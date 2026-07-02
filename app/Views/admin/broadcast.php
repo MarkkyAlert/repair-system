@@ -5,10 +5,10 @@ $oldMessage = (string) ($old['message'] ?? '');
 $oldRoleFilter = (string) ($old['role_filter'] ?? '');
 $roleOptions = [
     '' => 'ผู้ใช้งานทุกบทบาท',
-    'requester' => 'เฉพาะ Requester',
-    'manager' => 'เฉพาะ Manager',
-    'technician' => 'เฉพาะ Technician',
-    'admin' => 'เฉพาะ Admin',
+    'requester' => 'เฉพาะ' . role_label_th('requester'),
+    'manager' => 'เฉพาะ' . role_label_th('manager'),
+    'technician' => 'เฉพาะ' . role_label_th('technician'),
+    'admin' => 'เฉพาะ' . role_label_th('admin'),
 ];
 $counts = is_array($recipientCounts ?? null) ? $recipientCounts : [];
 $initialCount = (int) ($counts[$oldRoleFilter] ?? 0);
@@ -46,14 +46,14 @@ $initialCount = (int) ($counts[$oldRoleFilter] ?? 0);
             <div>
                 <h2 class="panel-title">เนื้อหาประกาศ</h2>
             </div>
-            <span class="broadcast-badge"><?= lucide('megaphone', 'h-4 w-4') ?> Broadcast</span>
+            <span class="broadcast-badge"><?= lucide('megaphone', 'h-4 w-4') ?> ประกาศทั้งระบบ</span>
         </div>
 
         <div class="broadcast-notice" role="note">
             <?= lucide('info', 'broadcast-notice-icon') ?>
             <div>
                 <strong>การประกาศเคารพการตั้งค่าของผู้ใช้</strong>
-                <p>ผู้ใช้ที่ปิด notification "ประกาศจากผู้ดูแลระบบ" ใน <a href="<?= e(url('/profile/notifications')) ?>">การตั้งค่า notification</a> ของตนเองจะไม่ได้รับประกาศนี้</p>
+                <p>ผู้ใช้ที่ปิดการแจ้งเตือน "ประกาศจากผู้ดูแลระบบ" ใน <a href="<?= e(url('/profile/notifications')) ?>">การตั้งค่าการแจ้งเตือน</a> ของตนเองจะไม่ได้รับประกาศนี้</p>
             </div>
         </div>
 
@@ -81,7 +81,7 @@ $initialCount = (int) ($counts[$oldRoleFilter] ?? 0);
                           placeholder="รายละเอียดประกาศที่ต้องการแจ้งผู้ใช้..."
                           data-char-counter="broadcast_message_counter" data-char-max="2000"><?= e($oldMessage) ?></textarea>
                 <p class="field-hint">
-                    <span>รองรับ plain text (ขึ้นบรรทัดใหม่ได้)</span>
+                    <span>รองรับข้อความธรรมดา (ขึ้นบรรทัดใหม่ได้)</span>
                     <span class="char-counter" id="broadcast_message_counter" aria-live="polite"><span class="char-counter-now"><?= mb_strlen($oldMessage) ?></span>/2,000</span>
                 </p>
             </div>

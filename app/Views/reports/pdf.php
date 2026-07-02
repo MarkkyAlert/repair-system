@@ -5,7 +5,7 @@
     <title>Ticket Report PDF</title>
     <style>
         @page { margin: 22px; }
-        body { font-family: 'DejaVu Sans', sans-serif; font-size: 10px; color: #102a3a; }
+        body { font-family: 'sarabun', sans-serif; font-size: 10px; color: #102a3a; }
         h1, h2, p { margin: 0; }
         .stack { margin-bottom: 14px; }
         .brand-header { padding: 15px 18px; margin-bottom: 14px; background: #0a2233; color: #ffffff; }
@@ -70,18 +70,18 @@
 <table class="report-table">
     <thead>
     <tr>
-        <th>Ticket</th>
-        <th>Requester</th>
-        <th>Department</th>
-        <th>Category</th>
-        <th>Technician</th>
-        <th>Status</th>
-        <th>Requested</th>
-        <th>Resolved</th>
-        <th>Resolution (hrs)</th>
+        <th>เลขที่</th>
+        <th>ผู้แจ้ง</th>
+        <th>แผนก</th>
+        <th>หมวดหมู่</th>
+        <th>ช่างเทคนิค</th>
+        <th>สถานะ</th>
+        <th>วันที่แจ้ง</th>
+        <th>วันที่แก้ไข</th>
+        <th>เวลาแก้ไข (ชม.)</th>
         <th>เกิน SLA</th>
-        <th>SLA Status</th>
-        <th>Rating</th>
+        <th>สถานะ SLA</th>
+        <th>คะแนน</th>
     </tr>
     </thead>
     <tbody>

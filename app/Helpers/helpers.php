@@ -8,3 +8,4 @@ require __DIR__ . '/urls.php';
 require __DIR__ . '/session.php';
 require __DIR__ . '/view.php';
 require __DIR__ . '/icons.php';
+require __DIR__ . '/labels.php';

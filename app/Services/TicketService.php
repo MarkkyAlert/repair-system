@@ -119,7 +119,7 @@ class TicketService
         return [
             'metrics' => $metrics,
             'tickets' => $tickets,
-            'roleLabel' => $this->roleLabelTh((string) ($viewer['role'] ?? 'guest')),
+            'roleLabel' => role_label_th((string) ($viewer['role'] ?? 'guest')),
             'filters' => $normalized + [
                 'technicians' => array_map(fn (array $row): array => [
                     'id' => (int) $row['id'],
@@ -166,8 +166,8 @@ class TicketService
                 'location_id' => (int) ($asset['location_id'] ?? 0),
                 'label' => (string) ($asset['asset_code'] ?? '') . ' - ' . (string) ($asset['name'] ?? ''),
             ], $reference['assets'] ?? []),
-            'impactOptions' => $this->enumOptions(['low', 'medium', 'high', 'critical'], self::SEVERITY_LABELS_TH),
-            'urgencyOptions' => $this->enumOptions(['low', 'medium', 'high', 'critical'], self::SEVERITY_LABELS_TH),
+            'impactOptions' => $this->enumOptions(['low', 'medium', 'high', 'critical']),
+            'urgencyOptions' => $this->enumOptions(['low', 'medium', 'high', 'critical']),
             'prefill' => [
                 'has_asset' => $prefillAsset !== null,
                 'asset_label' => $prefillAsset !== null ? (string) ($prefillAsset['label'] ?? '') : '',
@@ -385,7 +385,7 @@ class TicketService
         $options = new Options();
         $options->setTempDir('/private/tmp');
         $options->set('isRemoteEnabled', false);
-        $options->set('defaultFont', 'DejaVu Sans');
+        $options->set('defaultFont', 'sarabun');
         $dompdf = new Dompdf($options);
         $dompdf->loadHtml($html, 'UTF-8');
         $dompdf->setPaper(strtolower((string) ($print['paper_label'] ?? 'A4')) === 'a5' ? 'A5' : 'A4');
@@ -672,19 +672,21 @@ class TicketService
             'ticket_no' => (string) ($ticket['ticket_no'] ?? ''),
             'title' => (string) ($ticket['title'] ?? ''),
             'status' => $status,
-            'status_label' => $this->statusLabelTh($status),
+            'status_label' => ticket_status_label_th($status),
             'status_tone' => $this->statusTone($status),
             'approval_status' => $approvalStatus,
-            'approval_label' => self::APPROVAL_LABELS_TH[$approvalStatus] ?? $this->labelize($approvalStatus),
+            'approval_label' => approval_label_th($approvalStatus),
             'approval_tone' => $this->approvalTone($approvalStatus),
             'priority_code' => $priorityCode,
-            'priority_label' => self::PRIORITY_LABELS_TH[$priorityCode] ?? (string) ($ticket['priority_name'] ?? $priorityCode),
+            'priority_label' => in_array($priorityCode, ['LOW', 'MEDIUM', 'HIGH', 'URGENT'], true)
+                ? priority_label_th($priorityCode)
+                : (string) ($ticket['priority_name'] ?? $priorityCode),
             'priority_tone' => $this->priorityTone($priorityCode),
             'location_name' => (string) ($ticket['location_name'] ?? '-'),
             'requester_name' => (string) ($ticket['requester_name'] ?? '-'),
             'technician_name' => (string) ($ticket['technician_name'] ?? '-'),
             'category_name' => (string) ($ticket['category_name'] ?? '-'),
-            'channel_label' => self::CHANNEL_LABELS_TH[strtolower((string) ($ticket['channel'] ?? 'web'))] ?? $this->labelize((string) ($ticket['channel'] ?? 'web')),
+            'channel_label' => channel_label_th((string) ($ticket['channel'] ?? 'web')),
             'requested_at' => $this->formatDateTime($ticket['requested_at'] ?? null),
             'updated_at' => $this->formatDateTime($ticket['updated_at'] ?? null),
             'response_due_at' => $this->formatDateTime($ticket['response_due_at'] ?? null),
@@ -708,13 +710,13 @@ class TicketService
             'assigned_technician_id' => (int) ($ticket['assigned_technician_id'] ?? 0),
             'work_order_no' => (string) ($ticket['work_order_no'] ?? ''),
             'work_order_status' => (string) ($ticket['work_order_status'] ?? ''),
-            'work_order_status_label' => self::WORK_ORDER_STATUS_LABELS_TH[(string) ($ticket['work_order_status'] ?? '')] ?? $this->labelize((string) ($ticket['work_order_status'] ?? '')),
+            'work_order_status_label' => work_order_status_label_th((string) ($ticket['work_order_status'] ?? '')),
             'work_order_instructions' => (string) ($ticket['work_order_instructions'] ?? ''),
             'work_order_diagnosis_summary' => (string) ($ticket['work_order_diagnosis_summary'] ?? ''),
             'work_order_resolution_summary' => (string) ($ticket['work_order_resolution_summary'] ?? ''),
             'work_order_labor_minutes' => (int) ($ticket['work_order_labor_minutes'] ?? 0),
-            'impact_level' => self::SEVERITY_LABELS_TH[strtolower((string) ($ticket['impact_level'] ?? 'medium'))] ?? $this->labelize((string) ($ticket['impact_level'] ?? 'medium')),
-            'urgency_level' => self::SEVERITY_LABELS_TH[strtolower((string) ($ticket['urgency_level'] ?? 'medium'))] ?? $this->labelize((string) ($ticket['urgency_level'] ?? 'medium')),
+            'impact_level' => severity_label_th((string) ($ticket['impact_level'] ?? 'medium')),
+            'urgency_level' => severity_label_th((string) ($ticket['urgency_level'] ?? 'medium')),
             'requester_email' => (string) ($ticket['requester_email'] ?? '-'),
             'requester_phone' => (string) ($ticket['requester_phone'] ?? '-'),
             'manager_name' => (string) ($ticket['manager_name'] ?? '-'),
@@ -786,7 +788,7 @@ class TicketService
             ], $this->tickets->getActiveTechnicians()),
             'workOrder' => [
                 'number' => (string) ($ticket['work_order_no'] ?? ''),
-                'status' => self::WORK_ORDER_STATUS_LABELS_TH[(string) ($ticket['work_order_status'] ?? '')] ?? $this->labelize((string) ($ticket['work_order_status'] ?? '')),
+                'status' => work_order_status_label_th((string) ($ticket['work_order_status'] ?? '')),
                 'instructions' => (string) ($ticket['work_order_instructions'] ?? ''),
                 'diagnosis_summary' => (string) ($ticket['work_order_diagnosis_summary'] ?? ''),
                 'resolution_summary' => (string) ($ticket['work_order_resolution_summary'] ?? ''),
@@ -834,7 +836,7 @@ class TicketService
             'user_id' => (int) ($comment['user_id'] ?? 0),
             'is_internal' => $isInternal,
             'author_name' => (string) ($comment['author_name'] ?? 'Unknown'),
-            'author_role' => $this->roleLabelTh((string) ($comment['author_role'] ?? 'user')),
+            'author_role' => role_label_th((string) ($comment['author_role'] ?? 'user')),
             'body' => (string) ($comment['body'] ?? ''),
             'visibility_label' => $isInternal ? 'ภายใน' : 'สาธารณะ',
             'visibility_tone' => $isInternal ? 'warning' : 'default',
@@ -849,12 +851,12 @@ class TicketService
 
         return [
             'actor_name' => (string) ($log['actor_name'] ?? 'System'),
-            'actor_role' => $this->roleLabelTh((string) ($log['actor_role'] ?? 'system')),
+            'actor_role' => role_label_th((string) ($log['actor_role'] ?? 'system')),
             'action_label' => $this->activityActionLabel($action),
             'action_tone' => $this->activityActionTone($action),
             'details' => (string) ($log['details'] ?? ''),
-            'from_status' => $this->statusLabelTh((string) ($log['from_status'] ?? '')),
-            'to_status' => $this->statusLabelTh((string) ($log['to_status'] ?? '')),
+            'from_status' => ticket_status_label_th((string) ($log['from_status'] ?? '')),
+            'to_status' => ticket_status_label_th((string) ($log['to_status'] ?? '')),
             'created_at' => $this->formatDateTime($log['created_at'] ?? null),
         ];
     }
@@ -872,7 +874,7 @@ class TicketService
             'ticket_completed' => 'ยืนยันปิดงาน',
             'ticket_reopened' => 'ขอแก้งานซ้ำ',
             'ticket_cancelled' => 'ยกเลิกรายการ',
-            default => $this->labelize($action),
+            default => humanize_label($action),
         };
     }
 
@@ -1201,84 +1203,12 @@ class TicketService
         ];
     }
 
-    private const SEVERITY_LABELS_TH = [
-        'low' => 'ต่ำ (Low)',
-        'medium' => 'ปานกลาง (Medium)',
-        'high' => 'สูง (High)',
-        'critical' => 'วิกฤต (Critical)',
-    ];
-
-    private const STATUS_LABELS_TH = [
-        'submitted' => 'ส่งคำขอแล้ว',
-        'pending_approval' => 'รออนุมัติ',
-        'approved' => 'อนุมัติแล้ว',
-        'assigned' => 'มอบหมายแล้ว',
-        'accepted' => 'รับงานแล้ว',
-        'in_progress' => 'กำลังดำเนินการ',
-        'on_hold' => 'พักงานชั่วคราว',
-        'resolved' => 'รอตรวจรับ',
-        'completed' => 'เสร็จสิ้น',
-        'rejected' => 'ถูกปฏิเสธ',
-        'cancelled' => 'ยกเลิกแล้ว',
-        'closed' => 'ปิดงานแล้ว',
-    ];
-
-    private const APPROVAL_LABELS_TH = [
-        'not_required' => 'ไม่ต้องอนุมัติ',
-        'pending' => 'รออนุมัติ',
-        'approved' => 'อนุมัติแล้ว',
-        'rejected' => 'ถูกปฏิเสธ',
-    ];
-
-    private const CHANNEL_LABELS_TH = [
-        'web' => 'เว็บ',
-        'qr' => 'สแกน QR',
-        'phone' => 'โทรศัพท์',
-        'email' => 'อีเมล',
-        'walk_in' => 'แจ้งด้วยตนเอง',
-    ];
-
-    private const ROLE_LABELS_TH = [
-        'requester' => 'ผู้แจ้ง',
-        'manager' => 'หัวหน้างาน',
-        'technician' => 'ช่างเทคนิค',
-        'admin' => 'ผู้ดูแลระบบ',
-        'system' => 'ระบบ',
-        'guest' => 'ผู้เยี่ยมชม',
-        'user' => 'ผู้ใช้งาน',
-    ];
-
-    private const PRIORITY_LABELS_TH = [
-        'LOW' => 'ต่ำ',
-        'MEDIUM' => 'ปานกลาง',
-        'HIGH' => 'สูง',
-        'URGENT' => 'เร่งด่วน',
-    ];
-
-    private const WORK_ORDER_STATUS_LABELS_TH = [
-        'assigned' => 'มอบหมายแล้ว',
-        'accepted' => 'รับงานแล้ว',
-        'in_progress' => 'กำลังดำเนินการ',
-        'on_hold' => 'พักงานชั่วคราว',
-        'completed' => 'เสร็จสิ้น',
-        'cancelled' => 'ยกเลิกแล้ว',
-    ];
-
-    private function statusLabelTh(string $status): string
+    private function enumOptions(array $values): array
     {
-        return self::STATUS_LABELS_TH[$status] ?? $this->labelize($status);
-    }
-
-    private function roleLabelTh(string $role): string
-    {
-        return self::ROLE_LABELS_TH[strtolower(trim($role))] ?? $this->labelize($role);
-    }
-
-    private function enumOptions(array $values, array $labelMap = []): array
-    {
-        return array_map(fn (string $value): array => [
+        // Used only for impact/urgency severity selects (low/medium/high/critical).
+        return array_map(static fn (string $value): array => [
             'value' => $value,
-            'label' => $labelMap[$value] ?? $this->labelize($value),
+            'label' => severity_label_th($value),
         ], $values);
     }
 
@@ -1436,15 +1366,6 @@ class TicketService
         );
     }
 
-    private function labelize(string $value): string
-    {
-        $normalized = trim($value);
-        if ($normalized === '') {
-            return '-';
-        }
-
-        return ucwords(str_replace('_', ' ', $normalized));
-    }
 
     private function calculateReopenDueAt(array $ticket, string $dueField, string $reopenedAt): string
     {

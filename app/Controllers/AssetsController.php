@@ -60,8 +60,8 @@ class AssetsController
         }
 
         Response::view('assets/create', [
-            'title' => 'Create Asset',
-            'pageHeading' => 'เพิ่ม Asset ใหม่',
+            'title' => 'เพิ่มทรัพย์สิน',
+            'pageHeading' => 'เพิ่มทรัพย์สินใหม่',
             'currentUser' => $viewer,
             'form' => $form,
             'errorMessage' => flash_message('error'),
@@ -125,7 +125,7 @@ class AssetsController
         try {
             $form = $this->assets->getEditFormData((int) $assetId, $viewer, pull_old_input());
             if ($form === null) {
-                Response::abort(404, 'ไม่พบ Asset ที่ต้องการแก้ไข');
+                Response::abort(404, 'ไม่พบทรัพย์สินที่ต้องการแก้ไข');
             }
         } catch (DomainException $exception) {
             flash('error', $exception->getMessage());
@@ -133,8 +133,8 @@ class AssetsController
         }
 
         Response::view('assets/edit', [
-            'title' => 'Edit Asset',
-            'pageHeading' => 'แก้ไข Asset',
+            'title' => 'แก้ไขทรัพย์สิน',
+            'pageHeading' => 'แก้ไขทรัพย์สิน',
             'currentUser' => $viewer,
             'assetId' => (int) $assetId,
             'form' => $form,

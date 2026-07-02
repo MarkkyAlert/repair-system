@@ -17,29 +17,31 @@
     ]) ?>
 
     <div class="stat-grid admin-stat-scroll">
-        <?= render_partial('partials/components/card', ['title' => 'ผู้ใช้งาน', 'value' => (string) count($users ?? []), 'meta' => 'บัญชีทั้งหมดในระบบ', 'tone' => 'default', 'icon' => 'users']) ?>
-        <?= render_partial('partials/components/card', ['title' => 'แผนก', 'value' => (string) count($departments ?? []), 'meta' => 'หน่วยงานในองค์กร', 'tone' => 'info', 'icon' => 'building']) ?>
-        <?= render_partial('partials/components/card', ['title' => 'สถานที่', 'value' => (string) count($locations ?? []), 'meta' => 'จุดติดตั้ง/แจ้งซ่อม', 'tone' => 'info', 'icon' => 'map-pin']) ?>
-        <?= render_partial('partials/components/card', ['title' => 'Priority/SLA', 'value' => (string) count($priorities ?? []), 'meta' => 'ระดับความเร่งด่วน', 'tone' => 'danger', 'icon' => 'clock']) ?>
-        <?= render_partial('partials/components/card', ['title' => 'หมวดหมู่งาน', 'value' => (string) count($categories ?? []), 'meta' => 'ประเภทของ ticket', 'tone' => 'warning', 'icon' => 'tag']) ?>
-        <?= render_partial('partials/components/card', ['title' => 'หมวดหมู่ Asset', 'value' => (string) count($assetCategories ?? []), 'meta' => 'ประเภททรัพย์สิน', 'tone' => 'default', 'icon' => 'layers']) ?>
-        <?= render_partial('partials/components/card', ['title' => 'การตั้งค่า', 'value' => (string) count($settings ?? []), 'meta' => 'system settings', 'tone' => 'success', 'icon' => 'settings']) ?>
-        <?= render_partial('partials/components/card', ['title' => 'Audit Log', 'value' => (string) (int) (($auditLogs['total'] ?? 0)), 'meta' => 'admin actions', 'tone' => 'info', 'icon' => 'file-text']) ?>
+        <?= render_partial('partials/components/card', ['title' => 'ผู้ใช้งาน', 'value' => (string) count($users ?? []), 'meta' => 'บัญชีทั้งหมดในระบบ', 'tone' => 'default', 'icon' => 'users', 'href' => '/admin#tab-users', 'ariaLabel' => 'ไปที่แท็บผู้ใช้งาน']) ?>
+        <?= render_partial('partials/components/card', ['title' => 'แผนก', 'value' => (string) count($departments ?? []), 'meta' => 'หน่วยงานในองค์กร', 'tone' => 'info', 'icon' => 'building', 'href' => '/admin#tab-departments', 'ariaLabel' => 'ไปที่แท็บแผนก']) ?>
+        <?= render_partial('partials/components/card', ['title' => 'สถานที่', 'value' => (string) count($locations ?? []), 'meta' => 'จุดติดตั้ง/แจ้งซ่อม', 'tone' => 'info', 'icon' => 'map-pin', 'href' => '/admin#tab-locations', 'ariaLabel' => 'ไปที่แท็บสถานที่']) ?>
+        <?= render_partial('partials/components/card', ['title' => 'ความสำคัญ/SLA', 'value' => (string) count($priorities ?? []), 'meta' => 'ระดับความเร่งด่วน', 'tone' => 'danger', 'icon' => 'clock', 'href' => '/admin#tab-priorities', 'ariaLabel' => 'ไปที่แท็บความสำคัญและ SLA']) ?>
+        <?= render_partial('partials/components/card', ['title' => 'หมวดหมู่งาน', 'value' => (string) count($categories ?? []), 'meta' => 'ประเภทของ ticket', 'tone' => 'warning', 'icon' => 'tag', 'href' => '/admin#tab-categories', 'ariaLabel' => 'ไปที่แท็บหมวดหมู่งาน']) ?>
+        <?= render_partial('partials/components/card', ['title' => 'หมวดหมู่ทรัพย์สิน', 'value' => (string) count($assetCategories ?? []), 'meta' => 'ประเภททรัพย์สิน', 'tone' => 'default', 'icon' => 'layers', 'href' => '/admin#tab-asset-categories', 'ariaLabel' => 'ไปที่แท็บหมวดหมู่ทรัพย์สิน']) ?>
+        <?= render_partial('partials/components/card', ['title' => 'การตั้งค่า', 'value' => (string) count($settings ?? []), 'meta' => 'การตั้งค่าระบบ', 'tone' => 'success', 'icon' => 'settings', 'href' => '/admin#tab-settings', 'ariaLabel' => 'ไปที่แท็บการตั้งค่า']) ?>
+        <?= render_partial('partials/components/card', ['title' => 'บันทึกการตรวจสอบ', 'value' => (string) (int) (($auditLogs['total'] ?? 0)), 'meta' => 'การดำเนินการของผู้ดูแล', 'tone' => 'info', 'icon' => 'file-text', 'href' => '/admin#tab-audit', 'ariaLabel' => 'ไปที่แท็บบันทึกการตรวจสอบ']) ?>
     </div>
 
+    <div class="admin-tabs-scroller">
     <nav class="admin-tabs" role="tablist" aria-label="หมวดการตั้งค่า">
         <a href="#tab-users" class="admin-tab is-active" role="tab" aria-selected="true" aria-controls="tab-users"><?= lucide('users', 'h-4 w-4') ?><span>ผู้ใช้งาน</span></a>
         <a href="#tab-departments" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-departments"><?= lucide('building', 'h-4 w-4') ?><span>แผนก</span></a>
         <a href="#tab-locations" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-locations"><?= lucide('map-pin', 'h-4 w-4') ?><span>สถานที่</span></a>
-        <a href="#tab-priorities" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-priorities"><?= lucide('clock', 'h-4 w-4') ?><span>Priority/SLA</span></a>
+        <a href="#tab-priorities" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-priorities"><?= lucide('clock', 'h-4 w-4') ?><span>ความสำคัญ/SLA</span></a>
         <a href="#tab-categories" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-categories"><?= lucide('tag', 'h-4 w-4') ?><span>หมวดหมู่งาน</span></a>
-        <a href="#tab-asset-categories" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-asset-categories"><?= lucide('layers', 'h-4 w-4') ?><span>หมวดหมู่ Asset</span></a>
-        <a href="#tab-roles" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-roles"><?= lucide('shield-check', 'h-4 w-4') ?><span>สิทธิ์ตาม Role</span></a>
-        <a href="#tab-audit" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-audit"><?= lucide('file-text', 'h-4 w-4') ?><span>Audit Log</span></a>
-        <a href="#tab-security" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-security"><?= lucide('shield', 'h-4 w-4') ?><span>Security</span><?php if ((int) ($loginAttemptStats['recent_failures'] ?? 0) > 0): ?> <span class="admin-tab-badge"><?= e((string) (int) $loginAttemptStats['recent_failures']) ?></span><?php endif; ?></a>
-        <a href="#tab-email" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-email"><?= lucide('send', 'h-4 w-4') ?><span>Email</span></a>
+        <a href="#tab-asset-categories" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-asset-categories"><?= lucide('layers', 'h-4 w-4') ?><span>หมวดหมู่ทรัพย์สิน</span></a>
+        <a href="#tab-roles" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-roles"><?= lucide('shield-check', 'h-4 w-4') ?><span>สิทธิ์ตามบทบาท</span></a>
+        <a href="#tab-audit" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-audit"><?= lucide('file-text', 'h-4 w-4') ?><span>บันทึกการตรวจสอบ</span></a>
+        <a href="#tab-security" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-security"><?= lucide('shield', 'h-4 w-4') ?><span>ความปลอดภัย</span><?php if ((int) ($loginAttemptStats['recent_failures'] ?? 0) > 0): ?> <span class="admin-tab-badge"><?= e((string) (int) $loginAttemptStats['recent_failures']) ?></span><?php endif; ?></a>
+        <a href="#tab-email" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-email"><?= lucide('send', 'h-4 w-4') ?><span>อีเมล</span></a>
         <a href="#tab-settings" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-settings"><?= lucide('settings', 'h-4 w-4') ?><span>การตั้งค่า</span></a>
     </nav>
+    </div>
 
     <section id="tab-users" class="panel-card stack-md admin-tab-panel" role="tabpanel">
         <div class="panel-head">
@@ -62,7 +64,7 @@
             <label for="user-search" class="sr-only">ค้นหาผู้ใช้งาน</label>
             <div class="admin-search-input-wrap">
                 <?= lucide('search', 'h-4 w-4 admin-search-icon') ?>
-                <input id="user-search" type="search" class="input admin-search-input" placeholder="ค้นหาชื่อ, อีเมล, แผนก หรือ role..." data-search-target="#user-list">
+                <input id="user-search" type="search" class="input admin-search-input" placeholder="ค้นหาชื่อ, อีเมล, แผนก หรือบทบาท..." data-search-target="#user-list">
             </div>
             <span class="helper-text admin-search-count"></span>
         </div>
@@ -111,11 +113,10 @@
                             </select>
                         </div>
                         <div class="field-group">
-                            <label class="field-label" for="new_role">บทบาท (Role)</label>
+                            <label class="field-label" for="new_role">บทบาท</label>
                             <select id="new_role" class="input" name="role">
-                                <?php $createRoleLabels = ['requester' => 'ผู้แจ้ง', 'manager' => 'หัวหน้างาน', 'technician' => 'ช่างเทคนิค', 'admin' => 'ผู้ดูแลระบบ']; ?>
                                 <?php foreach (($roles ?? []) as $role): ?>
-                                    <option value="<?= e((string) $role) ?>"<?= $role === 'requester' ? ' selected' : '' ?>><?= e($createRoleLabels[$role] ?? ucwords((string) $role)) ?></option>
+                                    <option value="<?= e((string) $role) ?>"<?= $role === 'requester' ? ' selected' : '' ?>><?= e(role_label_th((string) $role)) ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
@@ -161,7 +162,7 @@
                             </div>
                             <div class="collapsible-meta">
                                 <span class="badge badge-<?= !empty($user['is_active']) ? 'success' : 'default' ?>"><?= !empty($user['is_active']) ? 'เปิดใช้งาน' : 'ปิดใช้งาน' ?></span>
-                                <span class="badge badge-info"><?= e(ucfirst((string) ($user['role'] ?? 'requester'))) ?></span>
+                                <span class="badge badge-info"><?= e(role_label_th((string) ($user['role'] ?? 'requester'))) ?></span>
                                 <span class="collapsible-chevron"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
                             </div>
                         </summary>
@@ -199,11 +200,10 @@
                                         </select>
                                     </div>
                                     <div class="field-group">
-                                        <label class="field-label" for="role_<?= $userId ?>">บทบาท (Role)</label>
+                                        <label class="field-label" for="role_<?= $userId ?>">บทบาท</label>
                                         <select id="role_<?= $userId ?>" class="input" name="role">
-                                            <?php $roleLabels = ['requester' => 'ผู้แจ้ง', 'manager' => 'หัวหน้างาน', 'technician' => 'ช่างเทคนิค', 'admin' => 'ผู้ดูแลระบบ']; ?>
                                             <?php foreach (($roles ?? []) as $role): ?>
-                                                <option value="<?= e((string) $role) ?>"<?= (string) ($user['role'] ?? '') === (string) $role ? ' selected' : '' ?>><?= e($roleLabels[$role] ?? ucwords((string) $role)) ?></option>
+                                                <option value="<?= e((string) $role) ?>"<?= (string) ($user['role'] ?? '') === (string) $role ? ' selected' : '' ?>><?= e(role_label_th((string) $role)) ?></option>
                                             <?php endforeach; ?>
                                         </select>
                                     </div>
@@ -233,7 +233,7 @@
                 <span class="metric-icon metric-icon-sm"><?= lucide('plus', 'h-4 w-4') ?></span>
                 <div class="collapsible-summary-main">
                     <span class="collapsible-title">เพิ่มแผนกใหม่</span>
-                    <span class="collapsible-subtitle">สร้างหน่วยงานสำหรับผูกกับผู้ใช้, Asset และรายงาน</span>
+                    <span class="collapsible-subtitle">สร้างหน่วยงานสำหรับผูกกับผู้ใช้, ทรัพย์สิน และรายงาน</span>
                 </div>
                 <span class="collapsible-chevron"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
             </summary>
@@ -328,7 +328,7 @@
         <div class="panel-head">
             <div>
                 <h2 class="panel-title">จัดการสถานที่</h2>
-                <p class="field-hint">สถานที่ที่ใช้ในฟอร์ม Ticket และ Asset Registry</p>
+                <p class="field-hint">สถานที่ที่ใช้ในฟอร์ม Ticket และทะเบียนทรัพย์สิน</p>
             </div>
             <span class="badge badge-info"><?= e((string) count($locations ?? [])) ?> รายการ</span>
         </div>
@@ -337,7 +337,7 @@
                 <span class="metric-icon metric-icon-sm"><?= lucide('plus', 'h-4 w-4') ?></span>
                 <div class="collapsible-summary-main">
                     <span class="collapsible-title">เพิ่มสถานที่ใหม่</span>
-                    <span class="collapsible-subtitle">สร้างจุดติดตั้งหรือพื้นที่สำหรับเลือกใน Ticket/Asset</span>
+                    <span class="collapsible-subtitle">สร้างจุดติดตั้งหรือพื้นที่สำหรับเลือกใน Ticket/ทรัพย์สิน</span>
                 </div>
                 <span class="collapsible-chevron"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
             </summary>
@@ -386,7 +386,7 @@
             <?= render_partial('partials/components/empty-state', [
                 'icon' => 'map-pin',
                 'title' => 'ยังไม่มีสถานที่',
-                'description' => 'เพิ่มสถานที่เพื่อให้ผู้ใช้เลือกตอนเปิด Ticket หรือบันทึก Asset',
+                'description' => 'เพิ่มสถานที่เพื่อให้ผู้ใช้เลือกตอนเปิด Ticket หรือบันทึกทรัพย์สิน',
             ]) ?>
         <?php else: ?>
             <div class="stack-md">
@@ -459,8 +459,8 @@
     <section id="tab-priorities" class="panel-card stack-md admin-tab-panel" role="tabpanel">
         <div class="panel-head">
             <div>
-                <h2 class="panel-title">จัดการ Priority และ SLA</h2>
-                <p class="field-hint">สร้าง/แก้/ลบระดับ Priority และเวลา SLA · ลบได้เฉพาะระดับที่ยังไม่ถูกใช้กับ ticket</p>
+                <h2 class="panel-title">จัดการความสำคัญและ SLA</h2>
+                <p class="field-hint">สร้าง/แก้/ลบระดับความสำคัญและเวลา SLA · ลบได้เฉพาะระดับที่ยังไม่ถูกใช้กับ ticket</p>
             </div>
             <span class="badge badge-info"><?= e((string) count($priorities ?? [])) ?> ระดับ</span>
         </div>
@@ -469,8 +469,8 @@
             <summary class="collapsible-summary">
                 <span class="metric-icon metric-icon-sm"><?= lucide('plus', 'h-4 w-4') ?></span>
                 <div class="collapsible-summary-main">
-                    <span class="collapsible-title">เพิ่ม Priority ใหม่</span>
-                    <span class="collapsible-subtitle">กำหนด code, level, ชื่อ, สี และ SLA เริ่มต้น</span>
+                    <span class="collapsible-title">เพิ่มระดับความสำคัญใหม่</span>
+                    <span class="collapsible-subtitle">กำหนดรหัส, ระดับ, ชื่อ, สี และ SLA เริ่มต้น</span>
                 </div>
                 <span class="collapsible-chevron"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
             </summary>
@@ -479,7 +479,7 @@
                     <?= csrf_field() ?>
                     <div class="content-grid">
                         <div class="field-group">
-                            <label class="field-label" for="new_priority_code">รหัส Priority <span class="required">*</span></label>
+                            <label class="field-label" for="new_priority_code">รหัสความสำคัญ <span class="required">*</span></label>
                             <input id="new_priority_code" class="input" type="text" name="code" required maxlength="50" placeholder="เช่น EMERGENCY">
                             <p class="field-hint">A-Z, 0-9, ขีดกลาง, ขีดล่าง · ความยาว 2-50 ตัว</p>
                         </div>
@@ -490,7 +490,7 @@
                     </div>
                     <div class="content-grid">
                         <div class="field-group">
-                            <label class="field-label" for="new_priority_name">ชื่อ Priority <span class="required">*</span></label>
+                            <label class="field-label" for="new_priority_name">ชื่อความสำคัญ <span class="required">*</span></label>
                             <input id="new_priority_name" class="input" type="text" name="name" required maxlength="100">
                         </div>
                         <div class="field-group">
@@ -523,7 +523,7 @@
                         <span>เปิดใช้งานทันที</span>
                     </label>
                     <div class="button-row">
-                        <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'เพิ่ม Priority', 'variant' => 'primary', 'icon' => 'plus']) ?>
+                        <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'เพิ่มความสำคัญ', 'variant' => 'primary', 'icon' => 'plus']) ?>
                     </div>
                 </form>
             </div>
@@ -532,7 +532,7 @@
         <?php if (($priorities ?? []) === []): ?>
             <?= render_partial('partials/components/empty-state', [
                 'icon' => 'clock',
-                'title' => 'ยังไม่มี Priority',
+                'title' => 'ยังไม่มีระดับความสำคัญ',
                 'description' => 'ควร seed priority พื้นฐานก่อนใช้งานระบบ Ticket',
             ]) ?>
         <?php else: ?>
@@ -544,7 +544,7 @@
                             <span class="metric-icon metric-icon-sm"><?= lucide('clock', 'h-4 w-4') ?></span>
                             <div class="collapsible-summary-main">
                                 <span class="collapsible-title"><?= e((string) ($priority['name'] ?? '-')) ?></span>
-                                <span class="collapsible-subtitle"><?= e((string) ($priority['code'] ?? '-')) ?> · Level <?= e((string) ($priority['level'] ?? '-')) ?> · ตอบใน <?= e((string) ($priority['response_hours'] ?? 0)) ?> ชม. · แก้ใน <?= e((string) ($priority['resolution_hours'] ?? 0)) ?> ชม.</span>
+                                <span class="collapsible-subtitle"><?= e((string) ($priority['code'] ?? '-')) ?> · ระดับ <?= e((string) ($priority['level'] ?? '-')) ?> · ตอบใน <?= e((string) ($priority['response_hours'] ?? 0)) ?> ชม. · แก้ใน <?= e((string) ($priority['resolution_hours'] ?? 0)) ?> ชม.</span>
                             </div>
                             <div class="collapsible-meta">
                                 <span class="badge badge-<?= !empty($priority['is_active']) ? 'success' : 'default' ?>"><?= !empty($priority['is_active']) ? 'เปิดใช้งาน' : 'ปิดใช้งาน' ?></span>
@@ -557,17 +557,17 @@
                                 <?= csrf_field() ?>
                                 <div class="content-grid">
                                     <div class="field-group">
-                                        <label class="field-label">Code (เปลี่ยนไม่ได้)</label>
+                                        <label class="field-label">รหัส (เปลี่ยนไม่ได้)</label>
                                         <input class="input" type="text" value="<?= e((string) ($priority['code'] ?? '')) ?>" disabled>
                                     </div>
                                     <div class="field-group">
-                                        <label class="field-label">Level (เปลี่ยนไม่ได้)</label>
+                                        <label class="field-label">ระดับ (เปลี่ยนไม่ได้)</label>
                                         <input class="input" type="text" value="<?= e((string) ($priority['level'] ?? '')) ?>" disabled>
                                     </div>
                                 </div>
                                 <div class="content-grid">
                                     <div class="field-group">
-                                        <label class="field-label" for="priority_name_<?= $priorityId ?>">ชื่อ Priority <span class="required">*</span></label>
+                                        <label class="field-label" for="priority_name_<?= $priorityId ?>">ชื่อความสำคัญ <span class="required">*</span></label>
                                         <input id="priority_name_<?= $priorityId ?>" class="input" type="text" name="name" required value="<?= e((string) ($priority['name'] ?? '')) ?>">
                                     </div>
                                     <div class="field-group">
@@ -597,16 +597,16 @@
                                 </div>
                                 <label class="checkbox-row">
                                     <input type="checkbox" name="is_active" value="1"<?= !empty($priority['is_active']) ? ' checked' : '' ?>>
-                                    <span>เปิดใช้งาน Priority นี้ในฟอร์ม Ticket</span>
+                                    <span>เปิดใช้งานความสำคัญนี้ในฟอร์ม Ticket</span>
                                 </label>
                                 <div class="button-row">
-                                    <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'บันทึก Priority/SLA', 'variant' => 'primary', 'icon' => 'check-circle']) ?>
+                                    <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'บันทึกความสำคัญ/SLA', 'variant' => 'primary', 'icon' => 'check-circle']) ?>
                                 </div>
                             </form>
                             <div class="delete-zone">
-                                <form method="post" action="<?= e(url('/admin/priorities/' . $priorityId . '/delete')) ?>" class="button-row" onsubmit="return confirm('ยืนยันการลบ Priority นี้? ลบได้เฉพาะระดับที่ยังไม่ถูกใช้กับ ticket หากถูกใช้งานแล้วให้ปิดใช้งานแทน');">
+                                <form method="post" action="<?= e(url('/admin/priorities/' . $priorityId . '/delete')) ?>" class="button-row" onsubmit="return confirm('ยืนยันการลบระดับความสำคัญนี้? ลบได้เฉพาะระดับที่ยังไม่ถูกใช้กับ ticket หากถูกใช้งานแล้วให้ปิดใช้งานแทน');">
                                     <?= csrf_field() ?>
-                                    <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ลบ Priority', 'variant' => 'danger', 'icon' => 'trash']) ?>
+                                    <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ลบความสำคัญ', 'variant' => 'danger', 'icon' => 'trash']) ?>
                                 </form>
                             </div>
                         </div>
@@ -760,8 +760,8 @@
     <section id="tab-asset-categories" class="panel-card stack-md admin-tab-panel" role="tabpanel">
         <div class="panel-head">
             <div>
-                <h2 class="panel-title">จัดการหมวดหมู่ Asset</h2>
-                <p class="field-hint">ประเภททรัพย์สินที่ใช้ในฟอร์มเพิ่มและแก้ไข Asset</p>
+                <h2 class="panel-title">จัดการหมวดหมู่ทรัพย์สิน</h2>
+                <p class="field-hint">ประเภททรัพย์สินที่ใช้ในฟอร์มเพิ่มและแก้ไขทรัพย์สิน</p>
             </div>
             <span class="badge badge-info"><?= e((string) count($assetCategories ?? [])) ?> รายการ</span>
         </div>
@@ -769,8 +769,8 @@
             <summary class="collapsible-summary">
                 <span class="metric-icon metric-icon-sm"><?= lucide('plus', 'h-4 w-4') ?></span>
                 <div class="collapsible-summary-main">
-                    <span class="collapsible-title">เพิ่มหมวดหมู่ Asset ใหม่</span>
-                    <span class="collapsible-subtitle">สร้างประเภททรัพย์สินสำหรับทะเบียน Asset</span>
+                    <span class="collapsible-title">เพิ่มหมวดหมู่ทรัพย์สินใหม่</span>
+                    <span class="collapsible-subtitle">สร้างประเภททรัพย์สินสำหรับทะเบียนทรัพย์สิน</span>
                 </div>
                 <span class="collapsible-chevron"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
             </summary>
@@ -802,7 +802,7 @@
                         <span>เปิดใช้งานหมวดนี้ทันที</span>
                     </label>
                     <div class="button-row">
-                        <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'เพิ่มหมวดหมู่ Asset', 'variant' => 'primary', 'icon' => 'plus']) ?>
+                        <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'เพิ่มหมวดหมู่ทรัพย์สิน', 'variant' => 'primary', 'icon' => 'plus']) ?>
                     </div>
                 </form>
             </div>
@@ -810,8 +810,8 @@
         <?php if (($assetCategories ?? []) === []): ?>
             <?= render_partial('partials/components/empty-state', [
                 'icon' => 'layers',
-                'title' => 'ยังไม่มีหมวดหมู่ Asset',
-                'description' => 'เมื่อมีหมวดหมู่ Asset รายการจะปรากฏที่นี่ พร้อมให้แก้ไขหรือปิดใช้งานได้',
+                'title' => 'ยังไม่มีหมวดหมู่ทรัพย์สิน',
+                'description' => 'เมื่อมีหมวดหมู่ทรัพย์สิน รายการจะปรากฏที่นี่ พร้อมให้แก้ไขหรือปิดใช้งานได้',
             ]) ?>
         <?php else: ?>
             <div class="stack-md">
@@ -861,9 +861,9 @@
                                 </div>
                             </form>
                             <div class="delete-zone">
-                                <form method="post" action="<?= e(url('/admin/asset-categories/' . $assetCatId . '/delete')) ?>" class="button-row" onsubmit="return confirm('ยืนยันการลบหมวดหมู่ Asset นี้? ลบได้เฉพาะรายการที่ยังไม่ถูกใช้งาน หากถูกใช้งานแล้วให้ปิดใช้งานแทน');">
+                                <form method="post" action="<?= e(url('/admin/asset-categories/' . $assetCatId . '/delete')) ?>" class="button-row" onsubmit="return confirm('ยืนยันการลบหมวดหมู่ทรัพย์สินนี้? ลบได้เฉพาะรายการที่ยังไม่ถูกใช้งาน หากถูกใช้งานแล้วให้ปิดใช้งานแทน');">
                                     <?= csrf_field() ?>
-                                    <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ลบหมวดหมู่ Asset', 'variant' => 'danger', 'icon' => 'trash']) ?>
+                                    <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ลบหมวดหมู่ทรัพย์สิน', 'variant' => 'danger', 'icon' => 'trash']) ?>
                                 </form>
                             </div>
                         </div>
@@ -876,16 +876,16 @@
     <section id="tab-roles" class="panel-card stack-md admin-tab-panel" role="tabpanel">
         <div class="panel-head">
             <div>
-                <h2 class="panel-title">Preview สิทธิ์ตาม Role</h2>
+                <h2 class="panel-title">ดูสิทธิ์ตามบทบาท</h2>
                 <p class="field-hint">สรุปความสามารถจาก workflow และ routes ที่ระบบใช้อยู่จริง เป็นเอกสารอ่านอย่างเดียวสำหรับผู้ซื้อ template</p>
             </div>
-            <span class="badge badge-default">Read-only</span>
+            <span class="badge badge-default">อ่านอย่างเดียว</span>
         </div>
 
         <?php $rolePreviewData = $rolePreview ?? ['roles' => [], 'capabilities' => []]; ?>
         <div class="table-wrap">
             <table class="data-table">
-                <caption class="sr-only">ตารางสิทธิ์การใช้งานตาม Role</caption>
+                <caption class="sr-only">ตารางสิทธิ์การใช้งานตามบทบาท</caption>
                 <thead>
                 <tr>
                     <th>ความสามารถ</th>
@@ -912,7 +912,7 @@
     <section id="tab-audit" class="panel-card stack-md admin-tab-panel" role="tabpanel">
         <div class="panel-head">
             <div>
-                <h2 class="panel-title">Audit Log</h2>
+                <h2 class="panel-title">บันทึกการตรวจสอบ</h2>
                 <p class="field-hint">อ่านอย่างเดียว: ดูว่าใครแก้ข้อมูลผู้ใช้ master data, settings, logo และอีเมลทดสอบเมื่อไหร่</p>
             </div>
             <span class="badge badge-info"><?= e((string) (int) (($auditLogs['total'] ?? 0))) ?> รายการ</span>
@@ -925,7 +925,7 @@
         <form method="get" action="<?= e(url('/admin#tab-audit')) ?>" class="panel-card panel-card-sky stack-md">
             <div class="dashboard-filter-grid dashboard-filter-grid-5">
                 <div class="field-group">
-                    <label class="field-label" for="audit_action">Action</label>
+                    <label class="field-label" for="audit_action">การกระทำ</label>
                     <select id="audit_action" class="input" name="action">
                         <option value="">ทั้งหมด</option>
                         <?php foreach (($auditOptions['actions'] ?? []) as $action): ?>
@@ -934,7 +934,7 @@
                     </select>
                 </div>
                 <div class="field-group">
-                    <label class="field-label" for="audit_entity_type">Entity</label>
+                    <label class="field-label" for="audit_entity_type">ประเภทข้อมูล</label>
                     <select id="audit_entity_type" class="input" name="entity_type">
                         <option value="">ทั้งหมด</option>
                         <?php foreach (($auditOptions['entityTypes'] ?? []) as $entityType): ?>
@@ -961,21 +961,21 @@
                 </div>
             </div>
             <div class="button-row">
-                <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'กรอง Audit Log', 'variant' => 'primary', 'icon' => 'filter']) ?>
-                <?= render_partial('partials/components/button', ['href' => '/admin#tab-audit', 'label' => 'ล้าง filter', 'variant' => 'secondary', 'icon' => 'x']) ?>
+                <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'กรองบันทึกการตรวจสอบ', 'variant' => 'primary', 'icon' => 'filter']) ?>
+                <?= render_partial('partials/components/button', ['href' => '/admin#tab-audit', 'label' => 'ล้างตัวกรอง', 'variant' => 'secondary', 'icon' => 'x']) ?>
             </div>
         </form>
 
         <?php if (empty($auditLogs['items'])): ?>
             <?= render_partial('partials/components/empty-state', [
                 'icon' => 'file-text',
-                'title' => 'ยังไม่มี Audit Log',
+                'title' => 'ยังไม่มีบันทึกการตรวจสอบ',
                 'description' => 'ระบบจะเริ่มบันทึกเมื่อมี admin action สำคัญหลังจากเปิดใช้ฟีเจอร์นี้',
             ]) ?>
         <?php else: ?>
             <div class="table-wrap">
                 <table class="data-table">
-                    <caption class="sr-only">ตาราง Audit Log</caption>
+                    <caption class="sr-only">ตารางบันทึกการตรวจสอบ</caption>
                     <thead>
                     <tr>
                         <th>เวลา</th>
@@ -1021,7 +1021,7 @@
             };
             ?>
             <?php if ($auditTotalPages > 1): ?>
-                <nav class="pagination" aria-label="Audit pagination">
+                <nav class="pagination" aria-label="การแบ่งหน้าบันทึกการตรวจสอบ">
                     <span class="pagination-summary"><?= e((string) (int) ($auditLogs['total'] ?? 0)) ?> รายการ · หน้า <?= e((string) $auditPage) ?>/<?= e((string) $auditTotalPages) ?></span>
                     <a class="page-link<?= $auditPage <= 1 ? ' is-disabled' : '' ?>" href="<?= e($auditPageUrl(max(1, $auditPage - 1))) ?>"><?= lucide('chevron-left', 'h-4 w-4') ?></a>
                     <?php for ($target = max(1, $auditPage - 2); $target <= min($auditTotalPages, $auditPage + 2); $target++): ?>
@@ -1036,7 +1036,7 @@
     <section id="tab-security" class="panel-card stack-md admin-tab-panel" role="tabpanel">
         <div class="panel-head">
             <div>
-                <h2 class="panel-title">การเข้าสู่ระบบ (Login Attempts)</h2>
+                <h2 class="panel-title">ประวัติการเข้าสู่ระบบ</h2>
                 <p class="field-hint">บันทึกการพยายามเข้าสู่ระบบทั้งสำเร็จและล้มเหลว — ใช้ตรวจสอบ brute-force หรือบัญชีต้องสงสัย</p>
             </div>
             <?php
@@ -1109,7 +1109,7 @@
     <section id="tab-email" class="panel-card stack-md admin-tab-panel" role="tabpanel">
         <div class="panel-head">
             <div>
-                <h2 class="panel-title">Email Template และ SMTP Test</h2>
+                <h2 class="panel-title">เทมเพลตอีเมลและทดสอบ SMTP</h2>
                 <p class="field-hint">ดูตัวอย่างอีเมลจริงของระบบและส่งทดสอบผ่าน MailerService เดิม โดยไม่แสดงรหัสผ่าน SMTP</p>
             </div>
             <div class="button-row">
@@ -1134,7 +1134,7 @@
             <div class="panel-card panel-card-teal stack-md">
                 <div class="panel-head">
                     <div>
-                        <h3 class="panel-title panel-title-lg">Mail Config</h3>
+                        <h3 class="panel-title panel-title-lg">ตั้งค่าอีเมล</h3>
                         <p class="field-hint">ค่าที่อ่านจาก `.env`/config ปัจจุบัน</p>
                     </div>
                 </div>
@@ -1164,10 +1164,10 @@
                         <input id="test_to_email" class="input" type="email" name="to_email" required placeholder="owner@example.com" value="<?= e((string) ($currentUser['email'] ?? '')) ?>">
                     </div>
                     <div class="field-group">
-                        <label class="field-label" for="test_template">Template</label>
+                        <label class="field-label" for="test_template">เทมเพลต</label>
                         <select id="test_template" class="input" name="template">
-                            <option value="password_reset">Password Reset</option>
-                            <option value="notification">Notification / Ticket Event</option>
+                            <option value="password_reset">รีเซ็ตรหัสผ่าน</option>
+                            <option value="notification">การแจ้งเตือน / เหตุการณ์ Ticket</option>
                         </select>
                     </div>
                     <div class="button-row">
@@ -1191,7 +1191,7 @@
                     <iframe title="<?= e((string) ($preview['label'] ?? $templateKey)) ?> preview" sandbox style="width:100%;height:520px;border:1px solid rgba(148,163,184,.35);border-radius:16px;background:#fff" srcdoc="<?= e((string) ($preview['body_html'] ?? '')) ?>"></iframe>
                     <details class="collapsible">
                         <summary class="collapsible-summary">
-                            <span class="collapsible-title">Text fallback</span>
+                            <span class="collapsible-title">ข้อความสำรอง</span>
                             <span class="collapsible-chevron"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
                         </summary>
                         <div class="collapsible-body">
@@ -1207,7 +1207,7 @@
         <div class="panel-head">
             <div>
                 <h2 class="panel-title">การตั้งค่ากลางของระบบ</h2>
-                <p class="field-hint">ตั้งค่าพื้นฐานด้วยฟอร์มอ่านง่าย เพื่อลดการแก้ JSON หรือ key/value ดิบผิดพลาด</p>
+                <p class="field-hint">ตั้งค่าพื้นฐานด้วยฟอร์มอ่านง่าย เพื่อลดการแก้ JSON หรือคีย์/ค่าดิบผิดพลาด</p>
             </div>
         </div>
 
@@ -1216,7 +1216,7 @@
             <div class="panel-head">
                 <div>
                     <h3 class="panel-title panel-title-lg">ตั้งค่าระบบหลัก</h3>
-                    <p class="field-hint">ชื่อระบบ, timezone, ticket prefix และเวลาทำการ</p>
+                    <p class="field-hint">ชื่อระบบ, เขตเวลา, คำนำหน้า Ticket และเวลาทำการ</p>
                 </div>
             </div>
             <form method="post" action="<?= e(url('/admin/system-settings')) ?>" class="stack-md">
@@ -1227,7 +1227,7 @@
                         <input id="system_app_name" class="input" type="text" name="app_name" required value="<?= e((string) ($systemForm['app_name'] ?? 'Repair System')) ?>">
                     </div>
                     <div class="field-group">
-                        <label class="field-label" for="system_timezone">Timezone <span class="required">*</span></label>
+                        <label class="field-label" for="system_timezone">เขตเวลา <span class="required">*</span></label>
                         <select id="system_timezone" class="input" name="default_timezone" required>
                             <?php foreach (($systemForm['timezoneOptions'] ?? [['value' => 'Asia/Bangkok', 'label' => 'Asia/Bangkok']]) as $option): ?>
                                 <option value="<?= e((string) ($option['value'] ?? '')) ?>"<?= (string) ($systemForm['default_timezone'] ?? 'Asia/Bangkok') === (string) ($option['value'] ?? '') ? ' selected' : '' ?>><?= e((string) ($option['label'] ?? '')) ?></option>
@@ -1237,7 +1237,7 @@
                 </div>
                 <div class="content-grid">
                     <div class="field-group">
-                        <label class="field-label" for="system_ticket_prefix">Ticket Prefix <span class="required">*</span></label>
+                        <label class="field-label" for="system_ticket_prefix">คำนำหน้า Ticket <span class="required">*</span></label>
                         <input id="system_ticket_prefix" class="input" type="text" name="ticket_prefix" required minlength="2" maxlength="12" pattern="[A-Za-z0-9_-]{2,12}" value="<?= e((string) ($systemForm['ticket_prefix'] ?? 'MT')) ?>">
                         <p class="field-hint">ใช้ A-Z, 0-9, ขีดกลาง หรือขีดล่าง เช่น MT</p>
                     </div>
@@ -1296,8 +1296,8 @@
             <summary class="collapsible-summary">
                 <span class="metric-icon metric-icon-sm"><?= lucide('plus', 'h-4 w-4') ?></span>
                 <div class="collapsible-summary-main">
-                    <span class="collapsible-title">เพิ่ม Setting ขั้นสูง</span>
-                    <span class="collapsible-subtitle">กำหนด key/value/type สำหรับ config เพิ่มเติมที่ไม่ได้อยู่ในฟอร์มหลัก</span>
+                    <span class="collapsible-title">เพิ่มการตั้งค่าขั้นสูง</span>
+                    <span class="collapsible-subtitle">กำหนดคีย์/ค่า/ชนิด สำหรับการตั้งค่าเพิ่มเติมที่ไม่ได้อยู่ในฟอร์มหลัก</span>
                 </div>
                 <span class="collapsible-chevron"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
             </summary>
@@ -1306,7 +1306,7 @@
                     <?= csrf_field() ?>
                     <div class="content-grid">
                         <div class="field-group">
-                            <label class="field-label" for="setting_key">Key <span class="required">*</span></label>
+                            <label class="field-label" for="setting_key">คีย์ <span class="required">*</span></label>
                             <input id="setting_key" class="input" type="text" name="setting_key" required placeholder="เช่น app_name">
                         </div>
                         <div class="field-group">
@@ -1326,10 +1326,10 @@
                     </div>
                     <label class="checkbox-row">
                         <input type="checkbox" id="setting_is_public" name="is_public" value="1">
-                        <span>เปิดเผยค่านี้ให้ผู้ใช้งานทั่วไปเห็น (public)</span>
+                        <span>เปิดเผยค่านี้ให้ผู้ใช้งานทั่วไปเห็น</span>
                     </label>
                     <div class="button-row">
-                        <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'บันทึก Setting', 'variant' => 'primary', 'icon' => 'plus']) ?>
+                        <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'บันทึกการตั้งค่า', 'variant' => 'primary', 'icon' => 'plus']) ?>
                     </div>
                 </form>
             </div>
@@ -1341,7 +1341,7 @@
                     <caption class="sr-only">ตารางการตั้งค่าขั้นสูง</caption>
                     <thead>
                     <tr>
-                        <th>Key</th>
+                        <th>คีย์</th>
                         <th>ค่า</th>
                         <th>ชนิด</th>
                         <th>เปิดเผย</th>
@@ -1375,15 +1375,41 @@
     const panels = document.querySelectorAll('.admin-tab-panel');
     if (!tabs.length) return;
 
+    const nav = document.querySelector('.admin-tabs');
+    const scroller = document.querySelector('.admin-tabs-scroller');
+
+    // F2: show fade edges only when there is hidden content to scroll toward.
+    const updateFades = () => {
+        if (!nav || !scroller) return;
+        const max = nav.scrollWidth - nav.clientWidth;
+        scroller.classList.toggle('can-scroll-left', nav.scrollLeft > 4);
+        scroller.classList.toggle('can-scroll-right', nav.scrollLeft < max - 4);
+    };
+
+    // F1: bring the active tab into view horizontally without moving page scroll.
+    const revealActive = (tab) => {
+        if (!nav || !tab) return;
+        const navRect = nav.getBoundingClientRect();
+        const tabRect = tab.getBoundingClientRect();
+        if (tabRect.left < navRect.left) {
+            nav.scrollBy({ left: tabRect.left - navRect.left - 12, behavior: 'smooth' });
+        } else if (tabRect.right > navRect.right) {
+            nav.scrollBy({ left: tabRect.right - navRect.right + 12, behavior: 'smooth' });
+        }
+    };
+
     const activate = (hash) => {
+        let activeTab = null;
         tabs.forEach((t) => {
             const active = t.getAttribute('href') === hash;
             t.classList.toggle('is-active', active);
             t.setAttribute('aria-selected', active ? 'true' : 'false');
+            if (active) activeTab = t;
         });
         panels.forEach((p) => {
             p.classList.toggle('is-active', '#' + p.id === hash);
         });
+        revealActive(activeTab);
     };
 
     tabs.forEach((tab) => {
@@ -1395,6 +1421,31 @@
         });
     });
 
+    if (nav) {
+        nav.addEventListener('scroll', updateFades, { passive: true });
+        window.addEventListener('resize', updateFades);
+    }
+
+    // F5: stat cards jump to their matching tab (smooth, no reload). The href
+    // fallback (/admin#tab-...) still works if JS is unavailable.
+    document.querySelectorAll('.stat-grid a.metric-card[href*="#tab-"]').forEach((card) => {
+        card.addEventListener('click', (e) => {
+            const hash = '#' + card.getAttribute('href').split('#').pop();
+            if (!document.querySelector('.admin-tab[href="' + hash + '"]')) return;
+            e.preventDefault();
+            activate(hash);
+            history.replaceState(null, '', hash);
+            // Offset the scroll by the sticky topbar so the tab bar lands below it, not hidden under.
+            if (scroller) {
+                const topbar = document.querySelector('.topbar') || document.querySelector('header');
+                const offset = (topbar ? topbar.getBoundingClientRect().height : 0) + 12;
+                const y = scroller.getBoundingClientRect().top + window.scrollY - offset;
+                window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+            }
+        });
+    });
+
     activate(location.hash || '#tab-users');
+    updateFades();
 })();
 </script>

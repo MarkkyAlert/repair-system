@@ -27,7 +27,7 @@ class AssetService
         $filterOptions = $this->buildAssetFilterOptions($reference);
 
         return [
-            'roleLabel' => $this->labelize((string) ($viewer['role'] ?? 'guest')),
+            'roleLabel' => role_label_th((string) ($viewer['role'] ?? 'guest')),
             'canManage' => $this->canManageAssets($viewer),
             'assets' => array_map(fn (array $asset): array => $this->mapAssetSummary($asset), $result['items']),
             'pagination' => $result,
@@ -160,7 +160,7 @@ class AssetService
                     (string) ($asset['building'] ?? ''),
                     (string) ($asset['room'] ?? ''),
                 ]),
-                'status' => $this->labelize((string) ($asset['status'] ?? 'active')),
+                'status' => asset_status_label_th((string) ($asset['status'] ?? 'active')),
                 'notes' => (string) ($asset['notes'] ?? ''),
                 'last_scanned_at' => $this->formatDateTime($asset['last_scanned_at'] ?? null),
             ],
@@ -211,11 +211,11 @@ class AssetService
             ], $reference['locations'] ?? []),
             'custodians' => array_map(fn (array $custodian): array => [
                 'id' => (int) ($custodian['id'] ?? 0),
-                'label' => (string) ($custodian['full_name'] ?? '') . ' · ' . $this->labelize((string) ($custodian['role'] ?? 'user')),
+                'label' => (string) ($custodian['full_name'] ?? '') . ' · ' . role_label_th((string) ($custodian['role'] ?? 'user')),
             ], $reference['custodians'] ?? []),
-            'statusOptions' => array_map(fn (string $status): array => [
+            'statusOptions' => array_map(static fn (string $status): array => [
                 'value' => $status,
-                'label' => $this->labelize($status),
+                'label' => asset_status_label_th($status),
             ], ['active', 'maintenance', 'retired', 'disposed']),
             'defaults' => [
                 'asset_code' => (string) ($oldInput['asset_code'] ?? ($asset['asset_code'] ?? '')),
@@ -322,7 +322,7 @@ class AssetService
                 (string) ($asset['model'] ?? ''),
             ]),
             'status' => (string) ($asset['status'] ?? 'active'),
-            'status_label' => $this->labelize((string) ($asset['status'] ?? 'active')),
+            'status_label' => asset_status_label_th((string) ($asset['status'] ?? 'active')),
             'status_tone' => $this->statusTone((string) ($asset['status'] ?? 'active')),
             'category_name' => (string) ($asset['category_name'] ?? '-'),
             'location_label' => $this->buildLabel([
@@ -395,7 +395,7 @@ class AssetService
 
         $status = (string) ($filters['status'] ?? '');
         if ($status !== '') {
-            $chips[] = 'สถานะ: ' . (string) (($options['statuses'] ?? [])[$status] ?? $this->labelize($status));
+            $chips[] = 'สถานะ: ' . asset_status_label_th($status);
         }
 
         return $chips;
@@ -414,12 +414,9 @@ class AssetService
 
     private function assetStatusOptions(): array
     {
-        return [
-            'active' => 'ใช้งานอยู่',
-            'maintenance' => 'อยู่ระหว่างซ่อม',
-            'retired' => 'เลิกใช้งาน',
-            'disposed' => 'จำหน่าย/ทิ้ง',
-        ];
+        $keys = ['active', 'maintenance', 'retired', 'disposed'];
+
+        return array_combine($keys, array_map('asset_status_label_th', $keys));
     }
 
     private function mapAssetDetail(array $asset): array
@@ -510,20 +507,27 @@ class AssetService
 
     private function buildLabel(array $parts): string
     {
-        $segments = array_values(array_filter($parts, static fn (string $value): bool => trim($value) !== '' && $value !== '-'));
+        // Drop empty/placeholder parts and collapse repeated segments
+        // (e.g. location_name == room -> "Server Room / Head Office / Server Room"
+        //  becomes "Server Room / Head Office"), keeping first occurrence.
+        $segments = [];
+        $seen = [];
+        foreach ($parts as $value) {
+            $value = trim($value);
+            if ($value === '' || $value === '-') {
+                continue;
+            }
+            $key = mb_strtolower($value);
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $segments[] = $value;
+        }
 
         return $segments !== [] ? implode(' / ', $segments) : '-';
     }
 
-    private function labelize(string $value): string
-    {
-        $normalized = trim($value);
-        if ($normalized === '') {
-            return '-';
-        }
-
-        return ucwords(str_replace('_', ' ', $normalized));
-    }
 
     private function statusTone(string $status): string
     {

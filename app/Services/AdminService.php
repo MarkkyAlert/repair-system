@@ -647,22 +647,22 @@ class AdminService
     {
         return [
             'roles' => [
-                'requester' => 'ผู้แจ้ง',
-                'manager' => 'ผู้จัดการ',
-                'technician' => 'ช่างเทคนิค',
-                'admin' => 'ผู้ดูแลระบบ',
+                'requester' => role_label_th('requester'),
+                'manager' => role_label_th('manager'),
+                'technician' => role_label_th('technician'),
+                'admin' => role_label_th('admin'),
             ],
             'capabilities' => [
                 ['label' => 'เข้าสู่ Dashboard และดูภาพรวมของตนเอง', 'roles' => ['requester', 'manager', 'technician', 'admin']],
-                ['label' => 'สร้าง Ticket ใหม่และติดตามงานที่ตนแจ้ง', 'roles' => ['requester', 'admin']],
-                ['label' => 'ยกเลิก Ticket ของตนเองก่อนเริ่มงาน', 'roles' => ['requester', 'admin']],
+                ['label' => 'สร้าง Ticket ใหม่และติดตามงานที่ตนแจ้ง', 'roles' => ['requester', 'manager', 'technician', 'admin']],
+                ['label' => 'ยกเลิก Ticket ของตนเองก่อนเริ่มงาน', 'roles' => ['requester', 'manager', 'technician', 'admin']],
                 ['label' => 'อนุมัติ/ปฏิเสธ Ticket ที่รออนุมัติ', 'roles' => ['manager', 'admin']],
                 ['label' => 'มอบหมายช่างและจัดคิวงานซ่อม', 'roles' => ['manager', 'admin']],
                 ['label' => 'รับงาน เริ่มงาน และปิดงานซ่อม', 'roles' => ['technician', 'admin']],
-                ['label' => 'เพิ่ม/แก้ไข comment และ internal note ตามสิทธิ์ Ticket', 'roles' => ['requester', 'manager', 'technician', 'admin']],
-                ['label' => 'จัดการ Asset และ QR sheet', 'roles' => ['manager', 'admin']],
-                ['label' => 'ดู Reports และ Export Excel/PDF/CSV', 'roles' => ['manager', 'admin']],
-                ['label' => 'ตั้งค่าระบบ ผู้ใช้ master data โลโก้ และ Email test', 'roles' => ['admin']],
+                ['label' => 'เพิ่ม/แก้ไขความคิดเห็นและโน้ตภายในตามสิทธิ์ Ticket', 'roles' => ['requester', 'manager', 'technician', 'admin']],
+                ['label' => 'จัดการทรัพย์สินและแผ่น QR', 'roles' => ['manager', 'admin']],
+                ['label' => 'ดูรายงานและส่งออก Excel/PDF/CSV', 'roles' => ['manager', 'admin']],
+                ['label' => 'ตั้งค่าระบบ ผู้ใช้ ข้อมูลหลัก โลโก้ และทดสอบอีเมล', 'roles' => ['admin']],
             ],
         ];
     }
@@ -702,13 +702,13 @@ class AdminService
 
         return [
             'password_reset' => [
-                'label' => 'Password Reset',
+                'label' => 'รีเซ็ตรหัสผ่าน',
                 'subject' => (string) ($passwordReset['subject'] ?? ''),
                 'body_html' => (string) ($passwordReset['body_html'] ?? ''),
                 'body_text' => (string) ($passwordReset['body_text'] ?? ''),
             ],
             'notification' => [
-                'label' => 'Notification / Ticket Event',
+                'label' => 'การแจ้งเตือน / เหตุการณ์ Ticket',
                 'subject' => (string) ($notification['subject'] ?? ''),
                 'body_html' => (string) ($notification['body_html'] ?? ''),
                 'body_text' => (string) ($notification['body_text'] ?? ''),

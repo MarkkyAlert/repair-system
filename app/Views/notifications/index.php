@@ -101,7 +101,7 @@ $returnTo = '/notifications' . ($returnQuery === [] ? '' : '?' . http_build_quer
                                         <div class="notification-inbox-title-row">
                                             <h4><a href="<?= e($notificationLink) ?>"><?= e((string) ($notification['title'] ?? 'การแจ้งเตือน')) ?></a></h4>
                                             <?= render_partial('partials/components/badge', [
-                                                'label' => (string) ($notification['category_label'] ?? 'Workflow'),
+                                                'label' => (string) ($notification['category_label'] ?? 'ระบบงาน'),
                                                 'tone' => (string) ($notification['tone'] ?? 'default'),
                                             ]) ?>
                                             <?php if ((int) ($notification['event_count'] ?? 1) > 1): ?>

@@ -13,7 +13,7 @@ $total = (int) ($preview['total'] ?? 0);
             ? 'ตรวจรายการที่ระบบเตรียมไว้ ก่อนสร้างบัญชีจริง'
             : 'อัปโหลดไฟล์ CSV เพื่อสร้างหลายบัญชีพร้อมกัน',
         'breadcrumbs' => [
-            ['label' => 'Admin', 'href' => '/admin'],
+            ['label' => 'ตั้งค่าระบบ', 'href' => '/admin'],
             ['label' => 'นำเข้าผู้ใช้ (CSV)'],
         ],
         'actions' => render_partial('partials/components/button', [
@@ -36,10 +36,10 @@ $total = (int) ($preview['total'] ?? 0);
             <div class="panel-head">
                 <div>
                     <h2 class="panel-title">ขั้นตอนนำเข้า</h2>
-                    <p class="field-hint">ดาวน์โหลด template → กรอกข้อมูล → อัปโหลด → ตรวจ preview → ยืนยัน</p>
+                    <p class="field-hint">ดาวน์โหลดเทมเพลต → กรอกข้อมูล → อัปโหลด → ตรวจสอบตัวอย่าง → ยืนยัน</p>
                 </div>
                 <?= render_partial('partials/components/button', [
-                    'label' => 'ดาวน์โหลด template CSV',
+                    'label' => 'ดาวน์โหลดเทมเพลต CSV',
                     'variant' => 'secondary',
                     'href' => '/admin/users/import/template.csv',
                     'icon' => 'arrow-right',
@@ -48,9 +48,9 @@ $total = (int) ($preview['total'] ?? 0);
             </div>
 
             <ol class="ticket-flow-list">
-                <li><span>1</span><div><strong>Column ที่จำเป็น</strong><span>username, email, full_name, role (ที่เหลือเว้นได้)</span></div></li>
-                <li><span>2</span><div><strong>Role ที่ใช้ได้</strong><span>requester / manager / technician / admin</span></div></li>
-                <li><span>3</span><div><strong>เว้น password ไว้</strong><span>ระบบจะ generate ให้และส่งอีเมลตั้งรหัสผ่านอัตโนมัติ</span></div></li>
+                <li><span>1</span><div><strong>คอลัมน์ที่จำเป็น</strong><span>username, email, full_name, role (ที่เหลือเว้นได้)</span></div></li>
+                <li><span>2</span><div><strong>บทบาทที่ใช้ได้</strong><span>requester / manager / technician / admin</span></div></li>
+                <li><span>3</span><div><strong>เว้นรหัสผ่านไว้</strong><span>ระบบจะสร้างให้และส่งอีเมลตั้งรหัสผ่านอัตโนมัติ</span></div></li>
                 <li><span>4</span><div><strong>สูงสุด 200 ผู้ใช้ต่อรอบ</strong><span>ไฟล์ขนาดไม่เกิน 1MB</span></div></li>
             </ol>
 

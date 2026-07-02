@@ -33,7 +33,7 @@ class AdminController
         }
 
         Response::view('admin/index', [
-            'title' => 'Admin Panels',
+            'title' => 'ตั้งค่าระบบ',
             'pageHeading' => 'ตั้งค่าระบบ',
             'currentUser' => $viewer,
             'users' => $data['users'],
