@@ -32,7 +32,7 @@ class CommentService
             throw new DomainException('กรุณากรอกข้อความ comment ก่อนบันทึก');
         }
 
-        if (preg_match('/^[a-f0-9]{64}$/', $submissionToken) !== 1) {
+        if (!is_submission_token($submissionToken)) {
             throw new DomainException('แบบฟอร์ม comment หมดอายุ กรุณารีเฟรชหน้าแล้วลองอีกครั้ง');
         }
 
@@ -163,7 +163,7 @@ class CommentService
 
         $viewerId = (int) ($viewer['id'] ?? 0);
         $role = (string) ($viewer['role'] ?? 'guest');
-        $canManage = (int) ($comment['user_id'] ?? 0) === $viewerId || in_array($role, ['manager', 'admin'], true);
+        $canManage = (int) ($comment['user_id'] ?? 0) === $viewerId || is_manager_or_admin($role);
 
         if (!$canManage) {
             throw new DomainException('คุณไม่มีสิทธิ์แก้ไข comment นี้');

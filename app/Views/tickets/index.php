@@ -217,7 +217,7 @@ if ($metricCount('pendingApproval') > 0) {
                 'slot' => $emptySlot ?? '',
             ]) ?>
         <?php else: ?>
-            <?php $canBulkApprove = in_array($viewerRole, ['manager', 'admin'], true) && $qStatus === 'pending_approval'; ?>
+            <?php $canBulkApprove = is_manager_or_admin($viewerRole) && $qStatus === 'pending_approval'; ?>
             <div class="sr-only" id="ticket-queue-title">รายการ Ticket ที่ตรงตามตัวกรอง</div>
             <p class="sr-only" id="ticket-queue-description">รายการ Ticket ที่ตรงตามตัวกรอง จำนวน <?= e((string) ($pagination['total'] ?? 0)) ?> รายการ</p>
             <?php if ($canBulkApprove): ?>

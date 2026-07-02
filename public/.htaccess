@@ -1,6 +1,14 @@
 Options -Indexes
 DirectoryIndex index.php
 
+# Baseline security headers (clickjacking + MIME-sniffing + referrer leakage).
+# CSP/HSTS intentionally omitted: CSP needs per-app tuning, HSTS belongs at the TLS proxy.
+<IfModule mod_headers.c>
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteCond %{REQUEST_FILENAME} !-f

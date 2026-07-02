@@ -16,6 +16,8 @@ use RuntimeException;
 
 class AuthController
 {
+    use HandlesFormSubmission;
+
     public function __construct(
         private AuthService $service,
         private NotificationPreferenceRepository $preferences,
@@ -76,17 +78,11 @@ class AuthController
 
     public function logout(): void
     {
-        AuthMiddleware::handle();
-
-        try {
-            csrf_validate();
-            $this->service->logout();
-            flash('success', 'ออกจากระบบเรียบร้อยแล้ว');
-        } catch (RuntimeException $exception) {
-            flash('error', $exception->getMessage());
-        }
-
-        Response::redirect('/login');
+        $this->handleUpdate(
+            fn (array $viewer) => $this->service->logout(),
+            'ออกจากระบบเรียบร้อยแล้ว',
+            '/login'
+        );
     }
 
     public function showForgotPassword(): void

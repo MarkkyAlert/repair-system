@@ -39,6 +39,35 @@ class NotificationPreferenceRepository
         return (int) $row['is_enabled'] === 1;
     }
 
+    /**
+     * Batch counterpart of isEnabled(): returns the subset of $userIds that have an EXPLICIT
+     * is_enabled=0 row for this type/channel. Users without a row stay enabled (opt-out model).
+     * Lets callers filter many recipients with one query instead of one query per user.
+     */
+    public function disabledUserIds(array $userIds, string $notificationType, string $channel): array
+    {
+        $userIds = array_values(array_unique(array_filter(
+            array_map('intval', $userIds),
+            static fn (int $id): bool => $id > 0
+        )));
+        if ($userIds === [] || $notificationType === '' || !in_array($channel, ['email', 'in_app'], true)) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($userIds), '?'));
+        $stmt = $this->db->prepare(
+            "SELECT user_id
+             FROM notification_preferences
+             WHERE notification_type = ?
+               AND channel = ?
+               AND is_enabled = 0
+               AND user_id IN ($placeholders)"
+        );
+        $stmt->execute([$notificationType, $channel, ...$userIds]);
+
+        return array_map(static fn (mixed $id): int => (int) $id, $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
+    }
+
     public function getMatrix(int $userId): array
     {
         if ($userId <= 0) {

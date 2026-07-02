@@ -220,7 +220,7 @@ class AssetImportService
                 $skipped[] = [
                     'line' => (int) ($row['line'] ?? 0),
                     'asset_code' => (string) ($row['asset_code'] ?? ''),
-                    'reason' => $this->isDuplicateKey($exception)
+                    'reason' => is_duplicate_key_error($exception)
                         ? 'asset_code หรือ serial_number ซ้ำกับข้อมูลที่มีอยู่'
                         : 'เกิดข้อผิดพลาดในการบันทึก',
                 ];
@@ -249,15 +249,5 @@ class AssetImportService
     {
         $dt = \DateTime::createFromFormat('Y-m-d', $value);
         return $dt !== false && $dt->format('Y-m-d') === $value;
-    }
-
-    private function isDuplicateKey(Throwable $exception): bool
-    {
-        if (!$exception instanceof \PDOException) {
-            return false;
-        }
-        $code = (string) $exception->getCode();
-        $message = $exception->getMessage();
-        return $code === '23000' || str_contains($message, 'Duplicate entry') || str_contains($message, '1062');
     }
 }

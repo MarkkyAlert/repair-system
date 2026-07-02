@@ -40,6 +40,14 @@ if (!function_exists('role_label_th')) {
     }
 }
 
+if (!function_exists('valid_roles')) {
+    /** The four assignable account roles (mirrors the users.role ENUM). Single source for role validation/iteration. */
+    function valid_roles(): array
+    {
+        return ['requester', 'manager', 'technician', 'admin'];
+    }
+}
+
 if (!function_exists('ticket_status_label_th')) {
     function ticket_status_label_th(string $status): string
     {

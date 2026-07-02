@@ -20,9 +20,7 @@ class EmailTemplateController
     {
         AuthMiddleware::handle();
         $viewer = auth()->user() ?? [];
-        if ((string) ($viewer['role'] ?? 'guest') !== 'admin') {
-            Response::abort(403, 'หน้านี้สงวนสำหรับผู้ดูแลระบบเท่านั้น');
-        }
+        require_role($viewer, ['admin'], 'หน้านี้สงวนสำหรับผู้ดูแลระบบเท่านั้น');
 
         $overrides = $this->templates->getAllOverrides();
         $registry = [];
@@ -42,9 +40,7 @@ class EmailTemplateController
     {
         AuthMiddleware::handle();
         $viewer = auth()->user() ?? [];
-        if ((string) ($viewer['role'] ?? 'guest') !== 'admin') {
-            Response::abort(403, 'หน้านี้สงวนสำหรับผู้ดูแลระบบเท่านั้น');
-        }
+        require_role($viewer, ['admin'], 'หน้านี้สงวนสำหรับผู้ดูแลระบบเท่านั้น');
 
         $meta = EmailTemplateService::TEMPLATE_REGISTRY[$templateKey] ?? null;
         if ($meta === null) {

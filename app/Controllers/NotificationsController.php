@@ -11,6 +11,8 @@ use RuntimeException;
 
 class NotificationsController
 {
+    use HandlesFormSubmission;
+
     public function __construct(private NotificationService $notifications)
     {
     }
@@ -82,19 +84,11 @@ class NotificationsController
 
     public function readAll(): void
     {
-        AuthMiddleware::handle();
-
-        $viewer = auth()->user() ?? [];
         $returnTo = sanitize_return_path((string) ($_POST['return_to'] ?? '/notifications'));
-
-        try {
-            csrf_validate();
-            $this->notifications->markAllAsRead($viewer);
-            flash('success', 'อัปเดตสถานะ notifications เป็นอ่านแล้วทั้งหมดเรียบร้อย');
-        } catch (DomainException|RuntimeException $exception) {
-            flash('error', $exception->getMessage());
-        }
-
-        Response::redirect($returnTo);
+        $this->handleUpdate(
+            fn (array $viewer) => $this->notifications->markAllAsRead($viewer),
+            'อัปเดตสถานะ notifications เป็นอ่านแล้วทั้งหมดเรียบร้อย',
+            $returnTo
+        );
     }
 }

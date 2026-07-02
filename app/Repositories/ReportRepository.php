@@ -9,6 +9,9 @@ use Throwable;
 
 class ReportRepository
 {
+    /** Terminal ticket statuses (lifecycle finished). Single source for the "closed set" SQL in this repo. */
+    private const CLOSED_STATUSES = "'resolved','completed','rejected','cancelled','closed'";
+
     public function __construct(private PDO $db)
     {
     }
@@ -41,7 +44,7 @@ class ReportRepository
         $conditions = [$this->visibilityClause($viewer, $params)];
         $this->applyReportFilters($conditions, $filters, $params);
         $whereClause = implode(' AND ', $conditions);
-        $closedStatuses = "'resolved','completed','rejected','cancelled','closed'";
+        $closedStatuses = self::CLOSED_STATUSES;
 
         $stmt = $this->db->prepare(
             "SELECT
@@ -87,7 +90,7 @@ class ReportRepository
         $conditions = [$this->visibilityClause($viewer, $params)];
         $this->applyReportFilters($conditions, $filters, $params);
         $whereClause = implode(' AND ', $conditions);
-        $closedStatuses = "'resolved','completed','rejected','cancelled','closed'";
+        $closedStatuses = self::CLOSED_STATUSES;
         $limitClause = $limit !== null ? 'LIMIT ' . max(1, min($limit, 1000)) : '';
 
         $stmt = $this->db->prepare(

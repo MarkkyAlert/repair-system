@@ -375,9 +375,13 @@ class NotificationService
             return [];
         }
 
+        // Batch-load explicitly-disabled recipients in one query (opt-out model: no row = enabled)
+        // instead of calling isEnabled() once per recipient (N+1 — worst on broadcast to all users).
+        $disabled = array_flip($this->preferences->disabledUserIds($recipientIds, $notificationType, $channel));
+
         return array_values(array_filter(
             $recipientIds,
-            fn (int $userId): bool => $this->preferences->isEnabled($userId, $notificationType, $channel)
+            static fn (int $userId): bool => !isset($disabled[$userId])
         ));
     }
 
@@ -438,10 +442,10 @@ class NotificationService
             return ['category' => 'sla', 'category_label' => 'เกิน SLA', 'tone' => 'danger', 'icon' => 'triangle-alert', 'action_label' => 'ตรวจสอบ SLA', 'priority_rank' => 0, 'deadline_label' => $sla['label']];
         }
 
-        if (in_array($role, ['manager', 'admin'], true) && $status === 'pending_approval') {
+        if (is_manager_or_admin($role) && $status === 'pending_approval') {
             return ['category' => 'action', 'category_label' => 'รออนุมัติ', 'tone' => 'warning', 'icon' => 'clipboard-list', 'action_label' => 'ตรวจสอบและอนุมัติ', 'priority_rank' => 10, 'deadline_label' => $sla['label']];
         }
-        if (in_array($role, ['manager', 'admin'], true) && $status === 'approved') {
+        if (is_manager_or_admin($role) && $status === 'approved') {
             return ['category' => 'action', 'category_label' => 'รอมอบหมาย', 'tone' => 'warning', 'icon' => 'wrench', 'action_label' => 'มอบหมายช่าง', 'priority_rank' => 11, 'deadline_label' => $sla['label']];
         }
         if ($role === 'technician' && $status === 'assigned') {

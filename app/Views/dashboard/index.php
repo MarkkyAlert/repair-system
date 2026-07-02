@@ -434,7 +434,7 @@ if ($metricCount('pendingApproval') > 0) {
         </section>
     </div>
 
-    <?php if (in_array($role, ['manager', 'admin'], true)): ?>
+    <?php if (is_manager_or_admin($role)): ?>
         <?php $csat = $csat ?? ['total_ratings' => 0, 'average_label' => '0.0', 'positive_percent' => 0, 'distribution' => [5 => 0, 4 => 0, 3 => 0, 2 => 0, 1 => 0]]; ?>
         <section class="panel-card stack-md">
             <div class="panel-head">

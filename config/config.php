@@ -20,6 +20,10 @@ $detectedBasePath = $detectedBasePath === '/' ? '' : rtrim($detectedBasePath, '/
 $configuredBasePath = is_string($appUrlPath) && $appUrlPath !== '/' ? rtrim($appUrlPath, '/') : '';
 $basePath = $configuredBasePath !== '' ? $configuredBasePath : $detectedBasePath;
 $sessionPath = $basePath !== '' ? $basePath . '/' : '/';
+// Secure cookies by default when the request is served over HTTPS (server-terminated TLS).
+// Stays false on plain HTTP (local dev) so login isn't broken; override explicitly with SESSION_SECURE.
+// Behind a TLS-terminating proxy, set SESSION_SECURE=true since $_SERVER['HTTPS'] won't be set here.
+$isHttps = ($_SERVER['HTTPS'] ?? '') !== '' && strtolower((string) ($_SERVER['HTTPS'] ?? '')) !== 'off';
 
 return [
     'app' => [
@@ -58,7 +62,7 @@ return [
         'name' => Env::get('SESSION_NAME', 'repair_system_session'),
         'lifetime' => 7200,
         'path' => $sessionPath,
-        'secure' => Env::bool('SESSION_SECURE', false),
+        'secure' => Env::bool('SESSION_SECURE', $isHttps),
         'httponly' => true,
         'same_site' => 'Strict',
         'idle_timeout_minutes' => (int) Env::get('SESSION_IDLE_TIMEOUT_MINUTES', 60),

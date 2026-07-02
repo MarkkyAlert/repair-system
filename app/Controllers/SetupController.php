@@ -76,7 +76,7 @@ class SetupController
                 if (!preg_match('/^[a-z0-9._-]{3,50}$/', $username)) {
                     throw new DomainException('ชื่อผู้ใช้ต้องมี 3-50 ตัว (a-z, 0-9, จุด, ขีดกลาง, ขีดล่าง)');
                 }
-                if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                if (!is_valid_email($email)) {
                     throw new DomainException('รูปแบบอีเมลผู้ดูแลระบบไม่ถูกต้อง');
                 }
                 if (strlen($password) < 8) {

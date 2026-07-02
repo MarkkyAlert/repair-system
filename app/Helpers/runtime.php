@@ -81,6 +81,38 @@ function e(mixed $value): string
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
 }
 
+/**
+ * True when the exception is a unique-constraint / duplicate-key violation (MySQL 23000 / 1062).
+ * Shared by CSV import services to report duplicate rows consistently.
+ */
+function is_duplicate_key_error(\Throwable $exception): bool
+{
+    if (!$exception instanceof \PDOException) {
+        return false;
+    }
+    $code = (string) $exception->getCode();
+    $message = $exception->getMessage();
+
+    return $code === '23000' || str_contains($message, 'Duplicate entry') || str_contains($message, '1062');
+}
+
+/** Format-only validators (callers keep their own required/empty guards and error messages). */
+function is_valid_email(string $email): bool
+{
+    return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
+}
+
+function valid_phone_format(string $phone): bool
+{
+    return preg_match('/^[0-9+\-() .]{4,30}$/', $phone) === 1;
+}
+
+/** True for a 64-char lowercase-hex submission/idempotency token. */
+function is_submission_token(string $token): bool
+{
+    return preg_match('/^[a-f0-9]{64}$/', $token) === 1;
+}
+
 function request(): ?Request
 {
     $resolved = app(Request::class);

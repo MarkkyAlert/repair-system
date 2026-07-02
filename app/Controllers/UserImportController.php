@@ -20,10 +20,7 @@ class UserImportController
     {
         AuthMiddleware::handle();
         $viewer = auth()->user() ?? [];
-
-        if ((string) ($viewer['role'] ?? 'guest') !== 'admin') {
-            Response::abort(403, 'หน้านี้สงวนสำหรับผู้ดูแลระบบเท่านั้น');
-        }
+        require_role($viewer, ['admin'], 'หน้านี้สงวนสำหรับผู้ดูแลระบบเท่านั้น');
 
         Response::view('admin/import-users', [
             'title' => 'Import Users (CSV)',
@@ -103,9 +100,7 @@ class UserImportController
     {
         AuthMiddleware::handle();
         $viewer = auth()->user() ?? [];
-        if ((string) ($viewer['role'] ?? 'guest') !== 'admin') {
-            Response::abort(403, 'เฉพาะผู้ดูแลระบบเท่านั้น');
-        }
+        require_role($viewer, ['admin'], 'หน้านี้สงวนสำหรับผู้ดูแลระบบเท่านั้น');
 
         $columns = UserImportService::CSV_COLUMNS;
         $sample = ['somchai', 'somchai@example.com', 'สมชาย ใจดี', 'requester', 'IT', '0812345678', ''];

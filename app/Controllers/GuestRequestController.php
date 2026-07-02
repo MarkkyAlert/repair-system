@@ -9,10 +9,11 @@ use App\Repositories\AdminRepository;
 use App\Services\GuestTicketService;
 use App\Services\TicketService;
 use DomainException;
-use RuntimeException;
 
 class GuestRequestController
 {
+    use HandlesFormSubmission;
+
     public function __construct(
         private GuestTicketService $guests,
         private TicketService $tickets,
@@ -24,9 +25,7 @@ class GuestRequestController
     {
         AuthMiddleware::handle();
         $viewer = auth()->user() ?? [];
-        if (!in_array((string) ($viewer['role'] ?? 'guest'), ['manager', 'admin'], true)) {
-            Response::abort(403, 'หน้านี้สงวนสำหรับผู้จัดการหรือผู้ดูแลระบบเท่านั้น');
-        }
+        require_role($viewer, ['manager', 'admin'], 'หน้านี้สงวนสำหรับผู้จัดการหรือผู้ดูแลระบบเท่านั้น');
 
         $query = request()?->query ?? [];
         $status = (string) ($query['status'] ?? 'new');
@@ -55,34 +54,13 @@ class GuestRequestController
                 throw new DomainException('กรุณาเลือกความสำคัญและหมวดหมู่');
             }
             $this->guests->convertToTicket((int) $requestId, $viewer, $priorityId, $categoryId, $this->tickets);
-        }, 'แปลงเป็น Ticket เรียบร้อยแล้ว', '/admin/guest-requests');
+        }, 'แปลงเป็น Ticket เรียบร้อยแล้ว', '/admin/guest-requests', ['manager', 'admin'], 'หน้านี้สงวนสำหรับผู้จัดการหรือผู้ดูแลระบบเท่านั้น');
     }
 
     public function reject(string $requestId): void
     {
         $this->handleUpdate(function (array $viewer) use ($requestId): void {
             $this->guests->rejectRequest((int) $requestId, $viewer, trim((string) ($_POST['note'] ?? '')));
-        }, 'ปฏิเสธคำขอเรียบร้อยแล้ว', '/admin/guest-requests');
-    }
-
-    private function handleUpdate(callable $callback, string $successMessage, string $redirectTo): void
-    {
-        AuthMiddleware::handle();
-        $viewer = auth()->user() ?? [];
-        // Moderation actions (convert/reject) are manager/admin only — same gate as index().
-        // Without this, any authenticated user could POST convert/reject directly.
-        if (!in_array((string) ($viewer['role'] ?? 'guest'), ['manager', 'admin'], true)) {
-            Response::abort(403, 'หน้านี้สงวนสำหรับผู้จัดการหรือผู้ดูแลระบบเท่านั้น');
-        }
-
-        try {
-            csrf_validate();
-            $callback($viewer);
-            flash('success', $successMessage);
-        } catch (DomainException|RuntimeException $exception) {
-            flash('error', $exception->getMessage());
-        }
-
-        Response::redirect($redirectTo);
+        }, 'ปฏิเสธคำขอเรียบร้อยแล้ว', '/admin/guest-requests', ['manager', 'admin'], 'หน้านี้สงวนสำหรับผู้จัดการหรือผู้ดูแลระบบเท่านั้น');
     }
 }

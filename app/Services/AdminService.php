@@ -45,7 +45,7 @@ class AdminService
                 'id' => (int) ($department['id'] ?? 0),
                 'name' => (string) ($department['name'] ?? '-'),
             ], $departments),
-            'roles' => ['requester', 'manager', 'technician', 'admin'],
+            'roles' => valid_roles(),
             'categories' => $categories,
             'assetCategories' => $assetCategories,
             'locations' => $locations,
@@ -80,11 +80,11 @@ class AdminService
             throw new DomainException('กรุณากรอกชื่อและอีเมลผู้ใช้งานให้ครบถ้วน');
         }
 
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        if (!is_valid_email($email)) {
             throw new DomainException('รูปแบบอีเมลผู้ใช้งานไม่ถูกต้อง');
         }
 
-        if (!in_array($role, ['requester', 'manager', 'technician', 'admin'], true)) {
+        if (!in_array($role, valid_roles(), true)) {
             throw new DomainException('Role ผู้ใช้งานไม่ถูกต้อง');
         }
 
@@ -120,11 +120,11 @@ class AdminService
             throw new DomainException('ชื่อผู้ใช้ต้องมี 3-50 ตัวอักษร และใช้ได้เฉพาะ a-z, 0-9, จุด, ขีดกลาง และขีดล่าง');
         }
 
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        if (!is_valid_email($email)) {
             throw new DomainException('รูปแบบอีเมลผู้ใช้งานไม่ถูกต้อง');
         }
 
-        if (!in_array($role, ['requester', 'manager', 'technician', 'admin'], true)) {
+        if (!in_array($role, valid_roles(), true)) {
             throw new DomainException('Role ผู้ใช้งานไม่ถูกต้อง');
         }
 
@@ -588,7 +588,7 @@ class AdminService
         if (mb_strlen($message) > 2000) {
             throw new DomainException('ข้อความยาวเกินกำหนด (สูงสุด 2,000 ตัวอักษร)');
         }
-        if ($roleFilter !== '' && !in_array($roleFilter, ['requester', 'manager', 'technician', 'admin'], true)) {
+        if ($roleFilter !== '' && !in_array($roleFilter, valid_roles(), true)) {
             throw new DomainException('Role filter ไม่ถูกต้อง');
         }
 
@@ -616,7 +616,7 @@ class AdminService
         $email = strtolower(trim((string) ($input['to_email'] ?? '')));
         $template = trim((string) ($input['template'] ?? 'password_reset'));
 
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        if (!is_valid_email($email)) {
             throw new DomainException('กรุณาระบุอีเมลปลายทางให้ถูกต้อง');
         }
 

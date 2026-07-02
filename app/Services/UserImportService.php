@@ -14,8 +14,6 @@ class UserImportService
         'username', 'email', 'full_name', 'role', 'department_code', 'phone', 'password',
     ];
 
-    public const ALLOWED_ROLES = ['requester', 'manager', 'technician', 'admin'];
-
     public function __construct(
         private AdminRepository $admin,
         private UserRepository $users,
@@ -118,13 +116,13 @@ class UserImportService
             if ($username !== '' && !preg_match('/^[a-z0-9._-]{3,50}$/', $username)) {
                 $errors[] = 'username ต้องมี 3-50 ตัว และใช้ a-z, 0-9, ., -, _';
             }
-            if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            if ($email !== '' && !is_valid_email($email)) {
                 $errors[] = 'email format ไม่ถูกต้อง';
             }
-            if (!in_array($role, self::ALLOWED_ROLES, true)) {
-                $errors[] = 'role ต้องเป็น: ' . implode(', ', self::ALLOWED_ROLES);
+            if (!in_array($role, valid_roles(), true)) {
+                $errors[] = 'role ต้องเป็น: ' . implode(', ', valid_roles());
             }
-            if ($phone !== '' && !preg_match('/^[0-9+\-() .]{4,30}$/', $phone)) {
+            if ($phone !== '' && !valid_phone_format($phone)) {
                 $errors[] = 'phone format ไม่ถูกต้อง';
             }
             if ($password !== '' && strlen($password) < 8) {
@@ -224,7 +222,7 @@ class UserImportService
                 $skipped[] = [
                     'line' => (int) ($row['line'] ?? 0),
                     'username' => (string) ($row['username'] ?? ''),
-                    'reason' => $this->isDuplicateKey($exception)
+                    'reason' => is_duplicate_key_error($exception)
                         ? 'username หรือ email ซ้ำกับข้อมูลที่มีอยู่'
                         : 'เกิดข้อผิดพลาดในการบันทึก',
                 ];
@@ -236,15 +234,5 @@ class UserImportService
             'skipped' => $skipped,
             'reset_emails_queued' => $sentResetEmails,
         ];
-    }
-
-    private function isDuplicateKey(Throwable $exception): bool
-    {
-        if (!$exception instanceof \PDOException) {
-            return false;
-        }
-        $code = (string) $exception->getCode();
-        $message = $exception->getMessage();
-        return $code === '23000' || str_contains($message, 'Duplicate entry') || str_contains($message, '1062');
     }
 }

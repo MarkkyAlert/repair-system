@@ -51,10 +51,10 @@ class GuestTicketService
         if (mb_strlen($title) > 200) {
             throw new DomainException('หัวข้อยาวเกินกำหนด');
         }
-        if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        if ($email !== '' && !is_valid_email($email)) {
             throw new DomainException('รูปแบบอีเมลไม่ถูกต้อง');
         }
-        if ($phone !== '' && !preg_match('/^[0-9+\-() .]{4,30}$/', $phone)) {
+        if ($phone !== '' && !valid_phone_format($phone)) {
             throw new DomainException('รูปแบบเบอร์โทรไม่ถูกต้อง');
         }
 

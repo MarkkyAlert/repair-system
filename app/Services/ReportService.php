@@ -161,7 +161,13 @@ class ReportService
             ]);
 
             $options = new Options();
-            $options->setTempDir('/private/tmp');
+            // Writable, portable temp dir for Dompdf. sys_get_temp_dir() can be empty/non-writable under
+            // macOS Apache; /tmp is world-writable on Linux + macOS. Fall back to an app-writable dir last.
+            $dompdfTmp = sys_get_temp_dir();
+            if ($dompdfTmp === '' || !@is_writable($dompdfTmp)) {
+                $dompdfTmp = is_dir('/tmp') ? '/tmp' : BASE_PATH . '/storage/uploads';
+            }
+            $options->setTempDir($dompdfTmp);
             $options->set('isRemoteEnabled', false);
             $options->set('defaultFont', 'sarabun');
             $dompdf = new Dompdf($options);

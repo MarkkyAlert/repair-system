@@ -9,6 +9,9 @@ use Throwable;
 
 class TicketRepository
 {
+    /** Terminal ticket statuses (lifecycle finished). Single source for all "closed set" SQL in this repo. */
+    private const CLOSED_STATUSES = "'resolved','completed','rejected','cancelled','closed'";
+
     public function __construct(private PDO $db)
     {
     }
@@ -20,7 +23,7 @@ class TicketRepository
         $conditions = [$visibility];
         $this->applyDashboardFilters($conditions, $filters, $params);
         $whereClause = implode(' AND ', $conditions);
-        $closedStatuses = "'resolved','completed','rejected','cancelled','closed'";
+        $closedStatuses = self::CLOSED_STATUSES;
 
         $stmt = $this->db->prepare(
             "SELECT
@@ -239,7 +242,7 @@ class TicketRepository
         ];
         $this->applyDashboardFilters($conditions, $filters, $params);
         $whereClause = implode(' AND ', $conditions);
-        $closedStatuses = "'resolved','completed','rejected','cancelled','closed'";
+        $closedStatuses = self::CLOSED_STATUSES;
         $limit = max(1, min($limit, 10));
 
         $stmt = $this->db->prepare(
@@ -281,7 +284,7 @@ class TicketRepository
         $conditions = [$this->visibilityClause($viewer, $params)];
         $this->applyDashboardFilters($conditions, $filters, $params);
         $whereClause = implode(' AND ', $conditions);
-        $closedStatuses = "'resolved','completed','rejected','cancelled','closed'";
+        $closedStatuses = self::CLOSED_STATUSES;
         $limit = max(1, min($limit, 10));
 
         $stmt = $this->db->prepare(
@@ -373,6 +376,7 @@ class TicketRepository
         $totalPages = max(1, (int) ceil($total / $perPage));
         $page = max(1, min($page, $totalPages));
         $offset = ($page - 1) * $perPage;
+        $closed = self::CLOSED_STATUSES;
 
         $stmt = $this->db->prepare(
             "SELECT
@@ -390,8 +394,8 @@ class TicketRepository
              LEFT JOIN users technician ON technician.id = t.assigned_technician_id
              WHERE $whereClause
              ORDER BY
-                CASE WHEN t.status IN ('resolved','completed','rejected','cancelled','closed') THEN 1 ELSE 0 END,
-                CASE WHEN t.status NOT IN ('resolved','completed','rejected','cancelled','closed')
+                CASE WHEN t.status IN ($closed) THEN 1 ELSE 0 END,
+                CASE WHEN t.status NOT IN ($closed)
                           AND t.resolution_due_at IS NOT NULL AND t.resolution_due_at < NOW() THEN 0 ELSE 1 END,
                 p.level DESC,
                 t.requested_at DESC, t.id DESC
@@ -410,6 +414,7 @@ class TicketRepository
 
     public function getPendingOverdueSlaBreaches(): array
     {
+        $closed = self::CLOSED_STATUSES;
         $stmt = $this->db->prepare(
             "SELECT
                 ts.id,
@@ -427,7 +432,7 @@ class TicketRepository
              INNER JOIN tickets t ON t.id = ts.ticket_id
              WHERE ts.status = 'pending'
                AND ts.target_at < NOW()
-               AND t.status NOT IN ('resolved', 'completed', 'rejected', 'cancelled', 'closed')
+               AND t.status NOT IN ($closed)
              ORDER BY ts.target_at ASC, ts.id ASC"
         );
         $stmt->execute();
@@ -1904,7 +1909,7 @@ class TicketRepository
             }
             $params['preset_user_id'] = $presetUserId;
         } elseif ($preset === 'overdue') {
-            $conditions[] = "t.status NOT IN ('resolved','completed','rejected','cancelled','closed')";
+            $conditions[] = 't.status NOT IN (' . self::CLOSED_STATUSES . ')';
             $conditions[] = "EXISTS (SELECT 1 FROM ticket_sla_tracks preset_ts WHERE preset_ts.ticket_id = t.id AND (preset_ts.status = 'breached' OR (preset_ts.status = 'pending' AND preset_ts.target_at < NOW())))";
         } elseif ($preset === 'pending_approval') {
             $conditions[] = "t.status = 'pending_approval' AND t.approval_status = 'pending'";
@@ -1941,7 +1946,7 @@ class TicketRepository
             $params['ticket_technician_id'] = $technicianId;
         }
         if ($sla === 'overdue') {
-            $conditions[] = "t.status NOT IN ('resolved','completed','rejected','cancelled','closed')";
+            $conditions[] = 't.status NOT IN (' . self::CLOSED_STATUSES . ')';
             $conditions[] = "EXISTS (SELECT 1 FROM ticket_sla_tracks ticket_sla_filter WHERE ticket_sla_filter.ticket_id = t.id AND (ticket_sla_filter.status = 'breached' OR (ticket_sla_filter.status = 'pending' AND ticket_sla_filter.target_at < NOW())))";
         }
     }

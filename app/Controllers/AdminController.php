@@ -13,6 +13,8 @@ use RuntimeException;
 
 class AdminController
 {
+    use HandlesFormSubmission;
+
     public function __construct(
         private AdminService $admin,
         private NotificationService $notifications,
@@ -209,15 +211,13 @@ class AdminController
     {
         AuthMiddleware::handle();
         $viewer = auth()->user() ?? [];
-        if ((string) ($viewer['role'] ?? 'guest') !== 'admin') {
-            Response::abort(403, 'หน้านี้สงวนสำหรับผู้ดูแลระบบเท่านั้น');
-        }
+        require_role($viewer, ['admin'], 'หน้านี้สงวนสำหรับผู้ดูแลระบบเท่านั้น');
 
         $actorId = (int) ($viewer['id'] ?? 0);
         $recipientCounts = [
             '' => max(0, count($this->users->findActiveUserIds(null)) - 1),
         ];
-        foreach (['requester', 'manager', 'technician', 'admin'] as $role) {
+        foreach (valid_roles() as $role) {
             $ids = $this->users->findActiveUserIds($role);
             $recipientCounts[$role] = count(array_filter($ids, static fn (int $id): bool => $id !== $actorId));
         }
@@ -258,19 +258,4 @@ class AdminController
         }
     }
 
-    private function handleUpdate(callable $callback, string $successMessage = 'บันทึกข้อมูลเรียบร้อยแล้ว', string $redirectTo = '/admin'): void
-    {
-        AuthMiddleware::handle();
-        $viewer = auth()->user() ?? [];
-
-        try {
-            csrf_validate();
-            $callback($viewer);
-            flash('success', $successMessage);
-        } catch (DomainException|RuntimeException $exception) {
-            flash('error', $exception->getMessage());
-        }
-
-        Response::redirect($redirectTo);
-    }
 }

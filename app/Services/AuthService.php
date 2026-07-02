@@ -101,6 +101,15 @@ class AuthService
             throw new DomainException('กรุณากรอกอีเมล');
         }
 
+        // Throttle reset requests to prevent email bombing / queue abuse.
+        // Keyed on email+ip and hit unconditionally so it never reveals whether the email exists.
+        $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+        $limiterKey = 'pwreset:' . sha1($email . '|' . ($ip !== '' ? $ip : 'unknown'));
+        if ($this->rateLimiter->tooManyAttempts($limiterKey, 3, 900)) {
+            throw new DomainException('คุณขอรีเซ็ตรหัสผ่านบ่อยเกินไป กรุณาลองใหม่ในภายหลัง');
+        }
+        $this->rateLimiter->hit($limiterKey, 900);
+
         $user = $this->users->findByEmail($email);
         if (!$user || !(bool) $user['is_active']) {
             return null;
@@ -219,11 +228,11 @@ class AuthService
             throw new DomainException('ชื่อ-นามสกุลยาวเกินกำหนด');
         }
 
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        if (!is_valid_email($email)) {
             throw new DomainException('รูปแบบอีเมลไม่ถูกต้อง');
         }
 
-        if ($phone !== '' && !preg_match('/^[0-9+\-() .]{4,30}$/', $phone)) {
+        if ($phone !== '' && !valid_phone_format($phone)) {
             throw new DomainException('รูปแบบเบอร์โทรไม่ถูกต้อง');
         }
 

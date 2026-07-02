@@ -108,7 +108,7 @@ class TicketsController
 
         $viewer = auth()->user() ?? [];
         $role = (string) ($viewer['role'] ?? 'guest');
-        if (!in_array($role, ['manager', 'admin'], true)) {
+        if (!is_manager_or_admin($role)) {
             flash('error', 'เฉพาะผู้จัดการหรือผู้ดูแลระบบเท่านั้น');
             Response::redirect('/tickets');
         }

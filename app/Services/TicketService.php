@@ -47,13 +47,7 @@ class TicketService
         $csat = $this->tickets->getCsatSummary($viewer, $normalizedFilters);
 
         return [
-            'metrics' => [
-                'total' => (int) ($metrics['total_tickets'] ?? 0),
-                'pendingApproval' => (int) ($metrics['pending_approval_tickets'] ?? 0),
-                'inProgress' => (int) ($metrics['active_work_tickets'] ?? 0),
-                'completedThisMonth' => (int) ($metrics['completed_this_month_tickets'] ?? 0),
-                'overdue' => (int) ($metrics['overdue_tickets'] ?? 0),
-            ],
+            'metrics' => $this->formatMetrics($metrics),
             'recentTickets' => $recentTickets,
             'filters' => $this->buildDashboardFilterData($normalizedFilters, $reference),
             'charts' => [
@@ -104,7 +98,9 @@ class TicketService
 
     public function getTicketIndexData(array $viewer, array $filters = []): array
     {
-        $metrics = $this->getDashboardData($viewer)['metrics'];
+        // Only the 5 summary metrics are needed here — fetch them directly instead of
+        // running the full dashboard (charts, breakdowns, CSAT, top lists = ~11 extra queries).
+        $metrics = $this->formatMetrics($this->tickets->getDashboardMetrics($viewer, []));
         $normalized = [
             'q' => trim((string) ($filters['q'] ?? '')),
             'status' => trim((string) ($filters['status'] ?? '')),
@@ -383,7 +379,13 @@ class TicketService
         ]);
 
         $options = new Options();
-        $options->setTempDir('/private/tmp');
+        // Writable, portable temp dir for Dompdf. sys_get_temp_dir() can be empty/non-writable under
+        // macOS Apache; /tmp is world-writable on Linux + macOS. Fall back to an app-writable dir last.
+        $dompdfTmp = sys_get_temp_dir();
+        if ($dompdfTmp === '' || !@is_writable($dompdfTmp)) {
+            $dompdfTmp = is_dir('/tmp') ? '/tmp' : BASE_PATH . '/storage/uploads';
+        }
+        $options->setTempDir($dompdfTmp);
         $options->set('isRemoteEnabled', false);
         $options->set('defaultFont', 'sarabun');
         $dompdf = new Dompdf($options);
@@ -657,6 +659,17 @@ class TicketService
         return [
             'tickets' => array_map(fn (array $row): array => $this->mapTicketSummary($row), $rows),
             'total' => $total,
+        ];
+    }
+
+    private function formatMetrics(array $metrics): array
+    {
+        return [
+            'total' => (int) ($metrics['total_tickets'] ?? 0),
+            'pendingApproval' => (int) ($metrics['pending_approval_tickets'] ?? 0),
+            'inProgress' => (int) ($metrics['active_work_tickets'] ?? 0),
+            'completedThisMonth' => (int) ($metrics['completed_this_month_tickets'] ?? 0),
+            'overdue' => (int) ($metrics['overdue_tickets'] ?? 0),
         ];
     }
 
@@ -1362,7 +1375,7 @@ class TicketService
 
         return $viewerId > 0 && (
             (int) ($comment['user_id'] ?? 0) === $viewerId
-            || in_array($role, ['manager', 'admin'], true)
+            || is_manager_or_admin($role)
         );
     }
 
@@ -1385,7 +1398,7 @@ class TicketService
     private function submissionToken(string $token, bool $generateWhenMissing = true): string
     {
         $token = strtolower(trim($token));
-        if (preg_match('/^[a-f0-9]{64}$/', $token) === 1) {
+        if (is_submission_token($token)) {
             return $token;
         }
 
