@@ -479,6 +479,7 @@ CREATE TABLE audit_logs (
     KEY idx_audit_logs_user (user_id),
     KEY idx_audit_logs_entity (entity_type, entity_id),
     KEY idx_audit_logs_action (action),
+    KEY idx_audit_logs_created_at (created_at, id),
     CONSTRAINT fk_audit_logs_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

@@ -46,6 +46,7 @@ return [
         'driver' => Env::get('MAIL_DRIVER', 'log'),
         'host' => Env::get('MAIL_HOST', '127.0.0.1'),
         'port' => (int) Env::get('MAIL_PORT', 1025),
+        'timeout' => (int) Env::get('MAIL_TIMEOUT', 15),
         'username' => Env::get('MAIL_USERNAME', ''),
         'password' => Env::get('MAIL_PASSWORD', ''),
         'encryption' => Env::get('MAIL_ENCRYPTION', ''),

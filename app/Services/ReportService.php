@@ -53,12 +53,33 @@ class ReportService
         ];
     }
 
+    // Export size guards — กัน OOM/request timeout เมื่อ ticket เยอะ (PDF หนักสุด, CSV เบาสุด)
+    private const EXPORT_MAX_ROWS_XLSX = 10000;
+    private const EXPORT_MAX_ROWS_PDF = 3000;
+    private const EXPORT_MAX_ROWS_CSV = 50000;
+
+    /**
+     * ดึงแถวสำหรับ export แบบมี bound — fetch maxRows+1 เพื่อตรวจ overflow แล้ว throw
+     * ให้ผู้ใช้กรองช่วงวันที่/เงื่อนไขให้แคบลง แทนที่จะโหลดทั้งหมดจน OOM/timeout.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function exportRows(array $viewer, array $normalizedFilters, int $maxRows): array
+    {
+        $rows = $this->reports->getRows($viewer, $normalizedFilters, $maxRows + 1);
+        if (count($rows) > $maxRows) {
+            throw new DomainException('ข้อมูลสำหรับ export มีมากเกิน ' . number_format($maxRows) . ' แถว กรุณากรองช่วงวันที่หรือเงื่อนไขให้แคบลงก่อน export');
+        }
+
+        return array_map(fn (array $row): array => $this->mapReportRow($row), $rows);
+    }
+
     public function exportExcel(array $viewer, array $filters = []): array
     {
         $this->ensureCanViewReports($viewer);
 
         $normalizedFilters = $this->normalizeReportFilters($filters);
-        $rows = array_map(fn (array $row): array => $this->mapReportRow($row), $this->reports->getRows($viewer, $normalizedFilters, null));
+        $rows = $this->exportRows($viewer, $normalizedFilters, self::EXPORT_MAX_ROWS_XLSX);
         // RISK MAP: Export is triggered by GET but creates an export job; add throttling/idempotency if exports become heavy.
         $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'ticket_report', 'xlsx', $normalizedFilters);
         $fileName = 'ticket-report-' . date('Ymd-His') . '.xlsx';
@@ -140,7 +161,7 @@ class ReportService
         $this->ensureCanViewReports($viewer);
 
         $normalizedFilters = $this->normalizeReportFilters($filters);
-        $rows = array_map(fn (array $row): array => $this->mapReportRow($row), $this->reports->getRows($viewer, $normalizedFilters, null));
+        $rows = $this->exportRows($viewer, $normalizedFilters, self::EXPORT_MAX_ROWS_PDF);
         $summary = $this->reports->getSummary($viewer, $normalizedFilters);
         // RISK MAP: Export is triggered by GET but creates an export job; add throttling/idempotency if exports become heavy.
         $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'ticket_report', 'pdf', $normalizedFilters);
@@ -193,7 +214,7 @@ class ReportService
     {
         $this->ensureCanViewReports($viewer);
         $normalizedFilters = $this->normalizeReportFilters($filters);
-        $rows = array_map(fn (array $row): array => $this->mapReportRow($row), $this->reports->getRows($viewer, $normalizedFilters, null));
+        $rows = $this->exportRows($viewer, $normalizedFilters, self::EXPORT_MAX_ROWS_CSV);
         // RISK MAP: Export is triggered by GET but creates an export job; add throttling/idempotency if exports become heavy.
         $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'ticket_report', 'csv', $normalizedFilters);
         $fileName = 'ticket-report-' . date('Ymd-His') . '.csv';

@@ -40,6 +40,11 @@ class AssetImportService
         $locationsByCode = $this->indexByCode($reference['locations'] ?? []);
         $departmentsByCode = $this->indexByCode($reference['departments'] ?? []);
 
+        // Batch resolve custodian usernames ครั้งเดียว (แทน findByLogin ต่อแถว)
+        $custodianIds = $this->users->findIdsByLogins(
+            array_map(static fn (array $r): string => strtolower(trim((string) ($r['custodian_username'] ?? ''))), $rows)
+        );
+
         $valid = [];
         $invalid = [];
         $seenCodes = [];
@@ -76,10 +81,7 @@ class AssetImportService
             $departmentId = $departmentCode !== '' ? ($departmentsByCode[$departmentCode] ?? null) : null;
             $custodianUserId = null;
             if ($custodianUsername !== '') {
-                $custodian = $this->users->findByLogin($custodianUsername);
-                if ($custodian !== null) {
-                    $custodianUserId = (int) ($custodian['id'] ?? 0);
-                }
+                $custodianUserId = $custodianIds[$custodianUsername] ?? null;
             }
 
             if ($categoryCode === '' || $categoryId === null) {

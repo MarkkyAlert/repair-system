@@ -116,13 +116,24 @@ class AssetService
         $this->assets->regenerateQrToken($assetId, (int) ($viewer['id'] ?? 0) > 0 ? (int) $viewer['id'] : null);
     }
 
+    private const PRINT_ASSETS_CAP = 500;
+
     public function getPrintableAssetsData(array $viewer): array
     {
         $this->assertManageable($viewer);
 
+        // ดึง cap+1 เพื่อรู้ว่ามีเกิน cap ไหม แล้ว slice + แจ้งเตือนในหน้าพิมพ์ให้กรองก่อน
+        $rows = $this->assets->getPrintableAssets(self::PRINT_ASSETS_CAP + 1);
+        $capped = count($rows) > self::PRINT_ASSETS_CAP;
+        if ($capped) {
+            $rows = array_slice($rows, 0, self::PRINT_ASSETS_CAP);
+        }
+
         return [
             'brandName' => (string) setting('app_name', config('app.name', 'Repair System')),
             'brandLogoUrl' => branding_logo_url(),
+            'capped' => $capped,
+            'printLimit' => self::PRINT_ASSETS_CAP,
             'assets' => array_map(fn (array $asset): array => [
                 'id' => (int) ($asset['id'] ?? 0),
                 'asset_code' => (string) ($asset['asset_code'] ?? ''),
@@ -130,7 +141,7 @@ class AssetService
                 'location_name' => (string) ($asset['location_name'] ?? '-'),
                 'scan_url' => url('/scan/' . (string) ($asset['token'] ?? '')),
                 'qr_png_url' => url('/asset-registry/' . (int) ($asset['id'] ?? 0) . '/qr.png'),
-            ], $this->assets->getPrintableAssets()),
+            ], $rows),
         ];
     }
 

@@ -24,6 +24,8 @@ class MailerService
             $mailer->isSMTP();
             $mailer->Host = (string) config('mail.host', '127.0.0.1');
             $mailer->Port = (int) config('mail.port', 25);
+            // กัน worker/test-email ค้างนานถ้า SMTP ปลายทางช้า/ไม่ตอบ (default PHPMailer = 300s)
+            $mailer->Timeout = max(5, (int) config('mail.timeout', 15));
             $mailer->SMTPAuth = (string) config('mail.username', '') !== '';
             $mailer->Username = (string) config('mail.username', '');
             $mailer->Password = (string) config('mail.password', '');

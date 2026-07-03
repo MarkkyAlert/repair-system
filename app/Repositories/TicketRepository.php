@@ -135,10 +135,12 @@ class TicketRepository
 
     public function getDashboardMonthlyTicketCounts(array $viewer, array $filters, int $year): array
     {
+        // ใช้ช่วงวันที่ (sargable) แทน YEAR(column) เพื่อให้ใช้ index idx_tickets_requested_at ได้
         $params = [
-            'report_year' => $year,
+            'year_start' => sprintf('%04d-01-01 00:00:00', $year),
+            'year_end' => sprintf('%04d-01-01 00:00:00', $year + 1),
         ];
-        $conditions = [$this->visibilityClause($viewer, $params), 'YEAR(t.requested_at) = :report_year'];
+        $conditions = [$this->visibilityClause($viewer, $params), 't.requested_at >= :year_start AND t.requested_at < :year_end'];
         $this->applyDashboardFilters($conditions, $filters, $params);
         $whereClause = implode(' AND ', $conditions);
 
@@ -208,13 +210,15 @@ class TicketRepository
 
     public function getDashboardMonthlyResolutionAverages(array $viewer, array $filters, int $year): array
     {
+        // ใช้ช่วงวันที่ (sargable) แทน YEAR(column) — resolved_at ยังไม่มี index แต่เลี่ยง function overhead
         $params = [
-            'report_year' => $year,
+            'year_start' => sprintf('%04d-01-01 00:00:00', $year),
+            'year_end' => sprintf('%04d-01-01 00:00:00', $year + 1),
         ];
         $conditions = [
             $this->visibilityClause($viewer, $params),
             't.resolved_at IS NOT NULL',
-            'YEAR(t.resolved_at) = :report_year',
+            't.resolved_at >= :year_start AND t.resolved_at < :year_end',
         ];
         $this->applyDashboardFilters($conditions, $filters, $params);
         $whereClause = implode(' AND ', $conditions);
@@ -431,7 +435,8 @@ class TicketRepository
              WHERE ts.status = 'pending'
                AND ts.target_at < NOW()
                AND t.status NOT IN ($closed)
-             ORDER BY ts.target_at ASC, ts.id ASC"
+             ORDER BY ts.target_at ASC, ts.id ASC
+             LIMIT 500"
         );
         $stmt->execute();
 

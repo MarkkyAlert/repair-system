@@ -44,6 +44,94 @@ class UserRepository
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
+    /**
+     * Batch existence check for import validation — 1 query แทน 2N queries (findByLogin/findByEmail ต่อแถว).
+     * คืน 2 set (lowercase): 'logins' = username/email ที่มีอยู่ (findByLogin match username OR email),
+     * 'emails' = email ที่มีอยู่ (findByEmail match email).
+     *
+     * @param string[] $usernames
+     * @param string[] $emails
+     * @return array{logins: array<string, bool>, emails: array<string, bool>}
+     */
+    public function existingLoginsAndEmails(array $usernames, array $emails): array
+    {
+        $norm = static fn (array $v): array => array_values(array_unique(array_filter(
+            array_map(static fn ($x): string => strtolower(trim((string) $x)), $v),
+            static fn (string $x): bool => $x !== ''
+        )));
+        $usernames = $norm($usernames);
+        $emails = $norm($emails);
+        $needles = array_values(array_unique(array_merge($usernames, $emails)));
+        if ($needles === []) {
+            return ['logins' => [], 'emails' => []];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($needles), '?'));
+        $stmt = $this->db->prepare(
+            "SELECT LOWER(username) AS username, LOWER(email) AS email
+             FROM users
+             WHERE LOWER(username) IN ($placeholders) OR LOWER(email) IN ($placeholders)"
+        );
+        $stmt->execute(array_merge($needles, $needles));
+
+        $logins = [];
+        $existingEmails = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $username = (string) ($row['username'] ?? '');
+            $email = (string) ($row['email'] ?? '');
+            if ($username !== '') {
+                $logins[$username] = true;
+            }
+            if ($email !== '') {
+                $logins[$email] = true;      // findByLogin match email ด้วย
+                $existingEmails[$email] = true;
+            }
+        }
+
+        return ['logins' => $logins, 'emails' => $existingEmails];
+    }
+
+    /**
+     * Batch resolve login → user id (สำหรับ asset import custodian lookup, แทน findByLogin ต่อแถว).
+     * แมปทั้ง username และ email → id (findByLogin match ทั้งคู่).
+     *
+     * @param string[] $logins
+     * @return array<string, int> login(lowercase) => user id
+     */
+    public function findIdsByLogins(array $logins): array
+    {
+        $logins = array_values(array_unique(array_filter(
+            array_map(static fn ($x): string => strtolower(trim((string) $x)), $logins),
+            static fn (string $x): bool => $x !== ''
+        )));
+        if ($logins === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($logins), '?'));
+        $stmt = $this->db->prepare(
+            "SELECT id, LOWER(username) AS username, LOWER(email) AS email
+             FROM users
+             WHERE LOWER(username) IN ($placeholders) OR LOWER(email) IN ($placeholders)"
+        );
+        $stmt->execute(array_merge($logins, $logins));
+
+        $map = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $id = (int) ($row['id'] ?? 0);
+            $username = (string) ($row['username'] ?? '');
+            $email = (string) ($row['email'] ?? '');
+            if ($username !== '') {
+                $map[$username] = $id;
+            }
+            if ($email !== '') {
+                $map[$email] = $id;
+            }
+        }
+
+        return $map;
+    }
+
     public function findById(int $userId): ?array
     {
         $stmt = $this->db->prepare(

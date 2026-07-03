@@ -39,6 +39,12 @@ class UserImportService
             }
         }
 
+        // Batch existence lookup ครั้งเดียว (แทน findByLogin/findByEmail ต่อแถว = 2N queries)
+        $existing = $this->users->existingLoginsAndEmails(
+            array_map(static fn (array $r): string => strtolower(trim((string) ($r['username'] ?? ''))), $rows),
+            array_map(static fn (array $r): string => strtolower(trim((string) ($r['email'] ?? ''))), $rows)
+        );
+
         $valid = [];
         $invalid = [];
         $seenUsernames = [];
@@ -78,10 +84,10 @@ class UserImportService
             if ($email !== '' && isset($seenEmails[$email])) {
                 $errors[] = 'email ซ้ำกับแถวอื่นในไฟล์';
             }
-            if ($username !== '' && $this->users->findByLogin($username) !== null) {
+            if ($username !== '' && isset($existing['logins'][$username])) {
                 $errors[] = 'username มีอยู่ในระบบแล้ว';
             }
-            if ($email !== '' && $this->users->findByEmail($email) !== null) {
+            if ($email !== '' && isset($existing['emails'][$email])) {
                 $errors[] = 'email มีอยู่ในระบบแล้ว';
             }
 

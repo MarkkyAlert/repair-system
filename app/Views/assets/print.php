@@ -13,6 +13,12 @@
                 <?php endif; ?>
             </div>
         </div>
+        <?php if (!empty($capped)): ?>
+            <div class="auth-alert auth-alert-warning no-print" role="alert">
+                <span class="auth-alert-icon"><?= lucide('triangle-alert', 'h-4 w-4') ?></span>
+                <p>ทรัพย์สินมีจำนวนมาก — แสดง/พิมพ์ได้สูงสุด <?= number_format((int) ($printLimit ?? 0)) ?> รายการต่อครั้ง กรุณากรองตามหมวด/สถานที่ในหน้าทะเบียนแล้วพิมพ์เป็นชุดเพื่อพิมพ์ให้ครบ</p>
+            </div>
+        <?php endif; ?>
         <div class="qr-print-summary" aria-label="สรุปการพิมพ์แผ่น QR">
             <div class="qr-print-summary-card">
                 <span>จำนวน QR</span>

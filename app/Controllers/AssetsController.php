@@ -214,6 +214,8 @@ class AssetsController
             'assets' => $data['assets'],
             'brandName' => $data['brandName'],
             'brandLogoUrl' => $data['brandLogoUrl'],
+            'capped' => $data['capped'] ?? false,
+            'printLimit' => $data['printLimit'] ?? 0,
         ]);
     }
 
