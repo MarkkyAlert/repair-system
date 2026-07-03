@@ -114,10 +114,15 @@ function sanitize_return_path(string $path): string
 {
     $path = trim($path);
 
+    // Hardening: บาง browser normalize "\" เป็น "/" ตอนตีความ URL — แปลงก่อน
+    // เพื่อกัน "/\evil.com" หลุดเป็น protocol-relative "//evil.com" (open redirect).
+    $path = str_replace('\\', '/', $path);
+
     if ($path === '' || preg_match('#^https?://#i', $path)) {
         return '/dashboard';
     }
 
+    // ltrim ยุบ leading slash ทั้งหมด (รวม "//" / "/\") เหลือ "/" เดียว → path ภายใน same-origin เสมอ
     $normalizedPath = '/' . ltrim($path, '/');
 
     return $normalizedPath !== '/' ? rtrim($normalizedPath, '/') : '/';

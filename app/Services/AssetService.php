@@ -39,6 +39,10 @@ class AssetService
 
     public function getCreateFormData(array $viewer, array $oldInput = []): array
     {
+        // gate ให้ตรงกับ getEditFormData/createAsset — กัน technician/requester เห็นฟอร์ม
+        // + reference data (categories/locations/departments/custodian users) ทั้งที่จัดการ asset ไม่ได้
+        $this->assertManageable($viewer);
+
         return $this->buildAssetFormData($viewer, $this->assets->getAssetFormReferenceData(), $oldInput);
     }
 
