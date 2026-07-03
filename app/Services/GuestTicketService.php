@@ -67,17 +67,28 @@ class GuestTicketService
         $this->rateLimiter->hit($rateKey, self::RATE_LIMIT_DECAY);
 
         $requestNo = $this->generateRequestNo();
-        $id = $this->requests->create([
-            'request_no' => $requestNo,
-            'asset_id' => (int) ($asset['id'] ?? 0) > 0 ? (int) $asset['id'] : null,
-            'location_id' => (int) ($asset['location_id'] ?? 0) > 0 ? (int) $asset['location_id'] : null,
-            'guest_name' => $name,
-            'guest_email' => $email,
-            'guest_phone' => $phone,
-            'title' => $title,
-            'description' => $description,
-            'submitted_ip' => $ipAddress,
-        ]);
+        try {
+            $id = $this->requests->create([
+                'request_no' => $requestNo,
+                // submission_token (UNIQUE) — DB-level idempotency กัน double-submit/replay
+                // ที่หลุด session check (defense-in-depth คู่กับ one-time form token)
+                'submission_token' => (string) ($input['form_token'] ?? ''),
+                'asset_id' => (int) ($asset['id'] ?? 0) > 0 ? (int) $asset['id'] : null,
+                'location_id' => (int) ($asset['location_id'] ?? 0) > 0 ? (int) $asset['location_id'] : null,
+                'guest_name' => $name,
+                'guest_email' => $email,
+                'guest_phone' => $phone,
+                'title' => $title,
+                'description' => $description,
+                'submitted_ip' => $ipAddress,
+            ]);
+        } catch (\PDOException $exception) {
+            // 23000 = integrity constraint violation (ซ้ำ submission_token) → double-submit
+            if ($exception->getCode() === '23000') {
+                throw new DomainException('คำขอนี้ถูกส่งไปแล้ว');
+            }
+            throw $exception;
+        }
 
         return [
             'id' => $id,

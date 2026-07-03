@@ -10,6 +10,7 @@ use App\Repositories\UserRepository;
 use App\Services\AdminService;
 use App\Services\DemoDataService;
 use DomainException;
+use PDO;
 use RuntimeException;
 use Throwable;
 
@@ -21,6 +22,7 @@ class SetupController
         private UserRepository $users,
         private AdminService $adminService,
         private DemoDataService $demoData,
+        private PDO $db,
     ) {
     }
 
@@ -59,6 +61,11 @@ class SetupController
 
             $hasAdmin = $this->adminExists();
             $adminId = 0;
+
+            // ห่อ write ทั้งชุด (app_name → admin → demo → setup_completed) ใน transaction เดียว
+            // → first-run all-or-nothing; ถ้าพังกลางทาง rollback หมด retry ได้จาก state สะอาด.
+            // (createUser/upsert plain INSERT, demoData->load เป็น transaction-aware → participate)
+            $this->db->beginTransaction();
 
             // Step 1: app name
             $this->settings->upsert('app_name', $appName, 'string', true, 0);
@@ -108,6 +115,8 @@ class SetupController
             // Step 4: mark completed
             $this->settings->upsert('setup_completed', '1', 'bool', false, $adminId);
 
+            $this->db->commit();
+
             $message = 'ตั้งค่าระบบเสร็จสมบูรณ์';
             if ($demoSummary !== null) {
                 $message .= ' · โหลดข้อมูลตัวอย่างแล้ว (' . (int) ($demoSummary['assets'] ?? 0) . ' assets, ' . (int) ($demoSummary['tickets'] ?? 0) . ' tickets)';
@@ -120,9 +129,15 @@ class SetupController
             flash('success', $message . ' กรุณาเข้าสู่ระบบ');
             Response::redirect('/login');
         } catch (DomainException|RuntimeException $exception) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             flash('error', $exception->getMessage());
             Response::redirect('/setup');
         } catch (Throwable $exception) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             error_log('[setup.execute] ' . $exception->getMessage());
             flash('error', 'ไม่สามารถตั้งค่าระบบได้ กรุณาตรวจสอบ log');
             Response::redirect('/setup');

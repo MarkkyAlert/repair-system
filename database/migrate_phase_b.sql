@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS email_template_overrides (
 CREATE TABLE IF NOT EXISTS guest_ticket_requests (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     request_no VARCHAR(30) NOT NULL,
+    submission_token VARCHAR(64) NULL,
     asset_id BIGINT UNSIGNED NULL,
     location_id BIGINT UNSIGNED NULL,
     guest_name VARCHAR(150) NOT NULL,
@@ -40,6 +41,7 @@ CREATE TABLE IF NOT EXISTS guest_ticket_requests (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uq_gtr_request_no (request_no),
+    UNIQUE KEY uq_gtr_submission_token (submission_token),
     KEY idx_gtr_status (status, created_at),
     CONSTRAINT fk_gtr_asset FOREIGN KEY (asset_id) REFERENCES assets (id) ON DELETE SET NULL,
     CONSTRAINT fk_gtr_location FOREIGN KEY (location_id) REFERENCES locations (id) ON DELETE SET NULL,

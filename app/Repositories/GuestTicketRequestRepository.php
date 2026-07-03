@@ -14,11 +14,12 @@ class GuestTicketRequestRepository
     public function create(array $payload): int
     {
         $stmt = $this->db->prepare(
-            'INSERT INTO guest_ticket_requests (request_no, asset_id, location_id, guest_name, guest_email, guest_phone, title, description, submitted_ip, status, created_at)
-             VALUES (:request_no, :asset_id, :location_id, :guest_name, :guest_email, :guest_phone, :title, :description, :submitted_ip, "new", NOW())'
+            'INSERT INTO guest_ticket_requests (request_no, submission_token, asset_id, location_id, guest_name, guest_email, guest_phone, title, description, submitted_ip, status, created_at)
+             VALUES (:request_no, :submission_token, :asset_id, :location_id, :guest_name, :guest_email, :guest_phone, :title, :description, :submitted_ip, "new", NOW())'
         );
         $stmt->execute([
             'request_no' => $payload['request_no'],
+            'submission_token' => ($payload['submission_token'] ?? '') !== '' ? $payload['submission_token'] : null,
             'asset_id' => $payload['asset_id'] ?? null,
             'location_id' => $payload['location_id'] ?? null,
             'guest_name' => $payload['guest_name'],
