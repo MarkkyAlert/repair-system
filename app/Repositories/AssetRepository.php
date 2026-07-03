@@ -204,8 +204,12 @@ class AssetRepository
         $createdAt = date('Y-m-d H:i:s');
         $token = $this->generateUniqueQrToken();
 
+        $startedTransaction = !$this->db->inTransaction();
+
         try {
-            $this->db->beginTransaction();
+            if ($startedTransaction) {
+                $this->db->beginTransaction();
+            }
 
             $stmt = $this->db->prepare(
                 'INSERT INTO assets (
@@ -266,11 +270,13 @@ class AssetRepository
             $assetId = (int) $this->db->lastInsertId();
             $this->insertQrToken($assetId, $token, $payload['generated_by'] ?? null, $createdAt);
 
-            $this->db->commit();
+            if ($startedTransaction) {
+                $this->db->commit();
+            }
 
             return $assetId;
         } catch (Throwable $exception) {
-            if ($this->db->inTransaction()) {
+            if ($startedTransaction && $this->db->inTransaction()) {
                 $this->db->rollBack();
             }
 
@@ -342,12 +348,19 @@ class AssetRepository
 
     public function regenerateQrToken(int $assetId, ?int $generatedBy = null): string
     {
-        // RISK MAP: Keep deactivate+insert in one transaction; consider an active-token constraint for stronger safety.
+        // Keep deactivate+insert in one transaction, and lock the asset row FOR UPDATE first so
+        // concurrent regenerates of the same asset serialize — otherwise both could deactivate the
+        // old token then each insert a new active one, leaving multiple active tokens per asset.
         $createdAt = date('Y-m-d H:i:s');
         $token = $this->generateUniqueQrToken();
 
         try {
             $this->db->beginTransaction();
+
+            // Serialization point: a second concurrent regenerate blocks here until the first commits,
+            // then its deactivate step sees (and clears) the token the first one just inserted.
+            $lockStmt = $this->db->prepare('SELECT id FROM assets WHERE id = :asset_id FOR UPDATE');
+            $lockStmt->execute(['asset_id' => $assetId]);
 
             $deactivateStmt = $this->db->prepare(
                 'UPDATE asset_qr_tokens

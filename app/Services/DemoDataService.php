@@ -7,6 +7,7 @@ use App\Repositories\AdminRepository;
 use App\Repositories\AssetRepository;
 use App\Repositories\TicketRepository;
 use DomainException;
+use PDO;
 use Throwable;
 
 class DemoDataService
@@ -15,6 +16,7 @@ class DemoDataService
         private AdminRepository $admin,
         private AssetRepository $assets,
         private TicketRepository $tickets,
+        private PDO $db,
     ) {
     }
 
@@ -29,34 +31,54 @@ class DemoDataService
             throw new DomainException('ไม่สามารถโหลดข้อมูลตัวอย่าง — มี ticket อยู่ในระบบแล้ว');
         }
 
-        $created = [
-            'departments' => $this->seedDepartments(),
-            'locations' => $this->seedLocations(),
-            'ticket_categories' => $this->seedTicketCategories(),
-            'asset_categories' => $this->seedAssetCategories(),
-            'priorities' => $this->seedPriorities(),
-            'users' => 0,
-            'assets' => 0,
-            'tickets' => 0,
-        ];
+        // ห่อ seed ทั้งชุดใน transaction เดียว — ถ้าพังกลางทาง rollback หมด ไม่เหลือ demo data ค้างครึ่งๆ.
+        // (createAsset/createSeedTicket/createUser เป็น transaction-aware หรือ plain INSERT → participate ได้)
+        $startedTransaction = !$this->db->inTransaction();
 
-        // Build lookups from master data (now includes existing rows)
-        $departmentIds = $this->codeMap($this->admin->getDepartments());
-        $locationIds = $this->codeMap($this->admin->getLocations());
-        $ticketCategoryIds = $this->codeMap($this->admin->getTicketCategories());
-        $assetCategoryIds = $this->codeMap($this->admin->getAssetCategories());
-        $priorityIds = $this->codeMap($this->admin->getPriorities());
+        try {
+            if ($startedTransaction) {
+                $this->db->beginTransaction();
+            }
 
-        [$techId, $created['users'], $techPassword] = $this->seedTechnician($departmentIds);
-        [$assetIds, $created['assets']] = $this->seedAssets($createdByUserId, $assetCategoryIds, $locationIds);
-        $created['tickets'] = $this->seedTickets($createdByUserId, $techId, $locationIds, $assetIds, $ticketCategoryIds, $priorityIds);
+            $created = [
+                'departments' => $this->seedDepartments(),
+                'locations' => $this->seedLocations(),
+                'ticket_categories' => $this->seedTicketCategories(),
+                'asset_categories' => $this->seedAssetCategories(),
+                'priorities' => $this->seedPriorities(),
+                'users' => 0,
+                'assets' => 0,
+                'tickets' => 0,
+            ];
 
-        // surface รหัสช่างตัวอย่างเฉพาะเมื่อสร้างบัญชีใหม่จริง (ถ้ามีอยู่แล้วไม่รู้/ไม่แตะรหัสเดิม)
-        if ($created['users'] > 0) {
-            $created['demo_technician'] = ['username' => 'tech_demo', 'password' => $techPassword];
+            // Build lookups from master data (now includes existing rows)
+            $departmentIds = $this->codeMap($this->admin->getDepartments());
+            $locationIds = $this->codeMap($this->admin->getLocations());
+            $ticketCategoryIds = $this->codeMap($this->admin->getTicketCategories());
+            $assetCategoryIds = $this->codeMap($this->admin->getAssetCategories());
+            $priorityIds = $this->codeMap($this->admin->getPriorities());
+
+            [$techId, $created['users'], $techPassword] = $this->seedTechnician($departmentIds);
+            [$assetIds, $created['assets']] = $this->seedAssets($createdByUserId, $assetCategoryIds, $locationIds);
+            $created['tickets'] = $this->seedTickets($createdByUserId, $techId, $locationIds, $assetIds, $ticketCategoryIds, $priorityIds);
+
+            // surface รหัสช่างตัวอย่างเฉพาะเมื่อสร้างบัญชีใหม่จริง (ถ้ามีอยู่แล้วไม่รู้/ไม่แตะรหัสเดิม)
+            if ($created['users'] > 0) {
+                $created['demo_technician'] = ['username' => 'tech_demo', 'password' => $techPassword];
+            }
+
+            if ($startedTransaction) {
+                $this->db->commit();
+            }
+
+            return $created;
+        } catch (Throwable $exception) {
+            if ($startedTransaction && $this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+
+            throw $exception;
         }
-
-        return $created;
     }
 
     private function seedDepartments(): int

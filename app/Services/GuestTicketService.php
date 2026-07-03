@@ -6,6 +6,7 @@ namespace App\Services;
 use App\Repositories\AssetRepository;
 use App\Repositories\GuestTicketRequestRepository;
 use DomainException;
+use RuntimeException;
 use Throwable;
 
 class GuestTicketService
@@ -148,7 +149,21 @@ class GuestTicketService
             throw $exception;
         }
 
-        $this->requests->attachConvertedTicket($requestId, $ticketId);
+        // Ticket ถูก commit แล้ว — ถ้า attach (ผูก converted_ticket_id) ล้มเหลว จะเกิด orphan
+        // (request 'converted' แต่ ticket_id NULL). retry สั้นๆ กัน transient blip; ถ้ายังพลาด
+        // surface + log ให้ recover เองได้ แทนที่จะเงียบ (un-create ticket ที่ commit แล้วไม่ได้).
+        for ($attempt = 1; ; $attempt++) {
+            try {
+                $this->requests->attachConvertedTicket($requestId, $ticketId);
+                break;
+            } catch (Throwable $exception) {
+                if ($attempt >= 3) {
+                    error_log(sprintf('[guest.convert] attach failed request=%d ticket=%d: %s', $requestId, $ticketId, $exception->getMessage()));
+                    throw new RuntimeException('สร้าง Ticket #' . $ticketId . ' แล้ว แต่เชื่อมโยงกับ guest request ไม่สำเร็จ กรุณาตรวจสอบ Ticket ' . $ticketId . ' และผูกด้วยตนเอง');
+                }
+                usleep(100000); // 100ms backoff ก่อนลองใหม่
+            }
+        }
 
         return $ticketId;
     }

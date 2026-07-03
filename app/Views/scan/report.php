@@ -25,6 +25,7 @@
 
         <form class="auth-card stack-md" method="post" action="<?= e(url('/scan/' . rawurlencode($token) . '/report')) ?>" data-loading-submit>
             <?= csrf_field() ?>
+            <input type="hidden" name="form_token" value="<?= e((string) ($formToken ?? '')) ?>">
 
             <div class="auth-card-header">
                 <p class="page-kicker">แจ้งปัญหา</p>
