@@ -105,6 +105,12 @@ class GuestTicketService
         ];
     }
 
+    /** id สูงสุดของ guest request — baseline/signal สำหรับ live poll หน้าคิว. */
+    public function getQueueMaxId(): int
+    {
+        return $this->requests->getMaxRequestId();
+    }
+
     public function getModerationData(string $status, int $page, int $perPage = 20): array
     {
         $perPage = max(5, min($perPage, 100));

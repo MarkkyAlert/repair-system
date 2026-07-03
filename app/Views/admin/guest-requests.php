@@ -13,8 +13,17 @@ $statusTone = [
 $activeStatus = (string) ($selectedStatus ?? 'new');
 $tabUrl = static fn (string $status): string => url('/admin/guest-requests' . ($status !== '' ? '?status=' . rawurlencode($status) : ''));
 ?>
-<section class="stack-lg">
+<section class="stack-lg"
+    data-live-poll
+    data-live-poll-url="<?= e(url('/admin/guest-requests/state')) ?>"
+    data-live-poll-key="max_id"
+    data-live-poll-baseline="<?= e((string) ($queueMaxId ?? 0)) ?>">
     <h1 class="sr-only">คำขอแจ้งซ่อมจาก QR (Guest)</h1>
+    <div class="ticket-live-banner" data-live-poll-banner hidden role="status" aria-live="polite">
+        <?= lucide('refresh-cw', 'button-icon') ?>
+        <span>มีคำขอแจ้งซ่อมใหม่เข้ามา</span>
+        <button type="button" class="btn btn-sm btn-primary" data-live-poll-reload>โหลดใหม่</button>
+    </div>
     <?= render_partial('partials/components/page-header', [
         'eyebrow' => 'ผู้ดูแลระบบ',
         'title' => 'คำขอแจ้งซ่อมจาก Guest QR',

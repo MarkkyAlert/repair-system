@@ -11,6 +11,14 @@ class GuestTicketRequestRepository
     {
     }
 
+    /**
+     * id สูงสุดของ guest request — signal สำหรับ live poll หน้าคิว (คำขอใหม่ = id เพิ่ม).
+     */
+    public function getMaxRequestId(): int
+    {
+        return (int) $this->db->query('SELECT COALESCE(MAX(id), 0) FROM guest_ticket_requests')->fetchColumn();
+    }
+
     public function create(array $payload): int
     {
         $stmt = $this->db->prepare(

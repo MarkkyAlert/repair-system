@@ -681,7 +681,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
 
-      window.setInterval(refreshFeed, 30000);
+      // Poll เฉพาะตอน tab แสดงอยู่ (ประหยัด request ตอน background) + refresh ทันทีเมื่อกลับมา focus
+      window.setInterval(function () {
+        if (!document.hidden) {
+          refreshFeed();
+        }
+      }, 30000);
+      document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) {
+          refreshFeed();
+        }
+      });
     }
   }
 
@@ -1010,5 +1020,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
     tick();
     window.setInterval(tick, 30000);
+  })();
+
+  // ── Live queue poll (generic) ──
+  // หน้าคิว (เช่น guest requests) poll ค่า numeric (data-live-poll-key) เทียบ baseline →
+  // ถ้าเพิ่ม (มีรายการใหม่) โชว์ banner ให้โหลดใหม่. pause เมื่อ tab ซ่อน; ไม่ auto-reload. ไม่ WebSocket.
+  (function () {
+    var roots = document.querySelectorAll('[data-live-poll]');
+    if (roots.length === 0) return;
+
+    roots.forEach(function (root) {
+      var url = root.getAttribute('data-live-poll-url');
+      var key = root.getAttribute('data-live-poll-key') || 'value';
+      var baseline = parseInt(root.getAttribute('data-live-poll-baseline'), 10) || 0;
+      var banner = root.querySelector('[data-live-poll-banner]');
+      var reloadBtn = root.querySelector('[data-live-poll-reload]');
+      var notified = false;
+      if (!url) return;
+
+      if (reloadBtn) {
+        reloadBtn.addEventListener('click', function () { window.location.reload(); });
+      }
+
+      var check = function () {
+        if (notified || document.hidden) return;
+        fetch(url, { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (data) {
+            if (!data) return;
+            var v = parseInt(data[key], 10) || 0;
+            if (v > baseline && banner) {
+              banner.hidden = false;
+              notified = true;
+            }
+          })
+          .catch(function () {});
+      };
+
+      window.setInterval(check, 30000);
+      document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) check();
+      });
+    });
   })();
 });

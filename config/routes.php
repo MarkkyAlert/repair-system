@@ -105,6 +105,7 @@ return static function (Router $router): void {
     $router->get('/scan/{token}/report', [ScanController::class, 'showReport']);
     $router->post('/scan/{token}/report', [ScanController::class, 'submitReport']);
     $router->get('/admin/guest-requests', [GuestRequestController::class, 'index']);
+    $router->get('/admin/guest-requests/state', [GuestRequestController::class, 'state']);
     $router->post('/admin/guest-requests/{requestId}/convert', [GuestRequestController::class, 'convert']);
     $router->post('/admin/guest-requests/{requestId}/reject', [GuestRequestController::class, 'reject']);
     $router->get('/tickets', [TicketsController::class, 'index']);
