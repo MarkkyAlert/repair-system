@@ -38,13 +38,22 @@ class TicketService
             $this->tickets->getRecentTickets($viewer, $normalizedFilters, 5)
         );
         $year = (int) ($normalizedFilters['year'] ?? (int) date('Y'));
+
+        // Breakdowns/CSAT: scope ตามปีที่เลือก (consistent กับกราฟรายเดือน + ใช้ index idx_tickets_requested_at
+        // แทน aggregate ทั้งระบบ) เมื่อผู้ใช้ไม่ได้ตั้งช่วงวันที่เอง. metrics + recent คง all-time (current state).
+        $breakdownFilters = $normalizedFilters;
+        if (($normalizedFilters['from_datetime'] ?? '') === '' && ($normalizedFilters['to_datetime'] ?? '') === '') {
+            $breakdownFilters['from_datetime'] = sprintf('%04d-01-01 00:00:00', $year);
+            $breakdownFilters['to_datetime'] = sprintf('%04d-12-31 23:59:59', $year);
+        }
+
         $monthlyTickets = $this->tickets->getDashboardMonthlyTicketCounts($viewer, $normalizedFilters, $year);
-        $categoryBreakdown = $this->tickets->getDashboardCategoryBreakdown($viewer, $normalizedFilters, 6);
-        $departmentBreakdown = $this->tickets->getDashboardDepartmentBreakdown($viewer, $normalizedFilters, 6);
+        $categoryBreakdown = $this->tickets->getDashboardCategoryBreakdown($viewer, $breakdownFilters, 6);
+        $departmentBreakdown = $this->tickets->getDashboardDepartmentBreakdown($viewer, $breakdownFilters, 6);
         $resolutionTrend = $this->tickets->getDashboardMonthlyResolutionAverages($viewer, $normalizedFilters, $year);
-        $topTechnicians = $this->tickets->getDashboardTopTechnicians($viewer, $normalizedFilters, 5);
-        $topCategories = $this->tickets->getDashboardTopCategories($viewer, $normalizedFilters, 5);
-        $csat = $this->tickets->getCsatSummary($viewer, $normalizedFilters);
+        $topTechnicians = $this->tickets->getDashboardTopTechnicians($viewer, $breakdownFilters, 5);
+        $topCategories = $this->tickets->getDashboardTopCategories($viewer, $breakdownFilters, 5);
+        $csat = $this->tickets->getCsatSummary($viewer, $breakdownFilters);
 
         return [
             'metrics' => $this->formatMetrics($metrics),
