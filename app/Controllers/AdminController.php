@@ -72,13 +72,27 @@ class AdminController
 
     public function loadDemoData(): void
     {
-        $this->handleUpdate(
-            fn (array $viewer) => $this->demoData->load((int) ($viewer['id'] ?? 0)),
-            'โหลดข้อมูลตัวอย่างเรียบร้อยแล้ว',
-            '/admin',
-            ['admin'],
-            'เฉพาะผู้ดูแลระบบเท่านั้น',
-        );
+        // เขียนเองแทน handleUpdate เพราะต้อง surface รหัสช่างตัวอย่าง (สุ่มต่อครั้ง) ลง flash
+        // ก่อน redirect — handleUpdate ใช้ success message คงที่แล้ว redirect ทันที
+        AuthMiddleware::handle();
+        $viewer = auth()->user() ?? [];
+        require_role($viewer, ['admin'], 'เฉพาะผู้ดูแลระบบเท่านั้น');
+
+        try {
+            csrf_validate();
+            $result = $this->demoData->load((int) ($viewer['id'] ?? 0));
+            $message = 'โหลดข้อมูลตัวอย่างเรียบร้อยแล้ว';
+            if (!empty($result['demo_technician'])) {
+                $cred = $result['demo_technician'];
+                $message .= ' · บัญชีช่างตัวอย่าง: ' . (string) $cred['username']
+                    . ' / ' . (string) $cred['password'] . ' (บันทึกไว้ — รหัสนี้จะไม่แสดงอีก)';
+            }
+            flash('success', $message);
+        } catch (DomainException | RuntimeException $exception) {
+            flash('error', $exception->getMessage());
+        }
+
+        Response::redirect('/admin');
     }
 
     public function updateUser(string $userId): void

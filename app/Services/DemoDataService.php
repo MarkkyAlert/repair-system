@@ -47,9 +47,14 @@ class DemoDataService
         $assetCategoryIds = $this->codeMap($this->admin->getAssetCategories());
         $priorityIds = $this->codeMap($this->admin->getPriorities());
 
-        [$techId, $created['users']] = $this->seedTechnician($departmentIds);
+        [$techId, $created['users'], $techPassword] = $this->seedTechnician($departmentIds);
         [$assetIds, $created['assets']] = $this->seedAssets($createdByUserId, $assetCategoryIds, $locationIds);
         $created['tickets'] = $this->seedTickets($createdByUserId, $techId, $locationIds, $assetIds, $ticketCategoryIds, $priorityIds);
+
+        // surface รหัสช่างตัวอย่างเฉพาะเมื่อสร้างบัญชีใหม่จริง (ถ้ามีอยู่แล้วไม่รู้/ไม่แตะรหัสเดิม)
+        if ($created['users'] > 0) {
+            $created['demo_technician'] = ['username' => 'tech_demo', 'password' => $techPassword];
+        }
 
         return $created;
     }
@@ -140,15 +145,18 @@ class DemoDataService
 
     /**
      * @param array<string, int> $departmentIds
-     * @return array{0: int, 1: int} [technicianUserId, usersCreated]
+     * @return array{0: int, 1: int, 2: string} [technicianUserId, usersCreated, plainPassword ('' ถ้าไม่ได้สร้าง)]
      */
     private function seedTechnician(array $departmentIds): array
     {
+        // สุ่มรหัสผ่านต่อการโหลดหนึ่งครั้ง — ห้ามใช้ค่าคงที่ที่เปิดเผยใน source (BAC/known-password).
+        // caller (setup/admin) จะ surface รหัสนี้ให้ operator เห็น "ครั้งเดียว" หลังโหลด.
+        $plainPassword = bin2hex(random_bytes(8));
         try {
             $techId = $this->admin->createUser([
                 'username' => 'tech_demo',
                 'email' => 'tech_demo@example.com',
-                'password_hash' => password_hash('demo1234', PASSWORD_BCRYPT),
+                'password_hash' => password_hash($plainPassword, PASSWORD_BCRYPT),
                 'full_name' => 'ช่างเทคนิคตัวอย่าง',
                 'phone' => '',
                 'role' => 'technician',
@@ -156,10 +164,10 @@ class DemoDataService
                 'is_active' => true,
             ]);
 
-            return [$techId, 1];
+            return [$techId, 1, $plainPassword];
         } catch (DomainException) {
-            // Username/email already exists — best-effort: skip user creation
-            return [0, 0];
+            // Username/email already exists — best-effort: skip user creation (ไม่แตะรหัสเดิม)
+            return [0, 0, ''];
         }
     }
 
