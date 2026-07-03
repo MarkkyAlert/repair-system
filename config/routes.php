@@ -83,9 +83,9 @@ return static function (Router $router): void {
     $router->post('/admin/settings/logo', [AdminController::class, 'updateLogo']);
     $router->post('/admin/demo-data/load', [AdminController::class, 'loadDemoData']);
     $router->get('/reports', [ReportsController::class, 'index']);
-    $router->get('/reports/export/excel', [ReportsController::class, 'exportExcel']);
-    $router->get('/reports/export/pdf', [ReportsController::class, 'exportPdf']);
-    $router->get('/reports/export/csv', [ReportsController::class, 'exportCsv']);
+    $router->post('/reports/export/excel', [ReportsController::class, 'exportExcel']);
+    $router->post('/reports/export/pdf', [ReportsController::class, 'exportPdf']);
+    $router->post('/reports/export/csv', [ReportsController::class, 'exportCsv']);
     $router->get('/attachments/{attachmentId}', [AttachmentsController::class, 'show']);
     $router->get('/assets', static fn () => Response::redirect('/asset-registry', 301));
     $router->get('/asset-registry', [AssetsController::class, 'index']);

@@ -108,12 +108,8 @@ class AuthController
             csrf_validate();
             clear_old_input();
 
-            $resetLink = $this->service->createPasswordReset($email);
+            $this->service->createPasswordReset($email);
             flash('success', 'หากอีเมลนี้มีอยู่ในระบบ ระบบได้สร้างคำขอรีเซ็ตรหัสผ่านให้แล้ว');
-
-            if ((bool) config('app.debug', false) && $resetLink !== null) {
-                error_log('[debug.reset_link] ' . $email . ' -> ' . $resetLink);
-            }
         } catch (DomainException|RuntimeException $exception) {
             with_old_input(['email' => $email]);
             flash('error', $exception->getMessage());

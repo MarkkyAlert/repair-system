@@ -1,6 +1,5 @@
 <?php
 $filterState = $filters['selected'] ?? [];
-$querySuffix = !empty($filters['query_string']) ? '?' . (string) $filters['query_string'] : '';
 $rowCount = count($rows ?? []);
 $rowsMeta = $rowsMeta ?? ['displayed' => $rowCount, 'total' => $rowCount, 'limit' => 250, 'capped' => false];
 $isCapped = !empty($rowsMeta['capped']);
@@ -109,18 +108,41 @@ $isCapped = !empty($rowsMeta['capped']);
                     <?= lucide('chevron-down', 'button-icon') ?>
                 </summary>
                 <div class="export-dropdown-menu">
-                    <a href="<?= e(url('/reports/export/excel' . $querySuffix)) ?>" class="export-dropdown-item" data-export-link>
-                        <?= lucide('clipboard-list', 'button-icon') ?>
-                        <span>ส่งออก Excel</span>
-                    </a>
-                    <a href="<?= e(url('/reports/export/pdf' . $querySuffix)) ?>" class="export-dropdown-item" data-export-link>
-                        <?= lucide('file-text', 'button-icon') ?>
-                        <span>ส่งออก PDF</span>
-                    </a>
-                    <a href="<?= e(url('/reports/export/csv' . $querySuffix)) ?>" class="export-dropdown-item" data-export-link>
-                        <?= lucide('download', 'button-icon') ?>
-                        <span>ส่งออก CSV</span>
-                    </a>
+                    <?php
+                    // Export ใช้ POST + CSRF (กัน CSRF-via-GET ที่หน้าภายนอกฝัง <img src> auto-trigger export job ได้)
+                    // hidden inputs พา filter ปัจจุบัน (status/department_id/category_id/from_date/to_date) ไปด้วย
+                    $exportHidden = '';
+                    foreach (['status', 'department_id', 'category_id', 'from_date', 'to_date'] as $exportField) {
+                        $exportValue = (string) ($filterState[$exportField] ?? '');
+                        if ($exportValue !== '') {
+                            $exportHidden .= '<input type="hidden" name="' . e($exportField) . '" value="' . e($exportValue) . '">';
+                        }
+                    }
+                    ?>
+                    <form method="post" action="<?= e(url('/reports/export/excel')) ?>" class="export-dropdown-form">
+                        <?= csrf_field() ?>
+                        <?= $exportHidden ?>
+                        <button type="submit" class="export-dropdown-item" data-export-link>
+                            <?= lucide('clipboard-list', 'button-icon') ?>
+                            <span>ส่งออก Excel</span>
+                        </button>
+                    </form>
+                    <form method="post" action="<?= e(url('/reports/export/pdf')) ?>" class="export-dropdown-form">
+                        <?= csrf_field() ?>
+                        <?= $exportHidden ?>
+                        <button type="submit" class="export-dropdown-item" data-export-link>
+                            <?= lucide('file-text', 'button-icon') ?>
+                            <span>ส่งออก PDF</span>
+                        </button>
+                    </form>
+                    <form method="post" action="<?= e(url('/reports/export/csv')) ?>" class="export-dropdown-form">
+                        <?= csrf_field() ?>
+                        <?= $exportHidden ?>
+                        <button type="submit" class="export-dropdown-item" data-export-link>
+                            <?= lucide('download', 'button-icon') ?>
+                            <span>ส่งออก CSV</span>
+                        </button>
+                    </form>
                 </div>
             </details>
         </div>

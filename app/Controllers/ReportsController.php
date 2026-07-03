@@ -46,7 +46,8 @@ class ReportsController
         $viewer = auth()->user() ?? [];
 
         try {
-            $export = $this->reports->exportExcel($viewer, request()?->query ?? []);
+            csrf_validate();
+            $export = $this->reports->exportExcel($viewer, $_POST);
             Response::download(
                 (string) ($export['content'] ?? ''),
                 (string) ($export['file_name'] ?? 'report.xlsx'),
@@ -65,7 +66,8 @@ class ReportsController
         $viewer = auth()->user() ?? [];
 
         try {
-            $export = $this->reports->exportPdf($viewer, request()?->query ?? []);
+            csrf_validate();
+            $export = $this->reports->exportPdf($viewer, $_POST);
             Response::download(
                 (string) ($export['content'] ?? ''),
                 (string) ($export['file_name'] ?? 'report.pdf'),
@@ -84,7 +86,8 @@ class ReportsController
         $viewer = auth()->user() ?? [];
 
         try {
-            $export = $this->reports->exportCsv($viewer, request()?->query ?? []);
+            csrf_validate();
+            $export = $this->reports->exportCsv($viewer, $_POST);
             Response::download(
                 (string) ($export['content'] ?? ''),
                 (string) ($export['file_name'] ?? 'report.csv'),

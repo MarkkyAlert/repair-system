@@ -41,6 +41,6 @@ class EmailQueueController
     {
         $this->handleUpdate(function () use ($emailId): void {
             $this->emailQueue->retryJob((int) $emailId);
-        }, 'ส่งคำสั่งให้ลองอีเมลใหม่เรียบร้อยแล้ว', '/admin/email-queue');
+        }, 'ส่งคำสั่งให้ลองอีเมลใหม่เรียบร้อยแล้ว', '/admin/email-queue', ['admin'], 'หน้านี้สงวนสำหรับผู้ดูแลระบบเท่านั้น');
     }
 }

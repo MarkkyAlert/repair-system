@@ -1,3 +1,9 @@
+-- ============================================================
+-- DEMO / SEED DATA — สำหรับ dev/demo เท่านั้น (DEMO ONLY)
+-- ห้ามใช้บน production โดยไม่เปลี่ยนรหัสผ่านบัญชีทั้งหมดก่อน
+-- บัญชี demo ทั้งหมด (admin/manager/technician/requester) ใช้ hash คงที่
+-- => เปลี่ยนรหัสผ่านทันทีหลัง setup (ดู README) หรือใช้ /setup wizard สร้าง admin เอง
+-- ============================================================
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
