@@ -66,19 +66,21 @@ class UserRepository
             return ['logins' => [], 'emails' => []];
         }
 
+        // ไม่ใช้ LOWER(column) ใน WHERE — collation utf8mb4_unicode_ci case-insensitive อยู่แล้ว
+        // ทำให้ unique index username/email ใช้ได้ (sargable); normalize เป็น lowercase ฝั่ง PHP
         $placeholders = implode(',', array_fill(0, count($needles), '?'));
         $stmt = $this->db->prepare(
-            "SELECT LOWER(username) AS username, LOWER(email) AS email
+            "SELECT username, email
              FROM users
-             WHERE LOWER(username) IN ($placeholders) OR LOWER(email) IN ($placeholders)"
+             WHERE username IN ($placeholders) OR email IN ($placeholders)"
         );
         $stmt->execute(array_merge($needles, $needles));
 
         $logins = [];
         $existingEmails = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $username = (string) ($row['username'] ?? '');
-            $email = (string) ($row['email'] ?? '');
+            $username = strtolower((string) ($row['username'] ?? ''));
+            $email = strtolower((string) ($row['email'] ?? ''));
             if ($username !== '') {
                 $logins[$username] = true;
             }
@@ -108,19 +110,20 @@ class UserRepository
             return [];
         }
 
+        // sargable — ไม่ใช้ LOWER(column) (collation case-insensitive); normalize ฝั่ง PHP
         $placeholders = implode(',', array_fill(0, count($logins), '?'));
         $stmt = $this->db->prepare(
-            "SELECT id, LOWER(username) AS username, LOWER(email) AS email
+            "SELECT id, username, email
              FROM users
-             WHERE LOWER(username) IN ($placeholders) OR LOWER(email) IN ($placeholders)"
+             WHERE username IN ($placeholders) OR email IN ($placeholders)"
         );
         $stmt->execute(array_merge($logins, $logins));
 
         $map = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $id = (int) ($row['id'] ?? 0);
-            $username = (string) ($row['username'] ?? '');
-            $email = (string) ($row['email'] ?? '');
+            $username = strtolower((string) ($row['username'] ?? ''));
+            $email = strtolower((string) ($row['email'] ?? ''));
             if ($username !== '') {
                 $map[$username] = $id;
             }
