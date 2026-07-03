@@ -219,11 +219,21 @@ if (!empty($workflow['canReview'])) {
                 <?php endif; ?>
                 <?php if (!empty($ticket['response_due_at'])): ?>
                     <dt>เป้าตอบรับ</dt>
-                    <dd><?= e(human_date($ticket['response_due_at'])) ?></dd>
+                    <dd>
+                        <?= e(human_date($ticket['response_due_at'])) ?>
+                        <?php if (($ticket['sla_response']['status'] ?? '') === 'pending' && (int) ($ticket['sla_response']['target_ts'] ?? 0) > 0): ?>
+                            <span class="sla-countdown" data-sla-countdown data-sla-target-ts="<?= (int) $ticket['sla_response']['target_ts'] ?>"><span data-sla-countdown-label>กำลังคำนวณ…</span></span>
+                        <?php endif; ?>
+                    </dd>
                 <?php endif; ?>
                 <?php if (!empty($ticket['resolution_due_at'])): ?>
                     <dt>เป้าแก้ไข</dt>
-                    <dd><?= e(human_date($ticket['resolution_due_at'])) ?></dd>
+                    <dd>
+                        <?= e(human_date($ticket['resolution_due_at'])) ?>
+                        <?php if (($ticket['sla_resolution']['status'] ?? '') === 'pending' && (int) ($ticket['sla_resolution']['target_ts'] ?? 0) > 0): ?>
+                            <span class="sla-countdown" data-sla-countdown data-sla-target-ts="<?= (int) $ticket['sla_resolution']['target_ts'] ?>"><span data-sla-countdown-label>กำลังคำนวณ…</span></span>
+                        <?php endif; ?>
+                    </dd>
                 <?php endif; ?>
                 <?php if (!empty($ticket['resolved_at'])): ?>
                     <dt>แก้เสร็จเมื่อ</dt>

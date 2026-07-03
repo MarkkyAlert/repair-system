@@ -6185,3 +6185,9 @@ code.mono, .mono {
   .qr-instruction { color: #3730a3 !important; }
   .print-only { display: block !important; }
 }
+
+/* Live SLA countdown (ticket detail) — นับถอยหลังสด, แดงเมื่อเกินกำหนด */
+.sla-countdown { margin-left: .35rem; font-size: .85em; font-weight: 600; color: #b45309; }
+.sla-countdown-overdue { color: #dc2626; }
+.dark .sla-countdown { color: #fbbf24; }
+.dark .sla-countdown-overdue { color: #f87171; }

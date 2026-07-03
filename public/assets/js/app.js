@@ -979,4 +979,36 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
   })();
+
+  // ── Live SLA countdown ──
+  // เป้า SLA เดิม render เป็น label นิ่งฝั่ง server; นับถอยหลังสดฝั่ง client (ใช้ epoch → timezone-safe)
+  (function () {
+    var els = document.querySelectorAll('[data-sla-countdown]');
+    if (els.length === 0) return;
+
+    var fmt = function (ms) {
+      var totalMin = Math.floor(Math.abs(ms) / 60000);
+      var d = Math.floor(totalMin / 1440);
+      var h = Math.floor((totalMin % 1440) / 60);
+      var m = totalMin % 60;
+      if (d > 0) return d + ' วัน ' + h + ' ชม.';
+      if (h > 0) return h + ' ชม. ' + m + ' นาที';
+      return m + ' นาที';
+    };
+
+    var tick = function () {
+      var now = Date.now();
+      els.forEach(function (el) {
+        var ts = parseInt(el.getAttribute('data-sla-target-ts'), 10);
+        if (!ts) return;
+        var diff = ts * 1000 - now;
+        var label = el.querySelector('[data-sla-countdown-label]') || el;
+        label.textContent = (diff > 0 ? 'เหลือ ' : 'เกินกำหนด ') + fmt(diff);
+        el.classList.toggle('sla-countdown-overdue', diff <= 0);
+      });
+    };
+
+    tick();
+    window.setInterval(tick, 30000);
+  })();
 });

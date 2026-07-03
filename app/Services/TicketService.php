@@ -1060,6 +1060,7 @@ class TicketService
             'label' => $isBreached ? 'เกินกำหนด' : 'รอดำเนินการ',
             'tone' => $isBreached ? 'danger' : 'warning',
             'target_at' => $this->formatDateTime($targetAt),
+            'target_ts' => $targetTimestamp, // Unix epoch สำหรับ client-side countdown (timezone-safe)
             'achieved_at' => '-',
         ];
     }
