@@ -128,12 +128,6 @@ class GuestTicketService
             throw new DomainException('Request นี้ถูกดำเนินการแล้ว');
         }
 
-        // Atomically claim the request (new → converted) BEFORE creating the ticket.
-        // If a concurrent convert/reject already claimed it, stop here so no duplicate ticket is created.
-        if (!$this->requests->claimForConversion($requestId, (int) ($viewer['id'] ?? 0))) {
-            throw new DomainException('Request นี้ถูกดำเนินการแล้ว');
-        }
-
         $contact = trim(((string) $request['guest_email']) . ' ' . ((string) $request['guest_phone']));
         $titlePrefix = '[จาก Guest: ' . (string) $request['guest_name'] . '] ';
         $descriptionPrefix = "ผู้แจ้ง (Guest): " . (string) $request['guest_name'] . "\n"
@@ -152,28 +146,30 @@ class GuestTicketService
             'submission_token' => bin2hex(random_bytes(32)),
         ];
 
-        try {
-            $ticketId = $tickets->createTicket($viewer, $ticketInput, []);
-        } catch (Throwable $exception) {
-            // Ticket creation failed after the claim — release it so the request returns to the queue.
-            $this->requests->revertConversionClaim($requestId);
-            throw $exception;
-        }
+        // สร้าง Ticket ก่อน แล้วค่อย claim+link แบบ atomic (status='converted' + converted_ticket_id
+        // ถูก set พร้อมกันใน UPDATE เดียว) → ไม่มีทางเกิด request 'converted' ที่ ticket_id เป็น NULL.
+        // ถ้า claim/link ล้มเหลว request จะยังเป็น 'new' (ไม่ค้าง 'converted' ไร้ ticket) — ticket ที่สร้าง
+        // เป็น valid record ที่ surface ให้ admin ตรวจสอบได้ (ดีกว่า "converted → ไม่มี ticket").
+        $ticketId = $tickets->createTicket($viewer, $ticketInput, []);
 
-        // Ticket ถูก commit แล้ว — ถ้า attach (ผูก converted_ticket_id) ล้มเหลว จะเกิด orphan
-        // (request 'converted' แต่ ticket_id NULL). retry สั้นๆ กัน transient blip; ถ้ายังพลาด
-        // surface + log ให้ recover เองได้ แทนที่จะเงียบ (un-create ticket ที่ commit แล้วไม่ได้).
-        for ($attempt = 1; ; $attempt++) {
+        $linked = false;
+        for ($attempt = 1; $attempt <= 3; $attempt++) {
             try {
-                $this->requests->attachConvertedTicket($requestId, $ticketId);
+                $linked = $this->requests->claimAndLink($requestId, $ticketId, (int) ($viewer['id'] ?? 0));
                 break;
             } catch (Throwable $exception) {
                 if ($attempt >= 3) {
-                    error_log(sprintf('[guest.convert] attach failed request=%d ticket=%d: %s', $requestId, $ticketId, $exception->getMessage()));
-                    throw new RuntimeException('สร้าง Ticket #' . $ticketId . ' แล้ว แต่เชื่อมโยงกับ guest request ไม่สำเร็จ กรุณาตรวจสอบ Ticket ' . $ticketId . ' และผูกด้วยตนเอง');
+                    error_log(sprintf('[guest.convert] link failed request=%d ticket=%d: %s', $requestId, $ticketId, $exception->getMessage()));
+                    throw new RuntimeException('สร้าง Ticket #' . $ticketId . ' แล้ว แต่เชื่อมโยงกับ guest request ไม่สำเร็จ (request ยังอยู่ในคิว) กรุณาตรวจสอบ Ticket ' . $ticketId);
                 }
                 usleep(100000); // 100ms backoff ก่อนลองใหม่
             }
+        }
+
+        if (!$linked) {
+            // concurrent convert/reject ชิงไประหว่าง check กับ claim — ticket ที่สร้างเป็น valid แต่ไม่ผูก request
+            error_log(sprintf('[guest.convert] request=%d ถูกดำเนินการโดย actor อื่น — ticket=%d สร้างไว้แต่ไม่ผูก', $requestId, $ticketId));
+            throw new DomainException('Request นี้ถูกดำเนินการโดยผู้อื่นแล้ว (สร้าง Ticket #' . $ticketId . ' ไว้ กรุณาตรวจสอบ/ยกเลิกหากซ้ำ)');
         }
 
         return $ticketId;

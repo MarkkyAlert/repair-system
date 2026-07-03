@@ -103,50 +103,27 @@ class GuestTicketRequestRepository
     }
 
     /**
-     * Atomically claim a 'new' request for conversion (new → converted) BEFORE the ticket is created.
-     * Returns false when a concurrent convert/reject already moved it out of 'new' — the caller must
-     * then NOT create a ticket. converted_ticket_id is filled afterwards via attachConvertedTicket().
+     * Atomically mark a 'new' request converted AND link its ticket in ONE statement — status และ
+     * converted_ticket_id ถูก set พร้อมกัน จึงไม่มีทางเกิด request 'converted' ที่ converted_ticket_id
+     * เป็น NULL (invariant นี้บังคับด้วยโครงสร้าง SQL). Ticket ต้องถูกสร้าง (commit) มาก่อนเรียก.
+     * Returns false เมื่อ concurrent convert/reject ชิงไปแล้ว (status ไม่ใช่ 'new') — caller ควร
+     * surface + ตรวจสอบ ticket ที่สร้างไว้ (ticket ยังเป็น valid record).
      */
-    public function claimForConversion(int $id, int $reviewerId): bool
+    public function claimAndLink(int $id, int $ticketId, int $reviewerId): bool
     {
         $stmt = $this->db->prepare(
             'UPDATE guest_ticket_requests
-             SET status = "converted", reviewed_by = :reviewer, reviewed_at = NOW()
+             SET status = "converted", converted_ticket_id = :ticket_id,
+                 reviewed_by = :reviewer, reviewed_at = NOW()
              WHERE id = :id AND status = "new"'
         );
         $stmt->execute([
+            'ticket_id' => $ticketId,
             'reviewer' => $reviewerId,
             'id' => $id,
         ]);
 
         return $stmt->rowCount() > 0;
-    }
-
-    public function attachConvertedTicket(int $id, int $ticketId): void
-    {
-        $stmt = $this->db->prepare(
-            'UPDATE guest_ticket_requests
-             SET converted_ticket_id = :ticket_id
-             WHERE id = :id'
-        );
-        $stmt->execute([
-            'ticket_id' => $ticketId,
-            'id' => $id,
-        ]);
-    }
-
-    /**
-     * Roll a claimed request back to 'new' when ticket creation fails, so it stays in the queue.
-     * Guarded on converted_ticket_id IS NULL so a fully-converted request is never reverted.
-     */
-    public function revertConversionClaim(int $id): void
-    {
-        $stmt = $this->db->prepare(
-            'UPDATE guest_ticket_requests
-             SET status = "new", reviewed_by = NULL, reviewed_at = NULL
-             WHERE id = :id AND status = "converted" AND converted_ticket_id IS NULL'
-        );
-        $stmt->execute(['id' => $id]);
     }
 
     public function markRejected(int $id, int $reviewerId, string $note): bool
