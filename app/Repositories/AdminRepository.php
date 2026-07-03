@@ -112,7 +112,7 @@ class AdminRepository
 
             return (int) $this->db->lastInsertId();
         } catch (PDOException $exception) {
-            if ((string) $exception->getCode() === '23000') {
+            if (is_duplicate_key_error($exception)) {
                 $message = strtolower($exception->getMessage());
                 if (str_contains($message, 'username')) {
                     throw new DomainException('ชื่อผู้ใช้นี้มีอยู่ในระบบแล้ว');
@@ -190,7 +190,7 @@ class AdminRepository
                     'id' => $userId,
                 ]);
             } catch (PDOException $exception) {
-                if ((string) $exception->getCode() === '23000') {
+                if (is_duplicate_key_error($exception)) {
                     $message = strtolower($exception->getMessage());
                     if (str_contains($message, 'email')) {
                         throw new DomainException('อีเมลนี้มีอยู่ในระบบแล้ว');
@@ -605,7 +605,7 @@ class AdminRepository
 
             return (int) $this->db->lastInsertId();
         } catch (PDOException $exception) {
-            if ((string) $exception->getCode() === '23000') {
+            if (is_duplicate_key_error($exception)) {
                 $message = strtolower($exception->getMessage());
                 if (str_contains($message, 'code')) {
                     throw new DomainException('รหัส Priority นี้มีอยู่แล้ว');
@@ -670,7 +670,7 @@ class AdminRepository
                 'id' => $priorityId,
             ]);
         } catch (PDOException $exception) {
-            if ((string) $exception->getCode() === '23000') {
+            if (is_duplicate_key_error($exception)) {
                 $message = strtolower($exception->getMessage());
                 if (str_contains($message, 'code')) {
                     throw new DomainException('รหัส Priority นี้มีอยู่แล้ว');
@@ -792,7 +792,7 @@ class AdminRepository
 
     private function throwFriendlyUniqueViolation(PDOException $exception, string $codeMessage, string $nameMessage): void
     {
-        if ((string) $exception->getCode() === '23000') {
+        if (is_duplicate_key_error($exception)) {
             $message = strtolower($exception->getMessage());
             if (str_contains($message, 'code')) {
                 throw new DomainException($codeMessage);

@@ -245,6 +245,41 @@ class EmailTemplateService
         ];
     }
 
+    /** Preview/test-send sample of the password-reset email using the current admin as recipient. */
+    public function buildSamplePasswordReset(array $viewer): array
+    {
+        return $this->buildPasswordReset(
+            [
+                'id' => (int) ($viewer['id'] ?? 0),
+                'full_name' => (string) ($viewer['full_name'] ?? 'ผู้ดูแลระบบ'),
+                'email' => (string) ($viewer['email'] ?? 'admin@example.com'),
+            ],
+            url('/reset-password?email=admin%40example.com&token=preview-token'),
+            date('Y-m-d H:i:s', time() + 3600)
+        );
+    }
+
+    /** Preview/test-send sample of a ticket-event email using the current admin as recipient. */
+    public function buildSampleTicketEvent(array $viewer): array
+    {
+        return $this->buildTicketEvent(
+            [
+                'id' => 1,
+                'ticket_no' => (string) setting('ticket_prefix', 'MT') . '-PREVIEW-0001',
+                'title' => 'ตัวอย่างงานซ่อมจากระบบ',
+                'status' => 'approved',
+            ],
+            [
+                'id' => (int) ($viewer['id'] ?? 0),
+                'full_name' => (string) ($viewer['full_name'] ?? 'ผู้ดูแลระบบ'),
+                'email' => (string) ($viewer['email'] ?? 'admin@example.com'),
+            ],
+            'ticket.approved',
+            'มี Ticket ที่อนุมัติแล้ว',
+            'Ticket ตัวอย่างถูกอนุมัติและพร้อมมอบหมายช่าง'
+        );
+    }
+
     private function renderNotificationTemplate(array $data): array
     {
         $appName = (string) setting('app_name', config('app.name', 'Repair System'));

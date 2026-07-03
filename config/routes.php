@@ -57,9 +57,9 @@ return static function (Router $router): void {
     $router->post('/admin/departments', [AdminController::class, 'createDepartment']);
     $router->post('/admin/departments/{departmentId}', [AdminController::class, 'updateDepartment']);
     $router->post('/admin/departments/{departmentId}/delete', [AdminController::class, 'deleteDepartment']);
-    $router->post('/admin/categories', [AdminController::class, 'createCategory']);
-    $router->post('/admin/categories/{categoryId}', [AdminController::class, 'updateCategory']);
-    $router->post('/admin/categories/{categoryId}/delete', [AdminController::class, 'deleteCategory']);
+    $router->post('/admin/categories', [AdminController::class, 'createTicketCategory']);
+    $router->post('/admin/categories/{categoryId}', [AdminController::class, 'updateTicketCategory']);
+    $router->post('/admin/categories/{categoryId}/delete', [AdminController::class, 'deleteTicketCategory']);
     $router->post('/admin/asset-categories', [AdminController::class, 'createAssetCategory']);
     $router->post('/admin/asset-categories/{categoryId}', [AdminController::class, 'updateAssetCategory']);
     $router->post('/admin/asset-categories/{categoryId}/delete', [AdminController::class, 'deleteAssetCategory']);

@@ -107,9 +107,6 @@ class UserImportController
 
         $csv = implode(',', $columns) . "\r\n" . implode(',', array_map(static fn ($v): string => '"' . str_replace('"', '""', (string) $v) . '"', $sample)) . "\r\n";
 
-        header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename="user-import-template.csv"');
-        echo "\xEF\xBB\xBF" . $csv;
-        exit;
+        Response::download("\xEF\xBB\xBF" . $csv, 'user-import-template.csv', 'text/csv; charset=utf-8');
     }
 }

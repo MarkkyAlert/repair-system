@@ -418,6 +418,10 @@ class TicketService
         return $result->getString();
     }
 
+    /**
+     * Manager/admin approves a pending-approval ticket (→ approved).
+     * Guarded by requireManageableTicket + canReviewTicket; notifies ticket.approved.
+     */
     public function approveTicket(int $ticketId, array $viewer, array $input): void
     {
         $ticket = $this->requireManageableTicket($ticketId, $viewer);
@@ -459,6 +463,9 @@ class TicketService
         ];
     }
 
+    /**
+     * Manager/admin rejects a pending-approval ticket (→ rejected). Rejection note required.
+     */
     public function rejectTicket(int $ticketId, array $viewer, array $input): void
     {
         $ticket = $this->requireManageableTicket($ticketId, $viewer);
@@ -476,6 +483,10 @@ class TicketService
         $this->notifications->notifyTicketEvent($ticketId, 'ticket.rejected', (int) ($viewer['id'] ?? 0));
     }
 
+    /**
+     * Manager/admin assigns an active technician to an approved ticket (→ assigned).
+     * Requires a valid technician_id; notifies ticket.assigned.
+     */
     public function assignTechnician(int $ticketId, array $viewer, array $input): void
     {
         $ticket = $this->requireManageableTicket($ticketId, $viewer);
@@ -507,6 +518,9 @@ class TicketService
         $this->notifications->notifyTicketEvent($ticketId, 'ticket.assigned', (int) ($viewer['id'] ?? 0));
     }
 
+    /**
+     * Assigned technician accepts their ticket (assigned → accepted).
+     */
     public function acceptAssignedWork(int $ticketId, array $viewer, array $input): void
     {
         $ticket = $this->requireTechnicianTicket($ticketId, $viewer);
@@ -520,6 +534,9 @@ class TicketService
         $this->notifications->notifyTicketEvent($ticketId, 'ticket.accepted', (int) ($viewer['id'] ?? 0));
     }
 
+    /**
+     * Assigned technician starts work (accepted → in_progress).
+     */
     public function startAssignedWork(int $ticketId, array $viewer, array $input): void
     {
         $ticket = $this->requireTechnicianTicket($ticketId, $viewer);
@@ -533,6 +550,10 @@ class TicketService
         $this->notifications->notifyTicketEvent($ticketId, 'ticket.started', (int) ($viewer['id'] ?? 0));
     }
 
+    /**
+     * Assigned technician submits diagnosis + resolution (in_progress → resolved).
+     * Both summaries required; labor_minutes must be >= 0.
+     */
     public function resolveAssignedWork(int $ticketId, array $viewer, array $input): void
     {
         $ticket = $this->requireTechnicianTicket($ticketId, $viewer);
@@ -564,6 +585,9 @@ class TicketService
         $this->notifications->notifyTicketEvent($ticketId, 'ticket.resolved', (int) ($viewer['id'] ?? 0));
     }
 
+    /**
+     * Requester confirms a resolved ticket and rates satisfaction 1–5 (resolved → completed).
+     */
     public function completeResolvedTicket(int $ticketId, array $viewer, array $input): void
     {
         $ticket = $this->requireRequesterTicket($ticketId, $viewer);
@@ -592,6 +616,9 @@ class TicketService
         $this->notifications->notifyTicketEvent($ticketId, 'ticket.completed', (int) ($viewer['id'] ?? 0));
     }
 
+    /**
+     * Requester sends a resolved ticket back for rework; recomputes SLA due dates. Reason required.
+     */
     public function reopenTicket(int $ticketId, array $viewer, array $input): void
     {
         $ticket = $this->requireRequesterTicket($ticketId, $viewer);
@@ -623,6 +650,9 @@ class TicketService
         }
     }
 
+    /**
+     * Requester cancels their own ticket (→ cancelled). Reason required.
+     */
     public function cancelTicket(int $ticketId, array $viewer, array $input): void
     {
         $ticket = $this->requireRequesterTicket($ticketId, $viewer);

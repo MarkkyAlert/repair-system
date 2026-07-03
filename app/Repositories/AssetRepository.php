@@ -73,9 +73,7 @@ class AssetRepository
         $countStmt->execute();
 
         $total = (int) ($countStmt->fetchColumn() ?: 0);
-        $totalPages = max(1, (int) ceil($total / $perPage));
-        $page = max(1, min($page, $totalPages));
-        $offset = ($page - 1) * $perPage;
+        ['page' => $page, 'offset' => $offset, 'totalPages' => $totalPages] = paginate($page, $perPage, $total);
         $stmt = $this->db->prepare(
             "SELECT
                 a.id, a.asset_code, a.name, a.serial_number, a.brand, a.model, a.status,
@@ -189,7 +187,7 @@ class AssetRepository
 
     private function translateAssetUniqueViolation(Throwable $exception): void
     {
-        if (!$exception instanceof PDOException || (string) $exception->getCode() !== '23000') {
+        if (!is_duplicate_key_error($exception)) {
             return;
         }
         $message = strtolower($exception->getMessage());

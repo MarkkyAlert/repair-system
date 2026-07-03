@@ -188,11 +188,7 @@ class AssetsController
 
         try {
             $png = $this->assets->generateQrPng((int) $assetId, $viewer);
-            http_response_code(200);
-            header('Content-Type: image/png');
-            header('Cache-Control: no-store, no-cache, must-revalidate');
-            echo $png;
-            exit;
+            Response::download($png, 'asset-qr-' . (int) $assetId . '.png', 'image/png', 'inline');
         } catch (DomainException|RuntimeException $exception) {
             Response::abort(404, $exception->getMessage());
         }
@@ -301,10 +297,7 @@ class AssetsController
 
         $csv = implode(',', $columns) . "\r\n" . implode(',', array_map(static fn ($v): string => '"' . str_replace('"', '""', (string) $v) . '"', $sample)) . "\r\n";
 
-        header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename="asset-import-template.csv"');
-        echo "\xEF\xBB\xBF" . $csv;
-        exit;
+        Response::download("\xEF\xBB\xBF" . $csv, 'asset-import-template.csv', 'text/csv; charset=utf-8');
     }
 
     private function assetOldInput(array $input): array

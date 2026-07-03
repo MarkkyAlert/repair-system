@@ -9,6 +9,8 @@ use PDOException;
 
 class UserRepository
 {
+    private const SELECT_COLUMNS = 'id, username, email, password_hash, password_changed_at, full_name, phone, role, department_id, avatar, is_active, remember_token, last_login_at, created_at, updated_at';
+
     public function __construct(private PDO $db)
     {
     }
@@ -16,7 +18,7 @@ class UserRepository
     public function findByLogin(string $login): ?array
     {
         $stmt = $this->db->prepare(
-            'SELECT id, username, email, password_hash, password_changed_at, full_name, phone, role, department_id, avatar, is_active, remember_token, last_login_at, created_at, updated_at
+            'SELECT ' . self::SELECT_COLUMNS . '
              FROM users
              WHERE username = :username OR email = :email
              LIMIT 1'
@@ -32,7 +34,7 @@ class UserRepository
     public function findByEmail(string $email): ?array
     {
         $stmt = $this->db->prepare(
-            'SELECT id, username, email, password_hash, password_changed_at, full_name, phone, role, department_id, avatar, is_active, remember_token, last_login_at, created_at, updated_at
+            'SELECT ' . self::SELECT_COLUMNS . '
              FROM users
              WHERE email = :email
              LIMIT 1'
@@ -45,7 +47,7 @@ class UserRepository
     public function findById(int $userId): ?array
     {
         $stmt = $this->db->prepare(
-            'SELECT id, username, email, password_hash, password_changed_at, full_name, phone, role, department_id, avatar, is_active, remember_token, last_login_at, created_at, updated_at
+            'SELECT ' . self::SELECT_COLUMNS . '
              FROM users
              WHERE id = :id
              LIMIT 1'
@@ -62,7 +64,7 @@ class UserRepository
         }
 
         $stmt = $this->db->prepare(
-            'SELECT id, username, email, password_hash, password_changed_at, full_name, phone, role, department_id, avatar, is_active, remember_token, last_login_at, created_at, updated_at
+            'SELECT ' . self::SELECT_COLUMNS . '
              FROM users
              WHERE remember_token = :token
                AND is_active = 1
@@ -174,7 +176,7 @@ class UserRepository
                 'updated_at' => date('Y-m-d H:i:s'),
             ]);
         } catch (PDOException $exception) {
-            if ((string) $exception->getCode() === '23000') {
+            if (is_duplicate_key_error($exception)) {
                 $message = strtolower($exception->getMessage());
                 if (str_contains($message, 'email')) {
                     throw new DomainException('อีเมลนี้มีอยู่ในระบบแล้ว');

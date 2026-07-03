@@ -10,6 +10,8 @@ use Throwable;
 
 class UserImportService
 {
+    use ParsesCsvUpload;
+
     public const CSV_COLUMNS = [
         'username', 'email', 'full_name', 'role', 'department_code', 'phone', 'password',
     ];
@@ -23,65 +25,7 @@ class UserImportService
 
     public function parseUploadedFile(array $file): array
     {
-        if ((int) ($file['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK || empty($file['tmp_name']) || !is_uploaded_file((string) $file['tmp_name'])) {
-            throw new DomainException('อัปโหลดไฟล์ไม่สำเร็จ กรุณาเลือกไฟล์ CSV และลองอีกครั้ง');
-        }
-
-        $extension = strtolower(pathinfo((string) ($file['name'] ?? ''), PATHINFO_EXTENSION));
-        if ($extension !== 'csv') {
-            throw new DomainException('รองรับเฉพาะไฟล์ .csv เท่านั้น');
-        }
-
-        if ((int) ($file['size'] ?? 0) > 1 * 1024 * 1024) {
-            throw new DomainException('ไฟล์มีขนาดเกิน 1MB');
-        }
-
-        $handle = fopen((string) $file['tmp_name'], 'r');
-        if ($handle === false) {
-            throw new DomainException('ไม่สามารถเปิดไฟล์ที่อัปโหลดได้');
-        }
-
-        $rows = [];
-        try {
-            $header = fgetcsv($handle);
-            if ($header === false || $header === null) {
-                throw new DomainException('ไฟล์ CSV ว่างเปล่า');
-            }
-
-            $header = array_map(static fn ($h): string => strtolower(trim((string) $h)), $header);
-            $missing = array_diff(self::CSV_COLUMNS, $header);
-            if ($missing !== []) {
-                throw new DomainException('ไฟล์ CSV ไม่ครบ column: ' . implode(', ', $missing));
-            }
-
-            $lineNo = 1;
-            while (($row = fgetcsv($handle)) !== false) {
-                $lineNo++;
-                if (count(array_filter($row, static fn ($v) => trim((string) $v) !== '')) === 0) {
-                    continue;
-                }
-
-                $assoc = ['_line' => $lineNo];
-                foreach ($header as $idx => $colName) {
-                    if (in_array($colName, self::CSV_COLUMNS, true)) {
-                        $assoc[$colName] = isset($row[$idx]) ? trim((string) $row[$idx]) : '';
-                    }
-                }
-                $rows[] = $assoc;
-            }
-        } finally {
-            fclose($handle);
-        }
-
-        if ($rows === []) {
-            throw new DomainException('ไม่พบข้อมูลใน CSV');
-        }
-
-        if (count($rows) > 200) {
-            throw new DomainException('นำเข้าได้ครั้งละไม่เกิน 200 รายการ');
-        }
-
-        return $rows;
+        return $this->parseCsvUpload($file, self::CSV_COLUMNS, 1 * 1024 * 1024, 200);
     }
 
     public function validateRows(array $rows): array

@@ -373,9 +373,7 @@ class TicketRepository
         );
         $countStmt->execute($params);
         $total = (int) ($countStmt->fetchColumn() ?: 0);
-        $totalPages = max(1, (int) ceil($total / $perPage));
-        $page = max(1, min($page, $totalPages));
-        $offset = ($page - 1) * $perPage;
+        ['page' => $page, 'offset' => $offset, 'totalPages' => $totalPages] = paginate($page, $perPage, $total);
         $closed = self::CLOSED_STATUSES;
 
         $stmt = $this->db->prepare(
@@ -1682,11 +1680,7 @@ class TicketRepository
 
     private function isSubmissionTokenConflict(Throwable $exception, string $submissionToken): bool
     {
-        if ($submissionToken === '' || !$exception instanceof \PDOException) {
-            return false;
-        }
-
-        if ((string) $exception->getCode() !== '23000') {
+        if ($submissionToken === '' || !is_duplicate_key_error($exception)) {
             return false;
         }
 

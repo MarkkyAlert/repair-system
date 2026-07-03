@@ -12,6 +12,8 @@ use Throwable;
 
 class TicketsController
 {
+    use HandlesFormSubmission;
+
     public function __construct(private TicketService $tickets)
     {
     }
@@ -134,203 +136,103 @@ class TicketsController
 
     public function approve(string $ticketId): void
     {
-        AuthMiddleware::handle();
-
-        $viewer = auth()->user() ?? [];
-
-        try {
-            csrf_validate();
-            clear_old_input();
-
-            $this->tickets->approveTicket((int) $ticketId, $viewer, $_POST);
-            flash('success', 'อนุมัติรายการแจ้งซ่อมเรียบร้อยแล้ว');
-        } catch (DomainException|RuntimeException $exception) {
-            with_old_input([
-                'note' => (string) ($_POST['note'] ?? ''),
-            ]);
-            flash('error', $exception->getMessage());
-        }
-
-        Response::redirect('/tickets/' . (int) $ticketId);
+        $this->handleUpdate(
+            fn (array $viewer) => $this->tickets->approveTicket((int) $ticketId, $viewer, $_POST),
+            successMessage: 'อนุมัติรายการแจ้งซ่อมเรียบร้อยแล้ว',
+            redirectTo: '/tickets/' . (int) $ticketId,
+            oldInputOnError: ['note' => (string) ($_POST['note'] ?? '')],
+        );
     }
 
     public function reject(string $ticketId): void
     {
-        AuthMiddleware::handle();
-
-        $viewer = auth()->user() ?? [];
-
-        try {
-            csrf_validate();
-            clear_old_input();
-
-            $this->tickets->rejectTicket((int) $ticketId, $viewer, $_POST);
-            flash('success', 'ปฏิเสธรายการแจ้งซ่อมเรียบร้อยแล้ว');
-        } catch (DomainException|RuntimeException $exception) {
-            with_old_input([
-                'note' => (string) ($_POST['note'] ?? ''),
-            ]);
-            flash('error', $exception->getMessage());
-        }
-
-        Response::redirect('/tickets/' . (int) $ticketId);
+        $this->handleUpdate(
+            fn (array $viewer) => $this->tickets->rejectTicket((int) $ticketId, $viewer, $_POST),
+            successMessage: 'ปฏิเสธรายการแจ้งซ่อมเรียบร้อยแล้ว',
+            redirectTo: '/tickets/' . (int) $ticketId,
+            oldInputOnError: ['note' => (string) ($_POST['note'] ?? '')],
+        );
     }
 
     public function assign(string $ticketId): void
     {
-        AuthMiddleware::handle();
-
-        $viewer = auth()->user() ?? [];
-
-        try {
-            csrf_validate();
-            clear_old_input();
-
-            $this->tickets->assignTechnician((int) $ticketId, $viewer, $_POST);
-            flash('success', 'มอบหมายช่างเทคนิคเรียบร้อยแล้ว');
-        } catch (DomainException|RuntimeException $exception) {
-            with_old_input([
+        $this->handleUpdate(
+            fn (array $viewer) => $this->tickets->assignTechnician((int) $ticketId, $viewer, $_POST),
+            successMessage: 'มอบหมายช่างเทคนิคเรียบร้อยแล้ว',
+            redirectTo: '/tickets/' . (int) $ticketId,
+            oldInputOnError: [
                 'technician_id' => (string) ($_POST['technician_id'] ?? ''),
                 'instructions' => (string) ($_POST['instructions'] ?? ''),
-            ]);
-            flash('error', $exception->getMessage());
-        }
-
-        Response::redirect('/tickets/' . (int) $ticketId);
+            ],
+        );
     }
 
     public function accept(string $ticketId): void
     {
-        AuthMiddleware::handle();
-
-        $viewer = auth()->user() ?? [];
-
-        try {
-            csrf_validate();
-            clear_old_input();
-
-            $this->tickets->acceptAssignedWork((int) $ticketId, $viewer, $_POST);
-            flash('success', 'รับงานเรียบร้อยแล้ว');
-        } catch (DomainException|RuntimeException $exception) {
-            with_old_input([
-                'accept_note' => (string) ($_POST['accept_note'] ?? ''),
-            ]);
-            flash('error', $exception->getMessage());
-        }
-
-        Response::redirect('/tickets/' . (int) $ticketId);
+        $this->handleUpdate(
+            fn (array $viewer) => $this->tickets->acceptAssignedWork((int) $ticketId, $viewer, $_POST),
+            successMessage: 'รับงานเรียบร้อยแล้ว',
+            redirectTo: '/tickets/' . (int) $ticketId,
+            oldInputOnError: ['accept_note' => (string) ($_POST['accept_note'] ?? '')],
+        );
     }
 
     public function start(string $ticketId): void
     {
-        AuthMiddleware::handle();
-
-        $viewer = auth()->user() ?? [];
-
-        try {
-            csrf_validate();
-            clear_old_input();
-
-            $this->tickets->startAssignedWork((int) $ticketId, $viewer, $_POST);
-            flash('success', 'อัปเดตสถานะเป็นกำลังดำเนินการแล้ว');
-        } catch (DomainException|RuntimeException $exception) {
-            with_old_input([
-                'start_note' => (string) ($_POST['start_note'] ?? ''),
-            ]);
-            flash('error', $exception->getMessage());
-        }
-
-        Response::redirect('/tickets/' . (int) $ticketId);
+        $this->handleUpdate(
+            fn (array $viewer) => $this->tickets->startAssignedWork((int) $ticketId, $viewer, $_POST),
+            successMessage: 'อัปเดตสถานะเป็นกำลังดำเนินการแล้ว',
+            redirectTo: '/tickets/' . (int) $ticketId,
+            oldInputOnError: ['start_note' => (string) ($_POST['start_note'] ?? '')],
+        );
     }
 
     public function resolve(string $ticketId): void
     {
-        AuthMiddleware::handle();
-
-        $viewer = auth()->user() ?? [];
-
-        try {
-            csrf_validate();
-            clear_old_input();
-
-            $this->tickets->resolveAssignedWork((int) $ticketId, $viewer, $_POST);
-            flash('success', 'สรุปผลการซ่อมและอัปเดตงานเป็น Resolved เรียบร้อยแล้ว');
-        } catch (DomainException|RuntimeException $exception) {
-            with_old_input([
+        $this->handleUpdate(
+            fn (array $viewer) => $this->tickets->resolveAssignedWork((int) $ticketId, $viewer, $_POST),
+            successMessage: 'สรุปผลการซ่อมและอัปเดตงานเป็น Resolved เรียบร้อยแล้ว',
+            redirectTo: '/tickets/' . (int) $ticketId,
+            oldInputOnError: [
                 'diagnosis_summary' => (string) ($_POST['diagnosis_summary'] ?? ''),
                 'resolution_summary' => (string) ($_POST['resolution_summary'] ?? ''),
                 'labor_minutes' => (string) ($_POST['labor_minutes'] ?? '0'),
-            ]);
-            flash('error', $exception->getMessage());
-        }
-
-        Response::redirect('/tickets/' . (int) $ticketId);
+            ],
+        );
     }
 
     public function complete(string $ticketId): void
     {
-        AuthMiddleware::handle();
-
-        $viewer = auth()->user() ?? [];
-
-        try {
-            csrf_validate();
-            clear_old_input();
-
-            $this->tickets->completeResolvedTicket((int) $ticketId, $viewer, $_POST);
-            flash('success', 'ยืนยันปิดงานและบันทึกคะแนนความพึงพอใจเรียบร้อยแล้ว');
-        } catch (DomainException|RuntimeException $exception) {
-            with_old_input([
+        $this->handleUpdate(
+            fn (array $viewer) => $this->tickets->completeResolvedTicket((int) $ticketId, $viewer, $_POST),
+            successMessage: 'ยืนยันปิดงานและบันทึกคะแนนความพึงพอใจเรียบร้อยแล้ว',
+            redirectTo: '/tickets/' . (int) $ticketId,
+            oldInputOnError: [
                 'closure_note' => (string) ($_POST['closure_note'] ?? ''),
                 'score' => (string) ($_POST['score'] ?? ''),
                 'feedback' => (string) ($_POST['feedback'] ?? ''),
-            ]);
-            flash('error', $exception->getMessage());
-        }
-
-        Response::redirect('/tickets/' . (int) $ticketId);
+            ],
+        );
     }
 
     public function reopen(string $ticketId): void
     {
-        AuthMiddleware::handle();
-
-        $viewer = auth()->user() ?? [];
-
-        try {
-            csrf_validate();
-            clear_old_input();
-
-            $this->tickets->reopenTicket((int) $ticketId, $viewer, $_POST);
-            flash('success', 'ส่งงานกลับไปดำเนินการซ้ำเรียบร้อยแล้ว');
-        } catch (DomainException|RuntimeException $exception) {
-            with_old_input([
-                'reopen_note' => (string) ($_POST['reopen_note'] ?? ''),
-            ]);
-            flash('error', $exception->getMessage());
-        }
-
-        Response::redirect('/tickets/' . (int) $ticketId);
+        $this->handleUpdate(
+            fn (array $viewer) => $this->tickets->reopenTicket((int) $ticketId, $viewer, $_POST),
+            successMessage: 'ส่งงานกลับไปดำเนินการซ้ำเรียบร้อยแล้ว',
+            redirectTo: '/tickets/' . (int) $ticketId,
+            oldInputOnError: ['reopen_note' => (string) ($_POST['reopen_note'] ?? '')],
+        );
     }
 
     public function cancel(string $ticketId): void
     {
-        AuthMiddleware::handle();
-        $viewer = auth()->user() ?? [];
-
-        try {
-            csrf_validate();
-            clear_old_input();
-            $this->tickets->cancelTicket((int) $ticketId, $viewer, $_POST);
-            flash('success', 'ยกเลิก Ticket เรียบร้อยแล้ว');
-        } catch (DomainException|RuntimeException $exception) {
-            with_old_input([
-                'cancel_note' => (string) ($_POST['cancel_note'] ?? ''),
-            ]);
-            flash('error', $exception->getMessage());
-        }
-
-        Response::redirect('/tickets/' . (int) $ticketId);
+        $this->handleUpdate(
+            fn (array $viewer) => $this->tickets->cancelTicket((int) $ticketId, $viewer, $_POST),
+            successMessage: 'ยกเลิก Ticket เรียบร้อยแล้ว',
+            redirectTo: '/tickets/' . (int) $ticketId,
+            oldInputOnError: ['cancel_note' => (string) ($_POST['cancel_note'] ?? '')],
+        );
     }
 
     public function show(string $ticketId): void
@@ -417,11 +319,7 @@ class TicketsController
 
         try {
             $png = $this->tickets->generatePrintQrPng((int) $ticketId, $viewer);
-            http_response_code(200);
-            header('Content-Type: image/png');
-            header('Cache-Control: no-store, no-cache, must-revalidate');
-            echo $png;
-            exit;
+            Response::download($png, 'ticket-qr-' . (int) $ticketId . '.png', 'image/png', 'inline');
         } catch (DomainException|RuntimeException $exception) {
             Response::abort(404, $exception->getMessage());
         }

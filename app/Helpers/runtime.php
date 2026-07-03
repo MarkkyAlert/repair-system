@@ -113,6 +113,18 @@ function is_submission_token(string $token): bool
     return preg_match('/^[a-f0-9]{64}$/', $token) === 1;
 }
 
+/**
+ * Offset-based pagination: clamp $page into [1, totalPages] and compute the SQL offset.
+ * @return array{page:int,offset:int,totalPages:int}
+ */
+function paginate(int $page, int $perPage, int $total): array
+{
+    $totalPages = max(1, (int) ceil($total / $perPage));
+    $page = max(1, min($page, $totalPages));
+
+    return ['page' => $page, 'offset' => ($page - 1) * $perPage, 'totalPages' => $totalPages];
+}
+
 function request(): ?Request
 {
     $resolved = app(Request::class);

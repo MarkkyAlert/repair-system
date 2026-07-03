@@ -96,9 +96,7 @@ class NotificationRepository
         $countStmt = $this->db->prepare('SELECT COUNT(*) FROM notification_recipients WHERE user_id = :user_id');
         $countStmt->execute(['user_id' => $userId]);
         $total = (int) ($countStmt->fetchColumn() ?: 0);
-        $totalPages = max(1, (int) ceil($total / $perPage));
-        $page = max(1, min($page, $totalPages));
-        $offset = ($page - 1) * $perPage;
+        ['page' => $page, 'offset' => $offset, 'totalPages' => $totalPages] = paginate($page, $perPage, $total);
 
         $stmt = $this->db->prepare(
             "SELECT nr.id AS recipient_id, nr.is_read, nr.read_at,
