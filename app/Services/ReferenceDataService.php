@@ -28,7 +28,7 @@ class ReferenceDataService
 
     public function createDepartment(array $viewer, array $input): void
     {
-        $this->assertAdmin($viewer);
+        assert_admin($viewer);
         $payload = $this->buildMasterPayload($input, 'แผนก');
         $departmentId = $this->admin->createDepartment($payload);
         $this->audit->record($viewer, 'department.created', 'department', $departmentId, $payload);
@@ -36,7 +36,7 @@ class ReferenceDataService
 
     public function updateDepartment(int $departmentId, array $viewer, array $input): void
     {
-        $this->assertAdmin($viewer);
+        assert_admin($viewer);
         if ($departmentId <= 0) {
             throw new DomainException('ไม่พบแผนกที่ต้องการแก้ไข');
         }
@@ -48,7 +48,7 @@ class ReferenceDataService
 
     public function deleteDepartment(int $departmentId, array $viewer): void
     {
-        $this->assertAdmin($viewer);
+        assert_admin($viewer);
         if ($departmentId <= 0) {
             throw new DomainException('ไม่พบแผนกที่ต้องการลบ');
         }
@@ -61,7 +61,7 @@ class ReferenceDataService
 
     public function createTicketCategory(array $viewer, array $input): void
     {
-        $this->assertAdmin($viewer);
+        assert_admin($viewer);
         $payload = $this->buildCategoryPayload($input, 'หมวดหมู่');
         $slaPayload = $this->encodeSlaPayload($input);
 
@@ -82,7 +82,7 @@ class ReferenceDataService
 
     public function updateTicketCategory(int $categoryId, array $viewer, array $input): void
     {
-        $this->assertAdmin($viewer);
+        assert_admin($viewer);
         if ($categoryId <= 0) {
             throw new DomainException('ไม่พบหมวดหมู่งานที่ต้องการแก้ไข');
         }
@@ -107,7 +107,7 @@ class ReferenceDataService
 
     public function deleteTicketCategory(int $categoryId, array $viewer): void
     {
-        $this->assertAdmin($viewer);
+        assert_admin($viewer);
         if ($categoryId <= 0) {
             throw new DomainException('ไม่พบหมวดหมู่งานที่ต้องการลบ');
         }
@@ -120,7 +120,7 @@ class ReferenceDataService
 
     public function createAssetCategory(array $viewer, array $input): void
     {
-        $this->assertAdmin($viewer);
+        assert_admin($viewer);
         $payload = $this->buildCategoryPayload($input, 'หมวดหมู่ Asset');
         $categoryId = $this->admin->createAssetCategory($payload);
         $this->audit->record($viewer, 'asset_category.created', 'asset_category', $categoryId, $payload);
@@ -128,7 +128,7 @@ class ReferenceDataService
 
     public function updateAssetCategory(int $categoryId, array $viewer, array $input): void
     {
-        $this->assertAdmin($viewer);
+        assert_admin($viewer);
         if ($categoryId <= 0) {
             throw new DomainException('ไม่พบหมวดหมู่ Asset ที่ต้องการแก้ไข');
         }
@@ -140,7 +140,7 @@ class ReferenceDataService
 
     public function deleteAssetCategory(int $categoryId, array $viewer): void
     {
-        $this->assertAdmin($viewer);
+        assert_admin($viewer);
         if ($categoryId <= 0) {
             throw new DomainException('ไม่พบหมวดหมู่ Asset ที่ต้องการลบ');
         }
@@ -153,7 +153,7 @@ class ReferenceDataService
 
     public function createLocation(array $viewer, array $input): void
     {
-        $this->assertAdmin($viewer);
+        assert_admin($viewer);
         $payload = $this->buildLocationPayload($input);
         $locationId = $this->admin->createLocation($payload);
         $this->audit->record($viewer, 'location.created', 'location', $locationId, $payload);
@@ -161,7 +161,7 @@ class ReferenceDataService
 
     public function updateLocation(int $locationId, array $viewer, array $input): void
     {
-        $this->assertAdmin($viewer);
+        assert_admin($viewer);
         if ($locationId <= 0) {
             throw new DomainException('ไม่พบสถานที่ที่ต้องการแก้ไข');
         }
@@ -173,7 +173,7 @@ class ReferenceDataService
 
     public function deleteLocation(int $locationId, array $viewer): void
     {
-        $this->assertAdmin($viewer);
+        assert_admin($viewer);
         if ($locationId <= 0) {
             throw new DomainException('ไม่พบสถานที่ที่ต้องการลบ');
         }
@@ -186,7 +186,7 @@ class ReferenceDataService
 
     public function createPriority(array $viewer, array $input): void
     {
-        $this->assertAdmin($viewer);
+        assert_admin($viewer);
         $payload = $this->buildPriorityCreatePayload($input);
         $priorityId = $this->admin->createPriority($payload);
         $this->audit->record($viewer, 'priority.created', 'priority', $priorityId, $payload);
@@ -194,7 +194,7 @@ class ReferenceDataService
 
     public function updatePriority(int $priorityId, array $viewer, array $input): void
     {
-        $this->assertAdmin($viewer);
+        assert_admin($viewer);
         if ($priorityId <= 0) {
             throw new DomainException('ไม่พบ Priority ที่ต้องการแก้ไข');
         }
@@ -206,7 +206,7 @@ class ReferenceDataService
 
     public function deletePriority(int $priorityId, array $viewer): void
     {
-        $this->assertAdmin($viewer);
+        assert_admin($viewer);
         if ($priorityId <= 0) {
             throw new DomainException('ไม่พบ Priority ที่ต้องการลบ');
         }
@@ -308,12 +308,5 @@ class ReferenceDataService
             'sort_order' => max(1, (int) ($input['sort_order'] ?? 1)),
             'is_active' => in_array((string) ($input['is_active'] ?? '0'), ['1', 'true', 'on'], true),
         ];
-    }
-
-    private function assertAdmin(array $viewer): void
-    {
-        if ((string) ($viewer['role'] ?? 'guest') !== 'admin') {
-            throw new DomainException('เฉพาะผู้ดูแลระบบเท่านั้น');
-        }
     }
 }

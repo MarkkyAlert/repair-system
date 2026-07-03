@@ -1538,7 +1538,7 @@ class TicketRepository
     private function generateNextTicketNumber(string $requestedAt): string
     {
         $datePart = date('Ymd', strtotime($requestedAt) ?: time());
-        $prefix = 'MT-' . $datePart . '-';
+        $prefix = setting('ticket_prefix', 'MT') . '-' . $datePart . '-';
 
         $stmt = $this->db->prepare(
             'SELECT ticket_no

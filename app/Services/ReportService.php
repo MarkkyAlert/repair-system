@@ -253,7 +253,7 @@ class ReportService
 
     private function ensureCanViewReports(array $viewer): void
     {
-        if (!in_array((string) ($viewer['role'] ?? 'guest'), ['manager', 'admin'], true)) {
+        if (!is_manager_or_admin((string) ($viewer['role'] ?? 'guest'))) {
             throw new DomainException('คุณไม่มีสิทธิ์เข้าถึงรายงาน');
         }
     }

@@ -313,17 +313,7 @@ if ($metricCount('pendingApproval') > 0) {
                     'cancel_label' => 'ยกเลิก',
                     'summary_slot' => '<dl class="confirm-modal-summary"><div><dt>จะอนุมัติ</dt><dd><strong data-bulk-approve-count>0</strong> รายการ</dd></div></dl>',
                 ]) ?>
-                <script>
-                    (function () {
-                        var trigger = document.querySelector('[data-confirm-modal-trigger="bulk-approve-confirm"]');
-                        var countEl = document.querySelector('[data-bulk-count]');
-                        var summaryEl = document.querySelector('[data-bulk-approve-count]');
-                        if (!trigger || !countEl || !summaryEl) return;
-                        trigger.__beforeConfirmOpen = function () {
-                            summaryEl.textContent = (countEl.textContent || '0').trim();
-                        };
-                    })();
-                </script>
+                <script src="<?= e(asset('js/tickets-index.js')) ?>" defer></script>
             <?php endif; ?>
         <?php endif; ?>
     </section>

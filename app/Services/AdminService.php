@@ -23,7 +23,7 @@ class AdminService
 
     public function getAdminPageData(array $viewer, array $query = []): array
     {
-        $this->assertAdmin($viewer);
+        assert_admin($viewer);
 
         $departments = $this->admin->getDepartments();
         $categories = $this->admin->getTicketCategories();
@@ -68,7 +68,7 @@ class AdminService
 
     public function updateUser(int $userId, array $viewer, array $input): void
     {
-        $this->assertAdmin($viewer);
+        assert_admin($viewer);
         $fullName = trim((string) ($input['full_name'] ?? ''));
         $email = trim((string) ($input['email'] ?? ''));
         $role = trim((string) ($input['role'] ?? 'requester'));
@@ -99,7 +99,7 @@ class AdminService
 
     public function createUser(array $viewer, array $input): void
     {
-        $this->assertAdmin($viewer);
+        assert_admin($viewer);
 
         $username = strtolower(trim((string) ($input['username'] ?? '')));
         $fullName = trim((string) ($input['full_name'] ?? ''));
@@ -284,12 +284,5 @@ class AdminService
             'value' => $timezone,
             'label' => $timezone,
         ], array_values(array_filter($timezones, static fn (string $timezone): bool => in_array($timezone, timezone_identifiers_list(), true))));
-    }
-
-    private function assertAdmin(array $viewer): void
-    {
-        if ((string) ($viewer['role'] ?? 'guest') !== 'admin') {
-            throw new DomainException('เฉพาะผู้ดูแลระบบเท่านั้น');
-        }
     }
 }

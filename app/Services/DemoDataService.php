@@ -18,6 +18,11 @@ class DemoDataService
     ) {
     }
 
+    /**
+     * Seed a full set of sample data for a fresh install. Idempotent per master-data row
+     * (skips duplicates). Orchestrates one seed step per entity — add a new entity by
+     * adding a seedX() method and a line here.
+     */
     public function load(int $createdByUserId = 0): array
     {
         if ($this->tickets->countAllTickets() > 0) {
@@ -25,18 +30,33 @@ class DemoDataService
         }
 
         $created = [
-            'departments' => 0,
-            'locations' => 0,
-            'ticket_categories' => 0,
-            'asset_categories' => 0,
-            'priorities' => 0,
+            'departments' => $this->seedDepartments(),
+            'locations' => $this->seedLocations(),
+            'ticket_categories' => $this->seedTicketCategories(),
+            'asset_categories' => $this->seedAssetCategories(),
+            'priorities' => $this->seedPriorities(),
             'users' => 0,
             'assets' => 0,
             'tickets' => 0,
         ];
 
-        // Departments
-        $created['departments'] = $this->seedMasterData([
+        // Build lookups from master data (now includes existing rows)
+        $departmentIds = $this->codeMap($this->admin->getDepartments());
+        $locationIds = $this->codeMap($this->admin->getLocations());
+        $ticketCategoryIds = $this->codeMap($this->admin->getTicketCategories());
+        $assetCategoryIds = $this->codeMap($this->admin->getAssetCategories());
+        $priorityIds = $this->codeMap($this->admin->getPriorities());
+
+        [$techId, $created['users']] = $this->seedTechnician($departmentIds);
+        [$assetIds, $created['assets']] = $this->seedAssets($createdByUserId, $assetCategoryIds, $locationIds);
+        $created['tickets'] = $this->seedTickets($createdByUserId, $techId, $locationIds, $assetIds, $ticketCategoryIds, $priorityIds);
+
+        return $created;
+    }
+
+    private function seedDepartments(): int
+    {
+        return $this->seedMasterData([
             ['code' => 'IT', 'name' => 'IT'],
             ['code' => 'FACILITY', 'name' => 'อาคารและสิ่งแวดล้อม'],
             ['code' => 'ADMIN', 'name' => 'บริหาร'],
@@ -46,9 +66,11 @@ class DemoDataService
             'description' => '',
             'is_active' => true,
         ]));
+    }
 
-        // Locations
-        $created['locations'] = $this->seedMasterData([
+    private function seedLocations(): int
+    {
+        return $this->seedMasterData([
             ['code' => 'OFFICE-1F', 'name' => 'สำนักงานชั้น 1'],
             ['code' => 'OFFICE-2F', 'name' => 'สำนักงานชั้น 2'],
             ['code' => 'MEETING', 'name' => 'ห้องประชุม'],
@@ -63,9 +85,11 @@ class DemoDataService
             'description' => '',
             'is_active' => true,
         ]));
+    }
 
-        // Ticket categories
-        $created['ticket_categories'] = $this->seedMasterData([
+    private function seedTicketCategories(): int
+    {
+        return $this->seedMasterData([
             ['code' => 'HARDWARE', 'name' => 'ฮาร์ดแวร์', 'sort' => 1],
             ['code' => 'SOFTWARE', 'name' => 'ซอฟต์แวร์', 'sort' => 2],
             ['code' => 'ELECTRICAL', 'name' => 'ระบบไฟฟ้า', 'sort' => 3],
@@ -77,9 +101,11 @@ class DemoDataService
             'sort_order' => $row['sort'],
             'is_active' => true,
         ]));
+    }
 
-        // Asset categories
-        $created['asset_categories'] = $this->seedMasterData([
+    private function seedAssetCategories(): int
+    {
+        return $this->seedMasterData([
             ['code' => 'COMPUTER', 'name' => 'คอมพิวเตอร์', 'sort' => 1],
             ['code' => 'PRINTER', 'name' => 'เครื่องพิมพ์', 'sort' => 2],
             ['code' => 'AC', 'name' => 'เครื่องปรับอากาศ', 'sort' => 3],
@@ -91,9 +117,11 @@ class DemoDataService
             'sort_order' => $row['sort'],
             'is_active' => true,
         ]));
+    }
 
-        // Priorities
-        $created['priorities'] = $this->seedMasterData([
+    private function seedPriorities(): int
+    {
+        return $this->seedMasterData([
             ['code' => 'LOW', 'name' => 'ต่ำ', 'level' => 1, 'color' => 'slate', 'response' => 240, 'resolution' => 2880],
             ['code' => 'MEDIUM', 'name' => 'กลาง', 'level' => 2, 'color' => 'sky', 'response' => 120, 'resolution' => 1440],
             ['code' => 'HIGH', 'name' => 'สูง', 'level' => 3, 'color' => 'amber', 'response' => 60, 'resolution' => 480],
@@ -108,16 +136,14 @@ class DemoDataService
             'sort_order' => $row['level'],
             'is_active' => true,
         ]));
+    }
 
-        // Build lookups from master data (now includes existing rows)
-        $departmentIds = $this->codeMap($this->admin->getDepartments());
-        $locationIds = $this->codeMap($this->admin->getLocations());
-        $ticketCategoryIds = $this->codeMap($this->admin->getTicketCategories());
-        $assetCategoryIds = $this->codeMap($this->admin->getAssetCategories());
-        $priorityIds = $this->codeMap($this->admin->getPriorities());
-
-        // Sample technician user
-        $techId = 0;
+    /**
+     * @param array<string, int> $departmentIds
+     * @return array{0: int, 1: int} [technicianUserId, usersCreated]
+     */
+    private function seedTechnician(array $departmentIds): array
+    {
         try {
             $techId = $this->admin->createUser([
                 'username' => 'tech_demo',
@@ -129,12 +155,21 @@ class DemoDataService
                 'department_id' => $departmentIds['IT'] ?? null,
                 'is_active' => true,
             ]);
-            $created['users'] = 1;
-        } catch (DomainException) {
-            // Username/email already exists — best-effort: skip user creation, techId stays 0
-        }
 
-        // Sample assets
+            return [$techId, 1];
+        } catch (DomainException) {
+            // Username/email already exists — best-effort: skip user creation
+            return [0, 0];
+        }
+    }
+
+    /**
+     * @param array<string, int> $assetCategoryIds
+     * @param array<string, int> $locationIds
+     * @return array{0: array<string, int>, 1: int} [assetIdsByCode, assetsCreated]
+     */
+    private function seedAssets(int $createdByUserId, array $assetCategoryIds, array $locationIds): array
+    {
         $assetSpecs = [
             ['code' => 'PC-001', 'name' => 'PC HR-01', 'category' => 'COMPUTER', 'location' => 'OFFICE-1F'],
             ['code' => 'PC-002', 'name' => 'PC Finance-01', 'category' => 'COMPUTER', 'location' => 'OFFICE-2F'],
@@ -146,6 +181,7 @@ class DemoDataService
             ['code' => 'PRT-002', 'name' => 'Brother MFC-L2750DW', 'category' => 'PRINTER', 'location' => 'OFFICE-2F'],
         ];
         $assetIds = [];
+        $count = 0;
         foreach ($assetSpecs as $spec) {
             $categoryId = $assetCategoryIds[$spec['category']] ?? null;
             $locationId = $locationIds[$spec['location']] ?? null;
@@ -172,92 +208,106 @@ class DemoDataService
                     'generated_by' => $createdByUserId > 0 ? $createdByUserId : null,
                 ]);
                 $assetIds[$spec['code']] = $assetId;
-                $created['assets']++;
+                $count++;
             } catch (Throwable) {
                 // Duplicate asset_code/serial — skip
             }
         }
 
-        // Sample tickets (only if we have an admin to act as requester+manager)
-        if ($createdByUserId > 0) {
-            $samples = [
-                [
-                    'ticket_no' => 'DEMO-001',
-                    'title' => 'PC HR-01 เปิดไม่ติด',
-                    'description' => 'กดปุ่ม power แล้วไฟไม่เข้า ลองสลับปลั๊กแล้วก็ไม่ได้',
-                    'asset' => 'PC-001',
-                    'location' => 'OFFICE-1F',
-                    'category' => 'HARDWARE',
-                    'priority' => 'HIGH',
-                    'status' => 'pending_approval',
-                    'approval_status' => 'pending',
-                    'rated' => false,
-                ],
-                [
-                    'ticket_no' => 'DEMO-002',
-                    'title' => 'แอร์ห้องประชุมไม่เย็น',
-                    'description' => 'เปิดมา 30 นาทียังไม่เย็น เสียงผิดปกติ',
-                    'asset' => 'AC-001',
-                    'location' => 'MEETING',
-                    'category' => 'ELECTRICAL',
-                    'priority' => 'MEDIUM',
-                    'status' => 'in_progress',
-                    'approval_status' => 'approved',
-                    'rated' => false,
-                ],
-                [
-                    'ticket_no' => 'DEMO-003',
-                    'title' => 'เครื่องพิมพ์กระดาษติด',
-                    'description' => 'มีเสียงดังจาก feeder',
-                    'asset' => 'PRT-001',
-                    'location' => 'OFFICE-1F',
-                    'category' => 'HARDWARE',
-                    'priority' => 'LOW',
-                    'status' => 'completed',
-                    'approval_status' => 'approved',
-                    'rated' => true,
-                ],
-            ];
+        return [$assetIds, $count];
+    }
 
-            $now = date('Y-m-d H:i:s');
-            foreach ($samples as $sample) {
-                $approvedAt = $sample['approval_status'] === 'approved' ? $now : null;
-                $completedAt = $sample['status'] === 'completed' ? $now : null;
-                $assignedTech = in_array($sample['status'], ['in_progress', 'completed'], true) && $techId > 0 ? $techId : null;
+    /**
+     * @param array<string, int> $locationIds
+     * @param array<string, int> $assetIds
+     * @param array<string, int> $ticketCategoryIds
+     * @param array<string, int> $priorityIds
+     */
+    private function seedTickets(int $createdByUserId, int $techId, array $locationIds, array $assetIds, array $ticketCategoryIds, array $priorityIds): int
+    {
+        // Sample tickets need an admin to act as requester + manager.
+        if ($createdByUserId <= 0) {
+            return 0;
+        }
 
-                $ticketId = $this->tickets->createSeedTicket([
-                    'ticket_no' => $sample['ticket_no'],
-                    'title' => $sample['title'],
-                    'description' => $sample['description'],
-                    'requester_id' => $createdByUserId,
-                    'location_id' => $locationIds[$sample['location']] ?? 0,
-                    'asset_id' => $assetIds[$sample['asset']] ?? null,
-                    'ticket_category_id' => $ticketCategoryIds[$sample['category']] ?? 0,
-                    'priority_id' => $priorityIds[$sample['priority']] ?? 0,
-                    'manager_id' => $createdByUserId,
-                    'technician_id' => $assignedTech,
-                    'approval_status' => $sample['approval_status'],
-                    'status' => $sample['status'],
-                    'approved_at' => $approvedAt,
-                    'completed_at' => $completedAt,
-                ]);
+        $samples = [
+            [
+                'ticket_no' => 'DEMO-001',
+                'title' => 'PC HR-01 เปิดไม่ติด',
+                'description' => 'กดปุ่ม power แล้วไฟไม่เข้า ลองสลับปลั๊กแล้วก็ไม่ได้',
+                'asset' => 'PC-001',
+                'location' => 'OFFICE-1F',
+                'category' => 'HARDWARE',
+                'priority' => 'HIGH',
+                'status' => 'pending_approval',
+                'approval_status' => 'pending',
+                'rated' => false,
+            ],
+            [
+                'ticket_no' => 'DEMO-002',
+                'title' => 'แอร์ห้องประชุมไม่เย็น',
+                'description' => 'เปิดมา 30 นาทียังไม่เย็น เสียงผิดปกติ',
+                'asset' => 'AC-001',
+                'location' => 'MEETING',
+                'category' => 'ELECTRICAL',
+                'priority' => 'MEDIUM',
+                'status' => 'in_progress',
+                'approval_status' => 'approved',
+                'rated' => false,
+            ],
+            [
+                'ticket_no' => 'DEMO-003',
+                'title' => 'เครื่องพิมพ์กระดาษติด',
+                'description' => 'มีเสียงดังจาก feeder',
+                'asset' => 'PRT-001',
+                'location' => 'OFFICE-1F',
+                'category' => 'HARDWARE',
+                'priority' => 'LOW',
+                'status' => 'completed',
+                'approval_status' => 'approved',
+                'rated' => true,
+            ],
+        ];
 
-                if ($ticketId > 0) {
-                    $created['tickets']++;
-                    if ($sample['rated']) {
-                        $this->tickets->createSeedRating(
-                            $ticketId,
-                            $createdByUserId,
-                            $techId > 0 ? $techId : null,
-                            5,
-                            'บริการดีมาก ช่างมาตรงเวลา'
-                        );
-                    }
+        $now = date('Y-m-d H:i:s');
+        $count = 0;
+        foreach ($samples as $sample) {
+            $approvedAt = $sample['approval_status'] === 'approved' ? $now : null;
+            $completedAt = $sample['status'] === 'completed' ? $now : null;
+            $assignedTech = in_array($sample['status'], ['in_progress', 'completed'], true) && $techId > 0 ? $techId : null;
+
+            $ticketId = $this->tickets->createSeedTicket([
+                'ticket_no' => $sample['ticket_no'],
+                'title' => $sample['title'],
+                'description' => $sample['description'],
+                'requester_id' => $createdByUserId,
+                'location_id' => $locationIds[$sample['location']] ?? 0,
+                'asset_id' => $assetIds[$sample['asset']] ?? null,
+                'ticket_category_id' => $ticketCategoryIds[$sample['category']] ?? 0,
+                'priority_id' => $priorityIds[$sample['priority']] ?? 0,
+                'manager_id' => $createdByUserId,
+                'technician_id' => $assignedTech,
+                'approval_status' => $sample['approval_status'],
+                'status' => $sample['status'],
+                'approved_at' => $approvedAt,
+                'completed_at' => $completedAt,
+            ]);
+
+            if ($ticketId > 0) {
+                $count++;
+                if ($sample['rated']) {
+                    $this->tickets->createSeedRating(
+                        $ticketId,
+                        $createdByUserId,
+                        $techId > 0 ? $techId : null,
+                        5,
+                        'บริการดีมาก ช่างมาตรงเวลา'
+                    );
                 }
             }
         }
 
-        return $created;
+        return $count;
     }
 
     /**

@@ -148,6 +148,10 @@ class AssetImportService
 
     public function executeImport(array $validRows, array $viewer): array
     {
+        if (!is_manager_or_admin((string) ($viewer['role'] ?? 'guest'))) {
+            throw new DomainException('คุณไม่มีสิทธิ์จัดการข้อมูล Asset และ QR');
+        }
+
         $imported = 0;
         $skipped = [];
         $generatedBy = (int) ($viewer['id'] ?? 0) > 0 ? (int) $viewer['id'] : null;

@@ -81,6 +81,7 @@ return static function (Router $router): void {
     $router->post('/admin/email-templates/{templateKey}/reset', [EmailTemplateController::class, 'reset']);
     $router->post('/admin/settings', [AdminController::class, 'updateSetting']);
     $router->post('/admin/settings/logo', [AdminController::class, 'updateLogo']);
+    $router->post('/admin/demo-data/load', [AdminController::class, 'loadDemoData']);
     $router->get('/reports', [ReportsController::class, 'index']);
     $router->get('/reports/export/excel', [ReportsController::class, 'exportExcel']);
     $router->get('/reports/export/pdf', [ReportsController::class, 'exportPdf']);

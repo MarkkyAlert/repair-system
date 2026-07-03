@@ -43,7 +43,7 @@ class SystemSettingsService
 
     public function updateSetting(array $viewer, array $input): void
     {
-        $this->assertAdmin($viewer);
+        assert_admin($viewer);
         $key = trim((string) ($input['setting_key'] ?? ''));
         if ($key === '') {
             throw new DomainException('กรุณาระบุ setting key');
@@ -89,7 +89,7 @@ class SystemSettingsService
 
     public function updateSystemSettings(array $viewer, array $input): void
     {
-        $this->assertAdmin($viewer);
+        assert_admin($viewer);
 
         $appName = trim((string) ($input['app_name'] ?? ''));
         $timezone = trim((string) ($input['default_timezone'] ?? ''));
@@ -148,7 +148,7 @@ class SystemSettingsService
 
     public function updateLogo(array $viewer, array $files, array $input): void
     {
-        $this->assertAdmin($viewer);
+        assert_admin($viewer);
 
         $remove = in_array((string) ($input['remove_logo'] ?? '0'), ['1', 'true', 'on'], true);
         if ($remove) {
@@ -259,12 +259,5 @@ class SystemSettingsService
         }
 
         return true;
-    }
-
-    private function assertAdmin(array $viewer): void
-    {
-        if ((string) ($viewer['role'] ?? 'guest') !== 'admin') {
-            throw new DomainException('เฉพาะผู้ดูแลระบบเท่านั้น');
-        }
     }
 }

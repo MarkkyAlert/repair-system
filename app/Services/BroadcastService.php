@@ -22,7 +22,7 @@ class BroadcastService
 
     public function sendBroadcast(array $viewer, array $input): array
     {
-        $this->assertAdmin($viewer);
+        assert_admin($viewer);
 
         $title = trim((string) ($input['title'] ?? ''));
         $message = trim((string) ($input['message'] ?? ''));
@@ -60,7 +60,7 @@ class BroadcastService
 
     public function sendTestEmail(array $viewer, array $input): void
     {
-        $this->assertAdmin($viewer);
+        assert_admin($viewer);
 
         $email = strtolower(trim((string) ($input['to_email'] ?? '')));
         $template = trim((string) ($input['template'] ?? 'password_reset'));
@@ -90,12 +90,5 @@ class BroadcastService
             'template' => $template,
             'driver' => (string) config('mail.driver', 'log'),
         ]);
-    }
-
-    private function assertAdmin(array $viewer): void
-    {
-        if ((string) ($viewer['role'] ?? 'guest') !== 'admin') {
-            throw new DomainException('เฉพาะผู้ดูแลระบบเท่านั้น');
-        }
     }
 }

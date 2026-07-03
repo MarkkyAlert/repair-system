@@ -5,9 +5,11 @@ namespace App\Controllers;
 
 use App\Core\Response;
 use App\Middleware\AuthMiddleware;
+use App\Repositories\TicketRepository;
 use App\Repositories\UserRepository;
 use App\Services\AdminService;
 use App\Services\BroadcastService;
+use App\Services\DemoDataService;
 use App\Services\ReferenceDataService;
 use App\Services\SystemSettingsService;
 use DomainException;
@@ -22,6 +24,8 @@ class AdminController
         private BroadcastService $broadcast,
         private SystemSettingsService $systemSettings,
         private ReferenceDataService $reference,
+        private DemoDataService $demoData,
+        private TicketRepository $tickets,
         private UserRepository $users,
     ) {
     }
@@ -30,6 +34,7 @@ class AdminController
     {
         AuthMiddleware::handle();
         $viewer = auth()->user() ?? [];
+        require_role($viewer, ['admin'], 'หน้านี้สงวนสำหรับผู้ดูแลระบบเท่านั้น');
 
         try {
             $data = $this->admin->getAdminPageData($viewer, request()?->query ?? []);
@@ -61,7 +66,19 @@ class AdminController
             'emailPreviews' => $data['emailPreviews'],
             'loginAttempts' => $data['loginAttempts'],
             'loginAttemptStats' => $data['loginAttemptStats'],
+            'canLoadDemo' => $this->tickets->countAllTickets() === 0,
         ]);
+    }
+
+    public function loadDemoData(): void
+    {
+        $this->handleUpdate(
+            fn (array $viewer) => $this->demoData->load((int) ($viewer['id'] ?? 0)),
+            'โหลดข้อมูลตัวอย่างเรียบร้อยแล้ว',
+            '/admin',
+            ['admin'],
+            'เฉพาะผู้ดูแลระบบเท่านั้น',
+        );
     }
 
     public function updateUser(string $userId): void

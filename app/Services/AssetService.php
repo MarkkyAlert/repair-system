@@ -456,7 +456,7 @@ class AssetService
 
     private function canManageAssets(array $viewer): bool
     {
-        return in_array((string) ($viewer['role'] ?? 'guest'), ['manager', 'admin'], true);
+        return is_manager_or_admin((string) ($viewer['role'] ?? 'guest'));
     }
 
     private function findReferenceById(array $items, int $id): ?array

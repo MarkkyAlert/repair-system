@@ -165,7 +165,9 @@ class NotificationService
             'ticket.cancelled' => [
                 'Ticket ถูกยกเลิก',
                 'Ticket ' . (string) ($context['ticket_no'] ?? '-') . ' ถูกยกเลิกโดยผู้แจ้ง',
-                [(int) ($context['assigned_manager_id'] ?? 0)],
+                (int) ($context['assigned_manager_id'] ?? 0) > 0
+                    ? [(int) ($context['assigned_manager_id'] ?? 0)]
+                    : $this->tickets->findActiveApproverIds(),
             ],
             default => ['', '', []],
         };

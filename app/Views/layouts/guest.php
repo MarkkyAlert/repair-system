@@ -7,15 +7,7 @@
     <meta name="theme-color" content="#1c1554">
     <meta name="referrer" content="no-referrer">
     <title><?= e($title ?? $appName) ?></title>
-    <script>
-        (() => {
-            const storedTheme = localStorage.getItem('theme');
-            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            if (storedTheme === 'dark' || (!storedTheme && prefersDark)) {
-                document.documentElement.classList.add('dark');
-            }
-        })();
-    </script>
+    <?= render_partial('partials/theme-init') ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">

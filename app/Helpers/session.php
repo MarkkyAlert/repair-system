@@ -31,6 +31,18 @@ function require_role(array $viewer, array $roles, string $message): void
     }
 }
 
+/**
+ * Assert the viewer is an admin, throwing a DomainException otherwise. The service-layer
+ * counterpart to require_role(): use inside service methods (caller catches DomainException
+ * → flash error), vs require_role()'s hard 403 abort at controller entry.
+ */
+function assert_admin(array $viewer): void
+{
+    if ((string) ($viewer['role'] ?? 'guest') !== 'admin') {
+        throw new DomainException('เฉพาะผู้ดูแลระบบเท่านั้น');
+    }
+}
+
 /** True when the role has elevated (management) rights — manager or admin. Predicate for conditional checks. */
 function is_manager_or_admin(string $role): bool
 {

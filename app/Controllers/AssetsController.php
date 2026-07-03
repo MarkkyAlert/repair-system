@@ -221,6 +221,7 @@ class AssetsController
     {
         AuthMiddleware::handle();
         $viewer = auth()->user() ?? [];
+        require_role($viewer, ['manager', 'admin'], 'คุณไม่มีสิทธิ์จัดการข้อมูล Asset และ QR');
 
         Response::view('assets/import', [
             'title' => 'Import Assets (CSV)',
@@ -235,6 +236,7 @@ class AssetsController
     {
         AuthMiddleware::handle();
         $viewer = auth()->user() ?? [];
+        require_role($viewer, ['manager', 'admin'], 'คุณไม่มีสิทธิ์จัดการข้อมูล Asset และ QR');
 
         try {
             csrf_validate();
@@ -260,6 +262,7 @@ class AssetsController
     {
         AuthMiddleware::handle();
         $viewer = auth()->user() ?? [];
+        require_role($viewer, ['manager', 'admin'], 'คุณไม่มีสิทธิ์จัดการข้อมูล Asset และ QR');
 
         try {
             csrf_validate();
@@ -288,6 +291,8 @@ class AssetsController
     public function importTemplate(): void
     {
         AuthMiddleware::handle();
+        $viewer = auth()->user() ?? [];
+        require_role($viewer, ['manager', 'admin'], 'คุณไม่มีสิทธิ์จัดการข้อมูล Asset และ QR');
         $columns = AssetImportService::CSV_COLUMNS;
         $sample = [
             'ASSET-001', 'Notebook Dell Latitude 5420', 'SN-12345', 'IT_HW', 'HQ-FL2',
