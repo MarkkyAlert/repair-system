@@ -430,6 +430,13 @@ class TicketService
             throw new DomainException('รายการนี้ไม่อยู่ในสถานะที่อนุมัติได้');
         }
 
+        // Separation of duties: manager ห้ามอนุมัติคำขอที่ตัวเองเป็นผู้แจ้ง — ต้องให้ผู้อนุมัติท่านอื่น.
+        // admin ยกเว้น (เป็น fallback ผู้อนุมัติ กัน deadlock องค์กรที่มี manager คนเดียว).
+        if ((string) ($viewer['role'] ?? '') === 'manager'
+            && (int) ($ticket['requester_id'] ?? 0) === (int) ($viewer['id'] ?? 0)) {
+            throw new DomainException('ไม่สามารถอนุมัติคำขอที่คุณเป็นผู้แจ้งเองได้ กรุณาให้ผู้จัดการหรือผู้ดูแลระบบท่านอื่นอนุมัติ');
+        }
+
         $note = trim((string) ($input['note'] ?? ''));
         $this->tickets->approveTicket($ticketId, (int) ($viewer['id'] ?? 0), $note, (string) ($ticket['status'] ?? 'pending_approval'));
         $this->notifications->notifyTicketEvent($ticketId, 'ticket.approved', (int) ($viewer['id'] ?? 0));
