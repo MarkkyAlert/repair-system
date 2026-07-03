@@ -6207,3 +6207,10 @@ code.mono, .mono {
 }
 .ticket-live-banner .btn { margin-left: auto; }
 .dark .ticket-live-banner { background: rgba(99, 102, 241, .12); color: var(--indigo-300); }
+
+/* Comment ที่ live-append เข้ามา — fade-in นุ่มๆ ให้รู้ว่าเป็นข้อความใหม่ */
+.comment-item-new { animation: comment-appear .4s ease; }
+@keyframes comment-appear {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}

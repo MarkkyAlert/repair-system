@@ -346,6 +346,39 @@ class TicketService
         ];
     }
 
+    /**
+     * comment ใหม่ (id > afterId) ที่ผู้ดูเห็น — สำหรับ live-append (chat-like) ในหน้า ticket detail.
+     * map เหมือน getTicketDetailData (reuse mapComment + attachments). null ถ้าไม่มีสิทธิ์เห็น ticket.
+     *
+     * @return array<int, array<string, mixed>>|null
+     */
+    public function getNewComments(int $ticketId, array $viewer, int $afterId): ?array
+    {
+        $ticket = $this->tickets->findVisibleTicketById($ticketId, $viewer);
+        if ($ticket === null) {
+            return null;
+        }
+
+        $includeInternal = (string) ($viewer['role'] ?? 'guest') !== 'requester';
+
+        $commentAttachments = [];
+        foreach ($this->attachments->getTicketAttachments($ticketId, $includeInternal) as $attachment) {
+            $commentAttachments[(int) ($attachment['comment_id'] ?? 0)][] = $attachment;
+        }
+
+        $new = [];
+        foreach ($this->comments->getCommentsByTicketId($ticketId, $includeInternal) as $comment) {
+            if ((int) ($comment['id'] ?? 0) <= $afterId) {
+                continue;
+            }
+            $mapped = $this->mapComment($comment, $viewer);
+            $mapped['attachments'] = $commentAttachments[(int) ($comment['id'] ?? 0)] ?? [];
+            $new[] = $mapped;
+        }
+
+        return $new;
+    }
+
     public function getTicketDetailData(int $ticketId, array $viewer, array $oldInput = []): ?array
     {
         $ticket = $this->tickets->findVisibleTicketById($ticketId, $viewer);

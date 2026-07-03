@@ -564,7 +564,7 @@ if (!empty($workflow['canReview'])) {
     <section class="panel-card stack-md" id="ticket-comments">
             <div class="panel-head">
                 <h2 class="panel-title">ความเห็นและบทสนทนา</h2>
-                <span class="badge badge-default"><?= e((string) count($comments)) ?> รายการ</span>
+                <span class="badge badge-default" data-comment-count-badge data-count="<?= e((string) count($comments)) ?>"><?= e((string) count($comments)) ?> รายการ</span>
             </div>
             <?php if (!empty($workflow['canComment'])): ?>
                 <form method="post" action="<?= e(url('/tickets/' . $ticket['id'] . '/comments')) ?>" class="comment-form stack-md" enctype="multipart/form-data">
@@ -590,83 +590,34 @@ if (!empty($workflow['canReview'])) {
                     </div>
                 </form>
             <?php endif; ?>
-            <?php if ($comments === []): ?>
-                <?= render_partial('partials/components/empty-state', [
-                    'icon' => 'message-circle',
-                    'title' => 'ยังไม่มีความเห็น',
-                    'description' => 'เมื่อมีการอัปเดตหรือสนทนาในงาน รายการจะปรากฏที่นี่',
-                ]) ?>
-            <?php else: ?>
-                <div class="stack-md" data-comment-thread>
-                    <?php foreach ($comments as $comment): ?>
-                        <?php $isEditingComment = (string) ($workflow['defaults']['editing_comment_id'] ?? '') === (string) $comment['id']; ?>
-                        <article class="comment-item<?= !empty($comment['is_internal']) ? ' comment-item-internal' : '' ?>" id="comment-<?= e((string) $comment['id']) ?>" data-comment-item>
-                            <div class="comment-meta">
-                                <div>
-                                    <strong class="comment-author"><?= e($comment['author_name']) ?></strong>
-                                    <span class="helper-text"><?= e($comment['author_role']) ?> · <?= e(human_date($comment['created_at'])) ?></span>
-                                </div>
-                                <span data-comment-badge><?= render_partial('partials/components/badge', ['label' => $comment['visibility_label'], 'tone' => $comment['visibility_tone']]) ?></span>
-                            </div>
-                            <div data-comment-view<?= $isEditingComment && !empty($comment['can_manage']) ? ' hidden' : '' ?>>
-                                <p class="comment-copy" data-comment-body><?= e($comment['body']) ?></p>
-                                <?php if (!empty($comment['attachments'])): ?>
-                                    <div class="attachment-grid attachment-grid-compact">
-                                        <?php foreach ($comment['attachments'] as $attachment): ?>
-                                            <?php $isCommentImg = str_starts_with((string) ($attachment['mime_type'] ?? ''), 'image/'); ?>
-                                            <a class="attachment-card<?= $isCommentImg ? '' : ' attachment-card-doc' ?>" href="<?= e(url($attachment['url'])) ?>" target="_blank" rel="noopener">
-                                                <?php if ($isCommentImg): ?>
-                                                    <img src="<?= e(url($attachment['url'])) ?>" alt="<?= e($attachment['name']) ?>" loading="lazy">
-                                                <?php else: ?>
-                                                    <span class="attachment-doc-icon"><?= lucide('file-text', 'h-6 w-6') ?></span>
-                                                <?php endif; ?>
-                                                <span><?= e($attachment['name']) ?></span>
-                                            </a>
-                                        <?php endforeach; ?>
-                                    </div>
-                                <?php endif; ?>
-                                <?php if (!empty($comment['can_manage'])): ?>
-                                    <div class="button-row comment-actions">
-                                        <a href="<?= e(url('/tickets/' . $ticket['id'] . '?edit_comment=' . $comment['id'] . '#comment-' . $comment['id'])) ?>" class="btn btn-ghost btn-sm" aria-label="แก้ไขความเห็นของ <?= e($comment['author_name']) ?>" data-comment-edit-toggle onclick="return window.__toggleCommentEdit(this)">
-                                            <?= lucide('pencil', 'button-icon') ?>
-                                            <span>แก้ไข</span>
-                                        </a>
-                                        <form method="post" action="<?= e(url('/tickets/' . $ticket['id'] . '/comments/' . $comment['id'] . '/delete')) ?>" onsubmit="return confirm('ยืนยันการลบความเห็นนี้?');" class="inline-form">
-                                            <?= csrf_field() ?>
-                                            <button type="submit" class="btn btn-ghost btn-sm btn-ghost-danger" aria-label="ลบความเห็นของ <?= e($comment['author_name']) ?>"><?= lucide('trash', 'button-icon') ?><span>ลบ</span></button>
-                                        </form>
-                                    </div>
-                                <?php endif; ?>
-                            </div>
-                            <?php if (!empty($comment['can_manage'])): ?>
-                                <div data-comment-edit-panel<?= $isEditingComment ? '' : ' hidden' ?>>
-                                    <form method="post" action="<?= e(url('/tickets/' . $ticket['id'] . '/comments/' . $comment['id'] . '/update')) ?>" class="stack-md" data-comment-edit-form onsubmit="return window.__handleInlineCommentSave ? window.__handleInlineCommentSave(this, event) : true;">
-                                        <?= csrf_field() ?>
-                                        <input type="hidden" name="original_updated_at" value="<?= e((string) ($comment['updated_at'] ?? '')) ?>">
-                                        <div class="field-group">
-                                            <label for="comment_edit_<?= e((string) $comment['id']) ?>" class="field-label">แก้ไขความเห็น</label>
-                                            <textarea id="comment_edit_<?= e((string) $comment['id']) ?>" name="body" class="input" rows="3" data-comment-edit-textarea><?= e((string) (!empty($workflow['defaults']['has_comment_body_old_input']) ? ($workflow['defaults']['comment_body'] ?? '') : $comment['body'])) ?></textarea>
-                                        </div>
-                                        <p class="field-error" data-comment-edit-error hidden></p>
-                                        <?php if (!empty($workflow['canUseInternalComment'])): ?>
-                                            <label class="checkbox-row checkbox-row-sm">
-                                                <input type="checkbox" name="is_internal" value="1"<?= in_array((string) (!empty($workflow['defaults']['has_comment_is_internal_old_input']) ? ($workflow['defaults']['comment_is_internal'] ?? '') : ($comment['is_internal'] ? '1' : '')), ['1', 'true', 'on'], true) ? ' checked' : '' ?>>
-                                                <span>บันทึกภายใน</span>
-                                            </label>
-                                        <?php endif; ?>
-                                        <div class="button-row">
-                                            <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'บันทึก', 'variant' => 'primary', 'size' => 'sm']) ?>
-                                            <a href="<?= e(url('/tickets/' . $ticket['id'] . '#comment-' . $comment['id'])) ?>" class="btn btn-ghost btn-sm" data-comment-edit-cancel onclick="return window.__cancelCommentEdit(this)">
-                                                <span>ยกเลิก</span>
-                                            </a>
-                                        </div>
-                                    </form>
-                                </div>
-                            <?php endif; ?>
-                        </article>
-                    <?php endforeach; ?>
-                </div>
-            <?php endif; ?>
+            <?php
+            $latestCommentId = 0;
+            foreach ($comments as $__comment) {
+                $latestCommentId = max($latestCommentId, (int) ($__comment['id'] ?? 0));
+            }
+            ?>
+            <div class="stack-md" data-comment-thread data-latest-comment-id="<?= e((string) $latestCommentId) ?>" data-comment-feed-url="<?= e(url('/tickets/' . $ticket['id'] . '/comments/feed')) ?>">
+                <?php if ($comments === []): ?>
+                    <div data-comment-empty>
+                        <?= render_partial('partials/components/empty-state', [
+                            'icon' => 'message-circle',
+                            'title' => 'ยังไม่มีความเห็น',
+                            'description' => 'เมื่อมีการอัปเดตหรือสนทนาในงาน รายการจะปรากฏที่นี่',
+                        ]) ?>
+                    </div>
+                <?php endif; ?>
+                <?php foreach ($comments as $comment): ?>
+                    <?php $isEditingComment = (string) ($workflow['defaults']['editing_comment_id'] ?? '') === (string) $comment['id']; ?>
+                    <?= render_partial('partials/tickets/comment-item', [
+                        'comment' => $comment,
+                        'ticketId' => (int) $ticket['id'],
+                        'isEditing' => $isEditingComment,
+                        'editBody' => !empty($workflow['defaults']['has_comment_body_old_input']) ? (string) ($workflow['defaults']['comment_body'] ?? '') : (string) ($comment['body'] ?? ''),
+                        'editInternalChecked' => in_array((string) (!empty($workflow['defaults']['has_comment_is_internal_old_input']) ? ($workflow['defaults']['comment_is_internal'] ?? '') : ($comment['is_internal'] ? '1' : '')), ['1', 'true', 'on'], true),
+                        'canUseInternalComment' => !empty($workflow['canUseInternalComment']),
+                    ]) ?>
+                <?php endforeach; ?>
+            </div>
         </section>
 
     <details class="panel-card collapsible" open>

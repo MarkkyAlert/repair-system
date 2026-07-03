@@ -116,8 +116,8 @@ if (typeof window.__handleInlineCommentSave !== 'function') {
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (data) {
           if (!data) { return; }
-          var changed = (String(data.status) !== baseStatus) ||
-                        ((parseInt(data.comment_count, 10) || 0) !== baseComments);
+          // เฉพาะ status change — comment ใหม่ live-append เอง (ไม่ต้องโชว์ banner)
+          var changed = (String(data.status) !== baseStatus);
           if (changed && banner) {
             banner.hidden = false;
             notified = true;
@@ -132,6 +132,56 @@ if (typeof window.__handleInlineCommentSave !== 'function') {
     });
   }
 
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+
+// ── Live comment append (chat-like) ──
+// poll comment ใหม่ (id > latest) → server render มาแล้ว (partial ร่วมกับ show.php) → append เข้า thread
+// โดยไม่ต้อง reload. pause เมื่อ tab ซ่อน; ลบ empty-state ตอน append แรก; กันซ้ำด้วย element id.
+(function () {
+  function init() {
+    var thread = document.querySelector('[data-comment-thread]');
+    if (!thread) { return; }
+    var feedUrl = thread.getAttribute('data-comment-feed-url');
+    if (!feedUrl) { return; }
+    var latestId = parseInt(thread.getAttribute('data-latest-comment-id'), 10) || 0;
+    var badge = document.querySelector('[data-comment-count-badge]');
+
+    var check = function () {
+      if (document.hidden) { return; }
+      fetch(feedUrl + '?after=' + latestId, { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
+          if (!data || !data.count || !data.html) { return; }
+          var empty = thread.querySelector('[data-comment-empty]');
+          if (empty) { empty.remove(); }
+          var tmp = document.createElement('div');
+          tmp.innerHTML = data.html;
+          var appended = 0;
+          Array.prototype.slice.call(tmp.children).forEach(function (el) {
+            if (el.id && document.getElementById(el.id)) { return; } // มีแล้ว กันซ้ำ
+            el.classList.add('comment-item-new');
+            thread.appendChild(el);
+            appended++;
+          });
+          latestId = parseInt(data.latest_id, 10) || latestId;
+          thread.setAttribute('data-latest-comment-id', String(latestId));
+          if (badge && appended > 0) {
+            var n = (parseInt(badge.getAttribute('data-count'), 10) || 0) + appended;
+            badge.setAttribute('data-count', String(n));
+            badge.textContent = n + ' รายการ';
+          }
+        })
+        .catch(function () {});
+    };
+
+    window.setInterval(check, 20000);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) { check(); } });
+  }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {

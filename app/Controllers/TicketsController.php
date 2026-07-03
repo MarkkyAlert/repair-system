@@ -283,6 +283,41 @@ class TicketsController
         Response::json($state);
     }
 
+    /**
+     * comment ใหม่ (id > after) render เป็น HTML (partial ร่วมกับ show.php) สำหรับ live-append.
+     * 404 ถ้าไม่มีสิทธิ์เห็น ticket.
+     */
+    public function commentsFeed(string $ticketId): void
+    {
+        AuthMiddleware::handle();
+        $viewer = auth()->user() ?? [];
+        $after = max(0, (int) (request()?->query['after'] ?? 0));
+
+        $comments = $this->tickets->getNewComments((int) $ticketId, $viewer, $after);
+        if ($comments === null) {
+            Response::json(['error' => 'not_found'], 404);
+        }
+
+        $canInternal = (string) ($viewer['role'] ?? 'guest') !== 'requester';
+        $html = '';
+        $latestId = $after;
+        foreach ($comments as $comment) {
+            $html .= render_partial('partials/tickets/comment-item', [
+                'comment' => $comment,
+                'ticketId' => (int) $ticketId,
+                'isEditing' => false,
+                'canUseInternalComment' => $canInternal,
+            ]);
+            $latestId = max($latestId, (int) ($comment['id'] ?? 0));
+        }
+
+        Response::json([
+            'html' => $html,
+            'latest_id' => $latestId,
+            'count' => count($comments),
+        ]);
+    }
+
     public function print(string $ticketId): void
     {
         AuthMiddleware::handle();
