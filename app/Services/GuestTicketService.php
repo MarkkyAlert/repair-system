@@ -18,6 +18,7 @@ class GuestTicketService
         private GuestTicketRequestRepository $requests,
         private AssetRepository $assets,
         private LoginRateLimiter $rateLimiter,
+        private NotificationService $notifications,
     ) {
     }
 
@@ -88,6 +89,14 @@ class GuestTicketService
                 throw new DomainException('คำขอนี้ถูกส่งไปแล้ว');
             }
             throw $exception;
+        }
+
+        // แจ้ง manager/admin ทันที (in-app bell) ว่ามีคำขอ guest ใหม่ — best-effort:
+        // guest submit ต้องสำเร็จเสมอแม้ notify พลาด
+        try {
+            $this->notifications->notifyGuestRequestSubmitted($id, $requestNo, $name);
+        } catch (Throwable $exception) {
+            error_log('[guest.submit.notify] ' . $exception->getMessage());
         }
 
         return [

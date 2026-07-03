@@ -333,6 +333,30 @@ class NotificationService
         }
     }
 
+    /**
+     * แจ้ง manager/admin (ผู้ moderate guest request) ทันทีที่มีคำขอแจ้งซ่อมใหม่จาก QR guest —
+     * เดิม guest submit เงียบ ไม่มีใครรู้จนกว่าจะเปิดหน้าคิวเอง. in-app เสมอ (หน้าที่ moderation).
+     */
+    public function notifyGuestRequestSubmitted(int $requestId, string $requestNo, string $guestName): void
+    {
+        $recipientIds = $this->tickets->findActiveApproverIds();
+        if ($recipientIds === []) {
+            return;
+        }
+
+        $this->dispatchNotification([
+            'type' => 'guest_request.submitted',
+            'title' => 'มีคำขอแจ้งซ่อมใหม่จาก Guest',
+            'message' => 'คำขอ ' . $requestNo . ' จาก ' . ($guestName !== '' ? $guestName : 'ผู้แจ้ง') . ' รอตรวจสอบ/แปลงเป็น Ticket',
+            'payload' => json_encode([
+                'request_id' => $requestId,
+                'request_no' => $requestNo,
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            'related_type' => 'guest_request',
+            'related_id' => $requestId,
+        ], $recipientIds);
+    }
+
     private function dispatchNotification(array $payload, array $recipientIds): void
     {
         if ($recipientIds === []) {
@@ -412,6 +436,8 @@ class NotificationService
 
         if ($relatedType === 'ticket' && $relatedId > 0) {
             $linkUrl = url('/tickets/' . $relatedId);
+        } elseif ($relatedType === 'guest_request') {
+            $linkUrl = url('/admin/guest-requests');
         }
 
         return [
