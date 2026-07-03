@@ -266,6 +266,23 @@ class TicketsController
         ]);
     }
 
+    /**
+     * Lightweight JSON state สำหรับ live poll ในหน้า ticket detail (status + comment_count).
+     * 404 ถ้าไม่มีสิทธิ์เห็น ticket (visibility เดียวกับ show).
+     */
+    public function state(string $ticketId): void
+    {
+        AuthMiddleware::handle();
+        $viewer = auth()->user() ?? [];
+
+        $state = $this->tickets->getTicketLiveState((int) $ticketId, $viewer);
+        if ($state === null) {
+            Response::json(['error' => 'not_found'], 404);
+        }
+
+        Response::json($state);
+    }
+
     public function print(string $ticketId): void
     {
         AuthMiddleware::handle();

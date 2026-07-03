@@ -13,6 +13,22 @@ class CommentRepository
     {
     }
 
+    /**
+     * นับ comment ของ ticket ตาม visibility ของผู้ดู (requester ไม่เห็น internal) —
+     * ใช้เป็น signal สำหรับ live poll ตรวจว่ามี comment ใหม่.
+     */
+    public function countForTicket(int $ticketId, bool $includeInternal): int
+    {
+        $sql = 'SELECT COUNT(*) FROM ticket_comments WHERE ticket_id = :ticket_id';
+        if (!$includeInternal) {
+            $sql .= ' AND is_internal = 0';
+        }
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute(['ticket_id' => $ticketId]);
+
+        return (int) $stmt->fetchColumn();
+    }
+
     public function getCommentsByTicketId(int $ticketId, bool $includeInternal): array
     {
         $sql =

@@ -90,3 +90,51 @@ if (typeof window.__handleInlineCommentSave !== 'function') {
         return false;
     };
 }
+
+// ── Live ticket polling ──
+// ตรวจว่า status/comment ของ ticket ถูกเปลี่ยนโดยคนอื่นระหว่างเปิดหน้าอยู่ → โชว์ banner ให้โหลดใหม่
+// (ไม่ auto-reload กันขัดจังหวะพิมพ์ comment). ใช้ polling ให้สอดคล้อง notification bell — ไม่ใช้ WebSocket.
+(function () {
+  function init() {
+    var root = document.querySelector('[data-ticket-live]');
+    if (!root) { return; }
+    var url = root.getAttribute('data-ticket-state-url');
+    if (!url) { return; }
+    var banner = root.querySelector('[data-ticket-live-banner]');
+    var reloadBtn = root.querySelector('[data-ticket-live-reload]');
+    var baseStatus = root.getAttribute('data-ticket-status') || '';
+    var baseComments = parseInt(root.getAttribute('data-ticket-comment-count'), 10) || 0;
+    var notified = false;
+
+    if (reloadBtn) {
+      reloadBtn.addEventListener('click', function () { window.location.reload(); });
+    }
+
+    var check = function () {
+      if (notified || document.hidden) { return; }
+      fetch(url, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
+          if (!data) { return; }
+          var changed = (String(data.status) !== baseStatus) ||
+                        ((parseInt(data.comment_count, 10) || 0) !== baseComments);
+          if (changed && banner) {
+            banner.hidden = false;
+            notified = true;
+          }
+        })
+        .catch(function () {});
+    };
+
+    window.setInterval(check, 25000);
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) { check(); }
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();

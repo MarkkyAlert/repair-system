@@ -325,6 +325,27 @@ class TicketService
         ]);
     }
 
+    /**
+     * Lightweight state สำหรับ live poll ในหน้า ticket detail — status + จำนวน comment ที่ผู้ดูเห็น.
+     * คืน null ถ้าไม่มีสิทธิ์เห็น ticket (visibility เดียวกับ getTicketDetailData).
+     *
+     * @return array{status: string, comment_count: int}|null
+     */
+    public function getTicketLiveState(int $ticketId, array $viewer): ?array
+    {
+        $ticket = $this->tickets->findVisibleTicketById($ticketId, $viewer);
+        if ($ticket === null) {
+            return null;
+        }
+
+        $includeInternal = (string) ($viewer['role'] ?? 'guest') !== 'requester';
+
+        return [
+            'status' => (string) ($ticket['status'] ?? ''),
+            'comment_count' => $this->comments->countForTicket($ticketId, $includeInternal),
+        ];
+    }
+
     public function getTicketDetailData(int $ticketId, array $viewer, array $oldInput = []): ?array
     {
         $ticket = $this->tickets->findVisibleTicketById($ticketId, $viewer);

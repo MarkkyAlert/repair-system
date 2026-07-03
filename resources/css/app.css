@@ -6191,3 +6191,19 @@ code.mono, .mono {
 .sla-countdown-overdue { color: #dc2626; }
 .dark .sla-countdown { color: #fbbf24; }
 .dark .sla-countdown-overdue { color: #f87171; }
+
+/* Live ticket update banner — เด้งเมื่อ ticket ถูกเปลี่ยนโดยคนอื่นระหว่างเปิดหน้าอยู่ */
+.ticket-live-banner {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  padding: .7rem 1rem;
+  border: 1px solid var(--glass-border-strong);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--indigo-50) 70%, transparent);
+  color: var(--indigo-700);
+  font-weight: 600;
+  font-size: .9rem;
+}
+.ticket-live-banner .btn { margin-left: auto; }
+.dark .ticket-live-banner { background: rgba(99, 102, 241, .12); color: var(--indigo-300); }

@@ -127,5 +127,6 @@ return static function (Router $router): void {
     $router->get('/tickets/{ticketId}/print', [TicketsController::class, 'print']);
     $router->get('/tickets/{ticketId}/print/pdf', [TicketsController::class, 'printPdf']);
     $router->get('/tickets/{ticketId}/print/qr.png', [TicketsController::class, 'printQr']);
+    $router->get('/tickets/{ticketId}/state', [TicketsController::class, 'state']);
     $router->get('/tickets/{ticketId}', [TicketsController::class, 'show']);
 };

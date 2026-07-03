@@ -25,8 +25,17 @@ if (!empty($workflow['canReview'])) {
     $primaryAnchor = '#action-reopen';
 }
 ?>
-<section class="stack-lg">
+<section class="stack-lg"
+    data-ticket-live
+    data-ticket-state-url="<?= e(url('/tickets/' . $ticket['id'] . '/state')) ?>"
+    data-ticket-status="<?= e((string) $ticket['status']) ?>"
+    data-ticket-comment-count="<?= e((string) count($comments)) ?>">
     <h1 class="sr-only"><?= e($ticket['title']) ?> — <?= e($ticket['ticket_no']) ?></h1>
+    <div class="ticket-live-banner" data-ticket-live-banner hidden role="status" aria-live="polite">
+        <?= lucide('refresh-cw', 'button-icon') ?>
+        <span>รายการนี้มีอัปเดตใหม่</span>
+        <button type="button" class="btn btn-sm btn-primary" data-ticket-live-reload>โหลดใหม่</button>
+    </div>
     <?= render_partial('partials/components/breadcrumb', [
         'items' => [
             ['label' => 'Tickets', 'href' => '/tickets'],
