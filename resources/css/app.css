@@ -6205,6 +6205,9 @@ code.mono, .mono {
   font-weight: 600;
   font-size: .9rem;
 }
+/* [hidden] ต้องชนะ .ticket-live-banner{display:flex} (specificity เท่ากันแต่ class มาทีหลัง)
+   → ระบุ [hidden] คู่ class ให้ specificity สูงกว่า ไม่งั้น banner โชว์ทั้งที่ตั้ง hidden */
+.ticket-live-banner[hidden] { display: none; }
 .ticket-live-banner .btn { margin-left: auto; }
 .dark .ticket-live-banner { background: rgba(99, 102, 241, .12); color: var(--indigo-300); }
 
