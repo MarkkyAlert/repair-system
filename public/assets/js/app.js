@@ -902,6 +902,11 @@ document.addEventListener('DOMContentLoaded', () => {
         var modal = document.getElementById(modalId);
         if (!modal) return;
 
+        // Portal ไป body: .confirm-modal ใช้ position:fixed แต่ถ้าถูก render อยู่ใน
+        // container ที่มี transform/filter/backdrop-filter (เช่น .panel-card) จะเกิด
+        // containing block → modal ถูกกักในการ์ด ไม่เต็มจอ. ย้ายไป body ให้ fixed อิง viewport.
+        if (modal.parentNode !== document.body) { document.body.appendChild(modal); }
+
         var form = trigger.closest('form');
         if (form && !form.reportValidity()) return;
 
