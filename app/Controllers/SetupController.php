@@ -36,7 +36,7 @@ class SetupController
 
         Response::view('setup/index', [
             'title' => 'ตั้งค่าระบบครั้งแรก',
-            'pageHeading' => 'Setup Wizard',
+            'pageHeading' => 'ตัวช่วยตั้งค่าระบบ',
             'hasAdmin' => $hasAdmin,
             'errorMessage' => flash_message('error'),
         ], 'guest');

@@ -21,7 +21,7 @@ class DashboardController
         $dashboard = $this->tickets->getDashboardData($viewer, request()?->query ?? []);
 
         Response::view('dashboard/index', [
-            'title' => 'Dashboard',
+            'title' => 'แดชบอร์ด',
             'pageHeading' => 'ภาพรวมการปฏิบัติงาน',
             'currentUser' => $viewer,
             'metrics' => $dashboard['metrics'],

@@ -49,9 +49,9 @@
 
         <nav class="sidebar-nav">
             <p class="nav-section-label">ภาพรวม</p>
-            <a href="<?= e(url('/dashboard')) ?>" class="nav-link<?= is_path('/dashboard') ? ' is-active' : '' ?>" data-tooltip="Dashboard">
+            <a href="<?= e(url('/dashboard')) ?>" class="nav-link<?= is_path('/dashboard') ? ' is-active' : '' ?>" data-tooltip="แดชบอร์ด">
                 <?= lucide('layout-dashboard', 'nav-icon') ?>
-                <span class="nav-label">Dashboard</span>
+                <span class="nav-label">แดชบอร์ด</span>
             </a>
             <p class="nav-section-label">งานปฏิบัติการ</p>
             <a href="<?= e(url('/tickets')) ?>" class="nav-link<?= $isTicketsPath && !is_path('/tickets/create') ? ' is-active' : '' ?>" data-tooltip="รายการแจ้งซ่อม">
