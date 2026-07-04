@@ -196,6 +196,10 @@ if (typeof window.__handleInlineCommentSave !== 'function') {
   function init() {
     var modal = document.getElementById('comment-delete-modal');
     if (!modal) { return; }
+    // Portal ออกไปไว้ที่ body: .confirm-modal ใช้ position:fixed แต่ถูก render อยู่ใน
+    // .panel-card ที่มี backdrop-filter → สร้าง containing block ทำให้ modal ถูกกักในการ์ด
+    // (ไม่เต็มจอ, ถูกตัดบน, เลื่อนตามการ์ด). ย้ายไป body ให้ fixed อิงกับ viewport จริง.
+    if (modal.parentNode !== document.body) { document.body.appendChild(modal); }
     var submitBtn = modal.querySelector('[data-modal-submit]');
     var pendingForm = null;
 
