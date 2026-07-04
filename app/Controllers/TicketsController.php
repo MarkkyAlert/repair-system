@@ -35,6 +35,8 @@ class TicketsController
             'filters' => $data['filters'],
             'pagination' => $data['pagination'],
             'queueMaxId' => $data['queueMaxId'],
+            'activeFilterChips' => $data['activeFilterChips'],
+            'urgentAlerts' => $data['urgentAlerts'],
         ]);
     }
 

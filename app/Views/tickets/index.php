@@ -10,50 +10,11 @@ $isFilterActive = $qSearch !== '' || $qStatus !== '' || $qPriority !== '' || $qT
 $isAdvancedFilterActive = $qStatus !== '' || $qPriority !== '' || $qTechnician > 0 || $qSla !== '';
 $statusValues = ticket_status_values();
 $statusOptions = array_combine($statusValues, array_map('ticket_status_label_th', $statusValues)); // single source — เพิ่ม status ใหม่ filter โผล่เอง
-$priorityOptions = ['LOW' => 'ต่ำ', 'MEDIUM' => 'กลาง', 'HIGH' => 'สูง', 'URGENT' => 'ด่วน'];
-$technicianLabel = '';
-foreach (($filters['technicians'] ?? []) as $technician) {
-    if ($qTechnician === (int) ($technician['id'] ?? 0)) {
-        $technicianLabel = (string) ($technician['label'] ?? '');
-        break;
-    }
+$priorityOptions = [];
+foreach (['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as $__priorityCode) {
+    $priorityOptions[$__priorityCode] = priority_label_th($__priorityCode);
 }
-$chipDismissUrl = static function (string $removeKey) use ($qSearch, $qStatus, $qPriority, $qTechnician, $qSla): string {
-    $query = ['q' => $qSearch, 'status' => $qStatus, 'priority' => $qPriority, 'technician_id' => $qTechnician > 0 ? (string) $qTechnician : '', 'sla' => $qSla];
-    unset($query[$removeKey]);
-    $query = array_filter($query, static fn ($v): bool => (string) $v !== '');
-    return url('/tickets' . ($query !== [] ? '?' . http_build_query($query) : ''));
-};
-$activeFilterChips = [];
-if ($qStatus !== '') {
-    $activeFilterChips[] = ['label' => 'สถานะ: ' . ($statusOptions[$qStatus] ?? $qStatus), 'dismiss' => $chipDismissUrl('status')];
-}
-if ($qPriority !== '') {
-    $activeFilterChips[] = ['label' => 'ความสำคัญ: ' . ($priorityOptions[$qPriority] ?? $qPriority), 'dismiss' => $chipDismissUrl('priority')];
-}
-if ($qTechnician > 0) {
-    $activeFilterChips[] = ['label' => 'ช่าง: ' . ($technicianLabel !== '' ? $technicianLabel : (string) $qTechnician), 'dismiss' => $chipDismissUrl('technician_id')];
-}
-if ($qSla === 'overdue') {
-    $activeFilterChips[] = ['label' => 'SLA: เกินกำหนด', 'dismiss' => $chipDismissUrl('sla')];
-}
-$urgentAlerts = [];
-if ($metricCount('overdue') > 0) {
-    $urgentAlerts[] = [
-        'tone' => 'danger',
-        'icon' => 'triangle-alert',
-        'label' => 'มีงานเกิน SLA ' . $metricCount('overdue') . ' รายการ',
-        'href' => '/tickets?sla=overdue',
-    ];
-}
-if ($metricCount('pendingApproval') > 0) {
-    $urgentAlerts[] = [
-        'tone' => 'warning',
-        'icon' => 'clock',
-        'label' => 'มีงานรออนุมัติ ' . $metricCount('pendingApproval') . ' รายการ',
-        'href' => '/tickets?status=pending_approval',
-    ];
-}
+// $activeFilterChips และ $urgentAlerts เป็น view-model จาก controller (TicketService) — ไม่ derive ใน view แล้ว
 ?>
 <section class="stack-lg"
     data-ticket-queue-live

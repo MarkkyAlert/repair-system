@@ -120,20 +120,82 @@ class TicketService
         $page = max(1, (int) ($filters['page'] ?? 1));
         $result = $this->tickets->getVisibleTicketsPage($viewer, $normalized, $page, 20);
         $tickets = array_map(fn (array $ticket): array => $this->mapTicketSummary($ticket), $result['items']);
+        $technicians = array_map(fn (array $row): array => [
+            'id' => (int) $row['id'],
+            'label' => (string) $row['full_name'],
+        ], $this->tickets->getActiveTechnicians());
 
         return [
             'metrics' => $metrics,
             'tickets' => $tickets,
             'roleLabel' => role_label_th((string) ($viewer['role'] ?? 'guest')),
-            'filters' => $normalized + [
-                'technicians' => array_map(fn (array $row): array => [
-                    'id' => (int) $row['id'],
-                    'label' => (string) $row['full_name'],
-                ], $this->tickets->getActiveTechnicians()),
-            ],
+            'filters' => $normalized + ['technicians' => $technicians],
             'pagination' => $result,
             'queueMaxId' => $this->tickets->getMaxVisibleTicketId($viewer),
+            'activeFilterChips' => $this->buildTicketFilterChips($normalized, $technicians),
+            'urgentAlerts' => $this->buildTicketUrgentAlerts($metrics),
         ];
+    }
+
+    /**
+     * Active-filter chips (view-model): label + dismiss URL per applied filter.
+     * Moved out of tickets/index.php so the template stays presentation-only.
+     */
+    private function buildTicketFilterChips(array $filters, array $technicians): array
+    {
+        $dismissUrl = static function (string $removeKey) use ($filters): string {
+            $query = [
+                'q' => (string) ($filters['q'] ?? ''),
+                'status' => (string) ($filters['status'] ?? ''),
+                'priority' => (string) ($filters['priority'] ?? ''),
+                'technician_id' => (int) ($filters['technician_id'] ?? 0) > 0 ? (string) $filters['technician_id'] : '',
+                'sla' => (string) ($filters['sla'] ?? ''),
+            ];
+            unset($query[$removeKey]);
+            $query = array_filter($query, static fn ($v): bool => (string) $v !== '');
+
+            return url('/tickets' . ($query !== [] ? '?' . http_build_query($query) : ''));
+        };
+
+        $chips = [];
+        if ((string) ($filters['status'] ?? '') !== '') {
+            $chips[] = ['label' => 'สถานะ: ' . ticket_status_label_th((string) $filters['status']), 'dismiss' => $dismissUrl('status')];
+        }
+        if ((string) ($filters['priority'] ?? '') !== '') {
+            $chips[] = ['label' => 'ความสำคัญ: ' . priority_label_th((string) $filters['priority']), 'dismiss' => $dismissUrl('priority')];
+        }
+        if ((int) ($filters['technician_id'] ?? 0) > 0) {
+            $techId = (int) $filters['technician_id'];
+            $techLabel = (string) $techId;
+            foreach ($technicians as $technician) {
+                if ((int) ($technician['id'] ?? 0) === $techId) {
+                    $techLabel = (string) ($technician['label'] ?? $techLabel);
+                    break;
+                }
+            }
+            $chips[] = ['label' => 'ช่าง: ' . $techLabel, 'dismiss' => $dismissUrl('technician_id')];
+        }
+        if ((string) ($filters['sla'] ?? '') === 'overdue') {
+            $chips[] = ['label' => 'SLA: เกินกำหนด', 'dismiss' => $dismissUrl('sla')];
+        }
+
+        return $chips;
+    }
+
+    /** Urgent-work alert chips (view-model) shown above the ticket queue. */
+    private function buildTicketUrgentAlerts(array $metrics): array
+    {
+        $alerts = [];
+        $overdue = max(0, (int) ($metrics['overdue'] ?? 0));
+        $pendingApproval = max(0, (int) ($metrics['pendingApproval'] ?? 0));
+        if ($overdue > 0) {
+            $alerts[] = ['tone' => 'danger', 'icon' => 'triangle-alert', 'label' => 'มีงานเกิน SLA ' . $overdue . ' รายการ', 'href' => '/tickets?sla=overdue'];
+        }
+        if ($pendingApproval > 0) {
+            $alerts[] = ['tone' => 'warning', 'icon' => 'clock', 'label' => 'มีงานรออนุมัติ ' . $pendingApproval . ' รายการ', 'href' => '/tickets?status=pending_approval'];
+        }
+
+        return $alerts;
     }
 
     /**
