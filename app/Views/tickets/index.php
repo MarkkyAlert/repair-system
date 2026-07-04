@@ -8,7 +8,8 @@ $qSla = (string) ($filters['sla'] ?? '');
 $metricCount = static fn (string $key): int => max(0, (int) ($metrics[$key] ?? 0));
 $isFilterActive = $qSearch !== '' || $qStatus !== '' || $qPriority !== '' || $qTechnician > 0 || $qSla !== '';
 $isAdvancedFilterActive = $qStatus !== '' || $qPriority !== '' || $qTechnician > 0 || $qSla !== '';
-$statusOptions = ['submitted' => 'ส่งแล้ว', 'pending_approval' => 'รออนุมัติ', 'approved' => 'อนุมัติแล้ว', 'assigned' => 'มอบหมายแล้ว', 'accepted' => 'รับงานแล้ว', 'in_progress' => 'กำลังดำเนินการ', 'on_hold' => 'พักงาน', 'resolved' => 'รอตรวจรับ', 'completed' => 'เสร็จสิ้น', 'rejected' => 'ปฏิเสธ', 'cancelled' => 'ยกเลิก', 'closed' => 'ปิดงาน'];
+$statusValues = ticket_status_values();
+$statusOptions = array_combine($statusValues, array_map('ticket_status_label_th', $statusValues)); // single source — เพิ่ม status ใหม่ filter โผล่เอง
 $priorityOptions = ['LOW' => 'ต่ำ', 'MEDIUM' => 'กลาง', 'HIGH' => 'สูง', 'URGENT' => 'ด่วน'];
 $technicianLabel = '';
 foreach (($filters['technicians'] ?? []) as $technician) {
