@@ -1438,6 +1438,20 @@ class TicketRepository
         return (int) $this->db->query('SELECT COUNT(*) FROM tickets')->fetchColumn();
     }
 
+    /**
+     * Max id ของ ticket ที่ viewer มีสิทธิ์เห็น (ตาม visibility เดียวกับหน้าคิว) —
+     * ใช้เป็น baseline ให้ live poll: ถ้ามี ticket ใหม่เข้ามา (id เพิ่ม) → โชว์ banner โหลดใหม่.
+     */
+    public function getMaxVisibleTicketId(array $viewer): int
+    {
+        $params = [];
+        $visibility = $this->visibilityClause($viewer, $params);
+        $stmt = $this->db->prepare("SELECT COALESCE(MAX(t.id), 0) FROM tickets t WHERE $visibility");
+        $stmt->execute($params);
+
+        return (int) $stmt->fetchColumn();
+    }
+
     public function createSeedTicket(array $payload): int
     {
         $stmt = $this->db->prepare(

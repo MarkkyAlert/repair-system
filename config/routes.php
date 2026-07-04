@@ -109,6 +109,7 @@ return static function (Router $router): void {
     $router->post('/admin/guest-requests/{requestId}/convert', [GuestRequestController::class, 'convert']);
     $router->post('/admin/guest-requests/{requestId}/reject', [GuestRequestController::class, 'reject']);
     $router->get('/tickets', [TicketsController::class, 'index']);
+    $router->get('/tickets/state', [TicketsController::class, 'queueState']);
     $router->get('/tickets/create', [TicketsController::class, 'create']);
     $router->post('/tickets', [TicketsController::class, 'store']);
     $router->get('/tickets/{ticketId}/duplicate', [TicketsController::class, 'duplicate']);

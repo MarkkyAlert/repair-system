@@ -54,8 +54,17 @@ if ($metricCount('pendingApproval') > 0) {
     ];
 }
 ?>
-<section class="stack-lg">
+<section class="stack-lg"
+    data-live-poll
+    data-live-poll-url="<?= e(url('/tickets/state')) ?>"
+    data-live-poll-key="max_id"
+    data-live-poll-baseline="<?= e((string) ($queueMaxId ?? 0)) ?>">
     <h1 class="sr-only">รายการแจ้งซ่อม — คิวงานปฏิบัติการ</h1>
+    <div class="ticket-live-banner" data-live-poll-banner hidden role="status" aria-live="polite">
+        <?= lucide('refresh-cw', 'button-icon') ?>
+        <span>มีงานแจ้งซ่อมใหม่เข้าคิว</span>
+        <button type="button" class="btn btn-sm btn-primary" data-live-poll-reload>โหลดใหม่</button>
+    </div>
     <?php ob_start(); ?>
     <span class="badge badge-info"><?= e((string) ($pagination['total'] ?? 0)) ?> รายการ</span>
     <?= render_partial('partials/components/button', ['label' => 'แจ้งปัญหาใหม่', 'variant' => 'primary', 'href' => '/tickets/create', 'icon' => 'plus']) ?>

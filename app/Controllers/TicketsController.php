@@ -34,6 +34,7 @@ class TicketsController
             'roleLabel' => $data['roleLabel'],
             'filters' => $data['filters'],
             'pagination' => $data['pagination'],
+            'queueMaxId' => $data['queueMaxId'],
         ]);
     }
 
@@ -270,6 +271,14 @@ class TicketsController
      * Lightweight JSON state สำหรับ live poll ในหน้า ticket detail (status + comment_count).
      * 404 ถ้าไม่มีสิทธิ์เห็น ticket (visibility เดียวกับ show).
      */
+    public function queueState(): void
+    {
+        AuthMiddleware::handle();
+        $viewer = auth()->user() ?? [];
+
+        Response::json(['max_id' => $this->tickets->getQueueMaxVisibleId($viewer)]);
+    }
+
     public function state(string $ticketId): void
     {
         AuthMiddleware::handle();

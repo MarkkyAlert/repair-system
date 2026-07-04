@@ -132,7 +132,16 @@ class TicketService
                 ], $this->tickets->getActiveTechnicians()),
             ],
             'pagination' => $result,
+            'queueMaxId' => $this->tickets->getMaxVisibleTicketId($viewer),
         ];
+    }
+
+    /**
+     * Max visible ticket id สำหรับ live poll หน้าคิว (GET /tickets/state).
+     */
+    public function getQueueMaxVisibleId(array $viewer): int
+    {
+        return $this->tickets->getMaxVisibleTicketId($viewer);
     }
 
     public function getCreateFormData(array $viewer, array $oldInput = [], array $prefill = []): array
