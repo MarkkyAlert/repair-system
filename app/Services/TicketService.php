@@ -954,6 +954,9 @@ class TicketService
             'visibility_label' => $isInternal ? 'ภายใน' : 'สาธารณะ',
             'visibility_tone' => $isInternal ? 'warning' : 'default',
             'created_at' => $this->formatDateTime($comment['created_at'] ?? null),
+            // raw datetime สำหรับ optimistic-lock ตอนแก้ไข (hidden original_updated_at) —
+            // ต้องตรงกับ DB (WHERE updated_at = :original_updated_at) จึงไม่ format
+            'updated_at' => (string) ($comment['updated_at'] ?? ''),
             'can_manage' => $this->canManageComment($comment, $viewer),
         ];
     }
