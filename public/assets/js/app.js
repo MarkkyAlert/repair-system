@@ -1069,24 +1069,92 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   })();
 
-  // ── Live ticket queue (auto-refresh in place) ──
-  // หน้าคิว ticket หลัก: poll max_id เมื่อมีงานใหม่ → ดึงหน้าเดิม (background fetch ตาม URL ปัจจุบัน
-  // = คง filter/sort/หน้า) แล้ว swap เฉพาะรายการ+การ์ดสรุป โดยไม่ reload ทั้งหน้า/ไม่เสีย scroll.
-  // หลบไปโชว์ banner ให้กดเองเมื่อ swap ไม่ปลอดภัย (โหมด bulk-approve เพราะ checkbox จะหลุด binding,
-  // กำลังโฟกัสช่องค้นหา, หรือเปิด modal). pause เมื่อ tab ซ่อน. ไม่ WebSocket.
+  // ── Live ticket queue (auto-refresh + in-place ค้นหา/กรอง/เปลี่ยนหน้า) ──
+  // หน้าคิว ticket หลัก อัปเดตในที่โดยไม่ reload ทั้งหน้า 2 ทาง:
+  //   1) auto-refresh: poll max_id เมื่อมีงานใหม่ → swap เฉพาะรายการ+การ์ดสรุป (ไม่ยุ่ง filter form
+  //      ที่ผู้ใช้อาจกำลังพิมพ์). หลบไปโชว์ banner ให้กดเองเมื่อไม่ปลอดภัย (bulk mode/โฟกัสค้นหา/modal).
+  //   2) navigate: submit ค้นหา/กรอง, กด chips/ล้างตัวกรอง, เปลี่ยนหน้า, back/forward → fetch หน้าเดิม
+  //      แล้ว swap ทั้ง panel (chips/ตัวกรอง/รายการ/หน้า sync กัน) + pushState. ผูกแบบ delegation จึงรอด
+  //      การ swap. bulk view / session หมด → โหลดเต็มปกติ. pause เมื่อ tab ซ่อน. ไม่ WebSocket.
   (function () {
     var root = document.querySelector('[data-ticket-queue-live]');
     if (!root) return;
-    var url = root.getAttribute('data-ticket-queue-state-url');
-    if (!url) return;
+    var stateUrl = root.getAttribute('data-ticket-queue-state-url');
     var baseline = parseInt(root.getAttribute('data-ticket-queue-baseline'), 10) || 0;
     var banner = root.querySelector('[data-ticket-queue-banner]');
     var reloadBtn = root.querySelector('[data-ticket-queue-reload]');
-    var refreshing = false;
+    var busy = false;
 
     if (reloadBtn) reloadBtn.addEventListener('click', function () { window.location.reload(); });
 
-    // swap รายการใต้มือผู้ใช้ได้ไหม — เลี่ยงตอน bulk mode / โฟกัสตัวกรอง / เปิด modal
+    function swapRegion(doc, selector) {
+      var incoming = doc.querySelector(selector);
+      var current = document.querySelector(selector);
+      if (incoming && current) { current.innerHTML = incoming.innerHTML; }
+    }
+    function flash() {
+      var results = document.querySelector('[data-ticket-queue-results]');
+      if (!results) return;
+      results.style.transition = 'opacity .18s ease';
+      results.style.opacity = '0.4';
+      window.setTimeout(function () { results.style.opacity = '1'; }, 180);
+    }
+
+    // ---- User navigation: ค้นหา/กรอง/เปลี่ยนหน้า/back-forward แบบ swap ในที่ ----
+    function navigate(targetUrl, push) {
+      if (busy) return;
+      busy = true;
+      var ae = document.activeElement;
+      var keepSearch = ae && ae.name === 'q' && ae.closest && ae.closest('.ticket-filter-toolbar');
+      fetch(targetUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+        .then(function (r) { return r.ok ? r.text() : Promise.reject(); })
+        .then(function (html) {
+          var doc = new DOMParser().parseFromString(html, 'text/html');
+          // login/error หรือ bulk view (checkbox ต้อง bind ตอนโหลด) → โหลดเต็มปกติ
+          if (!doc.querySelector('[data-ticket-queue-results]') || doc.querySelector('[data-bulk-root]')) {
+            window.location.href = targetUrl; return;
+          }
+          swapRegion(doc, '[data-ticket-queue-metrics]');
+          swapRegion(doc, '[data-ticket-queue-total]');
+          swapRegion(doc, '[data-ticket-queue-panel]');   // swap ทั้ง panel → chips/ตัวกรอง/รายการ/หน้า sync
+          if (push) { try { window.history.pushState({ tq: 1 }, '', targetUrl); } catch (e) {} }
+          if (banner) banner.hidden = true;
+          if (keepSearch) {   // คืนโฟกัส+เคอร์เซอร์ให้ช่องค้นหา
+            var s = document.querySelector('.ticket-filter-toolbar input[name="q"]');
+            if (s) { s.focus(); var v = s.value; s.value = ''; s.value = v; }
+          }
+          flash();
+        })
+        .catch(function () { window.location.href = targetUrl; })
+        .finally(function () { busy = false; });
+    }
+
+    // submit ฟอร์มค้นหา/กรอง (delegation → รอด innerHTML swap)
+    document.addEventListener('submit', function (e) {
+      var form = e.target;
+      if (!form || !form.classList || !form.classList.contains('ticket-filter-toolbar')) return;
+      if (!form.closest('[data-ticket-queue-live]')) return;
+      e.preventDefault();
+      var params = new URLSearchParams();
+      new FormData(form).forEach(function (val, key) { if (String(val).trim() !== '') params.append(key, val); });
+      var qs = params.toString();
+      navigate(form.action + (qs ? '?' + qs : ''), true);
+    });
+
+    // chips ลบตัวกรอง / ปุ่มล้างตัวกรอง / pagination (delegation)
+    document.addEventListener('click', function (e) {
+      var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+      if (!a || !a.closest('[data-ticket-queue-live]')) return;
+      var isQueueNav = a.classList.contains('page-link') || a.closest('.ticket-filter-toolbar');
+      if (!isQueueNav) return;
+      if (a.classList.contains('is-disabled')) { e.preventDefault(); return; }
+      e.preventDefault();
+      navigate(a.href, true);
+    });
+
+    window.addEventListener('popstate', function () { navigate(window.location.href, false); });
+
+    // ---- Auto-refresh: มีงานใหม่เข้าคิว → swap เฉพาะรายการ (ไม่ยุ่ง filter form) ----
     function canAutoSwap() {
       if (document.querySelector('[data-bulk-root]')) return false;   // bulk view: swap ทำ checkbox หลุด binding
       var ae = document.activeElement;
@@ -1094,42 +1162,29 @@ document.addEventListener('DOMContentLoaded', () => {
       if (document.querySelector('.confirm-modal:not([hidden])')) return false;
       return true;
     }
-
-    function swapRegion(doc, selector) {
-      var incoming = doc.querySelector(selector);
-      var current = document.querySelector(selector);
-      if (incoming && current) { current.innerHTML = incoming.innerHTML; }
-    }
-
     function autoRefresh(newMax) {
-      if (refreshing) return;
-      refreshing = true;
+      if (busy) return;
+      busy = true;
       fetch(window.location.href, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
         .then(function (r) { return r.ok ? r.text() : null; })
         .then(function (html) {
           if (!html) return;
           var doc = new DOMParser().parseFromString(html, 'text/html');
-          if (!doc.querySelector('[data-ticket-queue-results]')) return;  // กันกรณี redirect ไป login
+          if (!doc.querySelector('[data-ticket-queue-results]')) return;
           swapRegion(doc, '[data-ticket-queue-results]');
           swapRegion(doc, '[data-ticket-queue-metrics]');
           swapRegion(doc, '[data-ticket-queue-count]');
           swapRegion(doc, '[data-ticket-queue-total]');
           baseline = newMax;
           if (banner) banner.hidden = true;
-          var results = document.querySelector('[data-ticket-queue-results]');
-          if (results) {   // flash บาง ๆ ให้รู้ว่าอัปเดต (ไม่ต้องพึ่ง CSS)
-            results.style.transition = 'opacity .18s ease';
-            results.style.opacity = '0.35';
-            window.setTimeout(function () { results.style.opacity = '1'; }, 180);
-          }
+          flash();
         })
         .catch(function () {})
-        .finally(function () { refreshing = false; });
+        .finally(function () { busy = false; });
     }
-
     var check = function () {
-      if (document.hidden) return;
-      fetch(url, { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+      if (document.hidden || !stateUrl) return;
+      fetch(stateUrl, { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (data) {
           if (!data) return;

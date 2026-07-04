@@ -135,7 +135,7 @@ if ($metricCount('pendingApproval') > 0) {
         </section>
     <?php endif; ?>
 
-    <section class="panel-card stack-md">
+    <section class="panel-card stack-md" data-ticket-queue-panel>
         <div class="panel-head">
             <div>
                 <h2 class="panel-title"><?= $isFilterActive ? 'ผลการกรอง' : 'คิวงานทั้งหมด' ?></h2>
