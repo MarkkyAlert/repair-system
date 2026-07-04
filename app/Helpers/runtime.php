@@ -125,6 +125,42 @@ function paginate(int $page, int $perPage, int $total): array
     return ['page' => $page, 'offset' => ($page - 1) * $perPage, 'totalPages' => $totalPages];
 }
 
+/**
+ * Normalize a from/to date-range filter. Validates each side (YYYY-MM-DD → '' if invalid),
+ * swaps when reversed so `from` always precedes `to`, then derives inclusive day-bound
+ * datetimes (from = 00:00:00, to = 23:59:59). Single source of truth shared by the
+ * dashboard and report filters so the two can't drift apart.
+ *
+ * @return array{from_date:string,to_date:string,from_datetime:string,to_datetime:string}
+ */
+function normalize_date_range(string $fromRaw, string $toRaw): array
+{
+    $normalizeDay = static function (string $value): string {
+        $value = trim($value);
+        if ($value === '' || preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) !== 1) {
+            return '';
+        }
+        $timestamp = strtotime($value);
+
+        return $timestamp === false ? '' : date('Y-m-d', $timestamp);
+    };
+
+    $fromDate = $normalizeDay($fromRaw);
+    $toDate = $normalizeDay($toRaw);
+
+    // Reversed range → swap the days first, so datetimes are always derived from the correct end.
+    if ($fromDate !== '' && $toDate !== '' && strcmp($fromDate, $toDate) > 0) {
+        [$fromDate, $toDate] = [$toDate, $fromDate];
+    }
+
+    return [
+        'from_date' => $fromDate,
+        'to_date' => $toDate,
+        'from_datetime' => $fromDate !== '' ? $fromDate . ' 00:00:00' : '',
+        'to_datetime' => $toDate !== '' ? $toDate . ' 23:59:59' : '',
+    ];
+}
+
 function request(): ?Request
 {
     $resolved = app(Request::class);

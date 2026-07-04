@@ -1185,32 +1185,13 @@ class TicketService
             $year = $currentYear;
         }
 
-        $normalized = [
-            'from_date' => $this->normalizeDateInput($fromDate),
-            'to_date' => $this->normalizeDateInput($toDate),
-            'from_datetime' => '',
-            'to_datetime' => '',
+        return normalize_date_range($fromDate, $toDate) + [
             'department_id' => max(0, (int) ($filters['department_id'] ?? 0)),
             'category_id' => max(0, (int) ($filters['category_id'] ?? 0)),
             'status' => in_array($status, $allowedStatuses, true) ? $status : '',
             'year' => $year,
             'preset' => in_array($preset, ['mine', 'overdue', 'pending_approval', 'today'], true) ? $preset : '',
         ];
-
-        if ($normalized['from_date'] !== '') {
-            $normalized['from_datetime'] = $normalized['from_date'] . ' 00:00:00';
-        }
-
-        if ($normalized['to_date'] !== '') {
-            $normalized['to_datetime'] = $normalized['to_date'] . ' 23:59:59';
-        }
-
-        if ($normalized['from_date'] !== '' && $normalized['to_date'] !== '' && strcmp($normalized['from_date'], $normalized['to_date']) > 0) {
-            [$normalized['from_date'], $normalized['to_date']] = [$normalized['to_date'], $normalized['from_date']];
-            [$normalized['from_datetime'], $normalized['to_datetime']] = [$normalized['to_date'] . ' 00:00:00', $normalized['from_date'] . ' 23:59:59'];
-        }
-
-        return $normalized;
     }
 
     private function buildDashboardFilterData(array $filters, array $reference): array
@@ -1288,17 +1269,6 @@ class TicketService
         }
 
         return $count;
-    }
-
-    private function normalizeDateInput(string $value): string
-    {
-        if ($value === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
-            return '';
-        }
-
-        $timestamp = strtotime($value);
-
-        return $timestamp === false ? '' : date('Y-m-d', $timestamp);
     }
 
     private function monthLabels(): array
