@@ -1099,6 +1099,15 @@ document.addEventListener('DOMContentLoaded', () => {
       results.style.opacity = '0.4';
       window.setTimeout(function () { results.style.opacity = '1'; }, 180);
     }
+    // เลื่อนขึ้นหัวตารางแบบนุ่ม (เผื่อความสูง sticky topbar) — ให้เริ่มอ่านหน้าใหม่จากแถวแรกเสมอ
+    function scrollToQueueTop() {
+      var panel = document.querySelector('[data-ticket-queue-panel]');
+      if (!panel) return;
+      var topbar = document.querySelector('.topbar');
+      var offset = topbar ? Math.round(topbar.getBoundingClientRect().height) + 12 : 0;
+      var y = panel.getBoundingClientRect().top + window.scrollY - offset;
+      window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+    }
 
     // ---- User navigation: ค้นหา/กรอง/เปลี่ยนหน้า/back-forward แบบ swap ในที่ ----
     function navigate(targetUrl, push) {
@@ -1119,10 +1128,12 @@ document.addEventListener('DOMContentLoaded', () => {
           swapRegion(doc, '[data-ticket-queue-panel]');   // swap ทั้ง panel → chips/ตัวกรอง/รายการ/หน้า sync
           if (push) { try { window.history.pushState({ tq: 1 }, '', targetUrl); } catch (e) {} }
           if (banner) banner.hidden = true;
-          if (keepSearch) {   // คืนโฟกัส+เคอร์เซอร์ให้ช่องค้นหา
+          if (keepSearch) {   // คืนโฟกัส+เคอร์เซอร์ให้ช่องค้นหา (ไม่ให้ browser auto-scroll เอง)
             var s = document.querySelector('.ticket-filter-toolbar input[name="q"]');
-            if (s) { s.focus(); var v = s.value; s.value = ''; s.value = v; }
+            if (s) { s.focus({ preventScroll: true }); var v = s.value; s.value = ''; s.value = v; }
           }
+          // เปลี่ยนหน้า/กรอง (push) → เลื่อนขึ้นหัวตารางให้อ่านจากแถวแรก; back/forward (ไม่ push) ปล่อยตามเดิม
+          if (push) { scrollToQueueTop(); }
           flash();
         })
         .catch(function () { window.location.href = targetUrl; })
