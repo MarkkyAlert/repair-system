@@ -1,6 +1,10 @@
 <?php
 declare(strict_types=1);
 
+// Run the whole suite against an isolated test database — never the dev DB.
+// (Env::get reads $_ENV first, and there is no .env to override it.)
+$_ENV['DB_NAME'] = getenv('TEST_DB_NAME') ?: 'repair_system_test';
+
 // Entry point: load app autoload (App\ + helpers) + harness, run every tests/cases/*.php.
 require __DIR__ . '/../vendor/autoload.php';
 // Boot the DI container before any output so bootstrap's Session::start() doesn't warn in CLI.
