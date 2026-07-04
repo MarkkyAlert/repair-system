@@ -11,33 +11,30 @@ use RuntimeException;
 
 class CommentsController
 {
+    use HandlesFormSubmission;
+
     public function __construct(private CommentService $comments)
     {
     }
 
     public function store(string $ticketId): void
     {
-        AuthMiddleware::handle();
-
-        $viewer = auth()->user() ?? [];
-
-        try {
-            csrf_validate();
-            clear_old_input();
-            $this->comments->createComment((int) $ticketId, $viewer, $_POST, $_FILES['attachments'] ?? []);
-            flash('success', 'บันทึก comment เรียบร้อยแล้ว');
-        } catch (DomainException|RuntimeException $exception) {
-            with_old_input([
+        $this->handleUpdate(
+            fn (array $viewer) => $this->comments->createComment((int) $ticketId, $viewer, $_POST, $_FILES['attachments'] ?? []),
+            'บันทึก comment เรียบร้อยแล้ว',
+            '/tickets/' . (int) $ticketId . '#ticket-comments',
+            null,
+            '',
+            [
                 'comment_body' => (string) ($_POST['body'] ?? ''),
                 'comment_is_internal' => (string) ($_POST['is_internal'] ?? ''),
                 'comment_submission_token' => (string) ($_POST['submission_token'] ?? ''),
-            ]);
-            flash('error', $exception->getMessage());
-        }
-
-        Response::redirect('/tickets/' . (int) $ticketId . '#ticket-comments');
+            ]
+        );
     }
 
+    // Not handleUpdate(): dual-mode response — returns JSON for the inline AJAX editor
+    // (X-Requested-With) or falls back to flash+redirect for a plain form POST.
     public function update(string $ticketId, string $commentId): void
     {
         AuthMiddleware::handle();
@@ -86,18 +83,10 @@ class CommentsController
 
     public function delete(string $ticketId, string $commentId): void
     {
-        AuthMiddleware::handle();
-
-        $viewer = auth()->user() ?? [];
-
-        try {
-            csrf_validate();
-            $this->comments->deleteComment((int) $ticketId, (int) $commentId, $viewer);
-            flash('success', 'ลบ comment เรียบร้อยแล้ว');
-        } catch (DomainException|RuntimeException $exception) {
-            flash('error', $exception->getMessage());
-        }
-
-        Response::redirect('/tickets/' . (int) $ticketId . '#ticket-comments');
+        $this->handleUpdate(
+            fn (array $viewer) => $this->comments->deleteComment((int) $ticketId, (int) $commentId, $viewer),
+            'ลบ comment เรียบร้อยแล้ว',
+            '/tickets/' . (int) $ticketId . '#ticket-comments'
+        );
     }
 }

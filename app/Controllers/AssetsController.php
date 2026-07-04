@@ -13,6 +13,8 @@ use RuntimeException;
 
 class AssetsController
 {
+    use HandlesFormSubmission;
+
     public function __construct(
         private AssetService $assets,
         private AssetImportService $importer,
@@ -68,6 +70,8 @@ class AssetsController
         ]);
     }
 
+    // Not handleUpdate(): success redirects to the new asset's detail page (needs the created id),
+    // while errors redirect back to the create form with old input — a split target handleUpdate can't express.
     public function store(): void
     {
         AuthMiddleware::handle();
@@ -142,6 +146,8 @@ class AssetsController
         ]);
     }
 
+    // Not handleUpdate(): success redirects to the asset detail page, errors back to the edit form
+    // with old input — split success/error targets that handleUpdate's single redirect can't express.
     public function update(string $assetId): void
     {
         AuthMiddleware::handle();
@@ -165,19 +171,11 @@ class AssetsController
 
     public function regenerateQr(string $assetId): void
     {
-        AuthMiddleware::handle();
-
-        $viewer = auth()->user() ?? [];
-
-        try {
-            csrf_validate();
-            $this->assets->regenerateQrToken((int) $assetId, $viewer);
-            flash('success', 'สร้าง QR token ใหม่เรียบร้อยแล้ว');
-        } catch (DomainException|RuntimeException $exception) {
-            flash('error', $exception->getMessage());
-        }
-
-        Response::redirect('/asset-registry/' . (int) $assetId);
+        $this->handleUpdate(
+            fn (array $viewer) => $this->assets->regenerateQrToken((int) $assetId, $viewer),
+            'สร้าง QR token ใหม่เรียบร้อยแล้ว',
+            '/asset-registry/' . (int) $assetId
+        );
     }
 
     public function qrPng(string $assetId): never

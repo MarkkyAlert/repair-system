@@ -48,6 +48,8 @@ class NotificationsController
         Response::json($this->notifications->getFeedData($viewer));
     }
 
+    // Not handleUpdate(): marking read is silent on success (no flash toast — it's an incidental
+    // side effect of opening a notification), whereas handleUpdate always flashes a success message.
     public function read(string $notificationId): void
     {
         AuthMiddleware::handle();
