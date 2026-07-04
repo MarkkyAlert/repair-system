@@ -91,7 +91,7 @@ class AdminService
             'phone' => trim((string) ($input['phone'] ?? '')),
             'role' => $role,
             'department_id' => (int) ($input['department_id'] ?? 0) > 0 ? (int) $input['department_id'] : null,
-            'is_active' => in_array((string) ($input['is_active'] ?? '0'), ['1', 'true', 'on'], true),
+            'is_active' => truthy_input($input['is_active'] ?? '0'),
         ];
         $this->admin->updateUser($userId, $payload);
         $this->recordAudit($viewer, 'user.updated', 'user', $userId, $payload);
@@ -145,7 +145,7 @@ class AdminService
             'role' => $role,
             'department_id' => $departmentId > 0 ? $departmentId : null,
             'password_hash' => password_hash($password, PASSWORD_BCRYPT),
-            'is_active' => in_array((string) ($input['is_active'] ?? '0'), ['1', 'true', 'on'], true),
+            'is_active' => truthy_input($input['is_active'] ?? '0'),
         ];
         $userId = $this->admin->createUser($payload);
         unset($payload['password_hash']);

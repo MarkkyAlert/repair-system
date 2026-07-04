@@ -230,7 +230,7 @@ class ReferenceDataService
             'code' => $code,
             'name' => $name,
             'description' => trim((string) ($input['description'] ?? '')),
-            'is_active' => in_array((string) ($input['is_active'] ?? '0'), ['1', 'true', 'on'], true),
+            'is_active' => truthy_input($input['is_active'] ?? '0'),
         ];
     }
 
@@ -306,7 +306,7 @@ class ReferenceDataService
             'response_time_minutes' => (int) round($responseHours * 60),
             'resolution_time_minutes' => (int) round($resolutionHours * 60),
             'sort_order' => max(1, (int) ($input['sort_order'] ?? 1)),
-            'is_active' => in_array((string) ($input['is_active'] ?? '0'), ['1', 'true', 'on'], true),
+            'is_active' => truthy_input($input['is_active'] ?? '0'),
         ];
     }
 }

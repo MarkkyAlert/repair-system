@@ -106,7 +106,7 @@ class SetupController
             }
 
             // Step 3: load demo data (optional)
-            $loadDemo = in_array((string) ($_POST['load_demo'] ?? '0'), ['1', 'true', 'on'], true);
+            $loadDemo = truthy_input($_POST['load_demo'] ?? '0');
             $demoSummary = null;
             if ($loadDemo) {
                 $demoSummary = $this->demoData->load($adminId);

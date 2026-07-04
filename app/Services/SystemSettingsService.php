@@ -77,13 +77,13 @@ class SystemSettingsService
             $key,
             $value,
             $type,
-            in_array((string) ($input['is_public'] ?? '0'), ['1', 'true', 'on'], true),
+            truthy_input($input['is_public'] ?? '0'),
             (int) ($viewer['id'] ?? 0)
         );
         $this->audit->record($viewer, 'setting.updated', 'system_setting', null, [
             'setting_key' => $key,
             'value_type' => $type,
-            'is_public' => in_array((string) ($input['is_public'] ?? '0'), ['1', 'true', 'on'], true),
+            'is_public' => truthy_input($input['is_public'] ?? '0'),
         ]);
     }
 
@@ -150,7 +150,7 @@ class SystemSettingsService
     {
         assert_admin($viewer);
 
-        $remove = in_array((string) ($input['remove_logo'] ?? '0'), ['1', 'true', 'on'], true);
+        $remove = truthy_input($input['remove_logo'] ?? '0');
         if ($remove) {
             $currentLogoPath = $this->currentLogoFilePath();
             $this->settings->upsert('app_logo_path', '', 'string', true, (int) ($viewer['id'] ?? 0));

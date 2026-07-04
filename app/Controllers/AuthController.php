@@ -64,7 +64,7 @@ class AuthController
                 $login,
                 (string) ($_POST['password'] ?? ''),
                 (string) ($_SERVER['REMOTE_ADDR'] ?? ''),
-                in_array((string) ($_POST['remember'] ?? '0'), ['1', 'true', 'on'], true)
+                truthy_input($_POST['remember'] ?? '0')
             );
 
             flash('success', 'เข้าสู่ระบบเรียบร้อยแล้ว');

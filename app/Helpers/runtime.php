@@ -61,7 +61,7 @@ function setting(string $key, mixed $default = null): mixed
 
     $resolved = match ($type) {
         'int' => (int) ($value ?? 0),
-        'bool' => in_array(strtolower((string) ($value ?? '0')), ['1', 'true', 'yes', 'on'], true),
+        'bool' => truthy_input($value ?? '0'),
         'json' => json_decode((string) ($value ?? ''), true) ?? $default,
         default => $value ?? $default,
     };
@@ -111,6 +111,12 @@ function valid_phone_format(string $phone): bool
 function is_submission_token(string $token): bool
 {
     return preg_match('/^[a-f0-9]{64}$/', $token) === 1;
+}
+
+/** Parse a truthy form/setting input: true for "1"/"true"/"yes"/"on" (case-insensitive). */
+function truthy_input(mixed $value): bool
+{
+    return in_array(strtolower(trim((string) $value)), ['1', 'true', 'yes', 'on'], true);
 }
 
 /**
