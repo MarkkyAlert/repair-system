@@ -5,7 +5,7 @@ namespace App\Services;
 
 use App\Repositories\NotificationPreferenceRepository;
 use App\Repositories\NotificationRepository;
-use App\Repositories\TicketRepository;
+use App\Repositories\TicketReadRepository;
 use App\Repositories\UserRepository;
 use DomainException;
 use Throwable;
@@ -36,7 +36,7 @@ class NotificationService
 
     public function __construct(
         private NotificationRepository $notifications,
-        private TicketRepository $tickets,
+        private TicketReadRepository $reads,
         private EmailQueueService $emails,
         private NotificationPreferenceRepository $preferences,
         private UserRepository $users,
@@ -111,7 +111,7 @@ class NotificationService
 
     public function notifyTicketEvent(int $ticketId, string $eventType, int $actorId): void
     {
-        $context = $this->tickets->findTicketNotificationContextById($ticketId);
+        $context = $this->reads->findTicketNotificationContextById($ticketId);
         if ($context === null) {
             return;
         }
@@ -120,7 +120,7 @@ class NotificationService
             'ticket.created' => [
                 'มี ticket ใหม่รออนุมัติ',
                 'Ticket ' . (string) ($context['ticket_no'] ?? '-') . ' ถูกสร้างใหม่และรอการอนุมัติ',
-                $this->tickets->findActiveApproverIds(),
+                $this->reads->findActiveApproverIds(),
             ],
             'ticket.approved' => [
                 'Ticket ได้รับการอนุมัติ',
@@ -167,7 +167,7 @@ class NotificationService
                 'Ticket ' . (string) ($context['ticket_no'] ?? '-') . ' ถูกยกเลิกโดยผู้แจ้ง',
                 (int) ($context['assigned_manager_id'] ?? 0) > 0
                     ? [(int) ($context['assigned_manager_id'] ?? 0)]
-                    : $this->tickets->findActiveApproverIds(),
+                    : $this->reads->findActiveApproverIds(),
             ],
             default => ['', '', []],
         };
@@ -202,7 +202,7 @@ class NotificationService
 
     public function notifyCommentEvent(int $ticketId, int $commentId, int $actorId, bool $isInternal, string $body, string $action): void
     {
-        $context = $this->tickets->findTicketNotificationContextById($ticketId);
+        $context = $this->reads->findTicketNotificationContextById($ticketId);
         if ($context === null) {
             return;
         }
@@ -295,7 +295,7 @@ class NotificationService
 
     public function notifySlaBreached(int $ticketId, string $metricType): void
     {
-        $context = $this->tickets->findTicketNotificationContextById($ticketId);
+        $context = $this->reads->findTicketNotificationContextById($ticketId);
         if ($context === null) {
             return;
         }
@@ -339,7 +339,7 @@ class NotificationService
      */
     public function notifyGuestRequestSubmitted(int $requestId, string $requestNo, string $guestName): void
     {
-        $recipientIds = $this->tickets->findActiveApproverIds();
+        $recipientIds = $this->reads->findActiveApproverIds();
         if ($recipientIds === []) {
             return;
         }

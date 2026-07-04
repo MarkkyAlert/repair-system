@@ -443,4 +443,402 @@ class TicketReadRepository
 
         return '0 = 1';
     }
+
+    public function getVisibleTickets(array $viewer): array
+    {
+        $params = [];
+        $visibility = $this->visibilityClause($viewer, $params);
+
+        $stmt = $this->db->prepare(
+            "SELECT
+                t.id,
+                t.ticket_no,
+                t.title,
+                t.status,
+                t.approval_status,
+                t.channel,
+                t.requested_at,
+                t.updated_at,
+                t.first_response_at,
+                t.response_due_at,
+                t.resolved_at,
+                t.resolution_due_at,
+                p.code AS priority_code,
+                p.name AS priority_name,
+                c.name AS category_name,
+                l.name AS location_name,
+                requester.full_name AS requester_name,
+                technician.full_name AS technician_name
+             FROM tickets t
+             INNER JOIN priorities p ON p.id = t.priority_id
+             INNER JOIN ticket_categories c ON c.id = t.ticket_category_id
+             INNER JOIN locations l ON l.id = t.location_id
+             INNER JOIN users requester ON requester.id = t.requester_id
+             LEFT JOIN users technician ON technician.id = t.assigned_technician_id
+             WHERE $visibility
+             ORDER BY t.requested_at DESC, t.id DESC"
+        );
+        $stmt->execute($params);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public function getVisibleTicketsPage(array $viewer, array $filters, int $page, int $perPage): array
+    {
+        $params = [];
+        $conditions = [$this->visibilityClause($viewer, $params)];
+        $this->applyTicketIndexFilters($conditions, $filters, $params);
+        $whereClause = implode(' AND ', $conditions);
+        $perPage = max(1, min($perPage, 100));
+
+        $countStmt = $this->db->prepare(
+            "SELECT COUNT(*)
+             FROM tickets t
+             INNER JOIN priorities p ON p.id = t.priority_id
+             WHERE $whereClause"
+        );
+        $countStmt->execute($params);
+        $total = (int) ($countStmt->fetchColumn() ?: 0);
+        ['page' => $page, 'offset' => $offset, 'totalPages' => $totalPages] = paginate($page, $perPage, $total);
+        $closed = ticket_terminal_statuses_sql();
+
+        $stmt = $this->db->prepare(
+            "SELECT
+                t.id, t.ticket_no, t.title, t.status, t.approval_status, t.channel,
+                t.requested_at, t.updated_at, t.first_response_at, t.response_due_at,
+                t.resolved_at, t.resolution_due_at,
+                p.code AS priority_code, p.name AS priority_name,
+                c.name AS category_name, l.name AS location_name,
+                requester.full_name AS requester_name, technician.full_name AS technician_name
+             FROM tickets t
+             INNER JOIN priorities p ON p.id = t.priority_id
+             INNER JOIN ticket_categories c ON c.id = t.ticket_category_id
+             INNER JOIN locations l ON l.id = t.location_id
+             INNER JOIN users requester ON requester.id = t.requester_id
+             LEFT JOIN users technician ON technician.id = t.assigned_technician_id
+             WHERE $whereClause
+             ORDER BY
+                CASE WHEN t.status IN ($closed) THEN 1 ELSE 0 END,
+                CASE WHEN t.status NOT IN ($closed)
+                          AND t.resolution_due_at IS NOT NULL AND t.resolution_due_at < NOW() THEN 0 ELSE 1 END,
+                p.level DESC,
+                t.requested_at DESC, t.id DESC
+             LIMIT $perPage OFFSET $offset"
+        );
+        $stmt->execute($params);
+
+        return [
+            'items' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
+            'total' => $total,
+            'page' => $page,
+            'perPage' => $perPage,
+            'totalPages' => $totalPages,
+        ];
+    }
+
+    public function getPendingOverdueSlaBreaches(): array
+    {
+        $closed = ticket_terminal_statuses_sql();
+        $stmt = $this->db->prepare(
+            "SELECT
+                ts.id,
+                ts.ticket_id,
+                ts.metric_type,
+                ts.target_at,
+                t.ticket_no,
+                t.title,
+                t.status,
+                t.approval_status,
+                t.requester_id,
+                t.assigned_manager_id,
+                t.assigned_technician_id
+             FROM ticket_sla_tracks ts
+             INNER JOIN tickets t ON t.id = ts.ticket_id
+             WHERE ts.status = 'pending'
+               AND ts.target_at < NOW()
+               AND t.status NOT IN ($closed)
+             ORDER BY ts.target_at ASC, ts.id ASC
+             LIMIT 500"
+        );
+        $stmt->execute();
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public function getCreateFormReferenceData(): array
+    {
+        $priorities = $this->db->query(
+            'SELECT id, code, name, level, response_time_minutes, resolution_time_minutes
+             FROM priorities
+             WHERE is_active = 1
+             ORDER BY sort_order ASC, level ASC, id ASC'
+        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $categories = $this->db->query(
+            'SELECT id, code, name
+             FROM ticket_categories
+             WHERE is_active = 1
+             ORDER BY sort_order ASC, id ASC'
+        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $locations = $this->db->query(
+            'SELECT id, code, name, building, floor, room
+             FROM locations
+             WHERE is_active = 1
+             ORDER BY name ASC, id ASC'
+        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $assets = $this->db->query(
+            "SELECT id, asset_code, name, location_id, status
+             FROM assets
+             WHERE status IN ('active', 'maintenance')
+             ORDER BY asset_code ASC, id ASC"
+        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        return [
+            'priorities' => $priorities,
+            'categories' => $categories,
+            'locations' => $locations,
+            'assets' => $assets,
+        ];
+    }
+
+    public function getActiveTechnicians(): array
+    {
+        $stmt = $this->db->query(
+            "SELECT id, full_name
+             FROM users
+             WHERE role = 'technician' AND is_active = 1
+             ORDER BY full_name ASC, id ASC"
+        );
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public function findVisibleTicketById(int $ticketId, array $viewer): ?array
+    {
+        $params = ['ticket_id' => $ticketId];
+        $visibility = $this->visibilityClause($viewer, $params);
+
+        $stmt = $this->db->prepare(
+            "SELECT
+                t.id,
+                t.ticket_no,
+                t.title,
+                t.description,
+                t.requester_id,
+                t.location_id,
+                t.asset_id,
+                t.ticket_category_id,
+                t.priority_id,
+                t.status,
+                t.approval_status,
+                t.assigned_manager_id,
+                t.assigned_technician_id,
+                t.channel,
+                t.impact_level,
+                t.urgency_level,
+                t.requested_at,
+                t.approved_at,
+                t.assigned_at,
+                t.started_at,
+                t.first_response_at,
+                t.resolved_at,
+                t.completed_at,
+                t.cancelled_at,
+                t.closed_at,
+                t.response_due_at,
+                t.resolution_due_at,
+                t.resolution_summary,
+                t.closure_note,
+                tr.score AS rating_score,
+                tr.feedback AS rating_feedback,
+                tr.created_at AS rating_created_at,
+                p.code AS priority_code,
+                p.name AS priority_name,
+                c.name AS category_name,
+                l.name AS location_name,
+                l.building,
+                l.floor,
+                l.room,
+                requester.full_name AS requester_name,
+                requester.email AS requester_email,
+                requester.phone AS requester_phone,
+                manager.full_name AS manager_name,
+                technician.full_name AS technician_name,
+                wo.work_order_no,
+                wo.status AS work_order_status,
+                wo.instructions AS work_order_instructions,
+                wo.diagnosis_summary AS work_order_diagnosis_summary,
+                wo.resolution_summary AS work_order_resolution_summary,
+                wo.labor_minutes AS work_order_labor_minutes,
+                wo.assigned_at AS work_order_assigned_at,
+                wo.accepted_at AS work_order_accepted_at,
+                wo.started_at AS work_order_started_at,
+                wo.completed_at AS work_order_completed_at,
+                a.asset_code,
+                a.name AS asset_name
+             FROM tickets t
+             INNER JOIN priorities p ON p.id = t.priority_id
+             INNER JOIN ticket_categories c ON c.id = t.ticket_category_id
+             INNER JOIN locations l ON l.id = t.location_id
+             INNER JOIN users requester ON requester.id = t.requester_id
+             LEFT JOIN users manager ON manager.id = t.assigned_manager_id
+             LEFT JOIN users technician ON technician.id = t.assigned_technician_id
+             LEFT JOIN work_orders wo ON wo.ticket_id = t.id
+             LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id
+             LEFT JOIN assets a ON a.id = t.asset_id
+             WHERE t.id = :ticket_id AND $visibility
+             LIMIT 1"
+        );
+        $stmt->execute($params);
+
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    public function getCommentsByTicketId(int $ticketId, bool $includeInternal): array
+    {
+        $sql =
+            'SELECT c.id, c.user_id, c.body, c.is_internal, c.created_at, c.updated_at, u.full_name AS author_name, u.role AS author_role
+             FROM ticket_comments c
+             INNER JOIN users u ON u.id = c.user_id
+             WHERE c.ticket_id = :ticket_id';
+
+        if (!$includeInternal) {
+            $sql .= ' AND c.is_internal = 0';
+        }
+
+        $sql .= ' ORDER BY c.created_at ASC, c.id ASC';
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute(['ticket_id' => $ticketId]);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public function getActivityLogsByTicketId(int $ticketId): array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT l.id, l.action, l.from_status, l.to_status, l.details, l.created_at, u.full_name AS actor_name, u.role AS actor_role
+             FROM ticket_activity_logs l
+             LEFT JOIN users u ON u.id = l.actor_id
+             WHERE l.ticket_id = :ticket_id
+             ORDER BY l.created_at DESC, l.id DESC'
+        );
+        $stmt->execute(['ticket_id' => $ticketId]);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public function countAllTickets(): int
+    {
+        return (int) $this->db->query('SELECT COUNT(*) FROM tickets')->fetchColumn();
+    }
+
+    public function getMaxVisibleTicketId(array $viewer): int
+    {
+        $params = [];
+        $visibility = $this->visibilityClause($viewer, $params);
+        $stmt = $this->db->prepare("SELECT COALESCE(MAX(t.id), 0) FROM tickets t WHERE $visibility");
+        $stmt->execute($params);
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    public function findRecentTicketsByAssetId(int $assetId, int $limit = 10): array
+    {
+        $limit = max(1, min($limit, 50));
+
+        $stmt = $this->db->prepare(
+            "SELECT
+                t.id,
+                t.ticket_no,
+                t.title,
+                t.status,
+                t.approval_status,
+                t.requested_at,
+                t.first_response_at,
+                t.response_due_at,
+                t.resolved_at,
+                t.resolution_due_at,
+                p.code AS priority_code,
+                p.name AS priority_name,
+                l.name AS location_name,
+                requester.full_name AS requester_name
+             FROM tickets t
+             INNER JOIN priorities p ON p.id = t.priority_id
+             INNER JOIN locations l ON l.id = t.location_id
+             INNER JOIN users requester ON requester.id = t.requester_id
+             WHERE t.asset_id = :asset_id
+             ORDER BY t.requested_at DESC, t.id DESC
+             LIMIT $limit"
+        );
+        $stmt->execute(['asset_id' => $assetId]);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public function countTicketsByAssetId(int $assetId): int
+    {
+        $stmt = $this->db->prepare('SELECT COUNT(*) FROM tickets WHERE asset_id = :asset_id');
+        $stmt->execute(['asset_id' => $assetId]);
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    public function findTicketNotificationContextById(int $ticketId): ?array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT id, ticket_no, title, requester_id, assigned_manager_id, assigned_technician_id, status, approval_status
+             FROM tickets
+             WHERE id = :ticket_id
+             LIMIT 1'
+        );
+        $stmt->execute(['ticket_id' => $ticketId]);
+
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    public function findActiveApproverIds(): array
+    {
+        $stmt = $this->db->query(
+            "SELECT id
+             FROM users
+             WHERE is_active = 1 AND role IN ('manager', 'admin')
+             ORDER BY CASE role WHEN 'manager' THEN 1 ELSE 2 END, id ASC"
+        );
+
+        return array_map(static fn (mixed $id): int => (int) $id, $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
+    }
+
+    private function applyTicketIndexFilters(array &$conditions, array $filters, array &$params): void
+    {
+        $search = trim((string) ($filters['q'] ?? ''));
+        $status = trim((string) ($filters['status'] ?? ''));
+        $priority = trim((string) ($filters['priority'] ?? ''));
+        $technicianId = (int) ($filters['technician_id'] ?? 0);
+        $sla = trim((string) ($filters['sla'] ?? ''));
+
+        if ($search !== '') {
+            $conditions[] = '(t.ticket_no LIKE :ticket_no_search OR t.title LIKE :ticket_title_search)';
+            $params['ticket_no_search'] = '%' . $search . '%';
+            $params['ticket_title_search'] = '%' . $search . '%';
+        }
+        if ($status !== '') {
+            $conditions[] = 't.status = :ticket_status';
+            $params['ticket_status'] = $status;
+        }
+        if ($priority !== '') {
+            $conditions[] = 'p.code = :ticket_priority';
+            $params['ticket_priority'] = $priority;
+        }
+        if ($technicianId > 0) {
+            $conditions[] = 't.assigned_technician_id = :ticket_technician_id';
+            $params['ticket_technician_id'] = $technicianId;
+        }
+        if ($sla === 'overdue') {
+            $conditions[] = 't.status NOT IN (' . ticket_terminal_statuses_sql() . ')';
+            $conditions[] = "EXISTS (SELECT 1 FROM ticket_sla_tracks ticket_sla_filter WHERE ticket_sla_filter.ticket_id = t.id AND (ticket_sla_filter.status = 'breached' OR (ticket_sla_filter.status = 'pending' AND ticket_sla_filter.target_at < NOW())))";
+        }
+    }
 }

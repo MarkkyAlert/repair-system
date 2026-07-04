@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Repositories\AttachmentRepository;
-use App\Repositories\TicketRepository;
+use App\Repositories\TicketReadRepository;
 use DomainException;
 use RuntimeException;
 use Throwable;
@@ -27,7 +27,7 @@ class AttachmentService
 
     public function __construct(
         private AttachmentRepository $attachments,
-        private TicketRepository $tickets,
+        private TicketReadRepository $reads,
     ) {
     }
 
@@ -130,7 +130,7 @@ class AttachmentService
     public function getVisibleAttachment(int $attachmentId, array $viewer): array
     {
         $attachment = $this->attachments->findById($attachmentId);
-        if ($attachment === null || $this->tickets->findVisibleTicketById((int) $attachment['ticket_id'], $viewer) === null) {
+        if ($attachment === null || $this->reads->findVisibleTicketById((int) $attachment['ticket_id'], $viewer) === null) {
             throw new DomainException('ไม่พบไฟล์แนบ');
         }
         if (!empty($attachment['is_internal']) && (string) ($viewer['role'] ?? 'guest') === 'requester') {

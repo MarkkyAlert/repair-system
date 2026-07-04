@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Repositories\CommentRepository;
-use App\Repositories\TicketRepository;
+use App\Repositories\TicketReadRepository;
 use DomainException;
 use PDO;
 use Throwable;
@@ -13,7 +13,7 @@ class CommentService
 {
     public function __construct(
         private CommentRepository $comments,
-        private TicketRepository $tickets,
+        private TicketReadRepository $reads,
         private NotificationService $notifications,
         private AttachmentService $attachments,
         private PDO $db,
@@ -142,7 +142,7 @@ class CommentService
 
     private function requireVisibleTicket(int $ticketId, array $viewer): array
     {
-        $ticket = $this->tickets->findVisibleTicketById($ticketId, $viewer);
+        $ticket = $this->reads->findVisibleTicketById($ticketId, $viewer);
         if ($ticket === null) {
             throw new DomainException('ไม่พบ ticket ที่ต้องการแสดงความคิดเห็น');
         }

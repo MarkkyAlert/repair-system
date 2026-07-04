@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Repositories\TicketReadRepository;
 use App\Repositories\TicketRepository;
 use DomainException;
 use Throwable;
@@ -17,6 +18,7 @@ class TicketWorkflowService
 {
     public function __construct(
         private TicketRepository $tickets,
+        private TicketReadRepository $reads,
         private NotificationService $notifications,
         private TicketPolicy $policy,
     ) {
@@ -105,7 +107,7 @@ class TicketWorkflowService
             throw new DomainException('กรุณาเลือกช่างเทคนิคที่ต้องการมอบหมาย');
         }
 
-        $technician = $this->findReferenceById($this->tickets->getActiveTechnicians(), $technicianId);
+        $technician = $this->findReferenceById($this->reads->getActiveTechnicians(), $technicianId);
         if ($technician === null) {
             throw new DomainException('ไม่พบช่างเทคนิคที่เลือก หรือช่างไม่พร้อมใช้งาน');
         }
@@ -273,7 +275,7 @@ class TicketWorkflowService
 
     private function requireManageableTicket(int $ticketId, array $viewer): array
     {
-        $ticket = $this->tickets->findVisibleTicketById($ticketId, $viewer);
+        $ticket = $this->reads->findVisibleTicketById($ticketId, $viewer);
         if ($ticket === null) {
             throw new DomainException('ไม่พบรายการแจ้งซ่อมที่ต้องการดำเนินการ');
         }
@@ -287,7 +289,7 @@ class TicketWorkflowService
 
     private function requireTechnicianTicket(int $ticketId, array $viewer): array
     {
-        $ticket = $this->tickets->findVisibleTicketById($ticketId, $viewer);
+        $ticket = $this->reads->findVisibleTicketById($ticketId, $viewer);
         if ($ticket === null) {
             throw new DomainException('ไม่พบรายการแจ้งซ่อมที่ต้องการดำเนินการ');
         }
@@ -301,7 +303,7 @@ class TicketWorkflowService
 
     private function requireRequesterTicket(int $ticketId, array $viewer): array
     {
-        $ticket = $this->tickets->findVisibleTicketById($ticketId, $viewer);
+        $ticket = $this->reads->findVisibleTicketById($ticketId, $viewer);
         if ($ticket === null) {
             throw new DomainException('ไม่พบรายการแจ้งซ่อมที่ต้องการดำเนินการ');
         }

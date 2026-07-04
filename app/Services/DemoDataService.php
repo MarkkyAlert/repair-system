@@ -5,6 +5,7 @@ namespace App\Services;
 
 use App\Repositories\AdminRepository;
 use App\Repositories\AssetRepository;
+use App\Repositories\TicketReadRepository;
 use App\Repositories\TicketRepository;
 use DomainException;
 use PDO;
@@ -16,6 +17,7 @@ class DemoDataService
         private AdminRepository $admin,
         private AssetRepository $assets,
         private TicketRepository $tickets,
+        private TicketReadRepository $reads,
         private PDO $db,
     ) {
     }
@@ -27,7 +29,7 @@ class DemoDataService
      */
     public function load(int $createdByUserId = 0): array
     {
-        if ($this->tickets->countAllTickets() > 0) {
+        if ($this->reads->countAllTickets() > 0) {
             throw new DomainException('ไม่สามารถโหลดข้อมูลตัวอย่าง — มี ticket อยู่ในระบบแล้ว');
         }
 

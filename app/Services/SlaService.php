@@ -3,12 +3,14 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Repositories\TicketReadRepository;
 use App\Repositories\TicketRepository;
 
 class SlaService
 {
     public function __construct(
         private TicketRepository $tickets,
+        private TicketReadRepository $reads,
         private NotificationService $notifications,
     ) {
     }
@@ -19,7 +21,7 @@ class SlaService
         $processed = 0;
         $notifiedTickets = [];
 
-        foreach ($this->tickets->getPendingOverdueSlaBreaches() as $track) {
+        foreach ($this->reads->getPendingOverdueSlaBreaches() as $track) {
             $slaTrackId = (int) ($track['id'] ?? 0);
             $ticketId = (int) ($track['ticket_id'] ?? 0);
             $metricType = (string) ($track['metric_type'] ?? 'resolution');

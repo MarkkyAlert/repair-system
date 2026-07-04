@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Core\View;
-use App\Repositories\TicketRepository;
+use App\Repositories\TicketReadRepository;
 use DomainException;
 use Dompdf\Dompdf;
 use Dompdf\Options;
@@ -15,19 +15,19 @@ use Endroid\QrCode\Writer\PngWriter;
 /**
  * Ticket print/export concern split out of TicketService: printable HTML view-model,
  * Job Order PDF (Dompdf), and the print QR PNG. Reuses TicketService::mapTicketDetail()
- * for the shared ticket-detail mapping (single source) and TicketRepository for visibility.
+ * for the shared ticket-detail mapping (single source) and TicketReadRepository for visibility.
  */
 class TicketPrintService
 {
     public function __construct(
-        private TicketRepository $tickets,
+        private TicketReadRepository $reads,
         private TicketService $ticketService,
     ) {
     }
 
     public function getPrintableTicketData(int $ticketId, array $viewer, string $paper = 'a4'): ?array
     {
-        $ticket = $this->tickets->findVisibleTicketById($ticketId, $viewer);
+        $ticket = $this->reads->findVisibleTicketById($ticketId, $viewer);
         if ($ticket === null) {
             return null;
         }
@@ -83,7 +83,7 @@ class TicketPrintService
 
     public function generatePrintQrPng(int $ticketId, array $viewer): string
     {
-        $ticket = $this->tickets->findVisibleTicketById($ticketId, $viewer);
+        $ticket = $this->reads->findVisibleTicketById($ticketId, $viewer);
         if ($ticket === null) {
             throw new DomainException('ไม่พบ ticket ที่ต้องการสร้าง QR สำหรับพิมพ์');
         }

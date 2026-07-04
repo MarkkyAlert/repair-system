@@ -5,7 +5,7 @@ namespace App\Controllers;
 
 use App\Core\Response;
 use App\Middleware\AuthMiddleware;
-use App\Repositories\TicketRepository;
+use App\Repositories\TicketReadRepository;
 use App\Repositories\UserRepository;
 use App\Services\AdminService;
 use App\Services\BroadcastService;
@@ -25,7 +25,7 @@ class AdminController
         private SystemSettingsService $systemSettings,
         private ReferenceDataService $reference,
         private DemoDataService $demoData,
-        private TicketRepository $tickets,
+        private TicketReadRepository $reads,
         private UserRepository $users,
     ) {
     }
@@ -66,7 +66,7 @@ class AdminController
             'emailPreviews' => $data['emailPreviews'],
             'loginAttempts' => $data['loginAttempts'],
             'loginAttemptStats' => $data['loginAttemptStats'],
-            'canLoadDemo' => $this->tickets->countAllTickets() === 0,
+            'canLoadDemo' => $this->reads->countAllTickets() === 0,
         ]);
     }
 

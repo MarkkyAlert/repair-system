@@ -205,12 +205,12 @@ class TicketService
             'sla' => trim((string) ($filters['sla'] ?? '')) === 'overdue' ? 'overdue' : '',
         ];
         $page = max(1, (int) ($filters['page'] ?? 1));
-        $result = $this->tickets->getVisibleTicketsPage($viewer, $normalized, $page, 20);
+        $result = $this->reads->getVisibleTicketsPage($viewer, $normalized, $page, 20);
         $tickets = array_map(fn (array $ticket): array => $this->mapTicketSummary($ticket), $result['items']);
         $technicians = array_map(fn (array $row): array => [
             'id' => (int) $row['id'],
             'label' => (string) $row['full_name'],
-        ], $this->tickets->getActiveTechnicians());
+        ], $this->reads->getActiveTechnicians());
 
         return [
             'metrics' => $metrics,
@@ -218,7 +218,7 @@ class TicketService
             'roleLabel' => role_label_th((string) ($viewer['role'] ?? 'guest')),
             'filters' => $normalized + ['technicians' => $technicians],
             'pagination' => $result,
-            'queueMaxId' => $this->tickets->getMaxVisibleTicketId($viewer),
+            'queueMaxId' => $this->reads->getMaxVisibleTicketId($viewer),
             'activeFilterChips' => $this->buildTicketFilterChips($normalized, $technicians),
             'urgentAlerts' => $this->buildTicketUrgentAlerts($metrics),
         ];
@@ -290,12 +290,12 @@ class TicketService
      */
     public function getQueueMaxVisibleId(array $viewer): int
     {
-        return $this->tickets->getMaxVisibleTicketId($viewer);
+        return $this->reads->getMaxVisibleTicketId($viewer);
     }
 
     public function getCreateFormData(array $viewer, array $oldInput = [], array $prefill = []): array
     {
-        $reference = $this->tickets->getCreateFormReferenceData();
+        $reference = $this->reads->getCreateFormReferenceData();
         $prefillAsset = null;
 
         if ($oldInput === []) {
@@ -356,7 +356,7 @@ class TicketService
     public function createTicket(array $viewer, array $input, array $files = []): int
     {
         $validatedFiles = $this->attachments->validateUploads($files);
-        $reference = $this->tickets->getCreateFormReferenceData();
+        $reference = $this->reads->getCreateFormReferenceData();
 
         $title = trim((string) ($input['title'] ?? ''));
         $description = trim((string) ($input['description'] ?? ''));
@@ -464,7 +464,7 @@ class TicketService
 
     public function getDuplicateFormData(int $ticketId, array $viewer): array
     {
-        $ticket = $this->tickets->findVisibleTicketById($ticketId, $viewer);
+        $ticket = $this->reads->findVisibleTicketById($ticketId, $viewer);
         if ($ticket === null || !$this->policy->canDuplicateTicket($ticket, $viewer)) {
             throw new DomainException('Ticket นี้ไม่สามารถใช้เปิดรายการใหม่ได้');
         }
@@ -491,7 +491,7 @@ class TicketService
      */
     public function getTicketLiveState(int $ticketId, array $viewer): ?array
     {
-        $ticket = $this->tickets->findVisibleTicketById($ticketId, $viewer);
+        $ticket = $this->reads->findVisibleTicketById($ticketId, $viewer);
         if ($ticket === null) {
             return null;
         }
@@ -512,7 +512,7 @@ class TicketService
      */
     public function getNewComments(int $ticketId, array $viewer, int $afterId): ?array
     {
-        $ticket = $this->tickets->findVisibleTicketById($ticketId, $viewer);
+        $ticket = $this->reads->findVisibleTicketById($ticketId, $viewer);
         if ($ticket === null) {
             return null;
         }
@@ -539,7 +539,7 @@ class TicketService
 
     public function getTicketDetailData(int $ticketId, array $viewer, array $oldInput = []): ?array
     {
-        $ticket = $this->tickets->findVisibleTicketById($ticketId, $viewer);
+        $ticket = $this->reads->findVisibleTicketById($ticketId, $viewer);
         if ($ticket === null) {
             return null;
         }
@@ -560,7 +560,7 @@ class TicketService
                 $mapped['attachments'] = $commentAttachments[(int) ($comment['id'] ?? 0)] ?? [];
                 return $mapped;
             }, $this->comments->getCommentsByTicketId($ticketId, $includeInternal)),
-            'activityLogs' => array_map(fn (array $log): array => $this->mapActivityLog($log), $this->tickets->getActivityLogsByTicketId($ticketId)),
+            'activityLogs' => array_map(fn (array $log): array => $this->mapActivityLog($log), $this->reads->getActivityLogsByTicketId($ticketId)),
             'workflow' => $this->buildWorkflowData($ticket, $viewer, $oldInput),
         ];
     }
@@ -574,8 +574,8 @@ class TicketService
             ];
         }
 
-        $rows = $this->tickets->findRecentTicketsByAssetId($assetId, $limit);
-        $total = $this->tickets->countTicketsByAssetId($assetId);
+        $rows = $this->reads->findRecentTicketsByAssetId($assetId, $limit);
+        $total = $this->reads->countTicketsByAssetId($assetId);
 
         return [
             'tickets' => array_map(fn (array $row): array => $this->mapTicketSummary($row), $rows),
@@ -720,7 +720,7 @@ class TicketService
             'technicians' => array_map(fn (array $technician): array => [
                 'id' => (int) ($technician['id'] ?? 0),
                 'label' => (string) ($technician['full_name'] ?? '-'),
-            ], $this->tickets->getActiveTechnicians()),
+            ], $this->reads->getActiveTechnicians()),
             'workOrder' => [
                 'number' => (string) ($ticket['work_order_no'] ?? ''),
                 'status' => work_order_status_label_th((string) ($ticket['work_order_status'] ?? '')),
