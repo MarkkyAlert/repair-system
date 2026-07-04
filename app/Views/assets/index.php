@@ -7,47 +7,8 @@ $assetLocationId = (int) ($assetFilters['location_id'] ?? 0);
 $assetStatus = (string) ($assetFilters['status'] ?? '');
 $isAssetFilterActive = $assetSearch !== '' || $assetCategoryId > 0 || $assetLocationId > 0 || $assetStatus !== '';
 $isAssetAdvancedFilterActive = $assetCategoryId > 0 || $assetLocationId > 0 || $assetStatus !== '';
-
-$assetCategoryLabel = '';
-foreach (($assetFilterOptions['categories'] ?? []) as $option) {
-    if ((int) ($option['id'] ?? 0) === $assetCategoryId) {
-        $assetCategoryLabel = (string) ($option['label'] ?? '');
-        break;
-    }
-}
-$assetLocationLabel = '';
-foreach (($assetFilterOptions['locations'] ?? []) as $option) {
-    if ((int) ($option['id'] ?? 0) === $assetLocationId) {
-        $assetLocationLabel = (string) ($option['label'] ?? '');
-        break;
-    }
-}
-$assetStatusLabel = (string) (($assetFilterOptions['statuses'] ?? [])[$assetStatus] ?? '');
-
-$assetChipDismissUrl = static function (string $removeKey) use ($assetSearch, $assetCategoryId, $assetLocationId, $assetStatus): string {
-    $query = [
-        'q' => $assetSearch,
-        'category_id' => $assetCategoryId > 0 ? (string) $assetCategoryId : '',
-        'location_id' => $assetLocationId > 0 ? (string) $assetLocationId : '',
-        'status' => $assetStatus,
-    ];
-    unset($query[$removeKey]);
-    $query = array_filter($query, static fn ($v): bool => (string) $v !== '');
-    return url('/asset-registry' . ($query !== [] ? '?' . http_build_query($query) : ''));
-};
-$assetActiveChips = [];
-if ($assetSearch !== '') {
-    $assetActiveChips[] = ['label' => 'คำค้น: ' . $assetSearch, 'dismiss' => $assetChipDismissUrl('q')];
-}
-if ($assetCategoryId > 0) {
-    $assetActiveChips[] = ['label' => 'หมวดหมู่: ' . ($assetCategoryLabel !== '' ? $assetCategoryLabel : (string) $assetCategoryId), 'dismiss' => $assetChipDismissUrl('category_id')];
-}
-if ($assetLocationId > 0) {
-    $assetActiveChips[] = ['label' => 'สถานที่: ' . ($assetLocationLabel !== '' ? $assetLocationLabel : (string) $assetLocationId), 'dismiss' => $assetChipDismissUrl('location_id')];
-}
-if ($assetStatus !== '') {
-    $assetActiveChips[] = ['label' => 'สถานะ: ' . ($assetStatusLabel !== '' ? $assetStatusLabel : $assetStatus), 'dismiss' => $assetChipDismissUrl('status')];
-}
+// $activeFilters (chips: label + dismiss) เป็น view-model จาก controller (AssetService) — ไม่ derive ใน view แล้ว
+$assetActiveChips = $activeFilters ?? [];
 ?>
 <section class="stack-lg">
     <h1 class="sr-only">ทรัพย์สินและ QR — ทะเบียนทรัพย์สินขององค์กร</h1>

@@ -388,29 +388,42 @@ class AssetService
         ];
     }
 
+    /** Active-filter chips (view-model): label + dismiss URL per applied asset filter. */
     private function buildAssetActiveFilterChips(array $filters, array $options): array
     {
-        $chips = [];
+        $dismissUrl = static function (string $removeKey) use ($filters): string {
+            $query = [
+                'q' => (string) ($filters['q'] ?? ''),
+                'category_id' => (int) ($filters['category_id'] ?? 0) > 0 ? (string) $filters['category_id'] : '',
+                'location_id' => (int) ($filters['location_id'] ?? 0) > 0 ? (string) $filters['location_id'] : '',
+                'status' => (string) ($filters['status'] ?? ''),
+            ];
+            unset($query[$removeKey]);
+            $query = array_filter($query, static fn ($v): bool => (string) $v !== '');
 
+            return url('/asset-registry' . ($query !== [] ? '?' . http_build_query($query) : ''));
+        };
+
+        $chips = [];
         if ((string) ($filters['q'] ?? '') !== '') {
-            $chips[] = 'คำค้น: ' . (string) $filters['q'];
+            $chips[] = ['label' => 'คำค้น: ' . (string) $filters['q'], 'dismiss' => $dismissUrl('q')];
         }
 
         $categoryId = (int) ($filters['category_id'] ?? 0);
         if ($categoryId > 0) {
             $label = $this->findOptionLabel($options['categories'] ?? [], $categoryId);
-            $chips[] = 'หมวดหมู่: ' . ($label !== '' ? $label : (string) $categoryId);
+            $chips[] = ['label' => 'หมวดหมู่: ' . ($label !== '' ? $label : (string) $categoryId), 'dismiss' => $dismissUrl('category_id')];
         }
 
         $locationId = (int) ($filters['location_id'] ?? 0);
         if ($locationId > 0) {
             $label = $this->findOptionLabel($options['locations'] ?? [], $locationId);
-            $chips[] = 'สถานที่: ' . ($label !== '' ? $label : (string) $locationId);
+            $chips[] = ['label' => 'สถานที่: ' . ($label !== '' ? $label : (string) $locationId), 'dismiss' => $dismissUrl('location_id')];
         }
 
         $status = (string) ($filters['status'] ?? '');
         if ($status !== '') {
-            $chips[] = 'สถานะ: ' . asset_status_label_th($status);
+            $chips[] = ['label' => 'สถานะ: ' . asset_status_label_th($status), 'dismiss' => $dismissUrl('status')];
         }
 
         return $chips;
