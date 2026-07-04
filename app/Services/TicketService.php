@@ -1165,20 +1165,7 @@ class TicketService
         $preset = is_string($filters['preset'] ?? null) ? trim((string) $filters['preset']) : '';
         $year = (int) ($filters['year'] ?? date('Y'));
 
-        $allowedStatuses = [
-            'submitted',
-            'pending_approval',
-            'approved',
-            'assigned',
-            'accepted',
-            'in_progress',
-            'on_hold',
-            'resolved',
-            'completed',
-            'rejected',
-            'cancelled',
-            'closed',
-        ];
+        $allowedStatuses = ticket_status_values();
 
         $currentYear = (int) date('Y');
         if ($year < 2020 || $year > ($currentYear + 1)) {
@@ -1228,22 +1215,7 @@ class TicketService
                 'value' => (string) ($row['id'] ?? 0),
                 'label' => (string) ($row['name'] ?? '-'),
             ], $reference['categories'] ?? [])),
-            'statusOptions' => array_merge([
-                ['value' => '', 'label' => 'ทุกสถานะ'],
-            ], $this->enumOptions([
-                'submitted',
-                'pending_approval',
-                'approved',
-                'assigned',
-                'accepted',
-                'in_progress',
-                'on_hold',
-                'resolved',
-                'completed',
-                'rejected',
-                'cancelled',
-                'closed',
-            ])),
+            'statusOptions' => ticket_status_options(true),
             'yearOptions' => array_map(fn (int $year): array => [
                 'value' => (string) $year,
                 'label' => (string) $year,

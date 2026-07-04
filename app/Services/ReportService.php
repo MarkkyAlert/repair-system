@@ -284,20 +284,7 @@ class ReportService
         $fromDate = is_string($filters['from_date'] ?? null) ? trim((string) $filters['from_date']) : '';
         $toDate = is_string($filters['to_date'] ?? null) ? trim((string) $filters['to_date']) : '';
         $status = is_string($filters['status'] ?? null) ? trim((string) $filters['status']) : '';
-        $allowedStatuses = [
-            'submitted',
-            'pending_approval',
-            'approved',
-            'assigned',
-            'accepted',
-            'in_progress',
-            'on_hold',
-            'resolved',
-            'completed',
-            'rejected',
-            'cancelled',
-            'closed',
-        ];
+        $allowedStatuses = ticket_status_values();
 
         return normalize_date_range($fromDate, $toDate) + [
             'department_id' => max(0, (int) ($filters['department_id'] ?? 0)),
@@ -336,22 +323,7 @@ class ReportService
                 'value' => (string) ($row['id'] ?? 0),
                 'label' => (string) ($row['name'] ?? '-'),
             ], $reference['categories'] ?? [])),
-            'statusOptions' => array_merge([
-                ['value' => '', 'label' => 'ทุกสถานะ'],
-            ], $this->enumOptions([
-                'submitted',
-                'pending_approval',
-                'approved',
-                'assigned',
-                'accepted',
-                'in_progress',
-                'on_hold',
-                'resolved',
-                'completed',
-                'rejected',
-                'cancelled',
-                'closed',
-            ])),
+            'statusOptions' => ticket_status_options(true),
             'active_count' => $this->countActiveFilters($filters),
             'query_string' => http_build_query($queryFilters),
         ];
@@ -503,14 +475,5 @@ class ReportService
         }
 
         return date('d/m/Y H:i', $timestamp);
-    }
-
-    private function enumOptions(array $values): array
-    {
-        // Used only for the on-screen ticket-status filter dropdown.
-        return array_map(static fn (string $value): array => [
-            'value' => $value,
-            'label' => ticket_status_label_th($value),
-        ], $values);
     }
 }

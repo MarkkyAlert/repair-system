@@ -70,6 +70,52 @@ if (!function_exists('ticket_status_label_th')) {
     }
 }
 
+if (!function_exists('ticket_status_values')) {
+    /**
+     * Canonical ordered list of tickets.status enum values — single source of truth for
+     * validation whitelists and filter dropdowns (keep in sync with schema.sql + [[ticket_status_label_th]]).
+     */
+    function ticket_status_values(): array
+    {
+        return [
+            'submitted',
+            'pending_approval',
+            'approved',
+            'assigned',
+            'accepted',
+            'in_progress',
+            'on_hold',
+            'resolved',
+            'completed',
+            'rejected',
+            'cancelled',
+            'closed',
+        ];
+    }
+}
+
+if (!function_exists('ticket_status_options')) {
+    /**
+     * Ticket-status filter dropdown options ([{value,label}]) with Thai labels from
+     * ticket_status_label_th(). Pass $includeAll to prepend an "all statuses" entry.
+     *
+     * @return array<int,array{value:string,label:string}>
+     */
+    function ticket_status_options(bool $includeAll = false, string $allLabel = 'ทุกสถานะ'): array
+    {
+        $options = array_map(static fn (string $value): array => [
+            'value' => $value,
+            'label' => ticket_status_label_th($value),
+        ], ticket_status_values());
+
+        if ($includeAll) {
+            array_unshift($options, ['value' => '', 'label' => $allLabel]);
+        }
+
+        return $options;
+    }
+}
+
 if (!function_exists('approval_label_th')) {
     function approval_label_th(string $status): string
     {
