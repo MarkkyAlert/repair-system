@@ -27,6 +27,7 @@ $qrItems = $items ?? [];
                 <div class="qr-cell" role="listitem">
                     <div class="qr-cut-guide" aria-hidden="true"></div>
                     <div class="qr-label-brand">
+                        <?php // inline img onerror kept by design: this is a self-contained print sheet (may render without app.js), and the `error` event does not bubble so delegation is unreliable. ?>
                         <?php if ($qrBrandLogoUrl !== ''): ?>
                             <img src="<?= e($qrBrandLogoUrl) ?>" alt="" aria-hidden="true" class="qr-label-logo" onerror="this.remove()">
                         <?php else: ?>

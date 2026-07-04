@@ -947,6 +947,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   })();
 
+  // ── Generic submit confirmation (delegated) ──
+  // แทน inline onsubmit="return confirm(...)" ด้วย data-confirm-submit="ข้อความ" ตัวเดียว
+  // → รวม pattern ยืนยันการกระทำ destructive (ลบ/นำเข้า/regenerate) ไว้ที่เดียว ไม่ปน JS ใน template.
+  document.addEventListener('submit', function (e) {
+    var form = e.target;
+    if (!form || typeof form.getAttribute !== 'function') { return; }
+    var message = form.getAttribute('data-confirm-submit');
+    if (message && !window.confirm(message)) { e.preventDefault(); }
+  });
+
   // ── Export loading overlay ──
   // Heavy export links (Excel/PDF/CSV) take 5-10s to prepare server-side. Show
   // a blocking overlay while the browser waits for the response.

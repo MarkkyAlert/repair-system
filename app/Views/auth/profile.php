@@ -157,7 +157,7 @@ $lastLoginLabel = !empty($profile['last_login_at']) ? human_date((string) $profi
         <div class="button-row">
             <?= render_partial('partials/components/button', ['label' => 'เปลี่ยนรหัสผ่าน', 'variant' => 'primary', 'href' => '/change-password', 'icon' => 'key-round']) ?>
             <?php if ($hasRememberToken): ?>
-                <form method="post" action="<?= e(url('/profile/security/revoke-remember-me')) ?>" onsubmit="return confirm('ยกเลิกการจดจำการเข้าระบบ? อุปกรณ์ที่เคยเปิดจดจำจะต้อง login ใหม่');">
+                <form method="post" action="<?= e(url('/profile/security/revoke-remember-me')) ?>" data-confirm-submit="ยกเลิกการจดจำการเข้าระบบ? อุปกรณ์ที่เคยเปิดจดจำจะต้อง login ใหม่">
                     <?= csrf_field() ?>
                     <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ล้าง remember-me', 'variant' => 'secondary', 'icon' => 'refresh-cw']) ?>
                 </form>

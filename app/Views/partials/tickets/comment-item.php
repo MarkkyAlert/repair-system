@@ -34,7 +34,7 @@ $canUseInternalComment = $canUseInternalComment ?? false;
         <?php endif; ?>
         <?php if (!empty($comment['can_manage'])): ?>
             <div class="button-row comment-actions">
-                <a href="<?= e(url('/tickets/' . $ticketId . '?edit_comment=' . $comment['id'] . '#comment-' . $comment['id'])) ?>" class="btn btn-ghost btn-sm" aria-label="แก้ไขความเห็นของ <?= e($comment['author_name']) ?>" data-comment-edit-toggle onclick="return window.__toggleCommentEdit(this)">
+                <a href="<?= e(url('/tickets/' . $ticketId . '?edit_comment=' . $comment['id'] . '#comment-' . $comment['id'])) ?>" class="btn btn-ghost btn-sm" aria-label="แก้ไขความเห็นของ <?= e($comment['author_name']) ?>" data-comment-edit-toggle>
                     <?= lucide('pencil', 'button-icon') ?>
                     <span>แก้ไข</span>
                 </a>
@@ -47,7 +47,7 @@ $canUseInternalComment = $canUseInternalComment ?? false;
     </div>
     <?php if (!empty($comment['can_manage'])): ?>
         <div data-comment-edit-panel<?= $isEditing ? '' : ' hidden' ?>>
-            <form method="post" action="<?= e(url('/tickets/' . $ticketId . '/comments/' . $comment['id'] . '/update')) ?>" class="stack-md" data-comment-edit-form onsubmit="return window.__handleInlineCommentSave ? window.__handleInlineCommentSave(this, event) : true;">
+            <form method="post" action="<?= e(url('/tickets/' . $ticketId . '/comments/' . $comment['id'] . '/update')) ?>" class="stack-md" data-comment-edit-form>
                 <?= csrf_field() ?>
                 <input type="hidden" name="original_updated_at" value="<?= e((string) ($comment['updated_at'] ?? '')) ?>">
                 <div class="field-group">
@@ -63,7 +63,7 @@ $canUseInternalComment = $canUseInternalComment ?? false;
                 <?php endif; ?>
                 <div class="button-row">
                     <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'บันทึก', 'variant' => 'primary', 'size' => 'sm']) ?>
-                    <a href="<?= e(url('/tickets/' . $ticketId . '#comment-' . $comment['id'])) ?>" class="btn btn-ghost btn-sm" data-comment-edit-cancel onclick="return window.__cancelCommentEdit(this)">
+                    <a href="<?= e(url('/tickets/' . $ticketId . '#comment-' . $comment['id'])) ?>" class="btn btn-ghost btn-sm" data-comment-edit-cancel>
                         <span>ยกเลิก</span>
                     </a>
                 </div>

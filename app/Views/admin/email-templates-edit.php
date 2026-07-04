@@ -88,7 +88,7 @@ $hasOverride = ($values ?? []) !== [];
         </form>
 
         <?php if ($hasOverride): ?>
-            <form method="post" action="<?= e(url('/admin/email-templates/' . rawurlencode($templateKey) . '/reset')) ?>" onsubmit="return confirm('คืนค่า template นี้เป็นค่าเริ่มต้น? การแก้ไขทั้งหมดจะหายไป');">
+            <form method="post" action="<?= e(url('/admin/email-templates/' . rawurlencode($templateKey) . '/reset')) ?>" data-confirm-submit="คืนค่า template นี้เป็นค่าเริ่มต้น? การแก้ไขทั้งหมดจะหายไป">
                 <?= csrf_field() ?>
                 <?= render_partial('partials/components/button', [
                     'type' => 'submit',

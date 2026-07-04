@@ -91,6 +91,24 @@ if (typeof window.__handleInlineCommentSave !== 'function') {
     };
 }
 
+// ── Inline comment edit (delegated) ──
+// แทน inline onclick/onsubmit ใน comment-item.php ด้วย delegation บน data-attribute เดิม
+// (รอด comment ที่ live-append เข้ามาด้วย).
+(function () {
+    document.addEventListener('click', function (e) {
+        if (!e.target || !e.target.closest) { return; }
+        var toggle = e.target.closest('[data-comment-edit-toggle]');
+        if (toggle) { e.preventDefault(); if (window.__toggleCommentEdit) { window.__toggleCommentEdit(toggle); } return; }
+        var cancel = e.target.closest('[data-comment-edit-cancel]');
+        if (cancel) { e.preventDefault(); if (window.__cancelCommentEdit) { window.__cancelCommentEdit(cancel); } return; }
+    });
+    document.addEventListener('submit', function (e) {
+        if (e.target && e.target.matches && e.target.matches('[data-comment-edit-form]') && window.__handleInlineCommentSave) {
+            window.__handleInlineCommentSave(e.target, e);   // ฟังก์ชันนี้ preventDefault เอง
+        }
+    });
+})();
+
 // ── Live ticket polling ──
 // ตรวจว่า status/comment ของ ticket ถูกเปลี่ยนโดยคนอื่นระหว่างเปิดหน้าอยู่ → โชว์ banner ให้โหลดใหม่
 // (ไม่ auto-reload กันขัดจังหวะพิมพ์ comment). ใช้ polling ให้สอดคล้อง notification bell — ไม่ใช้ WebSocket.

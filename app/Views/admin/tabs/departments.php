@@ -87,7 +87,7 @@
                                 </div>
                             </form>
                             <div class="delete-zone">
-                                <form method="post" action="<?= e(url('/admin/departments/' . $depId . '/delete')) ?>" class="button-row" onsubmit="return confirm('ยืนยันการลบแผนกนี้? ลบได้เฉพาะรายการที่ยังไม่ถูกใช้งาน หากถูกใช้งานแล้วให้ปิดใช้งานแทน');">
+                                <form method="post" action="<?= e(url('/admin/departments/' . $depId . '/delete')) ?>" class="button-row" data-confirm-submit="ยืนยันการลบแผนกนี้? ลบได้เฉพาะรายการที่ยังไม่ถูกใช้งาน หากถูกใช้งานแล้วให้ปิดใช้งานแทน">
                                     <?= csrf_field() ?>
                                     <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ลบแผนก', 'variant' => 'danger', 'icon' => 'trash']) ?>
                                 </form>

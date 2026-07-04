@@ -169,7 +169,7 @@ $total = (int) ($preview['total'] ?? 0);
                     </table>
                 </div>
 
-                <form method="post" action="<?= e(url('/asset-registry/import/execute')) ?>" data-loading-submit onsubmit="return confirm('ยืนยันนำเข้า <?= count($valid) ?> รายการ? ระบบจะสร้าง asset + QR token ใน DB ทันที');">
+                <form method="post" action="<?= e(url('/asset-registry/import/execute')) ?>" data-loading-submit data-confirm-submit="ยืนยันนำเข้า <?= count($valid) ?> รายการ? ระบบจะสร้าง asset + QR token ใน DB ทันที">
                     <?= csrf_field() ?>
                     <div class="button-row">
                         <?= render_partial('partials/components/button', [

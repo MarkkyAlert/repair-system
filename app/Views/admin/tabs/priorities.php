@@ -146,7 +146,7 @@
                                 </div>
                             </form>
                             <div class="delete-zone">
-                                <form method="post" action="<?= e(url('/admin/priorities/' . $priorityId . '/delete')) ?>" class="button-row" onsubmit="return confirm('ยืนยันการลบระดับความสำคัญนี้? ลบได้เฉพาะระดับที่ยังไม่ถูกใช้กับ ticket หากถูกใช้งานแล้วให้ปิดใช้งานแทน');">
+                                <form method="post" action="<?= e(url('/admin/priorities/' . $priorityId . '/delete')) ?>" class="button-row" data-confirm-submit="ยืนยันการลบระดับความสำคัญนี้? ลบได้เฉพาะระดับที่ยังไม่ถูกใช้กับ ticket หากถูกใช้งานแล้วให้ปิดใช้งานแทน">
                                     <?= csrf_field() ?>
                                     <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ลบความสำคัญ', 'variant' => 'danger', 'icon' => 'trash']) ?>
                                 </form>

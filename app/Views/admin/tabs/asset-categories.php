@@ -102,7 +102,7 @@
                                 </div>
                             </form>
                             <div class="delete-zone">
-                                <form method="post" action="<?= e(url('/admin/asset-categories/' . $assetCatId . '/delete')) ?>" class="button-row" onsubmit="return confirm('ยืนยันการลบหมวดหมู่ทรัพย์สินนี้? ลบได้เฉพาะรายการที่ยังไม่ถูกใช้งาน หากถูกใช้งานแล้วให้ปิดใช้งานแทน');">
+                                <form method="post" action="<?= e(url('/admin/asset-categories/' . $assetCatId . '/delete')) ?>" class="button-row" data-confirm-submit="ยืนยันการลบหมวดหมู่ทรัพย์สินนี้? ลบได้เฉพาะรายการที่ยังไม่ถูกใช้งาน หากถูกใช้งานแล้วให้ปิดใช้งานแทน">
                                     <?= csrf_field() ?>
                                     <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ลบหมวดหมู่ทรัพย์สิน', 'variant' => 'danger', 'icon' => 'trash']) ?>
                                 </form>

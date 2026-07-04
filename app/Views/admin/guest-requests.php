@@ -108,7 +108,7 @@ $tabUrl = static fn (string $status): string => url('/admin/guest-requests' . ($
                             </dl>
 
                             <?php if ((string) $request['status'] === 'new'): ?>
-                                <form method="post" action="<?= e(url('/admin/guest-requests/' . (int) $request['id'] . '/convert')) ?>" class="stack-md" onsubmit="return confirm('ยืนยันแปลงเป็น ticket?');">
+                                <form method="post" action="<?= e(url('/admin/guest-requests/' . (int) $request['id'] . '/convert')) ?>" class="stack-md" data-confirm-submit="ยืนยันแปลงเป็น ticket?">
                                     <?= csrf_field() ?>
                                     <div class="content-grid">
                                         <div class="field-group">
@@ -136,7 +136,7 @@ $tabUrl = static fn (string $status): string => url('/admin/guest-requests' . ($
                                 </form>
 
                                 <div class="delete-zone">
-                                    <form method="post" action="<?= e(url('/admin/guest-requests/' . (int) $request['id'] . '/reject')) ?>" class="stack-md" onsubmit="return confirm('ยืนยันปฏิเสธคำขอนี้?');">
+                                    <form method="post" action="<?= e(url('/admin/guest-requests/' . (int) $request['id'] . '/reject')) ?>" class="stack-md" data-confirm-submit="ยืนยันปฏิเสธคำขอนี้?">
                                         <?= csrf_field() ?>
                                         <div class="field-group">
                                             <label class="field-label">เหตุผลการปฏิเสธ</label>

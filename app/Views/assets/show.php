@@ -144,7 +144,7 @@
             </div>
 
             <?php if (!empty($canManage)): ?>
-                <form method="post" action="<?= e(url('/asset-registry/' . $asset['id'] . '/qr/regenerate')) ?>" class="asset-maintenance-actions" onsubmit="return confirm('ยืนยันสร้าง QR token ใหม่?\n\nQR เดิมจะใช้งานไม่ได้อีก และต้องพิมพ์ QR ใหม่ทุกจุดที่ติดตั้งไว้')">
+                <form method="post" action="<?= e(url('/asset-registry/' . $asset['id'] . '/qr/regenerate')) ?>" class="asset-maintenance-actions" data-confirm-submit="ยืนยันสร้าง QR token ใหม่? QR เดิมจะใช้งานไม่ได้อีก และต้องพิมพ์ QR ใหม่ทุกจุดที่ติดตั้งไว้">
                     <?= csrf_field() ?>
                     <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'สร้าง QR token ใหม่', 'variant' => 'danger', 'icon' => 'alert-triangle']) ?>
                     <p class="field-hint">ใช้เมื่อ QR เดิมรั่วไหลหรือต้องการเปลี่ยนลิงก์สแกน</p>

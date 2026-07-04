@@ -455,7 +455,7 @@ if (!empty($workflow['canReview'])) {
             </div>
 
             <?php if (!empty($workflow['canCancel'])): ?>
-                <form method="post" action="<?= e(url('/tickets/' . $ticket['id'] . '/cancel')) ?>" class="action-form action-form-danger" id="action-cancel" onsubmit="return confirm('ยืนยันการยกเลิก Ticket นี้? การดำเนินการนี้ย้อนกลับไม่ได้');">
+                <form method="post" action="<?= e(url('/tickets/' . $ticket['id'] . '/cancel')) ?>" class="action-form action-form-danger" id="action-cancel" data-confirm-submit="ยืนยันการยกเลิก Ticket นี้? การดำเนินการนี้ย้อนกลับไม่ได้">
                     <?= csrf_field() ?>
                     <div class="action-form-head">
                         <span class="action-form-icon tone-danger"><?= lucide('x', 'h-5 w-5') ?></span>
