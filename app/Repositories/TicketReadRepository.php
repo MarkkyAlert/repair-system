@@ -444,45 +444,6 @@ class TicketReadRepository
         return '0 = 1';
     }
 
-    public function getVisibleTickets(array $viewer): array
-    {
-        $params = [];
-        $visibility = $this->visibilityClause($viewer, $params);
-
-        $stmt = $this->db->prepare(
-            "SELECT
-                t.id,
-                t.ticket_no,
-                t.title,
-                t.status,
-                t.approval_status,
-                t.channel,
-                t.requested_at,
-                t.updated_at,
-                t.first_response_at,
-                t.response_due_at,
-                t.resolved_at,
-                t.resolution_due_at,
-                p.code AS priority_code,
-                p.name AS priority_name,
-                c.name AS category_name,
-                l.name AS location_name,
-                requester.full_name AS requester_name,
-                technician.full_name AS technician_name
-             FROM tickets t
-             INNER JOIN priorities p ON p.id = t.priority_id
-             INNER JOIN ticket_categories c ON c.id = t.ticket_category_id
-             INNER JOIN locations l ON l.id = t.location_id
-             INNER JOIN users requester ON requester.id = t.requester_id
-             LEFT JOIN users technician ON technician.id = t.assigned_technician_id
-             WHERE $visibility
-             ORDER BY t.requested_at DESC, t.id DESC"
-        );
-        $stmt->execute($params);
-
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    }
-
     public function getVisibleTicketsPage(array $viewer, array $filters, int $page, int $perPage): array
     {
         $params = [];
