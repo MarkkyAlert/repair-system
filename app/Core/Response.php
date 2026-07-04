@@ -28,6 +28,23 @@ class Response
         exit;
     }
 
+    /**
+     * JSON envelope for command (mutation) endpoints: {"success":true,"message":...,...$data}.
+     * Use this + jsonError() for anything a form/AJAX action submits. Polling/read endpoints
+     * (ticket state, comment feed, {max_id}, notification feed) keep their own field-specific
+     * shapes by design — their JS clients read named fields, not this envelope.
+     */
+    public static function jsonSuccess(array $data = [], string $message = '', int $status = 200): never
+    {
+        self::json(['success' => true, 'message' => $message] + $data, $status);
+    }
+
+    /** JSON envelope for a failed command: {"success":false,"message":...,...$data}. */
+    public static function jsonError(string $message, int $status = 422, array $data = []): never
+    {
+        self::json(['success' => false, 'message' => $message] + $data, $status);
+    }
+
     public static function download(string $content, string $fileName, string $contentType, string $disposition = 'attachment', int $status = 200): never
     {
         http_response_code($status);

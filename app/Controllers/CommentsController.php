@@ -51,20 +51,13 @@ class CommentsController
             $updatedComment = $this->comments->updateComment((int) $ticketId, (int) $commentId, $viewer, $_POST);
 
             if ($expectsJson) {
-                Response::json([
-                    'success' => true,
-                    'message' => 'อัปเดต comment เรียบร้อยแล้ว',
-                    'comment' => $updatedComment,
-                ]);
+                Response::jsonSuccess(['comment' => $updatedComment], 'อัปเดต comment เรียบร้อยแล้ว');
             }
 
             flash('success', 'อัปเดต comment เรียบร้อยแล้ว');
         } catch (DomainException|RuntimeException $exception) {
             if ($expectsJson) {
-                Response::json([
-                    'success' => false,
-                    'message' => $exception->getMessage(),
-                ], 422);
+                Response::jsonError($exception->getMessage());
             }
 
             with_old_input([
