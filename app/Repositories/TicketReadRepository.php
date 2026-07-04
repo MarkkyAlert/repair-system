@@ -6,9 +6,10 @@ namespace App\Repositories;
 use PDO;
 
 /**
- * Read-side ticket queries split out of TicketRepository — dashboard aggregates + CSAT summary
- * (read-only, no mutations/locks). First slice of the read/write repository split.
- * visibilityClause is intentionally kept in both repos so each stays self-contained.
+ * Read-side ticket queries split out of TicketRepository (read-only — no mutations/locks/transactions):
+ * dashboard aggregates, list/queue pagination, ticket detail, comments/activity, reference data, and
+ * asset/notification-context reads. Grouped by the section comments below. The mutation side lives in
+ * TicketRepository; the visibility + filter query-builders live here as private helpers.
  */
 class TicketReadRepository
 {
@@ -16,6 +17,7 @@ class TicketReadRepository
     {
     }
 
+    // ── Dashboard reads — metrics, recent, trends, breakdowns, CSAT ──
     public function getDashboardMetrics(array $viewer, array $filters = []): array
     {
         $params = [];
@@ -364,6 +366,7 @@ class TicketReadRepository
         ];
     }
 
+    // ── Private query helpers — dashboard filters + row visibility ──
     private function applyDashboardFilters(array &$conditions, array $filters, array &$params): void
     {
         $fromDate = is_string($filters['from_datetime'] ?? null) ? trim((string) $filters['from_datetime']) : '';
@@ -444,6 +447,7 @@ class TicketReadRepository
         return '0 = 1';
     }
 
+    // ── Ticket list / queue — pagination + filters ──
     public function getVisibleTicketsPage(array $viewer, array $filters, int $page, int $perPage): array
     {
         $params = [];
@@ -497,6 +501,7 @@ class TicketReadRepository
         ];
     }
 
+    // ── SLA breach reads ──
     public function getPendingOverdueSlaBreaches(): array
     {
         $closed = ticket_terminal_statuses_sql();
@@ -526,6 +531,7 @@ class TicketReadRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    // ── Reference data — create form ──
     public function getCreateFormReferenceData(): array
     {
         $priorities = $this->db->query(
@@ -576,6 +582,7 @@ class TicketReadRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    // ── Ticket detail — single ticket, comments, activity ──
     public function findVisibleTicketById(int $ticketId, array $viewer): ?array
     {
         $params = ['ticket_id' => $ticketId];
@@ -691,6 +698,7 @@ class TicketReadRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    // ── Counters & bounds ──
     public function countAllTickets(): int
     {
         return (int) $this->db->query('SELECT COUNT(*) FROM tickets')->fetchColumn();
@@ -706,6 +714,7 @@ class TicketReadRepository
         return (int) $stmt->fetchColumn();
     }
 
+    // ── Asset-related ticket reads ──
     public function findRecentTicketsByAssetId(int $assetId, int $limit = 10): array
     {
         $limit = max(1, min($limit, 50));
@@ -747,6 +756,7 @@ class TicketReadRepository
         return (int) $stmt->fetchColumn();
     }
 
+    // ── Notification context reads ──
     public function findTicketNotificationContextById(int $ticketId): ?array
     {
         $stmt = $this->db->prepare(
@@ -772,6 +782,7 @@ class TicketReadRepository
         return array_map(static fn (mixed $id): int => (int) $id, $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
     }
 
+    // ── Private query helper — ticket list filters ──
     private function applyTicketIndexFilters(array &$conditions, array $filters, array &$params): void
     {
         $search = trim((string) ($filters['q'] ?? ''));

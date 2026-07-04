@@ -46,7 +46,7 @@
 
 <div class="stack summary-grid">
     <div class="summary-item">
-        <div class="summary-title">Tickets ทั้งหมด</div>
+        <div class="summary-title">รายการ Ticket ทั้งหมด</div>
         <div class="summary-value"><?= e((string) ($summary['total'] ?? 0)) ?></div>
     </div>
     <div class="summary-item">

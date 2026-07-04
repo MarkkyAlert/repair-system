@@ -63,7 +63,7 @@ $isCapped = !empty($rowsMeta['capped']);
 
     <div class="stat-grid stat-grid-5 report-stat-scroll">
         <?= render_partial('partials/components/card', [
-            'title' => 'Tickets ทั้งหมด',
+            'title' => 'รายการ Ticket ทั้งหมด',
             'value' => (string) ($summary['total'] ?? 0),
             'meta' => 'รายการในรายงานปัจจุบัน',
             'tone' => 'default',
