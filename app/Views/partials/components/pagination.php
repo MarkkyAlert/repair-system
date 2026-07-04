@@ -2,11 +2,13 @@
 $page = max(1, (int) ($pagination['page'] ?? 1));
 $totalPages = max(1, (int) ($pagination['totalPages'] ?? 1));
 $total = max(0, (int) ($pagination['total'] ?? 0));
-$query = $_GET ?? [];
+// Base query params + path come from the caller when provided (keeps this a reusable component,
+// no hidden $_GET/request() coupling); otherwise fall back to the current request. `page` is owned here.
+$query = $query ?? ($_GET ?? []);
 unset($query['page']);
-$pageUrl = static function (int $target) use ($query): string {
-    $next = $query + ['page' => $target];
-    return url((string) (request()?->path ?? '/') . '?' . http_build_query($next));
+$path = $path ?? (string) (request()?->path ?? '/');
+$pageUrl = static function (int $target) use ($query, $path): string {
+    return url($path . '?' . http_build_query($query + ['page' => $target]));
 };
 ?>
 <?php if ($totalPages > 1): ?>
