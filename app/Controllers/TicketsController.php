@@ -5,6 +5,7 @@ namespace App\Controllers;
 
 use App\Core\Response;
 use App\Middleware\AuthMiddleware;
+use App\Services\TicketPrintService;
 use App\Services\TicketService;
 use DomainException;
 use RuntimeException;
@@ -14,8 +15,10 @@ class TicketsController
 {
     use HandlesFormSubmission;
 
-    public function __construct(private TicketService $tickets)
-    {
+    public function __construct(
+        private TicketService $tickets,
+        private TicketPrintService $print,
+    ) {
     }
 
     public function index(): void
@@ -335,7 +338,7 @@ class TicketsController
 
         $viewer = auth()->user() ?? [];
         $paper = (string) (request()?->query['paper'] ?? 'a4');
-        $print = $this->tickets->getPrintableTicketData((int) $ticketId, $viewer, $paper);
+        $print = $this->print->getPrintableTicketData((int) $ticketId, $viewer, $paper);
 
         if ($print === null) {
             Response::abort(404, 'ไม่พบรายการแจ้งซ่อมที่ต้องการพิมพ์');
@@ -360,7 +363,7 @@ class TicketsController
         $paper = (string) (request()?->query['paper'] ?? 'a4');
 
         try {
-            $export = $this->tickets->generatePrintableTicketPdf((int) $ticketId, $viewer, $paper);
+            $export = $this->print->generatePrintableTicketPdf((int) $ticketId, $viewer, $paper);
             Response::download(
                 (string) ($export['content'] ?? ''),
                 (string) ($export['file_name'] ?? 'job-order.pdf'),
@@ -381,7 +384,7 @@ class TicketsController
         $viewer = auth()->user() ?? [];
 
         try {
-            $png = $this->tickets->generatePrintQrPng((int) $ticketId, $viewer);
+            $png = $this->print->generatePrintQrPng((int) $ticketId, $viewer);
             Response::download($png, 'ticket-qr-' . (int) $ticketId . '.png', 'image/png', 'inline');
         } catch (DomainException|RuntimeException $exception) {
             Response::abort(404, $exception->getMessage());
