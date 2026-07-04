@@ -7,6 +7,7 @@ use App\Core\Response;
 use App\Middleware\AuthMiddleware;
 use App\Services\TicketPrintService;
 use App\Services\TicketService;
+use App\Services\TicketWorkflowService;
 use DomainException;
 use RuntimeException;
 use Throwable;
@@ -18,6 +19,7 @@ class TicketsController
     public function __construct(
         private TicketService $tickets,
         private TicketPrintService $print,
+        private TicketWorkflowService $workflow,
     ) {
     }
 
@@ -125,7 +127,7 @@ class TicketsController
             csrf_validate();
             $raw = (string) ($_POST['ticket_ids'] ?? '');
             $ids = array_filter(array_map('trim', explode(',', $raw)), static fn (string $v): bool => $v !== '' && ctype_digit($v));
-            $result = $this->tickets->bulkApproveTickets($ids, $viewer);
+            $result = $this->workflow->bulkApproveTickets($ids, $viewer);
 
             $message = 'Approve สำเร็จ ' . (int) $result['approved'] . ' รายการ';
             $failedCount = count($result['failed'] ?? []);
@@ -143,7 +145,7 @@ class TicketsController
     public function approve(string $ticketId): void
     {
         $this->handleUpdate(
-            fn (array $viewer) => $this->tickets->approveTicket((int) $ticketId, $viewer, $_POST),
+            fn (array $viewer) => $this->workflow->approveTicket((int) $ticketId, $viewer, $_POST),
             successMessage: 'อนุมัติรายการแจ้งซ่อมเรียบร้อยแล้ว',
             redirectTo: '/tickets/' . (int) $ticketId,
             oldInputOnError: ['note' => (string) ($_POST['note'] ?? '')],
@@ -153,7 +155,7 @@ class TicketsController
     public function reject(string $ticketId): void
     {
         $this->handleUpdate(
-            fn (array $viewer) => $this->tickets->rejectTicket((int) $ticketId, $viewer, $_POST),
+            fn (array $viewer) => $this->workflow->rejectTicket((int) $ticketId, $viewer, $_POST),
             successMessage: 'ปฏิเสธรายการแจ้งซ่อมเรียบร้อยแล้ว',
             redirectTo: '/tickets/' . (int) $ticketId,
             oldInputOnError: ['note' => (string) ($_POST['note'] ?? '')],
@@ -163,7 +165,7 @@ class TicketsController
     public function assign(string $ticketId): void
     {
         $this->handleUpdate(
-            fn (array $viewer) => $this->tickets->assignTechnician((int) $ticketId, $viewer, $_POST),
+            fn (array $viewer) => $this->workflow->assignTechnician((int) $ticketId, $viewer, $_POST),
             successMessage: 'มอบหมายช่างเทคนิคเรียบร้อยแล้ว',
             redirectTo: '/tickets/' . (int) $ticketId,
             oldInputOnError: [
@@ -176,7 +178,7 @@ class TicketsController
     public function accept(string $ticketId): void
     {
         $this->handleUpdate(
-            fn (array $viewer) => $this->tickets->acceptAssignedWork((int) $ticketId, $viewer, $_POST),
+            fn (array $viewer) => $this->workflow->acceptAssignedWork((int) $ticketId, $viewer, $_POST),
             successMessage: 'รับงานเรียบร้อยแล้ว',
             redirectTo: '/tickets/' . (int) $ticketId,
             oldInputOnError: ['accept_note' => (string) ($_POST['accept_note'] ?? '')],
@@ -186,7 +188,7 @@ class TicketsController
     public function start(string $ticketId): void
     {
         $this->handleUpdate(
-            fn (array $viewer) => $this->tickets->startAssignedWork((int) $ticketId, $viewer, $_POST),
+            fn (array $viewer) => $this->workflow->startAssignedWork((int) $ticketId, $viewer, $_POST),
             successMessage: 'อัปเดตสถานะเป็นกำลังดำเนินการแล้ว',
             redirectTo: '/tickets/' . (int) $ticketId,
             oldInputOnError: ['start_note' => (string) ($_POST['start_note'] ?? '')],
@@ -196,7 +198,7 @@ class TicketsController
     public function resolve(string $ticketId): void
     {
         $this->handleUpdate(
-            fn (array $viewer) => $this->tickets->resolveAssignedWork((int) $ticketId, $viewer, $_POST),
+            fn (array $viewer) => $this->workflow->resolveAssignedWork((int) $ticketId, $viewer, $_POST),
             successMessage: 'สรุปผลการซ่อมและอัปเดตงานเป็น Resolved เรียบร้อยแล้ว',
             redirectTo: '/tickets/' . (int) $ticketId,
             oldInputOnError: [
@@ -210,7 +212,7 @@ class TicketsController
     public function complete(string $ticketId): void
     {
         $this->handleUpdate(
-            fn (array $viewer) => $this->tickets->completeResolvedTicket((int) $ticketId, $viewer, $_POST),
+            fn (array $viewer) => $this->workflow->completeResolvedTicket((int) $ticketId, $viewer, $_POST),
             successMessage: 'ยืนยันปิดงานและบันทึกคะแนนความพึงพอใจเรียบร้อยแล้ว',
             redirectTo: '/tickets/' . (int) $ticketId,
             oldInputOnError: [
@@ -224,7 +226,7 @@ class TicketsController
     public function reopen(string $ticketId): void
     {
         $this->handleUpdate(
-            fn (array $viewer) => $this->tickets->reopenTicket((int) $ticketId, $viewer, $_POST),
+            fn (array $viewer) => $this->workflow->reopenTicket((int) $ticketId, $viewer, $_POST),
             successMessage: 'ส่งงานกลับไปดำเนินการซ้ำเรียบร้อยแล้ว',
             redirectTo: '/tickets/' . (int) $ticketId,
             oldInputOnError: ['reopen_note' => (string) ($_POST['reopen_note'] ?? '')],
@@ -234,7 +236,7 @@ class TicketsController
     public function cancel(string $ticketId): void
     {
         $this->handleUpdate(
-            fn (array $viewer) => $this->tickets->cancelTicket((int) $ticketId, $viewer, $_POST),
+            fn (array $viewer) => $this->workflow->cancelTicket((int) $ticketId, $viewer, $_POST),
             successMessage: 'ยกเลิก Ticket เรียบร้อยแล้ว',
             redirectTo: '/tickets/' . (int) $ticketId,
             oldInputOnError: ['cancel_note' => (string) ($_POST['cancel_note'] ?? '')],

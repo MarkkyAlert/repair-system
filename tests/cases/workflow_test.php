@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-use App\Services\TicketService;
+use App\Services\TicketWorkflowService;
 
 // Integration tests for the ticket lifecycle against the test DB. Each test inserts a fresh
 // ticket in a known state, drives the real service (which commits its own transactions), asserts
@@ -13,9 +13,9 @@ function wf_pdo(): PDO
     return tvm_container()->get(PDO::class);
 }
 
-function wf_service(): TicketService
+function wf_service(): TicketWorkflowService
 {
-    return tvm_container()->get(TicketService::class);
+    return tvm_container()->get(TicketWorkflowService::class);
 }
 
 function wf_insert_ticket(array $overrides): int
