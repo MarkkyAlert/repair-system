@@ -9,9 +9,6 @@ use Throwable;
 
 class TicketRepository
 {
-    /** Terminal ticket statuses (lifecycle finished). Single source for all "closed set" SQL in this repo. */
-    private const CLOSED_STATUSES = "'resolved','completed','rejected','cancelled','closed'";
-
     public function __construct(private PDO $db)
     {
     }
@@ -23,7 +20,7 @@ class TicketRepository
         $conditions = [$visibility];
         $this->applyDashboardFilters($conditions, $filters, $params);
         $whereClause = implode(' AND ', $conditions);
-        $closedStatuses = self::CLOSED_STATUSES;
+        $closedStatuses = ticket_terminal_statuses_sql();
 
         $stmt = $this->db->prepare(
             "SELECT
@@ -246,7 +243,7 @@ class TicketRepository
         ];
         $this->applyDashboardFilters($conditions, $filters, $params);
         $whereClause = implode(' AND ', $conditions);
-        $closedStatuses = self::CLOSED_STATUSES;
+        $closedStatuses = ticket_terminal_statuses_sql();
         $limit = max(1, min($limit, 10));
 
         $stmt = $this->db->prepare(
@@ -288,7 +285,7 @@ class TicketRepository
         $conditions = [$this->visibilityClause($viewer, $params)];
         $this->applyDashboardFilters($conditions, $filters, $params);
         $whereClause = implode(' AND ', $conditions);
-        $closedStatuses = self::CLOSED_STATUSES;
+        $closedStatuses = ticket_terminal_statuses_sql();
         $limit = max(1, min($limit, 10));
 
         $stmt = $this->db->prepare(
@@ -378,7 +375,7 @@ class TicketRepository
         $countStmt->execute($params);
         $total = (int) ($countStmt->fetchColumn() ?: 0);
         ['page' => $page, 'offset' => $offset, 'totalPages' => $totalPages] = paginate($page, $perPage, $total);
-        $closed = self::CLOSED_STATUSES;
+        $closed = ticket_terminal_statuses_sql();
 
         $stmt = $this->db->prepare(
             "SELECT
@@ -416,7 +413,7 @@ class TicketRepository
 
     public function getPendingOverdueSlaBreaches(): array
     {
-        $closed = self::CLOSED_STATUSES;
+        $closed = ticket_terminal_statuses_sql();
         $stmt = $this->db->prepare(
             "SELECT
                 ts.id,
@@ -1922,7 +1919,7 @@ class TicketRepository
             }
             $params['preset_user_id'] = $presetUserId;
         } elseif ($preset === 'overdue') {
-            $conditions[] = 't.status NOT IN (' . self::CLOSED_STATUSES . ')';
+            $conditions[] = 't.status NOT IN (' . ticket_terminal_statuses_sql() . ')';
             $conditions[] = "EXISTS (SELECT 1 FROM ticket_sla_tracks preset_ts WHERE preset_ts.ticket_id = t.id AND (preset_ts.status = 'breached' OR (preset_ts.status = 'pending' AND preset_ts.target_at < NOW())))";
         } elseif ($preset === 'pending_approval') {
             $conditions[] = "t.status = 'pending_approval' AND t.approval_status = 'pending'";
@@ -1959,7 +1956,7 @@ class TicketRepository
             $params['ticket_technician_id'] = $technicianId;
         }
         if ($sla === 'overdue') {
-            $conditions[] = 't.status NOT IN (' . self::CLOSED_STATUSES . ')';
+            $conditions[] = 't.status NOT IN (' . ticket_terminal_statuses_sql() . ')';
             $conditions[] = "EXISTS (SELECT 1 FROM ticket_sla_tracks ticket_sla_filter WHERE ticket_sla_filter.ticket_id = t.id AND (ticket_sla_filter.status = 'breached' OR (ticket_sla_filter.status = 'pending' AND ticket_sla_filter.target_at < NOW())))";
         }
     }

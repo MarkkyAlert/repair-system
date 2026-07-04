@@ -228,6 +228,9 @@ class AdminRepository
 
     private function hasOpenRequesterTickets(int $userId): bool
     {
+        // Requester-facing "still has open work" set — intentionally NOT ticket_terminal_statuses():
+        // 'resolved' is excluded here because a resolved ticket still awaits the requester's own
+        // confirm/reopen action, so it counts as open for them. Do not swap in the terminal set.
         $stmt = $this->db->prepare(
             "SELECT EXISTS(
                 SELECT 1 FROM tickets

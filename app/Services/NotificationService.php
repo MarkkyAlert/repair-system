@@ -611,7 +611,7 @@ class NotificationService
     private function currentSlaState(array $ticket): array
     {
         $status = (string) ($ticket['status'] ?? '');
-        $terminal = in_array($status, ['resolved', 'completed', 'rejected', 'cancelled', 'closed'], true);
+        $terminal = in_array($status, ticket_terminal_statuses(), true);
         $now = time();
         $responseDue = strtotime((string) ($ticket['response_due_at'] ?? ''));
         $resolutionDue = strtotime((string) ($ticket['resolution_due_at'] ?? ''));

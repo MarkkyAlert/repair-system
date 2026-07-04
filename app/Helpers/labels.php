@@ -94,6 +94,29 @@ if (!function_exists('ticket_status_values')) {
     }
 }
 
+if (!function_exists('ticket_terminal_statuses')) {
+    /**
+     * Ticket statuses whose lifecycle has ended — SLA clock stops, excluded from "open" queues,
+     * counted as closed in reports. NOTE: this is the *lifecycle*-terminal set (includes 'resolved').
+     * It is deliberately different from the requester-facing "still needs my action" set
+     * (AdminRepository::hasOpenRequesterTickets — 'resolved' is still open for the requester)
+     * and from the per-action workflow gates in TicketService (canReopen/canDuplicate/...).
+     * Do NOT collapse those into this one list.
+     */
+    function ticket_terminal_statuses(): array
+    {
+        return ['resolved', 'completed', 'rejected', 'cancelled', 'closed'];
+    }
+}
+
+if (!function_exists('ticket_terminal_statuses_sql')) {
+    /** Terminal statuses as a quoted, comma-joined SQL list for `status IN (...)` fragments. */
+    function ticket_terminal_statuses_sql(): string
+    {
+        return "'" . implode("','", ticket_terminal_statuses()) . "'";
+    }
+}
+
 if (!function_exists('ticket_status_options')) {
     /**
      * Ticket-status filter dropdown options ([{value,label}]) with Thai labels from
