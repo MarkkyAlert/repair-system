@@ -175,6 +175,14 @@ if (!function_exists('severity_label_th')) {
     }
 }
 
+if (!function_exists('severity_values')) {
+    /** Canonical impact_level/urgency_level enum values (keep in sync with schema.sql). */
+    function severity_values(): array
+    {
+        return ['low', 'medium', 'high', 'critical'];
+    }
+}
+
 if (!function_exists('work_order_status_label_th')) {
     /** work_orders.status enum: assigned/accepted/in_progress/paused/completed/cancelled. */
     function work_order_status_label_th(string $status): string
@@ -189,6 +197,14 @@ if (!function_exists('work_order_status_label_th')) {
         ];
 
         return $map[strtolower(trim($status))] ?? humanize_label($status);
+    }
+}
+
+if (!function_exists('asset_status_values')) {
+    /** Canonical assets.status enum values — single source for validation + option builders. */
+    function asset_status_values(): array
+    {
+        return ['active', 'maintenance', 'retired', 'disposed'];
     }
 }
 

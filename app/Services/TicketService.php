@@ -180,8 +180,8 @@ class TicketService
                 'location_id' => (int) ($asset['location_id'] ?? 0),
                 'label' => (string) ($asset['asset_code'] ?? '') . ' - ' . (string) ($asset['name'] ?? ''),
             ], $reference['assets'] ?? []),
-            'impactOptions' => $this->enumOptions(['low', 'medium', 'high', 'critical']),
-            'urgencyOptions' => $this->enumOptions(['low', 'medium', 'high', 'critical']),
+            'impactOptions' => $this->enumOptions(severity_values()),
+            'urgencyOptions' => $this->enumOptions(severity_values()),
             'prefill' => [
                 'has_asset' => $prefillAsset !== null,
                 'asset_label' => $prefillAsset !== null ? (string) ($prefillAsset['label'] ?? '') : '',
@@ -232,7 +232,7 @@ class TicketService
             throw new DomainException('หัวข้อปัญหาต้องไม่เกิน 200 ตัวอักษร');
         }
 
-        if (!in_array($impactLevel, ['low', 'medium', 'high', 'critical'], true) || !in_array($urgencyLevel, ['low', 'medium', 'high', 'critical'], true)) {
+        if (!in_array($impactLevel, severity_values(), true) || !in_array($urgencyLevel, severity_values(), true)) {
             throw new DomainException('ค่าผลกระทบหรือความเร่งด่วนไม่ถูกต้อง');
         }
 

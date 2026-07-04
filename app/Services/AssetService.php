@@ -231,7 +231,7 @@ class AssetService
             'statusOptions' => array_map(static fn (string $status): array => [
                 'value' => $status,
                 'label' => asset_status_label_th($status),
-            ], ['active', 'maintenance', 'retired', 'disposed']),
+            ], asset_status_values()),
             'defaults' => [
                 'asset_code' => (string) ($oldInput['asset_code'] ?? ($asset['asset_code'] ?? '')),
                 'name' => (string) ($oldInput['name'] ?? ($asset['name'] ?? '')),
@@ -279,7 +279,7 @@ class AssetService
             throw new DomainException('รหัสหรือชื่อ Asset ยาวเกินกว่าที่ระบบรองรับ');
         }
 
-        if (!in_array($status, ['active', 'maintenance', 'retired', 'disposed'], true)) {
+        if (!in_array($status, asset_status_values(), true)) {
             throw new DomainException('สถานะของ Asset ไม่ถูกต้อง');
         }
 
@@ -429,7 +429,7 @@ class AssetService
 
     private function assetStatusOptions(): array
     {
-        $keys = ['active', 'maintenance', 'retired', 'disposed'];
+        $keys = asset_status_values();
 
         return array_combine($keys, array_map('asset_status_label_th', $keys));
     }

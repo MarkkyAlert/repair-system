@@ -19,8 +19,6 @@ class AssetImportService
         'purchase_date', 'warranty_expires_at', 'status', 'notes',
     ];
 
-    public const ALLOWED_STATUSES = ['active', 'maintenance', 'retired', 'disposed'];
-
     public function __construct(
         private AssetRepository $assets,
         private UserRepository $users,
@@ -67,8 +65,8 @@ class AssetImportService
             if ($assetCode !== '' && isset($seenCodes[$assetCode])) {
                 $errors[] = 'asset_code ซ้ำกับแถวอื่นในไฟล์';
             }
-            if (!in_array($status, self::ALLOWED_STATUSES, true)) {
-                $errors[] = 'status ต้องเป็นหนึ่งใน: ' . implode(', ', self::ALLOWED_STATUSES);
+            if (!in_array($status, asset_status_values(), true)) {
+                $errors[] = 'status ต้องเป็นหนึ่งใน: ' . implode(', ', asset_status_values());
             }
 
             $categoryCode = strtoupper(trim((string) ($row['category_code'] ?? '')));
