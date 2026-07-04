@@ -33,7 +33,7 @@ class GuestRequestController
         $data = $this->guests->getModerationData($status, $page);
 
         Response::view('admin/guest-requests', [
-            'title' => 'Guest Ticket Requests',
+            'title' => 'คำขอแจ้งซ่อมจาก QR',
             'pageHeading' => 'คำขอแจ้งซ่อมจาก QR',
             'currentUser' => $viewer,
             'requests' => $data['requests'],

@@ -25,7 +25,7 @@ class NotificationsController
         $data = $this->notifications->getNotificationPageData($viewer, request()?->query ?? []);
 
         Response::view('notifications/index', [
-            'title' => 'Notifications',
+            'title' => 'การแจ้งเตือน',
             'pageHeading' => 'การแจ้งเตือน',
             'currentUser' => $viewer,
             'notifications' => $data['notifications'],

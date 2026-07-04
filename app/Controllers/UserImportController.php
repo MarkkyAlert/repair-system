@@ -23,7 +23,7 @@ class UserImportController
         require_role($viewer, ['admin'], 'หน้านี้สงวนสำหรับผู้ดูแลระบบเท่านั้น');
 
         Response::view('admin/import-users', [
-            'title' => 'Import Users (CSV)',
+            'title' => 'นำเข้าผู้ใช้จาก CSV',
             'pageHeading' => 'นำเข้าผู้ใช้จาก CSV',
             'currentUser' => $viewer,
             'preview' => null,
@@ -48,7 +48,7 @@ class UserImportController
             Session::put('user_import_valid_rows', $preview['valid']);
 
             Response::view('admin/import-users', [
-                'title' => 'Preview Import Users',
+                'title' => 'ตรวจสอบก่อนนำเข้าผู้ใช้',
                 'pageHeading' => 'ตรวจสอบก่อนนำเข้า',
                 'currentUser' => $viewer,
                 'preview' => $preview,

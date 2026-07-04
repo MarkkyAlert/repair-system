@@ -26,7 +26,7 @@ class TicketsController
         $data = $this->tickets->getTicketIndexData($viewer, request()?->query ?? []);
 
         Response::view('tickets/index', [
-            'title' => 'Tickets',
+            'title' => 'รายการแจ้งซ่อม',
             'pageHeading' => 'รายการแจ้งซ่อม',
             'currentUser' => $viewer,
             'metrics' => $data['metrics'],
@@ -46,7 +46,7 @@ class TicketsController
         $form = $this->tickets->getCreateFormData($viewer, pull_old_input(), request()?->query ?? []);
 
         Response::view('tickets/create', [
-            'title' => 'Create Ticket',
+            'title' => 'แจ้งปัญหาใหม่',
             'pageHeading' => 'แจ้งปัญหาใหม่',
             'currentUser' => $viewer,
             'form' => $form,
@@ -97,7 +97,7 @@ class TicketsController
         }
 
         Response::view('tickets/create', [
-            'title' => 'Duplicate Ticket',
+            'title' => 'ทำซ้ำ Ticket',
             'pageHeading' => 'เปิด Ticket ใหม่จากรายการเดิม',
             'currentUser' => $viewer,
             'form' => $form,
@@ -256,7 +256,7 @@ class TicketsController
         }
 
         Response::view('tickets/show', [
-            'title' => 'Ticket Detail',
+            'title' => 'รายละเอียด Ticket',
             'pageHeading' => 'รายละเอียด Ticket',
             'currentUser' => $viewer,
             'ticket' => $detail['ticket'],
@@ -340,7 +340,7 @@ class TicketsController
         }
 
         Response::view('tickets/print', [
-            'title' => 'Job Order Print',
+            'title' => 'พิมพ์ใบสั่งงาน',
             'pageHeading' => 'พิมพ์ใบสั่งงาน',
             'currentUser' => $viewer,
             'ticket' => $print['ticket'],

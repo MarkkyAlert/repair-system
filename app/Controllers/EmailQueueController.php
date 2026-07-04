@@ -27,7 +27,7 @@ class EmailQueueController
         $data = $this->emailQueue->listJobsPaginated($status, $page);
 
         Response::view('admin/email-queue', [
-            'title' => 'Email Queue',
+            'title' => 'คิวอีเมล',
             'pageHeading' => 'คิวอีเมล',
             'currentUser' => $viewer,
             'jobs' => $data['jobs'],

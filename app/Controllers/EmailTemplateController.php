@@ -29,7 +29,7 @@ class EmailTemplateController
         }
 
         Response::view('admin/email-templates', [
-            'title' => 'Email Templates',
+            'title' => 'เทมเพลตอีเมล',
             'pageHeading' => 'ตั้งค่าข้อความอีเมล',
             'currentUser' => $viewer,
             'registry' => $registry,
@@ -55,7 +55,7 @@ class EmailTemplateController
         ];
 
         Response::view('admin/email-templates-edit', [
-            'title' => 'Edit Email Template',
+            'title' => 'แก้ไขเทมเพลตอีเมล',
             'pageHeading' => 'แก้ไข template: ' . (string) $meta['label'],
             'currentUser' => $viewer,
             'templateKey' => $templateKey,

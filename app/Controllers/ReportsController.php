@@ -29,7 +29,7 @@ class ReportsController
         }
 
         Response::view('reports/index', [
-            'title' => 'Reports',
+            'title' => 'รายงาน',
             'pageHeading' => 'รายงานและ Export',
             'currentUser' => $viewer,
             'filters' => $data['filters'],

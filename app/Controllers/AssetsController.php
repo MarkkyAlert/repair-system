@@ -224,7 +224,7 @@ class AssetsController
         require_role($viewer, ['manager', 'admin'], 'คุณไม่มีสิทธิ์จัดการข้อมูล Asset และ QR');
 
         Response::view('assets/import', [
-            'title' => 'Import Assets (CSV)',
+            'title' => 'นำเข้าทรัพย์สินจาก CSV',
             'pageHeading' => 'นำเข้าทรัพย์สินจาก CSV',
             'currentUser' => $viewer,
             'preview' => null,
@@ -246,7 +246,7 @@ class AssetsController
             Session::put('asset_import_valid_rows', $preview['valid']);
 
             Response::view('assets/import', [
-                'title' => 'Preview Import Assets',
+                'title' => 'ตรวจสอบก่อนนำเข้าทรัพย์สิน',
                 'pageHeading' => 'ตรวจสอบก่อนนำเข้า',
                 'currentUser' => $viewer,
                 'preview' => $preview,

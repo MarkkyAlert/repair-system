@@ -30,7 +30,7 @@ class ScanController
         $layout = auth()->check() ? 'app' : 'guest';
 
         Response::view('scan/show', [
-            'title' => 'Scan Asset QR',
+            'title' => 'สแกน QR ทรัพย์สิน',
             'pageHeading' => 'สแกน QR ทรัพย์สิน',
             'currentUser' => auth()->user() ?? [],
             'asset' => $data['asset'],
