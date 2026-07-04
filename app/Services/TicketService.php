@@ -49,32 +49,39 @@ class TicketService
         $topCategories = $this->tickets->getDashboardTopCategories($viewer, $breakdownFilters, 5);
         $csat = $this->tickets->getCsatSummary($viewer, $breakdownFilters);
 
+        $formattedMetrics = $this->formatMetrics($metrics);
+        $charts = [
+            'monthlyTickets' => $this->buildDashboardChart(
+                'Tickets / Month',
+                $this->monthLabels(),
+                $this->buildMonthlySeries($monthlyTickets, 'total_tickets')
+            ),
+            'categoryBreakdown' => $this->buildDashboardChart(
+                'Tickets by Category',
+                array_map(fn (array $row): string => (string) ($row['category_name'] ?? '-'), $categoryBreakdown),
+                array_map(fn (array $row): int => (int) ($row['total_tickets'] ?? 0), $categoryBreakdown)
+            ),
+            'departmentBreakdown' => $this->buildDashboardChart(
+                'Tickets by Department',
+                array_map(fn (array $row): string => (string) ($row['department_name'] ?? '-'), $departmentBreakdown),
+                array_map(fn (array $row): int => (int) ($row['total_tickets'] ?? 0), $departmentBreakdown)
+            ),
+            'resolutionTrend' => $this->buildDashboardChart(
+                'Avg Resolution Hours',
+                $this->monthLabels(),
+                $this->buildMonthlySeries($resolutionTrend, 'avg_minutes', true)
+            ),
+        ];
+
         return [
-            'metrics' => $this->formatMetrics($metrics),
+            'metrics' => $formattedMetrics,
             'recentTickets' => $recentTickets,
             'filters' => $this->buildDashboardFilterData($normalizedFilters, $reference),
-            'charts' => [
-                'monthlyTickets' => $this->buildDashboardChart(
-                    'Tickets / Month',
-                    $this->monthLabels(),
-                    $this->buildMonthlySeries($monthlyTickets, 'total_tickets')
-                ),
-                'categoryBreakdown' => $this->buildDashboardChart(
-                    'Tickets by Category',
-                    array_map(fn (array $row): string => (string) ($row['category_name'] ?? '-'), $categoryBreakdown),
-                    array_map(fn (array $row): int => (int) ($row['total_tickets'] ?? 0), $categoryBreakdown)
-                ),
-                'departmentBreakdown' => $this->buildDashboardChart(
-                    'Tickets by Department',
-                    array_map(fn (array $row): string => (string) ($row['department_name'] ?? '-'), $departmentBreakdown),
-                    array_map(fn (array $row): int => (int) ($row['total_tickets'] ?? 0), $departmentBreakdown)
-                ),
-                'resolutionTrend' => $this->buildDashboardChart(
-                    'Avg Resolution Hours',
-                    $this->monthLabels(),
-                    $this->buildMonthlySeries($resolutionTrend, 'avg_minutes', true)
-                ),
-            ],
+            'charts' => $charts,
+            'primaryCta' => $this->buildDashboardPrimaryCta((string) ($viewer['role'] ?? 'guest')),
+            'cronHealth' => $this->buildDashboardCronHealth((string) ($viewer['role'] ?? 'guest')),
+            'urgentAlerts' => $this->buildDashboardUrgentAlerts($formattedMetrics),
+            'chartSummaries' => $this->buildDashboardChartSummaries($charts),
             'highlights' => [
                 'topTechnicians' => array_map(fn (array $row): array => [
                     'name' => (string) ($row['full_name'] ?? '-'),
@@ -96,6 +103,89 @@ class TicketService
                 'positive_percent' => (int) ($csat['positive_percent'] ?? 0),
                 'distribution' => $csat['distribution'] ?? [5 => 0, 4 => 0, 3 => 0, 2 => 0, 1 => 0],
             ],
+        ];
+    }
+
+    /** Role-based primary CTA for the dashboard header (view-model). */
+    private function buildDashboardPrimaryCta(string $role): array
+    {
+        return match ($role) {
+            'manager' => ['label' => 'ตรวจงานรออนุมัติ', 'href' => '/dashboard?preset=pending_approval', 'icon' => 'clipboard-list'],
+            'technician' => ['label' => 'ดูงานของฉัน', 'href' => '/tickets', 'icon' => 'wrench'],
+            default => ['label' => 'แจ้งปัญหาใหม่', 'href' => '/tickets/create', 'icon' => 'arrow-right'],
+        };
+    }
+
+    /** Admin-only: cron jobs that haven't run within their freshness window (view-model). */
+    private function buildDashboardCronHealth(string $role): array
+    {
+        if ($role !== 'admin') {
+            return [];
+        }
+
+        $checks = [
+            ['key' => 'cron_email_queue_last_run_at', 'label' => 'คิวอีเมล', 'staleMinutes' => 30],
+            ['key' => 'cron_overdue_check_last_run_at', 'label' => 'ตรวจ SLA เกินกำหนด', 'staleMinutes' => 60],
+            ['key' => 'cron_backup_last_run_at', 'label' => 'สำรอง database', 'staleMinutes' => 60 * 24 * 2],
+            ['key' => 'cron_orphan_cleanup_last_run_at', 'label' => 'ล้างไฟล์แนบกำพร้า', 'staleMinutes' => 60 * 24 * 8],
+        ];
+
+        $stale = [];
+        foreach ($checks as $check) {
+            $lastRun = (string) setting($check['key'], '');
+            $lastTs = $lastRun !== '' ? strtotime($lastRun) : false;
+            if ($lastTs === false || $lastTs < (time() - ($check['staleMinutes'] * 60))) {
+                $stale[] = ['label' => $check['label'], 'last_run' => $lastRun];
+            }
+        }
+
+        return $stale;
+    }
+
+    /** Urgent-work alerts shown above the dashboard (view-model). */
+    private function buildDashboardUrgentAlerts(array $metrics): array
+    {
+        $alerts = [];
+        $overdue = max(0, (int) ($metrics['overdue'] ?? 0));
+        $pendingApproval = max(0, (int) ($metrics['pendingApproval'] ?? 0));
+        if ($overdue > 0) {
+            $alerts[] = ['tone' => 'danger', 'icon' => 'triangle-alert', 'label' => 'มีงานเกิน SLA ' . $overdue . ' รายการ', 'href' => '/tickets'];
+        }
+        if ($pendingApproval > 0) {
+            $alerts[] = ['tone' => 'warning', 'icon' => 'clock', 'label' => 'มีงานรออนุมัติ ' . $pendingApproval . ' รายการ', 'href' => '/tickets?status=pending_approval'];
+        }
+
+        return $alerts;
+    }
+
+    /** Per-chart total/top/avg summary line (view-model) for all dashboard charts. */
+    private function buildDashboardChartSummaries(array $charts): array
+    {
+        return [
+            'monthlyTickets' => $this->summarizeChart($charts['monthlyTickets'] ?? [], 'รายการ'),
+            'categoryBreakdown' => $this->summarizeChart($charts['categoryBreakdown'] ?? [], 'รายการ'),
+            'departmentBreakdown' => $this->summarizeChart($charts['departmentBreakdown'] ?? [], 'รายการ'),
+            'resolutionTrend' => $this->summarizeChart($charts['resolutionTrend'] ?? [], 'ชั่วโมง'),
+        ];
+    }
+
+    private function summarizeChart(array $chart, string $unit): array
+    {
+        $labels = is_array($chart['labels'] ?? null) ? array_values($chart['labels']) : [];
+        $data = is_array($chart['data'] ?? null) ? array_values($chart['data']) : [];
+        $values = array_map(static fn ($value): float => (float) $value, $data);
+        $total = array_sum($values);
+        $topValue = $values === [] ? 0.0 : max($values);
+        $topIndex = $values === [] ? false : array_search($topValue, $values, true);
+        $topLabel = $topIndex !== false && isset($labels[$topIndex]) ? (string) $labels[$topIndex] : '-';
+        $nonZero = array_filter($values, static fn (float $v): bool => $v > 0);
+        $avg = $nonZero === [] ? 0.0 : array_sum($nonZero) / count($nonZero);
+        $fmt = static fn (float $v): string => rtrim(rtrim(number_format($v, 1), '0'), '.');
+
+        return [
+            'total' => $fmt($total) . ' ' . $unit,
+            'top' => $topLabel . ' ' . $fmt($topValue) . ' ' . $unit,
+            'avg' => $fmt($avg) . ' ' . $unit,
         ];
     }
 

@@ -13,11 +13,6 @@ $roleLabels = [
     'technician' => role_label_th('technician'),
     'admin' => role_label_th('admin'),
 ];
-$primaryCta = match ($role) {
-    'manager' => ['label' => 'ตรวจงานรออนุมัติ', 'href' => '/dashboard?preset=pending_approval', 'icon' => 'clipboard-list'],
-    'technician' => ['label' => 'ดูงานของฉัน', 'href' => '/tickets', 'icon' => 'wrench'],
-    default => ['label' => 'แจ้งปัญหาใหม่', 'href' => '/tickets/create', 'icon' => 'arrow-right'],
-};
 $chartHasData = static function (array $chart): bool {
     $data = $chart['data'] ?? [];
     if (!is_array($data) || $data === []) {
@@ -27,65 +22,7 @@ $chartHasData = static function (array $chart): bool {
     return array_sum(array_map(static fn ($value): float => (float) $value, $data)) > 0;
 };
 $metricCount = static fn (string $key): int => max(0, (int) ($metrics[$key] ?? 0));
-$formatChartNumber = static function (float $value): string {
-    return rtrim(rtrim(number_format($value, 1), '0'), '.');
-};
-$chartSummary = static function (array $chart, string $unit) use ($formatChartNumber): array {
-    $labels = is_array($chart['labels'] ?? null) ? array_values($chart['labels']) : [];
-    $data = is_array($chart['data'] ?? null) ? array_values($chart['data']) : [];
-    $values = array_map(static fn ($value): float => (float) $value, $data);
-    $total = array_sum($values);
-    $topValue = $values === [] ? 0.0 : max($values);
-    $topIndex = $values === [] ? false : array_search($topValue, $values, true);
-    $topLabel = $topIndex !== false && isset($labels[$topIndex]) ? (string) $labels[$topIndex] : '-';
-
-    $nonZero = array_filter($values, static fn (float $v): bool => $v > 0);
-    $avg = $nonZero === [] ? 0.0 : array_sum($nonZero) / count($nonZero);
-
-    return [
-        'total' => $formatChartNumber($total) . ' ' . $unit,
-        'top' => $topLabel . ' ' . $formatChartNumber($topValue) . ' ' . $unit,
-        'avg' => $formatChartNumber($avg) . ' ' . $unit,
-    ];
-};
-$cronHealth = [];
-if ($role === 'admin') {
-    $cronChecks = [
-        ['key' => 'cron_email_queue_last_run_at', 'label' => 'คิวอีเมล', 'staleMinutes' => 30],
-        ['key' => 'cron_overdue_check_last_run_at', 'label' => 'ตรวจ SLA เกินกำหนด', 'staleMinutes' => 60],
-        ['key' => 'cron_backup_last_run_at', 'label' => 'สำรอง database', 'staleMinutes' => 60 * 24 * 2],
-        ['key' => 'cron_orphan_cleanup_last_run_at', 'label' => 'ล้างไฟล์แนบกำพร้า', 'staleMinutes' => 60 * 24 * 8],
-    ];
-    foreach ($cronChecks as $check) {
-        $lastRun = (string) setting($check['key'], '');
-        $lastTs = $lastRun !== '' ? strtotime($lastRun) : false;
-        $isStale = $lastTs === false || $lastTs < (time() - ($check['staleMinutes'] * 60));
-        if ($isStale) {
-            $cronHealth[] = [
-                'label' => $check['label'],
-                'last_run' => $lastRun,
-            ];
-        }
-    }
-}
-
-$urgentAlerts = [];
-if ($metricCount('overdue') > 0) {
-    $urgentAlerts[] = [
-        'tone' => 'danger',
-        'icon' => 'triangle-alert',
-        'label' => 'มีงานเกิน SLA ' . $metricCount('overdue') . ' รายการ',
-        'href' => '/tickets',
-    ];
-}
-if ($metricCount('pendingApproval') > 0) {
-    $urgentAlerts[] = [
-        'tone' => 'warning',
-        'icon' => 'clock',
-        'label' => 'มีงานรออนุมัติ ' . $metricCount('pendingApproval') . ' รายการ',
-        'href' => '/tickets?status=pending_approval',
-    ];
-}
+// primaryCta, cronHealth, urgentAlerts, chartSummaries เป็น view-model จาก controller (TicketService) แล้ว
 ?>
 <section class="stack-lg">
     <h1 class="sr-only">Dashboard — ภาพรวมการปฏิบัติงาน</h1>
@@ -331,7 +268,7 @@ if ($metricCount('pendingApproval') > 0) {
                 <span class="chart-chip">ปี <?= e((string) ($filterState['year'] ?? date('Y'))) ?></span>
             </div>
             <?php if ($chartHasData($chartPayload['monthlyTickets'] ?? [])): ?>
-                <?php $summary = $chartSummary($chartPayload['monthlyTickets'] ?? [], 'รายการ'); ?>
+                <?php $summary = $chartSummaries['monthlyTickets'] ?? ['total' => '-', 'top' => '-', 'avg' => '-']; ?>
                 <p class="chart-summary">รวม <?= e($summary['total']) ?> · สูงสุด <?= e($summary['top']) ?></p>
             <?php endif; ?>
             <div class="chart-shell" data-chart-shell>
@@ -358,7 +295,7 @@ if ($metricCount('pendingApproval') > 0) {
                 <span class="chart-chip">หมวดหมู่ยอดนิยม</span>
             </div>
             <?php if ($chartHasData($chartPayload['categoryBreakdown'] ?? [])): ?>
-                <?php $summary = $chartSummary($chartPayload['categoryBreakdown'] ?? [], 'รายการ'); ?>
+                <?php $summary = $chartSummaries['categoryBreakdown'] ?? ['total' => '-', 'top' => '-', 'avg' => '-']; ?>
                 <p class="chart-summary">รวม <?= e($summary['total']) ?> · สูงสุด <?= e($summary['top']) ?></p>
             <?php endif; ?>
             <div class="chart-shell" data-chart-shell>
@@ -385,7 +322,7 @@ if ($metricCount('pendingApproval') > 0) {
                 <span class="chart-chip">ทุกแผนก</span>
             </div>
             <?php if ($chartHasData($chartPayload['departmentBreakdown'] ?? [])): ?>
-                <?php $summary = $chartSummary($chartPayload['departmentBreakdown'] ?? [], 'รายการ'); ?>
+                <?php $summary = $chartSummaries['departmentBreakdown'] ?? ['total' => '-', 'top' => '-', 'avg' => '-']; ?>
                 <p class="chart-summary">รวม <?= e($summary['total']) ?> · สูงสุด <?= e($summary['top']) ?></p>
             <?php endif; ?>
             <div class="chart-shell" data-chart-shell>
@@ -412,7 +349,7 @@ if ($metricCount('pendingApproval') > 0) {
                 <span class="chart-chip">ชั่วโมง</span>
             </div>
             <?php if ($chartHasData($chartPayload['resolutionTrend'] ?? [])): ?>
-                <?php $summary = $chartSummary($chartPayload['resolutionTrend'] ?? [], 'ชั่วโมง'); ?>
+                <?php $summary = $chartSummaries['resolutionTrend'] ?? ['total' => '-', 'top' => '-', 'avg' => '-']; ?>
                 <p class="chart-summary">เฉลี่ยรวม <?= e($summary['avg']) ?> · สูงสุด <?= e($summary['top']) ?></p>
             <?php endif; ?>
             <div class="chart-shell" data-chart-shell>

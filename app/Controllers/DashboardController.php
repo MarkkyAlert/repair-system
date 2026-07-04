@@ -30,6 +30,10 @@ class DashboardController
             'charts' => $dashboard['charts'],
             'highlights' => $dashboard['highlights'],
             'csat' => $dashboard['csat'],
+            'primaryCta' => $dashboard['primaryCta'],
+            'cronHealth' => $dashboard['cronHealth'],
+            'urgentAlerts' => $dashboard['urgentAlerts'],
+            'chartSummaries' => $dashboard['chartSummaries'],
         ]);
     }
 }
