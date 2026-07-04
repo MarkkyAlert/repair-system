@@ -55,18 +55,18 @@ if ($metricCount('pendingApproval') > 0) {
 }
 ?>
 <section class="stack-lg"
-    data-live-poll
-    data-live-poll-url="<?= e(url('/tickets/state')) ?>"
-    data-live-poll-key="max_id"
-    data-live-poll-baseline="<?= e((string) ($queueMaxId ?? 0)) ?>">
+    data-ticket-queue-live
+    data-ticket-queue-state-url="<?= e(url('/tickets/state')) ?>"
+    data-ticket-queue-baseline="<?= e((string) ($queueMaxId ?? 0)) ?>">
     <h1 class="sr-only">รายการแจ้งซ่อม — คิวงานปฏิบัติการ</h1>
-    <div class="ticket-live-banner" data-live-poll-banner hidden role="status" aria-live="polite">
+    <!-- Fallback banner: โชว์เฉพาะตอนที่ auto-refresh ทำไม่ได้ (กำลังเลือก bulk / โฟกัสช่องค้นหา) -->
+    <div class="ticket-live-banner" data-ticket-queue-banner hidden role="status" aria-live="polite">
         <?= lucide('refresh-cw', 'button-icon') ?>
         <span>มีงานแจ้งซ่อมใหม่เข้าคิว</span>
-        <button type="button" class="btn btn-sm btn-primary" data-live-poll-reload>โหลดใหม่</button>
+        <button type="button" class="btn btn-sm btn-primary" data-ticket-queue-reload>โหลดใหม่</button>
     </div>
     <?php ob_start(); ?>
-    <span class="badge badge-info"><?= e((string) ($pagination['total'] ?? 0)) ?> รายการ</span>
+    <span class="badge badge-info" data-ticket-queue-total><?= e((string) ($pagination['total'] ?? 0)) ?> รายการ</span>
     <?= render_partial('partials/components/button', ['label' => 'แจ้งปัญหาใหม่', 'variant' => 'primary', 'href' => '/tickets/create', 'icon' => 'plus']) ?>
     <?php $heroActions = (string) ob_get_clean(); ?>
     <?= render_partial('partials/components/page-header', [
@@ -76,7 +76,7 @@ if ($metricCount('pendingApproval') > 0) {
         'actions' => $heroActions,
     ]) ?>
 
-    <div class="stat-grid">
+    <div class="stat-grid" data-ticket-queue-metrics>
         <?= render_partial('partials/components/card', [
             'title' => 'ทั้งหมด',
             'value' => (string) $metricCount('total'),
@@ -139,7 +139,7 @@ if ($metricCount('pendingApproval') > 0) {
         <div class="panel-head">
             <div>
                 <h2 class="panel-title"><?= $isFilterActive ? 'ผลการกรอง' : 'คิวงานทั้งหมด' ?></h2>
-                <p class="field-hint"><?= e((string) ($pagination['total'] ?? 0)) ?> รายการ<?= $isFilterActive ? 'ตรงตามตัวกรอง' : '' ?></p>
+                <p class="field-hint" data-ticket-queue-count><?= e((string) ($pagination['total'] ?? 0)) ?> รายการ<?= $isFilterActive ? 'ตรงตามตัวกรอง' : '' ?></p>
             </div>
             <span class="metric-icon metric-icon-sm"><?= lucide('list', 'h-4 w-4') ?></span>
         </div>
@@ -213,6 +213,8 @@ if ($metricCount('pendingApproval') > 0) {
             </details>
         </form>
 
+        <!-- ผลลัพธ์ที่ auto-refresh สลับได้ (ไม่รวม filter form ด้านบน กันลบสิ่งที่ผู้ใช้กำลังพิมพ์) -->
+        <div data-ticket-queue-results>
         <?php if ($tickets === []): ?>
             <?php if (!$isFilterActive): ?>
                 <?php ob_start(); ?>
@@ -325,5 +327,6 @@ if ($metricCount('pendingApproval') > 0) {
                 <script src="<?= e(asset('js/tickets-index.js')) ?>" defer></script>
             <?php endif; ?>
         <?php endif; ?>
+        </div>
     </section>
 </section>

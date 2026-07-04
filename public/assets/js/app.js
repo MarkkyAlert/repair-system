@@ -1068,4 +1068,80 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
   })();
+
+  // ── Live ticket queue (auto-refresh in place) ──
+  // หน้าคิว ticket หลัก: poll max_id เมื่อมีงานใหม่ → ดึงหน้าเดิม (background fetch ตาม URL ปัจจุบัน
+  // = คง filter/sort/หน้า) แล้ว swap เฉพาะรายการ+การ์ดสรุป โดยไม่ reload ทั้งหน้า/ไม่เสีย scroll.
+  // หลบไปโชว์ banner ให้กดเองเมื่อ swap ไม่ปลอดภัย (โหมด bulk-approve เพราะ checkbox จะหลุด binding,
+  // กำลังโฟกัสช่องค้นหา, หรือเปิด modal). pause เมื่อ tab ซ่อน. ไม่ WebSocket.
+  (function () {
+    var root = document.querySelector('[data-ticket-queue-live]');
+    if (!root) return;
+    var url = root.getAttribute('data-ticket-queue-state-url');
+    if (!url) return;
+    var baseline = parseInt(root.getAttribute('data-ticket-queue-baseline'), 10) || 0;
+    var banner = root.querySelector('[data-ticket-queue-banner]');
+    var reloadBtn = root.querySelector('[data-ticket-queue-reload]');
+    var refreshing = false;
+
+    if (reloadBtn) reloadBtn.addEventListener('click', function () { window.location.reload(); });
+
+    // swap รายการใต้มือผู้ใช้ได้ไหม — เลี่ยงตอน bulk mode / โฟกัสตัวกรอง / เปิด modal
+    function canAutoSwap() {
+      if (document.querySelector('[data-bulk-root]')) return false;   // bulk view: swap ทำ checkbox หลุด binding
+      var ae = document.activeElement;
+      if (ae && ae.closest && ae.closest('.ticket-filter-toolbar')) return false;
+      if (document.querySelector('.confirm-modal:not([hidden])')) return false;
+      return true;
+    }
+
+    function swapRegion(doc, selector) {
+      var incoming = doc.querySelector(selector);
+      var current = document.querySelector(selector);
+      if (incoming && current) { current.innerHTML = incoming.innerHTML; }
+    }
+
+    function autoRefresh(newMax) {
+      if (refreshing) return;
+      refreshing = true;
+      fetch(window.location.href, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+        .then(function (r) { return r.ok ? r.text() : null; })
+        .then(function (html) {
+          if (!html) return;
+          var doc = new DOMParser().parseFromString(html, 'text/html');
+          if (!doc.querySelector('[data-ticket-queue-results]')) return;  // กันกรณี redirect ไป login
+          swapRegion(doc, '[data-ticket-queue-results]');
+          swapRegion(doc, '[data-ticket-queue-metrics]');
+          swapRegion(doc, '[data-ticket-queue-count]');
+          swapRegion(doc, '[data-ticket-queue-total]');
+          baseline = newMax;
+          if (banner) banner.hidden = true;
+          var results = document.querySelector('[data-ticket-queue-results]');
+          if (results) {   // flash บาง ๆ ให้รู้ว่าอัปเดต (ไม่ต้องพึ่ง CSS)
+            results.style.transition = 'opacity .18s ease';
+            results.style.opacity = '0.35';
+            window.setTimeout(function () { results.style.opacity = '1'; }, 180);
+          }
+        })
+        .catch(function () {})
+        .finally(function () { refreshing = false; });
+    }
+
+    var check = function () {
+      if (document.hidden) return;
+      fetch(url, { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
+          if (!data) return;
+          var v = parseInt(data.max_id, 10) || 0;
+          if (v <= baseline) return;
+          if (canAutoSwap()) { autoRefresh(v); }
+          else if (banner) { banner.hidden = false; }   // fallback ให้กดโหลดเอง
+        })
+        .catch(function () {});
+    };
+
+    window.setInterval(check, 30000);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) check(); });
+  })();
 });
