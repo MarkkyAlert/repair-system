@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Repositories\CommentRepository;
+use App\Repositories\TicketReadRepository;
 use App\Repositories\TicketRepository;
 use DomainException;
 use PDO;
@@ -18,6 +19,7 @@ class TicketService
         private AttachmentService $attachments,
         private PDO $db,
         private TicketPolicy $policy,
+        private TicketReadRepository $reads,
     ) {
     }
 
@@ -26,11 +28,11 @@ class TicketService
         $normalizedFilters = $this->normalizeDashboardFilters($filters);
         $normalizedFilters['preset_user_id'] = (int) ($viewer['id'] ?? 0);
         $normalizedFilters['preset_role'] = (string) ($viewer['role'] ?? 'guest');
-        $reference = $this->tickets->getDashboardFilterReferenceData();
-        $metrics = $this->tickets->getDashboardMetrics($viewer, $normalizedFilters);
+        $reference = $this->reads->getDashboardFilterReferenceData();
+        $metrics = $this->reads->getDashboardMetrics($viewer, $normalizedFilters);
         $recentTickets = array_map(
             fn (array $ticket): array => $this->mapTicketSummary($ticket),
-            $this->tickets->getRecentTickets($viewer, $normalizedFilters, 5)
+            $this->reads->getRecentTickets($viewer, $normalizedFilters, 5)
         );
         $year = (int) ($normalizedFilters['year'] ?? (int) date('Y'));
 
@@ -42,13 +44,13 @@ class TicketService
             $breakdownFilters['to_datetime'] = sprintf('%04d-12-31 23:59:59', $year);
         }
 
-        $monthlyTickets = $this->tickets->getDashboardMonthlyTicketCounts($viewer, $normalizedFilters, $year);
-        $categoryBreakdown = $this->tickets->getDashboardCategoryBreakdown($viewer, $breakdownFilters, 6);
-        $departmentBreakdown = $this->tickets->getDashboardDepartmentBreakdown($viewer, $breakdownFilters, 6);
-        $resolutionTrend = $this->tickets->getDashboardMonthlyResolutionAverages($viewer, $normalizedFilters, $year);
-        $topTechnicians = $this->tickets->getDashboardTopTechnicians($viewer, $breakdownFilters, 5);
-        $topCategories = $this->tickets->getDashboardTopCategories($viewer, $breakdownFilters, 5);
-        $csat = $this->tickets->getCsatSummary($viewer, $breakdownFilters);
+        $monthlyTickets = $this->reads->getDashboardMonthlyTicketCounts($viewer, $normalizedFilters, $year);
+        $categoryBreakdown = $this->reads->getDashboardCategoryBreakdown($viewer, $breakdownFilters, 6);
+        $departmentBreakdown = $this->reads->getDashboardDepartmentBreakdown($viewer, $breakdownFilters, 6);
+        $resolutionTrend = $this->reads->getDashboardMonthlyResolutionAverages($viewer, $normalizedFilters, $year);
+        $topTechnicians = $this->reads->getDashboardTopTechnicians($viewer, $breakdownFilters, 5);
+        $topCategories = $this->reads->getDashboardTopCategories($viewer, $breakdownFilters, 5);
+        $csat = $this->reads->getCsatSummary($viewer, $breakdownFilters);
 
         $formattedMetrics = $this->formatMetrics($metrics);
         $charts = [
@@ -194,7 +196,7 @@ class TicketService
     {
         // Only the 5 summary metrics are needed here — fetch them directly instead of
         // running the full dashboard (charts, breakdowns, CSAT, top lists = ~11 extra queries).
-        $metrics = $this->formatMetrics($this->tickets->getDashboardMetrics($viewer, []));
+        $metrics = $this->formatMetrics($this->reads->getDashboardMetrics($viewer, []));
         $normalized = [
             'q' => trim((string) ($filters['q'] ?? '')),
             'status' => trim((string) ($filters['status'] ?? '')),
