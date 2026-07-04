@@ -17,6 +17,7 @@ class TicketService
         private NotificationService $notifications,
         private AttachmentService $attachments,
         private PDO $db,
+        private TicketPolicy $policy,
     ) {
     }
 
@@ -462,7 +463,7 @@ class TicketService
     public function getDuplicateFormData(int $ticketId, array $viewer): array
     {
         $ticket = $this->tickets->findVisibleTicketById($ticketId, $viewer);
-        if ($ticket === null || !$this->canDuplicateTicket($ticket, $viewer)) {
+        if ($ticket === null || !$this->policy->canDuplicateTicket($ticket, $viewer)) {
             throw new DomainException('Ticket นี้ไม่สามารถใช้เปิดรายการใหม่ได้');
         }
 
@@ -570,7 +571,7 @@ class TicketService
     {
         $ticket = $this->requireManageableTicket($ticketId, $viewer);
 
-        if (!$this->canReviewTicket($ticket, $viewer)) {
+        if (!$this->policy->canReviewTicket($ticket, $viewer)) {
             throw new DomainException('รายการนี้ไม่อยู่ในสถานะที่อนุมัติได้');
         }
 
@@ -621,7 +622,7 @@ class TicketService
     {
         $ticket = $this->requireManageableTicket($ticketId, $viewer);
 
-        if (!$this->canReviewTicket($ticket, $viewer)) {
+        if (!$this->policy->canReviewTicket($ticket, $viewer)) {
             throw new DomainException('รายการนี้ไม่อยู่ในสถานะที่ปฏิเสธได้');
         }
 
@@ -642,7 +643,7 @@ class TicketService
     {
         $ticket = $this->requireManageableTicket($ticketId, $viewer);
 
-        if (!$this->canAssignTicket($ticket, $viewer)) {
+        if (!$this->policy->canAssignTicket($ticket, $viewer)) {
             throw new DomainException('รายการนี้ยังไม่พร้อมสำหรับการมอบหมายช่าง');
         }
 
@@ -676,7 +677,7 @@ class TicketService
     {
         $ticket = $this->requireTechnicianTicket($ticketId, $viewer);
 
-        if (!$this->canAcceptTechnicianWork($ticket, $viewer)) {
+        if (!$this->policy->canAcceptTechnicianWork($ticket, $viewer)) {
             throw new DomainException('รายการนี้ยังไม่พร้อมสำหรับการรับงาน');
         }
 
@@ -692,7 +693,7 @@ class TicketService
     {
         $ticket = $this->requireTechnicianTicket($ticketId, $viewer);
 
-        if (!$this->canStartTechnicianWork($ticket, $viewer)) {
+        if (!$this->policy->canStartTechnicianWork($ticket, $viewer)) {
             throw new DomainException('รายการนี้ยังไม่พร้อมสำหรับการเริ่มงาน');
         }
 
@@ -709,7 +710,7 @@ class TicketService
     {
         $ticket = $this->requireTechnicianTicket($ticketId, $viewer);
 
-        if (!$this->canResolveTechnicianWork($ticket, $viewer)) {
+        if (!$this->policy->canResolveTechnicianWork($ticket, $viewer)) {
             throw new DomainException('รายการนี้ยังไม่พร้อมสำหรับการสรุปผลการซ่อม');
         }
 
@@ -743,7 +744,7 @@ class TicketService
     {
         $ticket = $this->requireRequesterTicket($ticketId, $viewer);
 
-        if (!$this->canRequesterCompleteTicket($ticket, $viewer)) {
+        if (!$this->policy->canRequesterCompleteTicket($ticket, $viewer)) {
             throw new DomainException('รายการนี้ยังไม่พร้อมสำหรับการยืนยันปิดงาน');
         }
 
@@ -773,7 +774,7 @@ class TicketService
     public function reopenTicket(int $ticketId, array $viewer, array $input): void
     {
         $ticket = $this->requireRequesterTicket($ticketId, $viewer);
-        if (!$this->canRequesterReopenTicket($ticket, $viewer)) {
+        if (!$this->policy->canRequesterReopenTicket($ticket, $viewer)) {
             throw new DomainException('รายการนี้ยังไม่พร้อมสำหรับการส่งกลับไปแก้งานซ้ำ');
         }
 
@@ -807,7 +808,7 @@ class TicketService
     public function cancelTicket(int $ticketId, array $viewer, array $input): void
     {
         $ticket = $this->requireRequesterTicket($ticketId, $viewer);
-        if (!$this->canRequesterCancelTicket($ticket, $viewer)) {
+        if (!$this->policy->canRequesterCancelTicket($ticket, $viewer)) {
             throw new DomainException('รายการนี้ไม่อยู่ในสถานะที่ยกเลิกได้');
         }
 
@@ -947,18 +948,18 @@ class TicketService
 
     private function buildWorkflowData(array $ticket, array $viewer, array $oldInput): array
     {
-        $managerCanAct = $this->canManageWorkflow($ticket, $viewer);
-        $canReview = $managerCanAct && $this->canReviewTicket($ticket, $viewer);
-        $canAssign = $managerCanAct && $this->canAssignTicket($ticket, $viewer);
-        $technicianCanAct = $this->canTechnicianWork($ticket, $viewer);
-        $canAccept = $technicianCanAct && $this->canAcceptTechnicianWork($ticket, $viewer);
-        $canStart = $technicianCanAct && $this->canStartTechnicianWork($ticket, $viewer);
-        $canResolve = $technicianCanAct && $this->canResolveTechnicianWork($ticket, $viewer);
-        $requesterCanAct = $this->canRequesterManageClosure($ticket, $viewer);
-        $canComplete = $requesterCanAct && $this->canRequesterCompleteTicket($ticket, $viewer);
-        $canReopen = $requesterCanAct && $this->canRequesterReopenTicket($ticket, $viewer);
-        $canCancel = $requesterCanAct && $this->canRequesterCancelTicket($ticket, $viewer);
-        $canDuplicate = $this->canDuplicateTicket($ticket, $viewer);
+        $managerCanAct = $this->policy->canManageWorkflow($ticket, $viewer);
+        $canReview = $managerCanAct && $this->policy->canReviewTicket($ticket, $viewer);
+        $canAssign = $managerCanAct && $this->policy->canAssignTicket($ticket, $viewer);
+        $technicianCanAct = $this->policy->canTechnicianWork($ticket, $viewer);
+        $canAccept = $technicianCanAct && $this->policy->canAcceptTechnicianWork($ticket, $viewer);
+        $canStart = $technicianCanAct && $this->policy->canStartTechnicianWork($ticket, $viewer);
+        $canResolve = $technicianCanAct && $this->policy->canResolveTechnicianWork($ticket, $viewer);
+        $requesterCanAct = $this->policy->canRequesterManageClosure($ticket, $viewer);
+        $canComplete = $requesterCanAct && $this->policy->canRequesterCompleteTicket($ticket, $viewer);
+        $canReopen = $requesterCanAct && $this->policy->canRequesterReopenTicket($ticket, $viewer);
+        $canCancel = $requesterCanAct && $this->policy->canRequesterCancelTicket($ticket, $viewer);
+        $canDuplicate = $this->policy->canDuplicateTicket($ticket, $viewer);
         $canComment = (int) ($viewer['id'] ?? 0) > 0;
         $canUseInternalComment = (string) ($viewer['role'] ?? 'guest') !== 'requester';
 
@@ -1365,7 +1366,7 @@ class TicketService
             throw new DomainException('ไม่พบรายการแจ้งซ่อมที่ต้องการดำเนินการ');
         }
 
-        if (!$this->canManageWorkflow($ticket, $viewer)) {
+        if (!$this->policy->canManageWorkflow($ticket, $viewer)) {
             throw new DomainException('คุณไม่มีสิทธิ์จัดการ workflow ของรายการนี้');
         }
 
@@ -1379,7 +1380,7 @@ class TicketService
             throw new DomainException('ไม่พบรายการแจ้งซ่อมที่ต้องการดำเนินการ');
         }
 
-        if (!$this->canTechnicianWork($ticket, $viewer)) {
+        if (!$this->policy->canTechnicianWork($ticket, $viewer)) {
             throw new DomainException('คุณไม่มีสิทธิ์จัดการงานช่างของรายการนี้');
         }
 
@@ -1393,101 +1394,11 @@ class TicketService
             throw new DomainException('ไม่พบรายการแจ้งซ่อมที่ต้องการดำเนินการ');
         }
 
-        if (!$this->canRequesterManageClosure($ticket, $viewer)) {
+        if (!$this->policy->canRequesterManageClosure($ticket, $viewer)) {
             throw new DomainException('คุณไม่มีสิทธิ์ยืนยันผลการซ่อมของรายการนี้');
         }
 
         return $ticket;
-    }
-
-    private function canManageWorkflow(array $ticket, array $viewer): bool
-    {
-        $role = (string) ($viewer['role'] ?? 'guest');
-        $viewerId = (int) ($viewer['id'] ?? 0);
-        $managerId = (int) ($ticket['assigned_manager_id'] ?? 0);
-
-        if ($role === 'admin') {
-            return true;
-        }
-
-        return $role === 'manager' && $viewerId > 0 && ($managerId === 0 || $managerId === $viewerId);
-    }
-
-    private function canReviewTicket(array $ticket, array $viewer): bool
-    {
-        return $this->canManageWorkflow($ticket, $viewer)
-            && (string) ($ticket['approval_status'] ?? '') === 'pending'
-            && (string) ($ticket['status'] ?? '') === 'pending_approval';
-    }
-
-    private function canAssignTicket(array $ticket, array $viewer): bool
-    {
-        if (!$this->canManageWorkflow($ticket, $viewer)) {
-            return false;
-        }
-
-        return (string) ($ticket['approval_status'] ?? '') === 'approved'
-            && in_array((string) ($ticket['status'] ?? ''), ['approved', 'assigned'], true);
-    }
-
-    private function canTechnicianWork(array $ticket, array $viewer): bool
-    {
-        return (string) ($viewer['role'] ?? 'guest') === 'technician'
-            && (int) ($viewer['id'] ?? 0) > 0
-            && (int) ($ticket['assigned_technician_id'] ?? 0) === (int) ($viewer['id'] ?? 0);
-    }
-
-    private function canAcceptTechnicianWork(array $ticket, array $viewer): bool
-    {
-        return $this->canTechnicianWork($ticket, $viewer)
-            && (string) ($ticket['approval_status'] ?? '') === 'approved'
-            && (string) ($ticket['status'] ?? '') === 'assigned';
-    }
-
-    private function canStartTechnicianWork(array $ticket, array $viewer): bool
-    {
-        return $this->canTechnicianWork($ticket, $viewer)
-            && (string) ($ticket['approval_status'] ?? '') === 'approved'
-            && in_array((string) ($ticket['status'] ?? ''), ['assigned', 'accepted'], true);
-    }
-
-    private function canResolveTechnicianWork(array $ticket, array $viewer): bool
-    {
-        return $this->canTechnicianWork($ticket, $viewer)
-            && (string) ($ticket['approval_status'] ?? '') === 'approved'
-            && in_array((string) ($ticket['status'] ?? ''), ['accepted', 'in_progress'], true);
-    }
-
-    private function canRequesterManageClosure(array $ticket, array $viewer): bool
-    {
-        return (int) ($viewer['id'] ?? 0) > 0
-            && (int) ($ticket['requester_id'] ?? 0) === (int) ($viewer['id'] ?? 0);
-    }
-
-    private function canRequesterCompleteTicket(array $ticket, array $viewer): bool
-    {
-        return $this->canRequesterManageClosure($ticket, $viewer)
-            && (string) ($ticket['approval_status'] ?? '') === 'approved'
-            && (string) ($ticket['status'] ?? '') === 'resolved';
-    }
-
-    private function canRequesterReopenTicket(array $ticket, array $viewer): bool
-    {
-        return $this->canRequesterManageClosure($ticket, $viewer)
-            && (string) ($ticket['approval_status'] ?? '') === 'approved'
-            && in_array((string) ($ticket['status'] ?? ''), ['resolved', 'completed'], true);
-    }
-
-    private function canRequesterCancelTicket(array $ticket, array $viewer): bool
-    {
-        return $this->canRequesterManageClosure($ticket, $viewer)
-            && in_array((string) ($ticket['status'] ?? ''), ['pending_approval', 'approved'], true);
-    }
-
-    private function canDuplicateTicket(array $ticket, array $viewer): bool
-    {
-        return $this->canRequesterManageClosure($ticket, $viewer)
-            && in_array((string) ($ticket['status'] ?? ''), ['completed', 'rejected', 'cancelled', 'closed'], true);
     }
 
     private function canManageComment(array $comment, array $viewer): bool
