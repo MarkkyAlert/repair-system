@@ -618,6 +618,14 @@ if (!empty($workflow['canReview'])) {
                     ]) ?>
                 <?php endforeach; ?>
             </div>
+            <?= render_partial('partials/components/confirm-modal', [
+                'id' => 'comment-delete-modal',
+                'title' => 'ยืนยันการลบความเห็น',
+                'icon' => 'trash',
+                'lead' => 'ต้องการลบความเห็นนี้ใช่หรือไม่? การลบไม่สามารถย้อนกลับได้',
+                'tone' => 'danger',
+                'confirm_label' => 'ลบความเห็น',
+            ]) ?>
         </section>
 
     <details class="panel-card collapsible" open>

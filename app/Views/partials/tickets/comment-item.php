@@ -38,9 +38,9 @@ $canUseInternalComment = $canUseInternalComment ?? false;
                     <?= lucide('pencil', 'button-icon') ?>
                     <span>แก้ไข</span>
                 </a>
-                <form method="post" action="<?= e(url('/tickets/' . $ticketId . '/comments/' . $comment['id'] . '/delete')) ?>" onsubmit="return confirm('ยืนยันการลบความเห็นนี้?');" class="inline-form">
+                <form method="post" action="<?= e(url('/tickets/' . $ticketId . '/comments/' . $comment['id'] . '/delete')) ?>" class="inline-form">
                     <?= csrf_field() ?>
-                    <button type="submit" class="btn btn-ghost btn-sm btn-ghost-danger" aria-label="ลบความเห็นของ <?= e($comment['author_name']) ?>"><?= lucide('trash', 'button-icon') ?><span>ลบ</span></button>
+                    <button type="button" class="btn btn-ghost btn-sm btn-ghost-danger" data-comment-delete-trigger aria-label="ลบความเห็นของ <?= e($comment['author_name']) ?>"><?= lucide('trash', 'button-icon') ?><span>ลบ</span></button>
                 </form>
             </div>
         <?php endif; ?>

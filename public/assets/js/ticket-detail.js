@@ -188,3 +188,47 @@ if (typeof window.__handleInlineCommentSave !== 'function') {
     init();
   }
 })();
+
+// ── Comment delete confirm modal (delegation) ──
+// แทน native confirm() ด้วย confirm-modal ของระบบ. ใช้ event delegation → รองรับ comment
+// ที่ live-append เข้ามาด้วย. track form ที่จะลบตอนคลิก (แก้ปัญหา shared handler ที่ผูก form แรก).
+(function () {
+  function init() {
+    var modal = document.getElementById('comment-delete-modal');
+    if (!modal) { return; }
+    var submitBtn = modal.querySelector('[data-modal-submit]');
+    var pendingForm = null;
+
+    var close = function () { modal.hidden = true; pendingForm = null; };
+
+    document.addEventListener('click', function (e) {
+      var trigger = e.target && e.target.closest ? e.target.closest('[data-comment-delete-trigger]') : null;
+      if (!trigger) { return; }
+      e.preventDefault();
+      pendingForm = trigger.closest('form');
+      if (!pendingForm) { return; }
+      modal.hidden = false;
+      if (submitBtn) { submitBtn.focus(); }
+    });
+
+    modal.querySelectorAll('[data-modal-close]').forEach(function (el) {
+      el.addEventListener('click', close);
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !modal.hidden) { close(); }
+    });
+    if (submitBtn) {
+      submitBtn.addEventListener('click', function () {
+        var f = pendingForm;
+        close();
+        if (!f) { return; }
+        if (typeof f.requestSubmit === 'function') { f.requestSubmit(); } else { f.submit(); }
+      });
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
