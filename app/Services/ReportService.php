@@ -113,7 +113,10 @@ class ReportService
         $resolved = (int) ($row['resolved'] ?? 0);
         $ratingCount = (int) ($row['rating_count'] ?? 0);
         $avgRating = (float) ($row['avg_rating'] ?? 0);
-        $mttrMinutes = (int) ($row['mttr_minutes'] ?? 0);
+        // float (not int): keep the .5-minute precision so MTTR rounds to hours the same way the
+        // summary card's avg_resolution does — otherwise pre-truncating minutes tips the 1-decimal
+        // hours across a boundary (68.5min→69 gave 1.2h vs the summary's correct 1.1h).
+        $mttrMinutes = (float) ($row['mttr_minutes'] ?? 0);
         $laborMinutes = (int) ($row['labor_minutes'] ?? 0);
         $completionPct = $assigned > 0 ? round($resolved / $assigned * 100, 1) : null;
 

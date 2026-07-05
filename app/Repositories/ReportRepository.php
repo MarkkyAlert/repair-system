@@ -244,7 +244,7 @@ class ReportRepository
                 COUNT(t.id) AS assigned,
                 SUM(CASE WHEN t.status IN ('resolved', 'completed', 'closed') THEN 1 ELSE 0 END) AS resolved,
                 SUM(CASE WHEN t.status IN ('assigned', 'accepted', 'in_progress', 'on_hold') THEN 1 ELSE 0 END) AS open_count,
-                ROUND(AVG(CASE WHEN t.resolved_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at) ELSE NULL END), 0) AS mttr_minutes,
+                ROUND(AVG(CASE WHEN t.resolved_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at) ELSE NULL END), 1) AS mttr_minutes,
                 ROUND(COALESCE(AVG(tr.score), 0), 2) AS avg_rating,
                 COUNT(tr.score) AS rating_count,
                 COALESCE(SUM(wo.labor_minutes), 0) AS labor_minutes

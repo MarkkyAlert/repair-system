@@ -81,3 +81,50 @@ test('technician performance: per-tech aggregates + no fan-out from rating/work_
         }
     }
 });
+
+test('technician performance: MTTR rounds to hours the same way the summary avg does (no double-rounding)', function (): void {
+    // Regression: two resolved tickets of 17min + 120min average to 68.5min. The summary card computes
+    // ROUND(AVG,1)=68.5 → 1.1h. The technician query used to ROUND(AVG,0)=69 → 1.15 → 1.2h, so the same
+    // work showed 1.1 up top and 1.2 in the table. Both pipelines must now yield 1.1 for identical data.
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $rid = bin2hex(random_bytes(4));
+    $techId = 0;
+    $t1 = 0;
+    $t2 = 0;
+
+    try {
+        tp_pdo()->prepare(
+            "INSERT INTO users (username, email, password_hash, full_name, role) VALUES (?, ?, 'x', 'TP Round Tech', 'technician')"
+        )->execute(["tpround_$rid", "tpround_$rid@example.com"]);
+        $techId = (int) tp_pdo()->lastInsertId();
+
+        foreach ([17, 120] as $i => $minutes) {
+            tp_pdo()->prepare(
+                "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, assigned_technician_id, status, requested_at, resolved_at)
+                 VALUES (?, 'tp', 'x', 1, 1, 1, 1, ?, 'resolved', ?, ?)"
+            )->execute(["TPR-$rid-$i", $techId, date('Y-m-d H:i:s', time() - $minutes * 60), date('Y-m-d H:i:s')]);
+            ${'t' . ($i + 1)} = (int) tp_pdo()->lastInsertId();
+        }
+
+        $rows = tp_service()->getReportPageData($admin, [])['technicianPerformance'];
+        $me = null;
+        foreach ($rows as $r) {
+            if ($r['full_name'] === 'TP Round Tech') {
+                $me = $r;
+                break;
+            }
+        }
+
+        assert_true($me !== null, 'technician appears in the performance table');
+        assert_same('1.1', $me['mttr_hours_label'], 'avg 68.5min rounds to 1.1h (was 1.2h under double-rounding)');
+    } finally {
+        foreach ([$t1, $t2] as $ticketId) {
+            if ($ticketId > 0) {
+                tp_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+            }
+        }
+        if ($techId > 0) {
+            tp_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$techId]);
+        }
+    }
+});
