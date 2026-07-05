@@ -110,6 +110,48 @@ class AssetRepository
         ];
     }
 
+    /**
+     * แถวสำหรับ export — คอลัมน์ตรงกับ AssetImportService::CSV_COLUMNS (codes/username) เพื่อ round-trip
+     * กับ import ได้ ใช้ filter WHERE ชุดเดียวกับ list (buildAssetListWhere) + LIMIT bound กัน OOM.
+     */
+    public function getAssetsForExport(array $filters, int $limit = 10000): array
+    {
+        $limit = max(1, $limit);
+        [$whereSql, $params] = $this->buildAssetListWhere($filters);
+        $stmt = $this->db->prepare(
+            "SELECT
+                a.asset_code,
+                a.name,
+                a.serial_number,
+                ac.code AS category_code,
+                l.code AS location_code,
+                d.code AS department_code,
+                custodian.username AS custodian_username,
+                a.brand,
+                a.model,
+                a.vendor,
+                a.purchase_date,
+                a.warranty_expires_at,
+                a.status,
+                a.notes
+             FROM assets a
+             INNER JOIN asset_categories ac ON ac.id = a.asset_category_id
+             INNER JOIN locations l ON l.id = a.location_id
+             LEFT JOIN departments d ON d.id = a.department_id
+             LEFT JOIN users custodian ON custodian.id = a.custodian_user_id
+             $whereSql
+             ORDER BY a.asset_code ASC, a.id ASC
+             LIMIT :limit"
+        );
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
+        }
+        $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
     private function buildAssetListWhere(array $filters): array
     {
         $where = [];

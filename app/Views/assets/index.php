@@ -17,6 +17,11 @@ $assetPrintQuery = array_filter([
     'status' => $assetStatus,
 ], static fn ($v): bool => (string) $v !== '');
 $assetPrintHref = '/asset-registry/print' . ($assetPrintQuery !== [] ? '?' . http_build_query($assetPrintQuery) : '');
+// hidden inputs พา filter ปัจจุบันไปกับ POST export (query ชุดเดียวกับปุ่มพิมพ์)
+$assetExportHidden = '';
+foreach ($assetPrintQuery as $assetExportKey => $assetExportValue) {
+    $assetExportHidden .= '<input type="hidden" name="' . e((string) $assetExportKey) . '" value="' . e((string) $assetExportValue) . '">';
+}
 ?>
 <section class="stack-lg">
     <h1 class="sr-only">ทรัพย์สินและ QR — ทะเบียนทรัพย์สินขององค์กร</h1>
@@ -25,6 +30,31 @@ $assetPrintHref = '/asset-registry/print' . ($assetPrintQuery !== [] ? '?' . htt
                     <?= render_partial('partials/components/button', ['label' => 'เพิ่มทรัพย์สิน', 'variant' => 'primary', 'href' => '/asset-registry/create', 'icon' => 'arrow-right']) ?>
                     <?= render_partial('partials/components/button', ['label' => 'นำเข้า CSV', 'variant' => 'secondary', 'href' => '/asset-registry/import', 'icon' => 'send']) ?>
                     <?= render_partial('partials/components/button', ['label' => 'พิมพ์แผ่น QR', 'variant' => 'secondary', 'href' => $assetPrintHref]) ?>
+                    <details class="export-dropdown">
+                        <summary class="btn btn-secondary btn-md">
+                            <?= lucide('download', 'button-icon') ?>
+                            <span>ส่งออก</span>
+                            <?= lucide('chevron-down', 'button-icon') ?>
+                        </summary>
+                        <div class="export-dropdown-menu">
+                            <form method="post" action="<?= e(url('/asset-registry/export/excel')) ?>" class="export-dropdown-form">
+                                <?= csrf_field() ?>
+                                <?= $assetExportHidden ?>
+                                <button type="submit" class="export-dropdown-item" data-export-link>
+                                    <?= lucide('clipboard-list', 'button-icon') ?>
+                                    <span>ส่งออก Excel</span>
+                                </button>
+                            </form>
+                            <form method="post" action="<?= e(url('/asset-registry/export/csv')) ?>" class="export-dropdown-form">
+                                <?= csrf_field() ?>
+                                <?= $assetExportHidden ?>
+                                <button type="submit" class="export-dropdown-item" data-export-link>
+                                    <?= lucide('download', 'button-icon') ?>
+                                    <span>ส่งออก CSV</span>
+                                </button>
+                            </form>
+                        </div>
+                    </details>
                 <?php endif; ?>
     <?php $heroActions = (string) ob_get_clean(); ?>
     <?= render_partial('partials/components/page-header', [

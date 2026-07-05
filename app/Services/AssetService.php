@@ -8,6 +8,9 @@ use DomainException;
 use Endroid\QrCode\Builder\Builder;
 use Endroid\QrCode\Encoding\Encoding;
 use Endroid\QrCode\Writer\PngWriter;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use RuntimeException;
 
 class AssetService
 {
@@ -118,6 +121,9 @@ class AssetService
 
     private const PRINT_ASSETS_CAP = 500;
 
+    // Export size guard — กัน OOM/timeout เมื่อ asset เยอะ (บังคับให้กรองก่อน)
+    private const EXPORT_MAX_ROWS = 10000;
+
     public function getPrintableAssetsData(array $viewer, array $filters = []): array
     {
         $this->assertManageable($viewer);
@@ -149,6 +155,122 @@ class AssetService
                 'qr_png_url' => url('/asset-registry/' . (int) ($asset['id'] ?? 0) . '/qr.png'),
             ], $rows),
         ];
+    }
+
+    public function exportCsv(array $viewer, array $filters = []): array
+    {
+        [$headers, $rows] = $this->prepareAssetExport($viewer, $filters);
+
+        return [
+            'content' => $this->buildAssetCsv($headers, $rows),
+            'file_name' => 'asset-registry-' . date('Ymd-His') . '.csv',
+            'content_type' => 'text/csv; charset=UTF-8',
+        ];
+    }
+
+    public function exportExcel(array $viewer, array $filters = []): array
+    {
+        [$headers, $rows] = $this->prepareAssetExport($viewer, $filters);
+
+        return [
+            'content' => $this->buildAssetXlsx($headers, $rows),
+            'file_name' => 'asset-registry-' . date('Ymd-His') . '.xlsx',
+            'content_type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ];
+    }
+
+    /**
+     * เตรียมข้อมูล export: gate + normalize filter (ชุดเดียวกับ list) + size guard, แล้ว map แต่ละ asset
+     * เป็นค่าเรียงตาม AssetImportService::CSV_COLUMNS (codes/username) เพื่อ round-trip กับ import.
+     *
+     * @return array{0: string[], 1: array<int, array<int, string>>}
+     */
+    private function prepareAssetExport(array $viewer, array $filters): array
+    {
+        $this->assertManageable($viewer);
+
+        $normalizedFilters = $this->normalizeAssetIndexFilters($filters);
+        $rows = $this->assets->getAssetsForExport($normalizedFilters, self::EXPORT_MAX_ROWS + 1);
+        if (count($rows) > self::EXPORT_MAX_ROWS) {
+            throw new DomainException('ข้อมูลสำหรับ export มีมากเกิน ' . number_format(self::EXPORT_MAX_ROWS) . ' แถว กรุณากรอง (หมวด/สถานที่/สถานะ) ให้แคบลงก่อน export');
+        }
+
+        $headers = AssetImportService::CSV_COLUMNS;
+        $dataRows = array_map(static fn (array $asset): array => array_map(
+            static fn (string $column): string => (string) ($asset[$column] ?? ''),
+            $headers
+        ), $rows);
+
+        return [$headers, $dataRows];
+    }
+
+    private function buildAssetCsv(array $headers, array $rows): string
+    {
+        $stream = fopen('php://temp', 'w+b');
+        if ($stream === false) {
+            throw new RuntimeException('ไม่สามารถเตรียมไฟล์ CSV ได้');
+        }
+        fwrite($stream, "\xEF\xBB\xBF"); // BOM ให้ Excel อ่านภาษาไทยถูก
+        fputcsv($stream, $headers);
+        foreach ($rows as $row) {
+            fputcsv($stream, $this->sanitizeExportRow($row));
+        }
+        rewind($stream);
+        $content = (string) stream_get_contents($stream);
+        fclose($stream);
+
+        return $content;
+    }
+
+    private function buildAssetXlsx(array $headers, array $rows): string
+    {
+        try {
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+            $sheet->setTitle('ทะเบียนทรัพย์สิน');
+
+            $column = 'A';
+            foreach ($headers as $header) {
+                $sheet->setCellValue($column . '1', $header);
+                $sheet->getColumnDimension($column)->setAutoSize(true);
+                $column++;
+            }
+
+            $rowNumber = 2;
+            foreach ($rows as $row) {
+                $sheet->fromArray($this->sanitizeExportRow($row), null, 'A' . $rowNumber);
+                $rowNumber++;
+            }
+
+            $writer = new Xlsx($spreadsheet);
+            ob_start();
+            $writer->save('php://output');
+            $content = (string) ob_get_clean();
+            $spreadsheet->disconnectWorksheets();
+            unset($spreadsheet);
+
+            return $content;
+        } catch (\Throwable $exception) {
+            throw new RuntimeException('ไม่สามารถสร้างไฟล์ Excel ได้', 0, $exception);
+        }
+    }
+
+    private function sanitizeExportRow(array $values): array
+    {
+        return array_map(fn (mixed $value): string => $this->sanitizeExportCell($value), $values);
+    }
+
+    // CSV/spreadsheet injection guard — prefix ' ถ้า cell ขึ้นต้นด้วย = + - @ (กันสูตรรันในโปรแกรม sheet)
+    private function sanitizeExportCell(mixed $value): string
+    {
+        $cell = (string) $value;
+        $trimmed = ltrim($cell);
+
+        if ($trimmed !== '' && in_array($trimmed[0], ['=', '+', '-', '@'], true)) {
+            return "'" . $cell;
+        }
+
+        return $cell;
     }
 
     public function getScanData(string $token): ?array

@@ -218,6 +218,46 @@ class AssetsController
         ]);
     }
 
+    public function exportCsv(): void
+    {
+        AuthMiddleware::handle();
+
+        $viewer = auth()->user() ?? [];
+
+        try {
+            csrf_validate();
+            $export = $this->assets->exportCsv($viewer, $_POST);
+            Response::download(
+                (string) ($export['content'] ?? ''),
+                (string) ($export['file_name'] ?? 'asset-registry.csv'),
+                (string) ($export['content_type'] ?? 'text/csv; charset=UTF-8')
+            );
+        } catch (DomainException|RuntimeException $exception) {
+            flash('error', $exception->getMessage());
+            Response::redirect('/asset-registry');
+        }
+    }
+
+    public function exportExcel(): void
+    {
+        AuthMiddleware::handle();
+
+        $viewer = auth()->user() ?? [];
+
+        try {
+            csrf_validate();
+            $export = $this->assets->exportExcel($viewer, $_POST);
+            Response::download(
+                (string) ($export['content'] ?? ''),
+                (string) ($export['file_name'] ?? 'asset-registry.xlsx'),
+                (string) ($export['content_type'] ?? 'application/octet-stream')
+            );
+        } catch (DomainException|RuntimeException $exception) {
+            flash('error', $exception->getMessage());
+            Response::redirect('/asset-registry');
+        }
+    }
+
     public function importForm(): void
     {
         AuthMiddleware::handle();

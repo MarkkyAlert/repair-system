@@ -95,6 +95,8 @@ return static function (Router $router): void {
     $router->post('/asset-registry/import', [AssetsController::class, 'importPreview']);
     $router->post('/asset-registry/import/execute', [AssetsController::class, 'importExecute']);
     $router->get('/asset-registry/import/template.csv', [AssetsController::class, 'importTemplate']);
+    $router->post('/asset-registry/export/csv', [AssetsController::class, 'exportCsv']);
+    $router->post('/asset-registry/export/excel', [AssetsController::class, 'exportExcel']);
     $router->get('/asset-registry/print', [AssetsController::class, 'printSheet']);
     $router->get('/asset-registry/{assetId}/edit', [AssetsController::class, 'edit']);
     $router->post('/asset-registry/{assetId}', [AssetsController::class, 'update']);
