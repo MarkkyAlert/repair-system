@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace App\Repositories;
 
 use PDO;
+use RuntimeException;
+use Throwable;
 
 class GuestTicketRequestRepository
 {
@@ -148,5 +150,29 @@ class GuestTicketRequestRepository
         ]);
 
         return $stmt->rowCount() > 0;
+    }
+
+    /**
+     * Connection-scoped advisory lock ต่อ 1 guest request — serialize convert/reject ที่แข่งกัน
+     * (mirror TicketRepository::acquireNamedLock). ถือ lock ระหว่างตรวจ status + สร้าง ticket + link
+     * เพื่อกันการสร้าง orphan ticket จาก concurrent convert.
+     */
+    public function acquireConvertLock(int $requestId): void
+    {
+        $stmt = $this->db->prepare('SELECT GET_LOCK(:name, 5)');
+        $stmt->execute(['name' => 'guest-req-convert-' . $requestId]);
+        if ((int) $stmt->fetchColumn() !== 1) {
+            throw new RuntimeException('ระบบกำลังประมวลผลคำขอนี้ กรุณาลองใหม่อีกครั้ง');
+        }
+    }
+
+    public function releaseConvertLock(int $requestId): void
+    {
+        try {
+            $stmt = $this->db->prepare('SELECT RELEASE_LOCK(:name)');
+            $stmt->execute(['name' => 'guest-req-convert-' . $requestId]);
+        } catch (Throwable) {
+            // Releasing a connection-scoped lock must not hide the original operation result.
+        }
     }
 }

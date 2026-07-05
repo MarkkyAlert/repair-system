@@ -135,75 +135,75 @@ class GuestTicketService
 
     public function convertToTicket(int $requestId, array $viewer, int $priorityId, int $categoryId, TicketService $tickets): int
     {
-        $request = $this->requests->findById($requestId);
-        if ($request === null) {
-            throw new DomainException('ไม่พบ guest request');
-        }
-        if ((string) $request['status'] !== 'new') {
-            throw new DomainException('Request นี้ถูกดำเนินการแล้ว');
-        }
-
-        $contact = trim(((string) $request['guest_email']) . ' ' . ((string) $request['guest_phone']));
-        $titlePrefix = '[จาก Guest: ' . (string) $request['guest_name'] . '] ';
-        $descriptionPrefix = "ผู้แจ้ง (Guest): " . (string) $request['guest_name'] . "\n"
-            . "ติดต่อ: " . ($contact !== '' ? $contact : '-') . "\n"
-            . "Request No: " . (string) $request['request_no'] . "\n\n";
-
-        $ticketInput = [
-            'title' => $titlePrefix . (string) $request['title'],
-            'description' => $descriptionPrefix . (string) $request['description'],
-            'priority_id' => $priorityId,
-            'ticket_category_id' => $categoryId,
-            'location_id' => (int) ($request['location_id'] ?? 0),
-            'asset_id' => (int) ($request['asset_id'] ?? 0) > 0 ? (int) $request['asset_id'] : '',
-            'impact_level' => 'medium',
-            'urgency_level' => 'medium',
-            'submission_token' => bin2hex(random_bytes(32)),
-        ];
-
-        // สร้าง Ticket ก่อน แล้วค่อย claim+link แบบ atomic (status='converted' + converted_ticket_id
-        // ถูก set พร้อมกันใน UPDATE เดียว) → ไม่มีทางเกิด request 'converted' ที่ ticket_id เป็น NULL.
-        // ถ้า claim/link ล้มเหลว request จะยังเป็น 'new' (ไม่ค้าง 'converted' ไร้ ticket) — ticket ที่สร้าง
-        // เป็น valid record ที่ surface ให้ admin ตรวจสอบได้ (ดีกว่า "converted → ไม่มี ticket").
-        $ticketId = $tickets->createTicket($viewer, $ticketInput, []);
-
-        $linked = false;
-        for ($attempt = 1; $attempt <= 3; $attempt++) {
-            try {
-                $linked = $this->requests->claimAndLink($requestId, $ticketId, (int) ($viewer['id'] ?? 0));
-                break;
-            } catch (Throwable $exception) {
-                if ($attempt >= 3) {
-                    error_log(sprintf('[guest.convert] link failed request=%d ticket=%d: %s', $requestId, $ticketId, $exception->getMessage()));
-                    throw new RuntimeException('สร้าง Ticket #' . $ticketId . ' แล้ว แต่เชื่อมโยงกับ guest request ไม่สำเร็จ (request ยังอยู่ในคิว) กรุณาตรวจสอบ Ticket ' . $ticketId);
-                }
-                usleep(100000); // 100ms backoff ก่อนลองใหม่
+        // Serialize convert/reject บน request เดียวกันด้วย advisory lock — ตรวจ status='new' + สร้าง
+        // ticket + link ทั้งหมดภายใต้ lock เดียว จึงไม่มีทางที่ concurrent convert 2 คน (หรือ convert
+        // แข่ง reject) จะสร้าง ticket ที่ไม่ถูกผูกกับ request (orphan).
+        $this->requests->acquireConvertLock($requestId);
+        try {
+            $request = $this->requests->findById($requestId);
+            if ($request === null) {
+                throw new DomainException('ไม่พบ guest request');
             }
-        }
+            if ((string) $request['status'] !== 'new') {
+                // คนแพ้ของการแข่งกัน convert/reject หยุดที่นี่ — ยังไม่ได้สร้าง ticket จึงไม่มี orphan
+                throw new DomainException('Request นี้ถูกดำเนินการแล้ว');
+            }
 
-        if (!$linked) {
-            // concurrent convert/reject ชิงไประหว่าง check กับ claim — ticket ที่สร้างเป็น valid แต่ไม่ผูก request
-            error_log(sprintf('[guest.convert] request=%d ถูกดำเนินการโดย actor อื่น — ticket=%d สร้างไว้แต่ไม่ผูก', $requestId, $ticketId));
-            throw new DomainException('Request นี้ถูกดำเนินการโดยผู้อื่นแล้ว (สร้าง Ticket #' . $ticketId . ' ไว้ กรุณาตรวจสอบ/ยกเลิกหากซ้ำ)');
-        }
+            $contact = trim(((string) $request['guest_email']) . ' ' . ((string) $request['guest_phone']));
+            $titlePrefix = '[จาก Guest: ' . (string) $request['guest_name'] . '] ';
+            $descriptionPrefix = "ผู้แจ้ง (Guest): " . (string) $request['guest_name'] . "\n"
+                . "ติดต่อ: " . ($contact !== '' ? $contact : '-') . "\n"
+                . "Request No: " . (string) $request['request_no'] . "\n\n";
 
-        return $ticketId;
+            $ticketInput = [
+                'title' => $titlePrefix . (string) $request['title'],
+                'description' => $descriptionPrefix . (string) $request['description'],
+                'priority_id' => $priorityId,
+                'ticket_category_id' => $categoryId,
+                'location_id' => (int) ($request['location_id'] ?? 0),
+                'asset_id' => (int) ($request['asset_id'] ?? 0) > 0 ? (int) $request['asset_id'] : '',
+                'impact_level' => 'medium',
+                'urgency_level' => 'medium',
+                'submission_token' => bin2hex(random_bytes(32)),
+            ];
+
+            // ถ้า createTicket throw → exception ทะลุ finally (lock ปลด), claimAndLink ไม่ทันรัน →
+            // request ยัง 'new' + ไม่มี ticket ค้าง (createTicket rollback transaction ของตัวเอง)
+            $ticketId = $tickets->createTicket($viewer, $ticketInput, []);
+
+            // ถือ exclusive lock + ยืนยัน status='new' มาแล้ว → claimAndLink (WHERE status='new')
+            // สำเร็จเสมอ; guard ไว้เผื่อกรณีผิดปกติเท่านั้น (ไม่เกิด orphan เพราะไม่มี path อื่นชิงได้)
+            if (!$this->requests->claimAndLink($requestId, $ticketId, (int) ($viewer['id'] ?? 0))) {
+                throw new RuntimeException('เชื่อมโยง Ticket #' . $ticketId . ' กับ guest request ไม่สำเร็จ กรุณาตรวจสอบ Ticket ' . $ticketId);
+            }
+
+            return $ticketId;
+        } finally {
+            $this->requests->releaseConvertLock($requestId);
+        }
     }
 
     public function rejectRequest(int $requestId, array $viewer, string $note): void
     {
-        $request = $this->requests->findById($requestId);
-        if ($request === null) {
-            throw new DomainException('ไม่พบ guest request');
-        }
-        if ((string) $request['status'] !== 'new') {
-            throw new DomainException('Request นี้ถูกดำเนินการแล้ว');
-        }
+        // ใช้ lock ตัวเดียวกับ convert → reject กับ convert serialize กัน (กัน reject แทรกระหว่าง
+        // convert ตรวจ status กับ claimAndLink ซึ่งเป็นต้นตอ orphan ticket เดิม)
+        $this->requests->acquireConvertLock($requestId);
+        try {
+            $request = $this->requests->findById($requestId);
+            if ($request === null) {
+                throw new DomainException('ไม่พบ guest request');
+            }
+            if ((string) $request['status'] !== 'new') {
+                throw new DomainException('Request นี้ถูกดำเนินการแล้ว');
+            }
 
-        // Atomic conditional update (WHERE status='new'); false means a concurrent convert/reject
-        // already claimed it, so surface that instead of reporting a misleading success.
-        if (!$this->requests->markRejected($requestId, (int) ($viewer['id'] ?? 0), $note)) {
-            throw new DomainException('Request นี้ถูกดำเนินการแล้ว');
+            // Atomic conditional update (WHERE status='new'); false means a concurrent convert/reject
+            // already claimed it, so surface that instead of reporting a misleading success.
+            if (!$this->requests->markRejected($requestId, (int) ($viewer['id'] ?? 0), $note)) {
+                throw new DomainException('Request นี้ถูกดำเนินการแล้ว');
+            }
+        } finally {
+            $this->requests->releaseConvertLock($requestId);
         }
     }
 
