@@ -67,7 +67,7 @@
                     <?= lucide('qr-code', 'nav-icon') ?>
                     <span class="nav-label">ทรัพย์สินและ QR</span>
                 </a>
-                <a href="<?= e(url('/reports')) ?>" class="nav-link<?= $isReportsPath && !is_path('/reports/asset-reliability') && !is_path('/reports/sla-breach') && !is_path('/reports/technician-performance') ? ' is-active' : '' ?>" data-tooltip="รายงาน">
+                <a href="<?= e(url('/reports')) ?>" class="nav-link<?= $isReportsPath && !is_path('/reports/asset-reliability') && !is_path('/reports/sla-breach') && !is_path('/reports/technician-performance') && !is_path('/reports/problem-hotspot') ? ' is-active' : '' ?>" data-tooltip="รายงาน">
                     <?= lucide('bar-chart-3', 'nav-icon') ?>
                     <span class="nav-label">รายงานและวิเคราะห์</span>
                 </a>
@@ -82,6 +82,10 @@
                 <a href="<?= e(url('/reports/technician-performance')) ?>" class="nav-link nav-link-sub<?= is_path('/reports/technician-performance') ? ' is-active' : '' ?>" data-tooltip="ผลงานทีมช่าง">
                     <?= lucide('users', 'nav-icon') ?>
                     <span class="nav-label">ผลงานทีมช่าง</span>
+                </a>
+                <a href="<?= e(url('/reports/problem-hotspot')) ?>" class="nav-link nav-link-sub<?= is_path('/reports/problem-hotspot') ? ' is-active' : '' ?>" data-tooltip="พื้นที่ปัญหา">
+                    <?= lucide('map-pin', 'nav-icon') ?>
+                    <span class="nav-label">พื้นที่ปัญหา</span>
                 </a>
             <?php endif; ?>
             <?php if ((string) ($viewer['role'] ?? 'guest') === 'admin'): ?>

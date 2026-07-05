@@ -235,6 +235,50 @@ class ReportsController
         $this->downloadReport('exportTechnicianPerformancePdf', 'technician-performance.pdf', 'application/pdf', '/reports/technician-performance');
     }
 
+    public function problemHotspot(): void
+    {
+        AuthMiddleware::handle();
+
+        $viewer = auth()->user() ?? [];
+
+        try {
+            $data = $this->reports->getProblemHotspotReportPage($viewer, request()?->query ?? []);
+        } catch (DomainException $exception) {
+            flash('error', $exception->getMessage());
+            Response::redirect('/dashboard');
+        }
+
+        Response::view('reports/problem-hotspot', [
+            'title' => 'พื้นที่ปัญหา',
+            'pageHeading' => 'พื้นที่ปัญหา (แผนก / สถานที่)',
+            'currentUser' => $viewer,
+            'filters' => $data['filters'],
+            'summary' => $data['summary'],
+            'rows' => $data['rows'],
+            'rowsMeta' => $data['rowsMeta'],
+        ]);
+    }
+
+    public function problemHotspotExportCsv(): void
+    {
+        $this->downloadReport('exportProblemHotspotCsv', 'problem-hotspot.csv', 'text/csv; charset=UTF-8', '/reports/problem-hotspot');
+    }
+
+    public function problemHotspotExportExcel(): void
+    {
+        $this->downloadReport(
+            'exportProblemHotspotExcel',
+            'problem-hotspot.xlsx',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            '/reports/problem-hotspot'
+        );
+    }
+
+    public function problemHotspotExportPdf(): void
+    {
+        $this->downloadReport('exportProblemHotspotPdf', 'problem-hotspot.pdf', 'application/pdf', '/reports/problem-hotspot');
+    }
+
     /** ตัวช่วยรวม flow export ของรายงานย่อย (csrf + download + redirect กลับหน้าเดิมเมื่อ error). */
     private function downloadReport(string $serviceMethod, string $fallbackName, string $fallbackType, string $redirectPath): void
     {

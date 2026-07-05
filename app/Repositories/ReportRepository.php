@@ -548,6 +548,56 @@ class ReportRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    // มิติที่ยอมให้ group Problem Hotspot ได้ (whitelist กัน SQL-injection)
+    private const HOTSPOT_DIMENSIONS = [
+        'department' => ['join' => 'LEFT JOIN departments dim ON dim.id = t.requester_department_id', 'label' => "COALESCE(dim.name, 'ไม่ระบุแผนก')"],
+        'location' => ['join' => 'INNER JOIN locations dim ON dim.id = t.location_id', 'label' => 'dim.name'],
+    ];
+
+    /**
+     * Problem Hotspot — สรุป ticket ต่อพื้นที่ (แผนก/สถานที่): ปริมาณ + งานค้าง + เกิน SLA + เวลาซ่อม + แรงงาน.
+     * "เกิน SLA" = ticket-level นิยามเดียวกับ getSummary.overdue_tickets (status ยังไม่ terminal + EXISTS track
+     * breached/pending-overdue) → reconcile กับ dashboard ได้ และไม่ fan-out (subquery scalar ต่อ ticket).
+     * work_orders 1:1 → SUM(labor)/COUNT(*) ไม่ inflate. dimension มาจาก whitelist เท่านั้น.
+     */
+    public function getProblemHotspotByDimension(array $viewer, array $filters, string $dimension): array
+    {
+        $map = self::HOTSPOT_DIMENSIONS[$dimension] ?? self::HOTSPOT_DIMENSIONS['department'];
+        $terminal = ticket_terminal_statuses_sql();
+
+        $params = [];
+        $conditions = [$this->visibilityClause($viewer, $params)];
+        $this->applyReportFilters($conditions, $filters, $params);
+        $whereClause = implode(' AND ', $conditions);
+
+        $stmt = $this->db->prepare(
+            "SELECT
+                {$map['label']} AS dimension_label,
+                COUNT(*) AS ticket_count,
+                SUM(CASE WHEN t.status NOT IN ($terminal) THEN 1 ELSE 0 END) AS open_count,
+                SUM(CASE
+                    WHEN t.status NOT IN ($terminal)
+                        AND EXISTS (
+                            SELECT 1 FROM ticket_sla_tracks ts
+                            WHERE ts.ticket_id = t.id
+                              AND (ts.status = 'breached' OR (ts.status = 'pending' AND ts.target_at < NOW()))
+                        )
+                    THEN 1 ELSE 0
+                END) AS overdue_count,
+                ROUND(AVG(CASE WHEN t.resolved_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at) ELSE NULL END), 1) AS avg_resolution_minutes,
+                COALESCE(SUM(wo.labor_minutes), 0) AS labor_minutes
+             FROM tickets t
+             LEFT JOIN work_orders wo ON wo.ticket_id = t.id
+             {$map['join']}
+             WHERE $whereClause
+             GROUP BY dimension_label
+             ORDER BY ticket_count DESC"
+        );
+        $stmt->execute($params);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
     /**
      * ชั่วโมงแรงงานแยกตามหมวดงาน (จาก work_orders.labor_minutes) — ใช้ filter+visibility ชุดเดียวกับ report.
      * fan-out-free (work_orders UNIQUE(ticket_id) 1:1). HAVING labor_minutes>0 = โชว์เฉพาะหมวดที่มีแรงงานจริง.

@@ -873,6 +873,307 @@ class ReportService
         }
     }
 
+    // ===== Department / Location Problem Hotspot (หน้าแยกเต็มตัว /reports/problem-hotspot) =====
+
+    private const HOTSPOT_DIMENSIONS = ['department', 'location'];
+    // เกณฑ์คะแนนพื้นที่ปัญหา (heuristic สัมบูรณ์ ปรับได้)
+    private const HOTSPOT_OVERDUE_HIGH = 25;      // %เกิน SLA ≥ นี้ = +2
+    private const HOTSPOT_OVERDUE_MED = 10;       // ≥ นี้ = +1
+    private const HOTSPOT_VOLUME_HIGH = 20;       // แจ้งซ่อม ≥ นี้ = +1
+    private const HOTSPOT_LABOR_HIGH_MIN = 1200;  // แรงงาน ≥ 20 ชม. = +1
+    private const HOTSPOT_SLOW_RESOLUTION_HOURS = 8; // ซ่อมเฉลี่ย ≥ นี้ = +1
+    private const HOTSPOT_PROBLEM_SCORE = 3;      // ≥ นี้ = พื้นที่ปัญหา
+    private const HOTSPOT_WATCH_SCORE = 2;        // ≥ นี้ = เฝ้าระวัง
+
+    public function getProblemHotspotReportPage(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+
+        $normalizedFilters = $this->normalizeHotspotFilters($filters);
+        $reference = $this->reports->getFilterReferenceData();
+        $rows = $this->collectProblemHotspotRows($viewer, $normalizedFilters);
+
+        $filterData = $this->buildFilterData($normalizedFilters, $reference);
+        $filterData['selected']['dimension'] = $normalizedFilters['dimension'];
+        $filterData['dimensionLabel'] = $this->hotspotDimensionLabel($normalizedFilters['dimension']);
+        $filterData['dimensionOptions'] = [
+            ['value' => 'department', 'label' => 'แผนก'],
+            ['value' => 'location', 'label' => 'สถานที่'],
+        ];
+
+        return [
+            'filters' => $filterData,
+            'summary' => $this->buildProblemHotspotSummary($rows),
+            'rows' => $rows,
+            'rowsMeta' => ['displayed' => count($rows), 'dimension' => $normalizedFilters['dimension']],
+        ];
+    }
+
+    /** ดึง + map + เรียงพื้นที่ปัญหาขึ้นบน. ใช้ร่วมทั้งหน้าจอ + export. */
+    private function collectProblemHotspotRows(array $viewer, array $normalizedFilters): array
+    {
+        $rows = array_map(
+            fn (array $row): array => $this->mapProblemHotspotRow($row),
+            $this->reports->getProblemHotspotByDimension($viewer, $normalizedFilters, $normalizedFilters['dimension'])
+        );
+
+        usort($rows, static fn (array $a, array $b): int => [$b['hotspot_score'], $b['ticket_count']] <=> [$a['hotspot_score'], $a['ticket_count']]);
+
+        return $rows;
+    }
+
+    private function mapProblemHotspotRow(array $row): array
+    {
+        $ticketCount = (int) ($row['ticket_count'] ?? 0);
+        $openCount = (int) ($row['open_count'] ?? 0);
+        $overdueCount = (int) ($row['overdue_count'] ?? 0);
+        $laborMinutes = (int) ($row['labor_minutes'] ?? 0);
+        $avgMinutes = (float) ($row['avg_resolution_minutes'] ?? 0);
+        $avgHours = round($avgMinutes / 60, 1);
+        $overdueRate = $ticketCount > 0 ? round($overdueCount / $ticketCount * 100, 1) : 0.0;
+
+        $hotspot = $this->scoreHotspot([
+            'overdue_rate' => $overdueRate,
+            'ticket_count' => $ticketCount,
+            'labor_minutes' => $laborMinutes,
+            'avg_resolution_hours' => $avgHours,
+        ]);
+
+        return [
+            'label' => (string) ($row['dimension_label'] ?? '-'),
+            'ticket_count' => $ticketCount,
+            'open_count' => $openCount,
+            'overdue_count' => $overdueCount,
+            'overdue_rate_label' => number_format($overdueRate, 1) . '%',
+            'overdue_tone' => $this->breachTone($overdueRate),
+            'avg_resolution_hours_label' => $avgMinutes > 0 ? number_format($avgHours, 1) : '-',
+            'labor_minutes' => $laborMinutes,
+            'labor_hours_label' => $laborMinutes > 0 ? number_format(round($laborMinutes / 60, 1), 1) : '-',
+            'hotspot_score' => $hotspot['score'],
+            'hotspot_label' => $hotspot['label'],
+            'hotspot_tone' => $hotspot['tone'],
+            'hotspot_reason' => $hotspot['reason'],
+        ];
+    }
+
+    /**
+     * คะแนนพื้นที่ปัญหา — รวมสัญญาณ ปริมาณแจ้งซ่อม + %เกิน SLA + แรงงาน + เวลาซ่อม แล้วจัด bucket.
+     * โปร่งใส (point-based สัมบูรณ์) + มี reason อธิบายว่าทำไม.
+     */
+    private function scoreHotspot(array $m): array
+    {
+        $score = 0;
+        $reasons = [];
+
+        $overdueRate = (float) $m['overdue_rate'];
+        if ($overdueRate >= self::HOTSPOT_OVERDUE_HIGH) {
+            $score += 2;
+            $reasons[] = 'เกิน SLA ' . number_format($overdueRate, 1) . '%';
+        } elseif ($overdueRate >= self::HOTSPOT_OVERDUE_MED) {
+            $score += 1;
+            $reasons[] = 'เกิน SLA ' . number_format($overdueRate, 1) . '%';
+        }
+
+        $ticketCount = (int) $m['ticket_count'];
+        if ($ticketCount >= self::HOTSPOT_VOLUME_HIGH) {
+            $score += 1;
+            $reasons[] = 'แจ้งซ่อม ' . $ticketCount . ' ครั้ง';
+        }
+
+        $laborMinutes = (int) $m['labor_minutes'];
+        if ($laborMinutes >= self::HOTSPOT_LABOR_HIGH_MIN) {
+            $score += 1;
+            $reasons[] = 'แรงงาน ' . number_format(round($laborMinutes / 60, 1), 1) . ' ชม.';
+        }
+
+        $avgHours = (float) $m['avg_resolution_hours'];
+        if ($avgHours >= self::HOTSPOT_SLOW_RESOLUTION_HOURS) {
+            $score += 1;
+            $reasons[] = 'ซ่อมนานเฉลี่ย ' . number_format($avgHours, 1) . ' ชม.';
+        }
+
+        if ($score >= self::HOTSPOT_PROBLEM_SCORE) {
+            $label = 'พื้นที่ปัญหา';
+            $tone = 'danger';
+        } elseif ($score >= self::HOTSPOT_WATCH_SCORE) {
+            $label = 'เฝ้าระวัง';
+            $tone = 'warning';
+        } else {
+            $label = 'ปกติ';
+            $tone = 'success';
+        }
+
+        return [
+            'score' => $score,
+            'label' => $label,
+            'tone' => $tone,
+            'reason' => $reasons === [] ? 'ไม่มีสัญญาณเสี่ยง' : implode(', ', $reasons),
+        ];
+    }
+
+    private function buildProblemHotspotSummary(array $rows): array
+    {
+        $problemAreas = 0;
+        foreach ($rows as $row) {
+            $problemAreas += $row['hotspot_tone'] === 'danger' ? 1 : 0;
+        }
+        $totalLaborMinutes = (int) array_sum(array_column($rows, 'labor_minutes'));
+
+        return [
+            'areas' => count($rows),
+            'problem_areas' => $problemAreas,
+            'total_tickets' => (int) array_sum(array_column($rows, 'ticket_count')),
+            'total_overdue' => (int) array_sum(array_column($rows, 'overdue_count')),
+            'labor_hours_label' => number_format(round($totalLaborMinutes / 60, 1), 1),
+        ];
+    }
+
+    private function hotspotDimensionLabel(string $dimension): string
+    {
+        return $dimension === 'location' ? 'สถานที่' : 'แผนก';
+    }
+
+    private function normalizeHotspotFilters(array $filters): array
+    {
+        $normalized = $this->normalizeReportFilters($filters);
+        $dimension = is_string($filters['dimension'] ?? null) ? trim((string) $filters['dimension']) : '';
+        $normalized['dimension'] = in_array($dimension, self::HOTSPOT_DIMENSIONS, true) ? $dimension : 'department';
+
+        return $normalized;
+    }
+
+    private function hotspotExportHeaders(string $dimension): array
+    {
+        return [
+            $this->hotspotDimensionLabel($dimension), 'คะแนนพื้นที่', 'เหตุผล', 'แจ้งซ่อม', 'งานค้าง',
+            'เกิน SLA', '%เกิน SLA', 'เวลาซ่อมเฉลี่ย (ชม.)', 'ชม.แรงงาน',
+        ];
+    }
+
+    private function hotspotExportRow(array $row): array
+    {
+        return [
+            $row['label'], $row['hotspot_label'], $row['hotspot_reason'], $row['ticket_count'], $row['open_count'],
+            $row['overdue_count'], $row['overdue_rate_label'], $row['avg_resolution_hours_label'], $row['labor_hours_label'],
+        ];
+    }
+
+    public function exportProblemHotspotCsv(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+        $normalizedFilters = $this->normalizeHotspotFilters($filters);
+        $rows = $this->collectProblemHotspotRows($viewer, $normalizedFilters);
+        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'problem_hotspot_report', 'csv', $normalizedFilters);
+        $fileName = 'problem-hotspot-' . date('Ymd-His') . '.csv';
+
+        try {
+            $stream = fopen('php://temp', 'w+b');
+            if ($stream === false) {
+                throw new RuntimeException('ไม่สามารถเตรียมไฟล์ CSV ได้');
+            }
+            fwrite($stream, "\xEF\xBB\xBF");
+            fputcsv($stream, $this->hotspotExportHeaders($normalizedFilters['dimension']));
+            foreach ($rows as $row) {
+                fputcsv($stream, $this->sanitizeExportRow($this->hotspotExportRow($row)));
+            }
+            rewind($stream);
+            $content = (string) stream_get_contents($stream);
+            fclose($stream);
+            $this->reports->markExportJobCompleted($jobId, $fileName);
+
+            return ['content' => $content, 'file_name' => $fileName, 'content_type' => 'text/csv; charset=UTF-8'];
+        } catch (\Throwable $exception) {
+            $this->recordExportFailure($jobId, $exception);
+            throw new RuntimeException('ไม่สามารถสร้างไฟล์ CSV ได้', 0, $exception);
+        }
+    }
+
+    public function exportProblemHotspotExcel(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+        $normalizedFilters = $this->normalizeHotspotFilters($filters);
+        $rows = $this->collectProblemHotspotRows($viewer, $normalizedFilters);
+        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'problem_hotspot_report', 'xlsx', $normalizedFilters);
+        $fileName = 'problem-hotspot-' . date('Ymd-His') . '.xlsx';
+
+        try {
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+            $sheet->setTitle('พื้นที่ปัญหา');
+
+            $column = 'A';
+            foreach ($this->hotspotExportHeaders($normalizedFilters['dimension']) as $header) {
+                $sheet->setCellValue($column . '1', $header);
+                $sheet->getColumnDimension($column)->setAutoSize(true);
+                $column++;
+            }
+
+            $rowNumber = 2;
+            foreach ($rows as $row) {
+                $sheet->fromArray($this->sanitizeExportRow($this->hotspotExportRow($row)), null, 'A' . $rowNumber);
+                $rowNumber++;
+            }
+
+            $writer = new Xlsx($spreadsheet);
+            ob_start();
+            $writer->save('php://output');
+            $content = (string) ob_get_clean();
+            $spreadsheet->disconnectWorksheets();
+            unset($spreadsheet);
+
+            $this->reports->markExportJobCompleted($jobId, $fileName);
+
+            return [
+                'content' => $content,
+                'file_name' => $fileName,
+                'content_type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ];
+        } catch (\Throwable $exception) {
+            $this->recordExportFailure($jobId, $exception);
+            throw new RuntimeException('ไม่สามารถสร้างไฟล์ Excel ได้', 0, $exception);
+        }
+    }
+
+    public function exportProblemHotspotPdf(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+        $normalizedFilters = $this->normalizeHotspotFilters($filters);
+        $rows = $this->collectProblemHotspotRows($viewer, $normalizedFilters);
+        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'problem_hotspot_report', 'pdf', $normalizedFilters);
+        $fileName = 'problem-hotspot-' . date('Ymd-His') . '.pdf';
+
+        try {
+            $html = View::capture('reports/problem-hotspot-pdf', [
+                'generatedAt' => date('d/m/Y H:i'),
+                'dimensionLabel' => $this->hotspotDimensionLabel($normalizedFilters['dimension']),
+                'summary' => $this->buildProblemHotspotSummary($rows),
+                'rows' => $rows,
+                'filters' => $this->describeFilters($normalizedFilters, $this->reports->getFilterReferenceData()),
+            ]);
+
+            $options = new Options();
+            $dompdfTmp = sys_get_temp_dir();
+            if ($dompdfTmp === '' || !@is_writable($dompdfTmp)) {
+                $dompdfTmp = is_dir('/tmp') ? '/tmp' : BASE_PATH . '/storage/uploads';
+            }
+            $options->setTempDir($dompdfTmp);
+            $options->set('isRemoteEnabled', false);
+            $options->set('defaultFont', 'sarabun');
+            $dompdf = new Dompdf($options);
+            $dompdf->loadHtml($html, 'UTF-8');
+            $dompdf->setPaper('A4', 'landscape');
+            $dompdf->render();
+            $content = $dompdf->output();
+
+            $this->reports->markExportJobCompleted($jobId, $fileName);
+
+            return ['content' => $content, 'file_name' => $fileName, 'content_type' => 'application/pdf'];
+        } catch (\Throwable $exception) {
+            $this->recordExportFailure($jobId, $exception);
+            throw new RuntimeException('ไม่สามารถสร้างไฟล์ PDF ได้', 0, $exception);
+        }
+    }
+
     /**
      * Pivot flat rows (priority × metric) → overall + byPriority พร้อม %compliance + tone.
      * @return array{overall: array<string, array>, byPriority: array<int, array>, hasData: bool}
