@@ -50,21 +50,27 @@ class ReportService
                 'limit' => $rowLimit,
                 'capped' => $totalTickets > $displayedCount,
             ],
-            // ทรัพย์สินที่แจ้งซ่อมบ่อย (ใช้ filter ชุดเดียวกับ report)
+        ] + $this->collectAnalytics($viewer, $normalizedFilters);
+    }
+
+    /**
+     * รวม analytics ทั้ง 4 (asset reliability / SLA compliance / ผลงานช่าง / ชั่วโมงแรงงาน) จาก filter
+     * ชุดเดียว — ใช้ร่วมทั้งหน้าจอ (getReportPageData) และ export (PDF/Excel) เพื่อให้ตรงกันเสมอ.
+     */
+    private function collectAnalytics(array $viewer, array $normalizedFilters): array
+    {
+        return [
             'assetReliability' => array_map(
                 fn (array $row): array => $this->mapAssetReliabilityRow($row),
                 $this->reports->getAssetReliabilityRows($viewer, $normalizedFilters, self::ASSET_RELIABILITY_LIMIT)
             ),
-            // SLA %ตรงตามกำหนด (Response/Resolution) แยกตาม priority — ใช้ filter ชุดเดียวกับ report
             'slaCompliance' => $this->buildSlaCompliance(
                 $this->reports->getSlaComplianceByPriority($viewer, $normalizedFilters)
             ),
-            // ผลงานช่างเทคนิคต่อคน (ใช้ filter ชุดเดียวกับ report)
             'technicianPerformance' => array_map(
                 fn (array $row): array => $this->mapTechnicianRow($row),
                 $this->reports->getTechnicianPerformance($viewer, $normalizedFilters, self::TECHNICIAN_LIMIT)
             ),
-            // ชั่วโมงแรงงานรวม + แยกตามหมวด (จาก work_orders.labor_minutes)
             'laborEffort' => $this->buildLaborEffort(
                 $this->reports->getLaborByCategory($viewer, $normalizedFilters)
             ),
@@ -309,6 +315,9 @@ class ReportService
                 $rowNumber++;
             }
 
+            $this->appendAnalyticsSheets($spreadsheet, $this->collectAnalytics($viewer, $normalizedFilters));
+            $spreadsheet->setActiveSheetIndex(0);
+
             $writer = new Xlsx($spreadsheet);
             ob_start();
             $writer->save('php://output');
@@ -352,6 +361,7 @@ class ReportService
                 ],
                 'rows' => $rows,
                 'filters' => $this->describeFilters($normalizedFilters, $this->reports->getFilterReferenceData()),
+                'analytics' => $this->collectAnalytics($viewer, $normalizedFilters),
             ]);
 
             $options = new Options();
@@ -416,6 +426,53 @@ class ReportService
         } catch (\Throwable $exception) {
             $this->recordExportFailure($jobId, $exception);
             throw new RuntimeException('ไม่สามารถสร้างไฟล์ CSV ได้', 0, $exception);
+        }
+    }
+
+    /** เพิ่ม sheet analytics 4 ตัวเข้า workbook (ต่อจาก sheet ticket) ให้ export ตรงกับหน้าจอ. */
+    private function appendAnalyticsSheets(Spreadsheet $spreadsheet, array $analytics): void
+    {
+        $overall = $analytics['slaCompliance']['overall'] ?? [];
+        $slaRows = [[
+            'รวมทั้งหมด',
+            $overall['response']['met'] ?? 0, $overall['response']['breached'] ?? 0, $overall['response']['pct_label'] ?? '-',
+            $overall['resolution']['met'] ?? 0, $overall['resolution']['breached'] ?? 0, $overall['resolution']['pct_label'] ?? '-',
+        ]];
+        foreach (($analytics['slaCompliance']['byPriority'] ?? []) as $p) {
+            $slaRows[] = [
+                $p['priority_name'], $p['response']['met'], $p['response']['breached'], $p['response']['pct_label'],
+                $p['resolution']['met'], $p['resolution']['breached'], $p['resolution']['pct_label'],
+            ];
+        }
+        $this->addExcelSheet($spreadsheet, 'SLA ตรงตามกำหนด', ['ระดับความสำคัญ', 'ตอบรับ ตรง', 'ตอบรับ เกิน', 'ตอบรับ %', 'แก้ไข ตรง', 'แก้ไข เกิน', 'แก้ไข %'], $slaRows);
+
+        $this->addExcelSheet($spreadsheet, 'ผลงานช่างเทคนิค',
+            ['ช่าง', 'มอบหมาย', 'เสร็จ', 'ค้าง', 'อัตราปิดงาน', 'เวลาซ่อมเฉลี่ย (ชม.)', 'คะแนนเฉลี่ย', 'ชม.แรงงาน'],
+            array_map(static fn (array $t): array => [$t['full_name'], $t['assigned'], $t['resolved'], $t['open'], $t['completion_label'], $t['mttr_hours_label'], $t['avg_rating_label'], $t['labor_hours_label']], $analytics['technicianPerformance'] ?? []));
+
+        $this->addExcelSheet($spreadsheet, 'ชั่วโมงแรงงาน',
+            ['หมวดหมู่งาน', 'จำนวนงาน', 'งานที่บันทึกแรงงาน', 'รวมชั่วโมง', 'เฉลี่ย/งาน (ชม.)'],
+            array_map(static fn (array $c): array => [$c['category_name'], $c['tickets'], $c['labored_tickets'], $c['labor_hours_label'], $c['avg_hours_label']], $analytics['laborEffort']['byCategory'] ?? []));
+
+        $this->addExcelSheet($spreadsheet, 'ทรัพย์สินเสียบ่อย',
+            ['รหัส', 'ชื่อ', 'หมวดหมู่', 'สถานที่', 'สถานะ', 'จำนวนครั้ง', 'ครั้งล่าสุด', 'เวลาซ่อมเฉลี่ย (ชม.)', 'ชม.แรงงาน'],
+            array_map(static fn (array $a): array => [$a['asset_code'], $a['name'], $a['category_name'], $a['location_name'], $a['status_label'], $a['failure_count'], $a['last_failure'], $a['avg_resolution_hours_label'], $a['labor_hours_label']], $analytics['assetReliability'] ?? []));
+    }
+
+    private function addExcelSheet(Spreadsheet $spreadsheet, string $title, array $headers, array $rows): void
+    {
+        $sheet = $spreadsheet->createSheet();
+        $sheet->setTitle($title);
+        $column = 'A';
+        foreach ($headers as $header) {
+            $sheet->setCellValue($column . '1', $header);
+            $sheet->getColumnDimension($column)->setAutoSize(true);
+            $column++;
+        }
+        $rowNumber = 2;
+        foreach ($rows as $row) {
+            $sheet->fromArray($this->sanitizeExportRow($row), null, 'A' . $rowNumber);
+            $rowNumber++;
         }
     }
 

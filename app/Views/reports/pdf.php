@@ -22,6 +22,10 @@
         .summary-item { display: inline-block; width: 19%; margin-right: .6%; padding: 8px; border: 1px solid #d9e5e8; border-top: 3px solid #14b8a6; box-sizing: border-box; }
         .summary-title { font-size: 8px; color: #607783; }
         .summary-value { font-size: 17px; font-weight: 700; margin-top: 3px; color: #0a2233; }
+        .section-title { font-size: 12px; font-weight: 700; color: #0a2233; margin: 16px 0 6px; padding-bottom: 3px; border-bottom: 2px solid #14b8a6; }
+        .section-note { font-size: 8px; color: #607783; margin: -4px 0 6px; }
+        .report-table.compact th, .report-table.compact td { padding: 4px 6px; }
+        .num { text-align: right; }
     </style>
 </head>
 <body>
@@ -67,6 +71,142 @@
     </div>
 </div>
 
+<?php $analytics = $analytics ?? []; ?>
+
+<?php $sla = $analytics['slaCompliance'] ?? []; if (!empty($sla['hasData'])): $slaOverall = $sla['overall'] ?? []; ?>
+    <div class="section-title">SLA ตรงตามกำหนด</div>
+    <p class="section-note">% งานที่ตอบรับ/แก้ไขได้ทันกำหนด เทียบกับที่เกินกำหนด</p>
+    <table class="report-table compact stack">
+        <thead>
+        <tr>
+            <th>ระดับความสำคัญ</th>
+            <th class="num">ตอบรับ ตรง</th>
+            <th class="num">ตอบรับ เกิน</th>
+            <th class="num">ตอบรับ %</th>
+            <th class="num">แก้ไข ตรง</th>
+            <th class="num">แก้ไข เกิน</th>
+            <th class="num">แก้ไข %</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+            <td><strong>รวมทั้งหมด</strong></td>
+            <td class="num"><?= e((string) ($slaOverall['response']['met'] ?? 0)) ?></td>
+            <td class="num"><?= e((string) ($slaOverall['response']['breached'] ?? 0)) ?></td>
+            <td class="num"><strong><?= e((string) ($slaOverall['response']['pct_label'] ?? '-')) ?></strong></td>
+            <td class="num"><?= e((string) ($slaOverall['resolution']['met'] ?? 0)) ?></td>
+            <td class="num"><?= e((string) ($slaOverall['resolution']['breached'] ?? 0)) ?></td>
+            <td class="num"><strong><?= e((string) ($slaOverall['resolution']['pct_label'] ?? '-')) ?></strong></td>
+        </tr>
+        <?php foreach (($sla['byPriority'] ?? []) as $p): ?>
+            <tr>
+                <td><?= e((string) ($p['priority_name'] ?? '-')) ?></td>
+                <td class="num"><?= e((string) ($p['response']['met'] ?? 0)) ?></td>
+                <td class="num"><?= e((string) ($p['response']['breached'] ?? 0)) ?></td>
+                <td class="num"><?= e((string) ($p['response']['pct_label'] ?? '-')) ?></td>
+                <td class="num"><?= e((string) ($p['resolution']['met'] ?? 0)) ?></td>
+                <td class="num"><?= e((string) ($p['resolution']['breached'] ?? 0)) ?></td>
+                <td class="num"><?= e((string) ($p['resolution']['pct_label'] ?? '-')) ?></td>
+            </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
+<?php endif; ?>
+
+<?php $techs = $analytics['technicianPerformance'] ?? []; if (!empty($techs)): ?>
+    <div class="section-title">ผลงานช่างเทคนิค</div>
+    <table class="report-table compact stack">
+        <thead>
+        <tr>
+            <th>ช่าง</th>
+            <th class="num">มอบหมาย</th>
+            <th class="num">เสร็จ</th>
+            <th class="num">ค้าง</th>
+            <th class="num">อัตราปิดงาน</th>
+            <th class="num">เวลาซ่อมเฉลี่ย (ชม.)</th>
+            <th class="num">คะแนนเฉลี่ย</th>
+            <th class="num">ชม.แรงงาน</th>
+        </tr>
+        </thead>
+        <tbody>
+        <?php foreach ($techs as $t): ?>
+            <tr>
+                <td><?= e((string) ($t['full_name'] ?? '-')) ?></td>
+                <td class="num"><?= e((string) ($t['assigned'] ?? 0)) ?></td>
+                <td class="num"><?= e((string) ($t['resolved'] ?? 0)) ?></td>
+                <td class="num"><?= e((string) ($t['open'] ?? 0)) ?></td>
+                <td class="num"><?= e((string) ($t['completion_label'] ?? '-')) ?></td>
+                <td class="num"><?= e((string) ($t['mttr_hours_label'] ?? '-')) ?></td>
+                <td class="num"><?= e((string) ($t['avg_rating_label'] ?? '-')) ?></td>
+                <td class="num"><?= e((string) ($t['labor_hours_label'] ?? '-')) ?></td>
+            </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
+<?php endif; ?>
+
+<?php $labor = $analytics['laborEffort'] ?? []; if (!empty($labor['hasData'])): ?>
+    <div class="section-title">ชั่วโมงแรงงาน</div>
+    <p class="section-note">รวม <?= e((string) ($labor['total_hours_label'] ?? '0')) ?> ชม. · เฉลี่ย <?= e((string) ($labor['avg_hours_label'] ?? '0')) ?> ชม./งาน · <?= e((string) ($labor['labored_tickets'] ?? 0)) ?> งานที่บันทึกแรงงาน</p>
+    <table class="report-table compact stack">
+        <thead>
+        <tr>
+            <th>หมวดหมู่งาน</th>
+            <th class="num">จำนวนงาน</th>
+            <th class="num">งานที่บันทึกแรงงาน</th>
+            <th class="num">รวมชั่วโมง</th>
+            <th class="num">เฉลี่ย/งาน (ชม.)</th>
+        </tr>
+        </thead>
+        <tbody>
+        <?php foreach (($labor['byCategory'] ?? []) as $c): ?>
+            <tr>
+                <td><?= e((string) ($c['category_name'] ?? '-')) ?></td>
+                <td class="num"><?= e((string) ($c['tickets'] ?? 0)) ?></td>
+                <td class="num"><?= e((string) ($c['labored_tickets'] ?? 0)) ?></td>
+                <td class="num"><?= e((string) ($c['labor_hours_label'] ?? '-')) ?></td>
+                <td class="num"><?= e((string) ($c['avg_hours_label'] ?? '-')) ?></td>
+            </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
+<?php endif; ?>
+
+<?php $assets = $analytics['assetReliability'] ?? []; if (!empty($assets)): ?>
+    <div class="section-title">ทรัพย์สินเสียบ่อย</div>
+    <table class="report-table compact stack">
+        <thead>
+        <tr>
+            <th>รหัส</th>
+            <th>ชื่อ</th>
+            <th>หมวดหมู่</th>
+            <th>สถานที่</th>
+            <th>สถานะ</th>
+            <th class="num">จำนวนครั้ง</th>
+            <th>ครั้งล่าสุด</th>
+            <th class="num">เวลาซ่อมเฉลี่ย (ชม.)</th>
+            <th class="num">ชม.แรงงาน</th>
+        </tr>
+        </thead>
+        <tbody>
+        <?php foreach ($assets as $a): ?>
+            <tr>
+                <td><?= e((string) ($a['asset_code'] ?? '-')) ?></td>
+                <td><?= e((string) ($a['name'] ?? '-')) ?></td>
+                <td><?= e((string) ($a['category_name'] ?? '-')) ?></td>
+                <td><?= e((string) ($a['location_name'] ?? '-')) ?></td>
+                <td><?= e((string) ($a['status_label'] ?? '-')) ?></td>
+                <td class="num"><?= e((string) ($a['failure_count'] ?? 0)) ?></td>
+                <td><?= e((string) ($a['last_failure'] ?? '-')) ?></td>
+                <td class="num"><?= e((string) ($a['avg_resolution_hours_label'] ?? '-')) ?></td>
+                <td class="num"><?= e((string) ($a['labor_hours_label'] ?? '-')) ?></td>
+            </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
+<?php endif; ?>
+
+<div class="section-title">รายการ Ticket</div>
 <table class="report-table">
     <thead>
     <tr>
