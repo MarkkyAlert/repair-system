@@ -215,6 +215,58 @@ $isCapped = !empty($rowsMeta['capped']);
     <section class="panel-card stack-md">
         <div class="panel-head">
             <div>
+                <h2 class="panel-title">ผลงานช่างเทคนิค (Technician Performance)</h2>
+                <p class="field-hint">สรุปผลงานช่างในช่วงที่กรอง — ปริมาณงาน · อัตราปิดงาน · เวลาซ่อมเฉลี่ย (MTTR) · คะแนน · ชั่วโมงแรงงาน</p>
+            </div>
+            <?php if (!empty($technicianPerformance)): ?>
+                <span class="badge badge-default"><?= e((string) count($technicianPerformance)) ?> คน</span>
+            <?php endif; ?>
+        </div>
+
+        <?php if (!empty($technicianPerformance)): ?>
+            <div class="table-wrap">
+                <table class="data-table">
+                    <caption class="sr-only">ผลงานช่างเทคนิคต่อคน</caption>
+                    <thead>
+                    <tr>
+                        <th>ช่าง</th>
+                        <th data-sort-type="number">มอบหมาย</th>
+                        <th data-sort-type="number">เสร็จ</th>
+                        <th data-sort-type="number">ค้าง</th>
+                        <th data-sort-type="number">อัตราปิดงาน</th>
+                        <th data-sort-type="number">MTTR (ชม.)</th>
+                        <th data-sort-type="number">คะแนนเฉลี่ย</th>
+                        <th data-sort-type="number">ชม.แรงงาน</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($technicianPerformance as $tech): ?>
+                        <tr>
+                            <td><?= e($tech['full_name']) ?></td>
+                            <td><?= e((string) $tech['assigned']) ?></td>
+                            <td><?= e((string) $tech['resolved']) ?></td>
+                            <td><?= e((string) $tech['open']) ?></td>
+                            <td><span class="badge badge-<?= e($tech['completion_tone']) ?>"><?= e($tech['completion_label']) ?></span></td>
+                            <td><?= e($tech['mttr_hours_label']) ?></td>
+                            <td><span class="badge badge-<?= e($tech['avg_rating_tone']) ?>"><?= e($tech['avg_rating_label']) ?></span></td>
+                            <td><?= e($tech['labor_hours_label']) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php else: ?>
+            <?= render_partial('partials/components/empty-state', [
+                'icon' => 'wrench',
+                'title' => 'ยังไม่มีผลงานช่างในช่วงที่กรอง',
+                'description' => 'เมื่อมี ticket ที่มอบหมายให้ช่างในช่วงเวลาที่เลือก ระบบจะสรุปผลงานให้อัตโนมัติ',
+            ]) ?>
+        <?php endif; ?>
+    </section>
+
+    <section class="panel-card stack-md">
+        <div class="panel-head">
+            <div>
                 <h2 class="panel-title">ทรัพย์สินที่แจ้งซ่อมบ่อย</h2>
                 <p class="field-hint">จัดอันดับทรัพย์สินตามจำนวนครั้งที่แจ้งซ่อมในช่วงที่กรอง — ช่วยตัดสินใจว่าควรซ่อมใหญ่หรือเปลี่ยนอุปกรณ์ตัวไหน</p>
             </div>

@@ -59,6 +59,39 @@ class ReportService
             'slaCompliance' => $this->buildSlaCompliance(
                 $this->reports->getSlaComplianceByPriority($viewer, $normalizedFilters)
             ),
+            // ผลงานช่างเทคนิคต่อคน (ใช้ filter ชุดเดียวกับ report)
+            'technicianPerformance' => array_map(
+                fn (array $row): array => $this->mapTechnicianRow($row),
+                $this->reports->getTechnicianPerformance($viewer, $normalizedFilters, self::TECHNICIAN_LIMIT)
+            ),
+        ];
+    }
+
+    private function mapTechnicianRow(array $row): array
+    {
+        $assigned = (int) ($row['assigned'] ?? 0);
+        $resolved = (int) ($row['resolved'] ?? 0);
+        $ratingCount = (int) ($row['rating_count'] ?? 0);
+        $avgRating = (float) ($row['avg_rating'] ?? 0);
+        $mttrMinutes = (int) ($row['mttr_minutes'] ?? 0);
+        $laborMinutes = (int) ($row['labor_minutes'] ?? 0);
+        $completionPct = $assigned > 0 ? round($resolved / $assigned * 100, 1) : null;
+
+        return [
+            'full_name' => (string) ($row['full_name'] ?? '-'),
+            'assigned' => $assigned,
+            'resolved' => $resolved,
+            'open' => (int) ($row['open_count'] ?? 0),
+            'completion_label' => $completionPct === null ? '-' : number_format($completionPct, 1) . '%',
+            'completion_tone' => $completionPct === null
+                ? 'default'
+                : ($completionPct >= 80 ? 'success' : ($completionPct >= 60 ? 'warning' : 'danger')),
+            'mttr_hours_label' => $mttrMinutes > 0 ? number_format(round($mttrMinutes / 60, 1), 1) : '-',
+            'avg_rating_label' => $ratingCount > 0 ? number_format($avgRating, 1) : '-',
+            'avg_rating_tone' => $ratingCount === 0
+                ? 'default'
+                : ($avgRating >= 4 ? 'success' : ($avgRating >= 3 ? 'warning' : 'danger')),
+            'labor_hours_label' => $laborMinutes > 0 ? number_format(round($laborMinutes / 60, 1), 1) : '-',
         ];
     }
 
@@ -154,6 +187,9 @@ class ReportService
 
     // Asset reliability panel — จำนวน asset สูงสุดที่จัดอันดับบนหน้า report
     private const ASSET_RELIABILITY_LIMIT = 20;
+
+    // Technician performance panel — จำนวนช่างสูงสุดในตาราง
+    private const TECHNICIAN_LIMIT = 50;
 
     // Export size guards — กัน OOM/request timeout เมื่อ ticket เยอะ (PDF หนักสุด, CSV เบาสุด)
     private const EXPORT_MAX_ROWS_XLSX = 10000;

@@ -223,6 +223,43 @@ class ReportRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    /**
+     * ผลงานช่างเทคนิคต่อคน — query เดียว fan-out-free (work_orders/ticket_ratings เป็น UNIQUE(ticket_id)
+     * 1:1 → AVG(rating)/SUM(labor) ถูกต้อง). SLA ไม่รวมที่นี่ (sla_tracks 2:1 = fan-out; ดู SLA panel).
+     */
+    public function getTechnicianPerformance(array $viewer, array $filters, int $limit = 50): array
+    {
+        $params = [];
+        $conditions = [$this->visibilityClause($viewer, $params)];
+        $this->applyReportFilters($conditions, $filters, $params);
+        $whereClause = implode(' AND ', $conditions);
+        $limit = max(1, min($limit, 200));
+
+        $stmt = $this->db->prepare(
+            "SELECT
+                u.id,
+                u.full_name,
+                COUNT(t.id) AS assigned,
+                SUM(CASE WHEN t.status IN ('resolved', 'completed', 'closed') THEN 1 ELSE 0 END) AS resolved,
+                SUM(CASE WHEN t.status IN ('assigned', 'accepted', 'in_progress', 'on_hold') THEN 1 ELSE 0 END) AS open_count,
+                ROUND(AVG(CASE WHEN t.resolved_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at) ELSE NULL END), 0) AS mttr_minutes,
+                ROUND(COALESCE(AVG(tr.score), 0), 2) AS avg_rating,
+                COUNT(tr.score) AS rating_count,
+                COALESCE(SUM(wo.labor_minutes), 0) AS labor_minutes
+             FROM users u
+             INNER JOIN tickets t ON t.assigned_technician_id = u.id
+             LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id
+             LEFT JOIN work_orders wo ON wo.ticket_id = t.id
+             WHERE u.role = 'technician' AND $whereClause
+             GROUP BY u.id, u.full_name
+             ORDER BY resolved DESC, assigned DESC
+             LIMIT " . $limit
+        );
+        $stmt->execute($params);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
     public function createExportJob(int $requestedBy, string $type, string $format, array $filters): int
     {
         try {
