@@ -191,6 +191,50 @@ class ReportsController
         $this->downloadReport('exportSlaBreachPdf', 'sla-breach.pdf', 'application/pdf', '/reports/sla-breach');
     }
 
+    public function technicianPerformance(): void
+    {
+        AuthMiddleware::handle();
+
+        $viewer = auth()->user() ?? [];
+
+        try {
+            $data = $this->reports->getTechnicianPerformanceReportPage($viewer, request()?->query ?? []);
+        } catch (DomainException $exception) {
+            flash('error', $exception->getMessage());
+            Response::redirect('/dashboard');
+        }
+
+        Response::view('reports/technician-performance', [
+            'title' => 'ผลงานทีมช่าง',
+            'pageHeading' => 'ผลงานและภาระงานทีมช่าง',
+            'currentUser' => $viewer,
+            'filters' => $data['filters'],
+            'summary' => $data['summary'],
+            'rows' => $data['rows'],
+            'rowsMeta' => $data['rowsMeta'],
+        ]);
+    }
+
+    public function technicianPerformanceExportCsv(): void
+    {
+        $this->downloadReport('exportTechnicianPerformanceCsv', 'technician-performance.csv', 'text/csv; charset=UTF-8', '/reports/technician-performance');
+    }
+
+    public function technicianPerformanceExportExcel(): void
+    {
+        $this->downloadReport(
+            'exportTechnicianPerformanceExcel',
+            'technician-performance.xlsx',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            '/reports/technician-performance'
+        );
+    }
+
+    public function technicianPerformanceExportPdf(): void
+    {
+        $this->downloadReport('exportTechnicianPerformancePdf', 'technician-performance.pdf', 'application/pdf', '/reports/technician-performance');
+    }
+
     /** ตัวช่วยรวม flow export ของรายงานย่อย (csrf + download + redirect กลับหน้าเดิมเมื่อ error). */
     private function downloadReport(string $serviceMethod, string $fallbackName, string $fallbackType, string $redirectPath): void
     {

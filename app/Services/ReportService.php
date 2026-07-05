@@ -607,6 +607,272 @@ class ReportService
         ];
     }
 
+    // ===== Technician Workload & Performance (หน้าแยกเต็มตัว /reports/technician-performance) =====
+
+    public function getTechnicianPerformanceReportPage(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+
+        $normalizedFilters = $this->normalizeReportFilters($filters);
+        $reference = $this->reports->getFilterReferenceData();
+        $rows = $this->collectTechnicianPerformanceRows($viewer, $normalizedFilters);
+
+        return [
+            'filters' => $this->buildFilterData($normalizedFilters, $reference),
+            'summary' => $this->buildTechnicianPerformanceSummary($rows),
+            'rows' => $rows,
+            'rowsMeta' => ['displayed' => count($rows)],
+        ];
+    }
+
+    /**
+     * Merge period stats (date-filtered) + live workload (snapshot ทุกช่าง) ต่อ tech id → เรียงคนโหลดหนัก
+     * ขึ้นบน. base = live (ช่างทุกคน), overlay period 0 ถ้าไม่มีงานในช่วง. ใช้ร่วมทั้งหน้าจอ + export.
+     */
+    private function collectTechnicianPerformanceRows(array $viewer, array $normalizedFilters): array
+    {
+        $period = [];
+        foreach ($this->reports->getTechnicianPeriodStats($viewer, $normalizedFilters) as $row) {
+            $period[(int) $row['id']] = $row;
+        }
+
+        $live = $this->reports->getTechnicianLiveWorkload($viewer);
+        $totalOpenNow = 0;
+        foreach ($live as $row) {
+            $totalOpenNow += (int) ($row['open_now'] ?? 0);
+        }
+        $teamSize = count($live);
+
+        $rows = array_map(
+            fn (array $l): array => $this->mapTechnicianPerformanceRow($period[(int) $l['id']] ?? [], $l, $totalOpenNow, $teamSize),
+            $live
+        );
+
+        usort($rows, static fn (array $a, array $b): int => [$b['open_now'], $b['resolved']] <=> [$a['open_now'], $a['resolved']]);
+
+        return $rows;
+    }
+
+    private function mapTechnicianPerformanceRow(array $period, array $live, int $totalOpenNow, int $teamSize): array
+    {
+        $openNow = (int) ($live['open_now'] ?? 0);
+        $assigned = (int) ($period['assigned'] ?? 0);
+        $resolved = (int) ($period['resolved'] ?? 0);
+        $ratingCount = (int) ($period['rating_count'] ?? 0);
+        $avgRating = (float) ($period['avg_rating'] ?? 0);
+        $mttrMinutes = (float) ($period['mttr_minutes'] ?? 0);
+        $firstRespMinutes = (float) ($period['first_response_minutes'] ?? 0);
+        $laborMinutes = (int) ($period['labor_minutes'] ?? 0);
+        $slaBase = (int) ($period['sla_base'] ?? 0);
+        $slaOnTime = (int) ($period['sla_on_time'] ?? 0);
+
+        $completionPct = $assigned > 0 ? round($resolved / $assigned * 100, 1) : null;
+        $slaRate = $slaBase > 0 ? round($slaOnTime / $slaBase * 100, 1) : null;
+        $sharePct = $totalOpenNow > 0 ? round($openNow / $totalOpenNow * 100, 1) : null;
+        $oldestAge = $this->daysSince($live['oldest_open_at'] ?? null);
+
+        // workload tone เทียบ even split (โหลดเฉลี่ยต่อคน) — เกิน 2 เท่า = โหลดหนัก(danger), 1.5 เท่า = warning
+        $workloadTone = 'default';
+        $even = $teamSize > 0 ? $totalOpenNow / $teamSize : 0.0;
+        if ($openNow > 0 && $even > 0) {
+            $ratio = $openNow / $even;
+            $workloadTone = $ratio >= 2 ? 'danger' : ($ratio >= 1.5 ? 'warning' : 'success');
+        }
+
+        return [
+            'full_name' => (string) ($live['full_name'] ?? '-'),
+            // live snapshot (ไม่ขึ้นกับ date filter)
+            'open_now' => $openNow,
+            'workload_share_label' => $sharePct === null ? '-' : number_format($sharePct, 1) . '%',
+            'workload_tone' => $workloadTone,
+            'oldest_open_age_label' => $oldestAge === null ? '-' : number_format($oldestAge, 0) . ' วัน',
+            // performance ในช่วง
+            'assigned' => $assigned,
+            'resolved' => $resolved,
+            'completion_label' => $completionPct === null ? '-' : number_format($completionPct, 1) . '%',
+            'completion_tone' => $completionPct === null
+                ? 'default'
+                : ($completionPct >= 80 ? 'success' : ($completionPct >= 60 ? 'warning' : 'danger')),
+            'sla_on_time_label' => $slaRate === null ? '-' : number_format($slaRate, 1) . '%',
+            'sla_on_time_tone' => $slaRate === null
+                ? 'default'
+                : ($slaRate >= 90 ? 'success' : ($slaRate >= 75 ? 'warning' : 'danger')),
+            'first_response_hours_label' => $firstRespMinutes > 0 ? number_format(round($firstRespMinutes / 60, 1), 1) : '-',
+            'mttr_hours_label' => $mttrMinutes > 0 ? number_format(round($mttrMinutes / 60, 1), 1) : '-',
+            'avg_rating_label' => $ratingCount > 0 ? number_format($avgRating, 1) : '-',
+            'avg_rating_tone' => $ratingCount === 0
+                ? 'default'
+                : ($avgRating >= 4 ? 'success' : ($avgRating >= 3 ? 'warning' : 'danger')),
+            'labor_hours_label' => $laborMinutes > 0 ? number_format(round($laborMinutes / 60, 1), 1) : '-',
+            // raw counts (ซ่อน) สำหรับ summary team SLA
+            'sla_base' => $slaBase,
+            'sla_on_time' => $slaOnTime,
+        ];
+    }
+
+    private function buildTechnicianPerformanceSummary(array $rows): array
+    {
+        $slaBase = array_sum(array_column($rows, 'sla_base'));
+        $slaOnTime = array_sum(array_column($rows, 'sla_on_time'));
+        $slaRate = $slaBase > 0 ? round($slaOnTime / $slaBase * 100, 1) : null;
+
+        return [
+            'technicians' => count($rows),
+            'open_now' => (int) array_sum(array_column($rows, 'open_now')),
+            'resolved' => (int) array_sum(array_column($rows, 'resolved')),
+            'sla_on_time_label' => $slaRate === null ? '-' : number_format($slaRate, 1) . '%',
+            'sla_on_time_tone' => $slaRate === null
+                ? 'default'
+                : ($slaRate >= 90 ? 'success' : ($slaRate >= 75 ? 'warning' : 'danger')),
+        ];
+    }
+
+    /** จำนวนวัน (ทศนิยม) นับจากวันที่ถึงตอนนี้ — คืน null ถ้าไม่มี/รูปแบบผิด. */
+    private function daysSince(mixed $date): ?float
+    {
+        if (!is_string($date) || trim($date) === '') {
+            return null;
+        }
+        $timestamp = strtotime((string) $date);
+        if ($timestamp === false) {
+            return null;
+        }
+
+        return max(0.0, (time() - $timestamp) / 86400);
+    }
+
+    private function technicianPerformanceExportHeaders(): array
+    {
+        return [
+            'ช่าง', 'งานค้างปัจจุบัน', 'สัดส่วนโหลด', 'ค้างเก่าสุด', 'รับ', 'ปิด', 'อัตราปิด',
+            'SLA ตรงเวลา', 'เวลาตอบรับ (ชม.)', 'MTTR (ชม.)', 'คะแนน', 'ชม.แรงงาน',
+        ];
+    }
+
+    private function technicianPerformanceExportRow(array $row): array
+    {
+        return [
+            $row['full_name'], $row['open_now'], $row['workload_share_label'], $row['oldest_open_age_label'],
+            $row['assigned'], $row['resolved'], $row['completion_label'], $row['sla_on_time_label'],
+            $row['first_response_hours_label'], $row['mttr_hours_label'], $row['avg_rating_label'], $row['labor_hours_label'],
+        ];
+    }
+
+    public function exportTechnicianPerformanceCsv(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+        $normalizedFilters = $this->normalizeReportFilters($filters);
+        $rows = $this->collectTechnicianPerformanceRows($viewer, $normalizedFilters);
+        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'technician_performance_report', 'csv', $normalizedFilters);
+        $fileName = 'technician-performance-' . date('Ymd-His') . '.csv';
+
+        try {
+            $stream = fopen('php://temp', 'w+b');
+            if ($stream === false) {
+                throw new RuntimeException('ไม่สามารถเตรียมไฟล์ CSV ได้');
+            }
+            fwrite($stream, "\xEF\xBB\xBF");
+            fputcsv($stream, $this->technicianPerformanceExportHeaders());
+            foreach ($rows as $row) {
+                fputcsv($stream, $this->sanitizeExportRow($this->technicianPerformanceExportRow($row)));
+            }
+            rewind($stream);
+            $content = (string) stream_get_contents($stream);
+            fclose($stream);
+            $this->reports->markExportJobCompleted($jobId, $fileName);
+
+            return ['content' => $content, 'file_name' => $fileName, 'content_type' => 'text/csv; charset=UTF-8'];
+        } catch (\Throwable $exception) {
+            $this->recordExportFailure($jobId, $exception);
+            throw new RuntimeException('ไม่สามารถสร้างไฟล์ CSV ได้', 0, $exception);
+        }
+    }
+
+    public function exportTechnicianPerformanceExcel(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+        $normalizedFilters = $this->normalizeReportFilters($filters);
+        $rows = $this->collectTechnicianPerformanceRows($viewer, $normalizedFilters);
+        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'technician_performance_report', 'xlsx', $normalizedFilters);
+        $fileName = 'technician-performance-' . date('Ymd-His') . '.xlsx';
+
+        try {
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+            $sheet->setTitle('ผลงานทีมช่าง');
+
+            $column = 'A';
+            foreach ($this->technicianPerformanceExportHeaders() as $header) {
+                $sheet->setCellValue($column . '1', $header);
+                $sheet->getColumnDimension($column)->setAutoSize(true);
+                $column++;
+            }
+
+            $rowNumber = 2;
+            foreach ($rows as $row) {
+                $sheet->fromArray($this->sanitizeExportRow($this->technicianPerformanceExportRow($row)), null, 'A' . $rowNumber);
+                $rowNumber++;
+            }
+
+            $writer = new Xlsx($spreadsheet);
+            ob_start();
+            $writer->save('php://output');
+            $content = (string) ob_get_clean();
+            $spreadsheet->disconnectWorksheets();
+            unset($spreadsheet);
+
+            $this->reports->markExportJobCompleted($jobId, $fileName);
+
+            return [
+                'content' => $content,
+                'file_name' => $fileName,
+                'content_type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ];
+        } catch (\Throwable $exception) {
+            $this->recordExportFailure($jobId, $exception);
+            throw new RuntimeException('ไม่สามารถสร้างไฟล์ Excel ได้', 0, $exception);
+        }
+    }
+
+    public function exportTechnicianPerformancePdf(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+        $normalizedFilters = $this->normalizeReportFilters($filters);
+        $rows = $this->collectTechnicianPerformanceRows($viewer, $normalizedFilters);
+        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'technician_performance_report', 'pdf', $normalizedFilters);
+        $fileName = 'technician-performance-' . date('Ymd-His') . '.pdf';
+
+        try {
+            $html = View::capture('reports/technician-performance-pdf', [
+                'generatedAt' => date('d/m/Y H:i'),
+                'summary' => $this->buildTechnicianPerformanceSummary($rows),
+                'rows' => $rows,
+                'filters' => $this->describeFilters($normalizedFilters, $this->reports->getFilterReferenceData()),
+            ]);
+
+            $options = new Options();
+            $dompdfTmp = sys_get_temp_dir();
+            if ($dompdfTmp === '' || !@is_writable($dompdfTmp)) {
+                $dompdfTmp = is_dir('/tmp') ? '/tmp' : BASE_PATH . '/storage/uploads';
+            }
+            $options->setTempDir($dompdfTmp);
+            $options->set('isRemoteEnabled', false);
+            $options->set('defaultFont', 'sarabun');
+            $dompdf = new Dompdf($options);
+            $dompdf->loadHtml($html, 'UTF-8');
+            $dompdf->setPaper('A4', 'landscape');
+            $dompdf->render();
+            $content = $dompdf->output();
+
+            $this->reports->markExportJobCompleted($jobId, $fileName);
+
+            return ['content' => $content, 'file_name' => $fileName, 'content_type' => 'application/pdf'];
+        } catch (\Throwable $exception) {
+            $this->recordExportFailure($jobId, $exception);
+            throw new RuntimeException('ไม่สามารถสร้างไฟล์ PDF ได้', 0, $exception);
+        }
+    }
+
     /**
      * Pivot flat rows (priority × metric) → overall + byPriority พร้อม %compliance + tone.
      * @return array{overall: array<string, array>, byPriority: array<int, array>, hasData: bool}

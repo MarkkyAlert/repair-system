@@ -482,6 +482,73 @@ class ReportRepository
     }
 
     /**
+     * ผลงานช่างในช่วงที่กรอง (Technician Performance Report) — เหมือน getTechnicianPerformance แต่เพิ่ม
+     * เวลาตอบรับเฉลี่ย + SLA ตรงเวลาต่อคน (คิด ticket-level จาก resolution_due_at → ไม่ fan-out กับ
+     * ratings/work_orders 1:1). date-filtered ตาม applyReportFilters. คง getTechnicianPerformance เดิม
+     * (panel /reports ใช้อยู่) ไม่แตะ.
+     */
+    public function getTechnicianPeriodStats(array $viewer, array $filters, int $limit = 200): array
+    {
+        $params = [];
+        $conditions = [$this->visibilityClause($viewer, $params)];
+        $this->applyReportFilters($conditions, $filters, $params);
+        $whereClause = implode(' AND ', $conditions);
+        $limit = max(1, min($limit, 500));
+
+        $stmt = $this->db->prepare(
+            "SELECT
+                u.id,
+                u.full_name,
+                COUNT(t.id) AS assigned,
+                SUM(CASE WHEN t.status IN ('resolved', 'completed', 'closed') THEN 1 ELSE 0 END) AS resolved,
+                ROUND(AVG(CASE WHEN t.resolved_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at) ELSE NULL END), 1) AS mttr_minutes,
+                ROUND(AVG(CASE WHEN t.first_response_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.first_response_at) ELSE NULL END), 1) AS first_response_minutes,
+                SUM(CASE WHEN t.resolved_at IS NOT NULL AND t.resolution_due_at IS NOT NULL THEN 1 ELSE 0 END) AS sla_base,
+                SUM(CASE WHEN t.resolved_at IS NOT NULL AND t.resolution_due_at IS NOT NULL AND t.resolved_at <= t.resolution_due_at THEN 1 ELSE 0 END) AS sla_on_time,
+                ROUND(COALESCE(AVG(tr.score), 0), 2) AS avg_rating,
+                COUNT(tr.score) AS rating_count,
+                COALESCE(SUM(wo.labor_minutes), 0) AS labor_minutes
+             FROM users u
+             INNER JOIN tickets t ON t.assigned_technician_id = u.id
+             LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id
+             LEFT JOIN work_orders wo ON wo.ticket_id = t.id
+             WHERE u.role = 'technician' AND $whereClause
+             GROUP BY u.id, u.full_name
+             LIMIT " . $limit
+        );
+        $stmt->execute($params);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /**
+     * งานค้างของช่าง ณ ปัจจุบัน (live snapshot) — นับ ticket ที่ยังไม่ terminal ต่อช่าง โดย **ไม่ขึ้นกับ
+     * date filter** (= backlog จริงตอนนี้). base = ช่าง active ทุกคน (LEFT JOIN → idle ก็ได้แถว open_now=0)
+     * เพื่อให้เห็นทั้งทีมสำหรับเกลี่ยงาน. terminal ไม่นับ (ticket_terminal_statuses_sql).
+     */
+    public function getTechnicianLiveWorkload(array $viewer): array
+    {
+        $terminal = ticket_terminal_statuses_sql();
+
+        $stmt = $this->db->query(
+            "SELECT
+                u.id,
+                u.full_name,
+                SUM(CASE WHEN t.id IS NOT NULL THEN 1 ELSE 0 END) AS open_now,
+                MIN(t.requested_at) AS oldest_open_at
+             FROM users u
+             LEFT JOIN tickets t
+                ON t.assigned_technician_id = u.id
+               AND t.status NOT IN ($terminal)
+             WHERE u.role = 'technician' AND u.is_active = 1
+             GROUP BY u.id, u.full_name
+             ORDER BY u.full_name ASC, u.id ASC"
+        );
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /**
      * ชั่วโมงแรงงานแยกตามหมวดงาน (จาก work_orders.labor_minutes) — ใช้ filter+visibility ชุดเดียวกับ report.
      * fan-out-free (work_orders UNIQUE(ticket_id) 1:1). HAVING labor_minutes>0 = โชว์เฉพาะหมวดที่มีแรงงานจริง.
      */
