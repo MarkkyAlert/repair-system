@@ -28,11 +28,12 @@ class SetupController
 
     public function show(): void
     {
-        if ($this->isSetupCompleted()) {
+        // ล็อก setup เมื่อ setup เสร็จแล้ว หรือมี admin อยู่แล้ว — /setup เป็น guest endpoint,
+        // ถ้าเช็คแค่ flag จะเปิดช่องบน seed-deploy (admin จาก seed แต่ flag ยังไม่ถูกตั้ง)
+        $hasAdmin = $this->adminExists();
+        if ($this->isSetupCompleted() || $hasAdmin) {
             Response::redirect('/login');
         }
-
-        $hasAdmin = $this->adminExists();
 
         Response::view('setup/index', [
             'title' => 'ตั้งค่าระบบครั้งแรก',
@@ -44,7 +45,9 @@ class SetupController
 
     public function execute(): void
     {
-        if ($this->isSetupCompleted()) {
+        // ล็อก setup เมื่อ setup เสร็จแล้ว หรือมี admin อยู่แล้ว (กัน guest POST /setup บน seed-deploy
+        // → โหลด demo/แก้ settings/ได้บัญชี technician จาก demo) — คู่กับ guard ใน show()
+        if ($this->isSetupCompleted() || $this->adminExists()) {
             Response::redirect('/login');
         }
 
