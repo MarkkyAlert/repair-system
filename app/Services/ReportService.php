@@ -55,6 +55,74 @@ class ReportService
                 fn (array $row): array => $this->mapAssetReliabilityRow($row),
                 $this->reports->getAssetReliabilityRows($viewer, $normalizedFilters, self::ASSET_RELIABILITY_LIMIT)
             ),
+            // SLA %ตรงตามกำหนด (Response/Resolution) แยกตาม priority — ใช้ filter ชุดเดียวกับ report
+            'slaCompliance' => $this->buildSlaCompliance(
+                $this->reports->getSlaComplianceByPriority($viewer, $normalizedFilters)
+            ),
+        ];
+    }
+
+    /**
+     * Pivot flat rows (priority × metric) → overall + byPriority พร้อม %compliance + tone.
+     * @return array{overall: array<string, array>, byPriority: array<int, array>, hasData: bool}
+     */
+    private function buildSlaCompliance(array $rows): array
+    {
+        $overall = ['response' => ['met' => 0, 'breached' => 0], 'resolution' => ['met' => 0, 'breached' => 0]];
+        $byLevel = [];
+
+        foreach ($rows as $row) {
+            $metric = (string) ($row['metric_type'] ?? '');
+            if (!isset($overall[$metric])) {
+                continue;
+            }
+            $met = (int) ($row['met'] ?? 0);
+            $breached = (int) ($row['breached'] ?? 0);
+            $level = (int) ($row['priority_level'] ?? 0);
+
+            $overall[$metric]['met'] += $met;
+            $overall[$metric]['breached'] += $breached;
+
+            if (!isset($byLevel[$level])) {
+                $byLevel[$level] = [
+                    'priority_name' => (string) ($row['priority_name'] ?? '-'),
+                    'response' => ['met' => 0, 'breached' => 0],
+                    'resolution' => ['met' => 0, 'breached' => 0],
+                ];
+            }
+            $byLevel[$level][$metric]['met'] += $met;
+            $byLevel[$level][$metric]['breached'] += $breached;
+        }
+
+        krsort($byLevel); // Urgent (level สูง) → Low
+
+        return [
+            'overall' => [
+                'response' => $this->slaMetricCell($overall['response']),
+                'resolution' => $this->slaMetricCell($overall['resolution']),
+            ],
+            'byPriority' => array_map(fn (array $p): array => [
+                'priority_name' => $p['priority_name'],
+                'response' => $this->slaMetricCell($p['response']),
+                'resolution' => $this->slaMetricCell($p['resolution']),
+            ], array_values($byLevel)),
+            'hasData' => $rows !== [],
+        ];
+    }
+
+    private function slaMetricCell(array $counts): array
+    {
+        $met = (int) ($counts['met'] ?? 0);
+        $breached = (int) ($counts['breached'] ?? 0);
+        $concluded = $met + $breached;
+        $pct = $concluded > 0 ? round($met / $concluded * 100, 1) : null;
+
+        return [
+            'met' => $met,
+            'breached' => $breached,
+            'pct' => $pct,
+            'pct_label' => $pct === null ? '-' : number_format($pct, 1) . '%',
+            'tone' => $pct === null ? 'default' : ($pct >= 90 ? 'success' : ($pct >= 75 ? 'warning' : 'danger')),
         ];
     }
 

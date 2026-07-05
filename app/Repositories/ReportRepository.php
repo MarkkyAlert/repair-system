@@ -192,6 +192,37 @@ class ReportRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    /**
+     * SLA compliance — นับ met/breached ต่อ priority × metric_type (response/resolution) ใช้ filter +
+     * visibility ชุดเดียวกับ report. breached = status='breached' หรือ pending ที่เลยกำหนดแล้ว
+     * (ตรงกับนิยาม overdue เดิมใน buildSlaMetricState). pending ที่ยังไม่ถึงกำหนด = ผลยังไม่ออก → ไม่นับ.
+     */
+    public function getSlaComplianceByPriority(array $viewer, array $filters): array
+    {
+        $params = [];
+        $conditions = [$this->visibilityClause($viewer, $params)];
+        $this->applyReportFilters($conditions, $filters, $params);
+        $whereClause = implode(' AND ', $conditions);
+
+        $stmt = $this->db->prepare(
+            "SELECT
+                p.name AS priority_name,
+                p.level AS priority_level,
+                ts.metric_type,
+                SUM(CASE WHEN ts.status = 'met' THEN 1 ELSE 0 END) AS met,
+                SUM(CASE WHEN ts.status = 'breached' OR (ts.status = 'pending' AND ts.target_at < NOW()) THEN 1 ELSE 0 END) AS breached
+             FROM ticket_sla_tracks ts
+             INNER JOIN tickets t ON t.id = ts.ticket_id
+             INNER JOIN priorities p ON p.id = t.priority_id
+             WHERE $whereClause
+             GROUP BY p.id, p.name, p.level, ts.metric_type
+             ORDER BY p.level DESC"
+        );
+        $stmt->execute($params);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
     public function createExportJob(int $requestedBy, string $type, string $format, array $filters): int
     {
         try {

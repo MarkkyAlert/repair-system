@@ -152,6 +152,69 @@ $isCapped = !empty($rowsMeta['capped']);
     <section class="panel-card stack-md">
         <div class="panel-head">
             <div>
+                <h2 class="panel-title">SLA ตรงตามกำหนด (Compliance)</h2>
+                <p class="field-hint">อัตราทำงานทันกำหนด SLA — Response (เวลาตอบรับ) และ Resolution (เวลาปิดงาน) แยกตามระดับความสำคัญ</p>
+            </div>
+        </div>
+
+        <?php $slaOverall = $slaCompliance['overall'] ?? []; ?>
+        <div class="stat-grid stat-grid-2">
+            <?= render_partial('partials/components/card', [
+                'title' => 'Response SLA (ตอบรับทันเวลา)',
+                'value' => (string) ($slaOverall['response']['pct_label'] ?? '-'),
+                'meta' => 'ตรงกำหนด ' . (int) ($slaOverall['response']['met'] ?? 0) . ' · เกิน ' . (int) ($slaOverall['response']['breached'] ?? 0),
+                'tone' => (string) ($slaOverall['response']['tone'] ?? 'default'),
+            ]) ?>
+            <?= render_partial('partials/components/card', [
+                'title' => 'Resolution SLA (ปิดงานทันเวลา)',
+                'value' => (string) ($slaOverall['resolution']['pct_label'] ?? '-'),
+                'meta' => 'ตรงกำหนด ' . (int) ($slaOverall['resolution']['met'] ?? 0) . ' · เกิน ' . (int) ($slaOverall['resolution']['breached'] ?? 0),
+                'tone' => (string) ($slaOverall['resolution']['tone'] ?? 'default'),
+            ]) ?>
+        </div>
+
+        <?php if (!empty($slaCompliance['byPriority'])): ?>
+            <div class="table-wrap">
+                <table class="data-table">
+                    <caption class="sr-only">SLA compliance แยกตามระดับความสำคัญ</caption>
+                    <thead>
+                    <tr>
+                        <th>ระดับความสำคัญ</th>
+                        <th data-sort-type="number">Response ตรง</th>
+                        <th data-sort-type="number">Response เกิน</th>
+                        <th data-sort-type="number">Response %</th>
+                        <th data-sort-type="number">Resolution ตรง</th>
+                        <th data-sort-type="number">Resolution เกิน</th>
+                        <th data-sort-type="number">Resolution %</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($slaCompliance['byPriority'] as $sla): ?>
+                        <tr>
+                            <td><?= e($sla['priority_name']) ?></td>
+                            <td><?= e((string) $sla['response']['met']) ?></td>
+                            <td><?= e((string) $sla['response']['breached']) ?></td>
+                            <td><span class="badge badge-<?= e($sla['response']['tone']) ?>"><?= e($sla['response']['pct_label']) ?></span></td>
+                            <td><?= e((string) $sla['resolution']['met']) ?></td>
+                            <td><?= e((string) $sla['resolution']['breached']) ?></td>
+                            <td><span class="badge badge-<?= e($sla['resolution']['tone']) ?>"><?= e($sla['resolution']['pct_label']) ?></span></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php else: ?>
+            <?= render_partial('partials/components/empty-state', [
+                'icon' => 'clock',
+                'title' => 'ยังไม่มีข้อมูล SLA ในช่วงที่กรอง',
+                'description' => 'เมื่อมี ticket ที่มีการวัด SLA ในช่วงเวลาที่เลือก ระบบจะสรุป %ตรงตามกำหนดให้อัตโนมัติ',
+            ]) ?>
+        <?php endif; ?>
+    </section>
+
+    <section class="panel-card stack-md">
+        <div class="panel-head">
+            <div>
                 <h2 class="panel-title">ทรัพย์สินที่แจ้งซ่อมบ่อย</h2>
                 <p class="field-hint">จัดอันดับทรัพย์สินตามจำนวนครั้งที่แจ้งซ่อมในช่วงที่กรอง — ช่วยตัดสินใจว่าควรซ่อมใหญ่หรือเปลี่ยนอุปกรณ์ตัวไหน</p>
             </div>
