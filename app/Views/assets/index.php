@@ -9,6 +9,14 @@ $isAssetFilterActive = $assetSearch !== '' || $assetCategoryId > 0 || $assetLoca
 $isAssetAdvancedFilterActive = $assetCategoryId > 0 || $assetLocationId > 0 || $assetStatus !== '';
 // $activeFilters (chips: label + dismiss) เป็น view-model จาก controller (AssetService) — ไม่ derive ใน view แล้ว
 $assetActiveChips = $activeFilters ?? [];
+// ปุ่มพิมพ์ QR สืบทอด filter ปัจจุบัน → พิมพ์เฉพาะชุดที่กรองไว้ (ตรง pattern dismissUrl ใน AssetService)
+$assetPrintQuery = array_filter([
+    'q' => $assetSearch,
+    'category_id' => $assetCategoryId > 0 ? $assetCategoryId : '',
+    'location_id' => $assetLocationId > 0 ? $assetLocationId : '',
+    'status' => $assetStatus,
+], static fn ($v): bool => (string) $v !== '');
+$assetPrintHref = '/asset-registry/print' . ($assetPrintQuery !== [] ? '?' . http_build_query($assetPrintQuery) : '');
 ?>
 <section class="stack-lg">
     <h1 class="sr-only">ทรัพย์สินและ QR — ทะเบียนทรัพย์สินขององค์กร</h1>
@@ -16,7 +24,7 @@ $assetActiveChips = $activeFilters ?? [];
                 <?php if (!empty($canManage)): ?>
                     <?= render_partial('partials/components/button', ['label' => 'เพิ่มทรัพย์สิน', 'variant' => 'primary', 'href' => '/asset-registry/create', 'icon' => 'arrow-right']) ?>
                     <?= render_partial('partials/components/button', ['label' => 'นำเข้า CSV', 'variant' => 'secondary', 'href' => '/asset-registry/import', 'icon' => 'send']) ?>
-                    <?= render_partial('partials/components/button', ['label' => 'พิมพ์แผ่น QR', 'variant' => 'secondary', 'href' => '/asset-registry/print']) ?>
+                    <?= render_partial('partials/components/button', ['label' => 'พิมพ์แผ่น QR', 'variant' => 'secondary', 'href' => $assetPrintHref]) ?>
                 <?php endif; ?>
     <?php $heroActions = (string) ob_get_clean(); ?>
     <?= render_partial('partials/components/page-header', [

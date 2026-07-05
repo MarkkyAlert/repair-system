@@ -118,22 +118,28 @@ class AssetService
 
     private const PRINT_ASSETS_CAP = 500;
 
-    public function getPrintableAssetsData(array $viewer): array
+    public function getPrintableAssetsData(array $viewer, array $filters = []): array
     {
         $this->assertManageable($viewer);
 
-        // ดึง cap+1 เพื่อรู้ว่ามีเกิน cap ไหม แล้ว slice + แจ้งเตือนในหน้าพิมพ์ให้กรองก่อน
-        $rows = $this->assets->getPrintableAssets(self::PRINT_ASSETS_CAP + 1);
+        // สืบทอด filter จากหน้า list (ผ่าน query string) — normalize ชุดเดียวกับ getAssetIndexData
+        $normalizedFilters = $this->normalizeAssetIndexFilters($filters);
+
+        // ดึง cap+1 เพื่อรู้ว่ามีเกิน cap ไหม แล้ว slice + แจ้งเตือนในหน้าพิมพ์ให้กรองแคบลง
+        $rows = $this->assets->getPrintableAssets(self::PRINT_ASSETS_CAP + 1, $normalizedFilters);
         $capped = count($rows) > self::PRINT_ASSETS_CAP;
         if ($capped) {
             $rows = array_slice($rows, 0, self::PRINT_ASSETS_CAP);
         }
+
+        $filterOptions = $this->buildAssetFilterOptions($this->assets->getAssetFormReferenceData());
 
         return [
             'brandName' => (string) setting('app_name', config('app.name', 'Repair System')),
             'brandLogoUrl' => branding_logo_url(),
             'capped' => $capped,
             'printLimit' => self::PRINT_ASSETS_CAP,
+            'activeFilters' => $this->buildAssetActiveFilterChips($normalizedFilters, $filterOptions),
             'assets' => array_map(fn (array $asset): array => [
                 'id' => (int) ($asset['id'] ?? 0),
                 'asset_code' => (string) ($asset['asset_code'] ?? ''),

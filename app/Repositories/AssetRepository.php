@@ -486,11 +486,13 @@ class AssetRepository
         ]);
     }
 
-    public function getPrintableAssets(int $limit = 500): array
+    public function getPrintableAssets(int $limit = 500, array $filters = []): array
     {
         // จำกัดจำนวนต่อหน้าพิมพ์ — กัน browser ช้าจาก QR image จำนวนมากเมื่อ asset เยอะ
         $limit = max(1, $limit);
-        $stmt = $this->db->query(
+        // ใช้ filter WHERE ชุดเดียวกับ list (buildAssetListWhere) เพื่อให้พิมพ์ตามที่กรองไว้ตรงกัน
+        [$whereSql, $params] = $this->buildAssetListWhere($filters);
+        $stmt = $this->db->prepare(
             "SELECT
                 a.id,
                 a.asset_code,
@@ -506,9 +508,15 @@ class AssetRepository
                 ORDER BY q.id DESC
                 LIMIT 1
              )
+             $whereSql
              ORDER BY a.asset_code ASC, a.id ASC
-             LIMIT " . $limit
+             LIMIT :limit"
         );
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
+        }
+        $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
+        $stmt->execute();
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }

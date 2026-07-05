@@ -13,10 +13,16 @@
                 <?php endif; ?>
             </div>
         </div>
+        <?php if (!empty($activeFilters)): ?>
+            <p class="field-hint">
+                <?= lucide('filter', 'h-4 w-4') ?> กำลังพิมพ์เฉพาะชุดที่กรองไว้:
+                <?php foreach ($activeFilters as $chip): ?><span class="filter-chip"><?= e($chip['label']) ?></span> <?php endforeach; ?>
+            </p>
+        <?php endif; ?>
         <?php if (!empty($capped)): ?>
             <div class="auth-alert auth-alert-warning no-print" role="alert">
                 <span class="auth-alert-icon"><?= lucide('triangle-alert', 'h-4 w-4') ?></span>
-                <p>ทรัพย์สินมีจำนวนมาก — แสดง/พิมพ์ได้สูงสุด <?= number_format((int) ($printLimit ?? 0)) ?> รายการต่อครั้ง กรุณากรองตามหมวด/สถานที่ในหน้าทะเบียนแล้วพิมพ์เป็นชุดเพื่อพิมพ์ให้ครบ</p>
+                <p>ชุดที่เลือกยังมีมากกว่า <?= number_format((int) ($printLimit ?? 0)) ?> รายการ — พิมพ์ได้สูงสุด <?= number_format((int) ($printLimit ?? 0)) ?> รายการต่อครั้ง กรุณากรองให้แคบลง (หมวด/สถานที่/สถานะ) ในหน้าทะเบียนแล้วพิมพ์เป็นชุด</p>
             </div>
         <?php endif; ?>
         <div class="qr-print-summary" aria-label="สรุปการพิมพ์แผ่น QR">

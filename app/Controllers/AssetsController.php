@@ -199,7 +199,7 @@ class AssetsController
         $viewer = auth()->user() ?? [];
 
         try {
-            $data = $this->assets->getPrintableAssetsData($viewer);
+            $data = $this->assets->getPrintableAssetsData($viewer, request()?->query ?? []);
         } catch (DomainException $exception) {
             flash('error', $exception->getMessage());
             Response::redirect('/asset-registry');
@@ -214,6 +214,7 @@ class AssetsController
             'brandLogoUrl' => $data['brandLogoUrl'],
             'capped' => $data['capped'] ?? false,
             'printLimit' => $data['printLimit'] ?? 0,
+            'activeFilters' => $data['activeFilters'] ?? [],
         ]);
     }
 
