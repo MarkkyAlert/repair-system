@@ -64,6 +64,40 @@ class ReportService
                 fn (array $row): array => $this->mapTechnicianRow($row),
                 $this->reports->getTechnicianPerformance($viewer, $normalizedFilters, self::TECHNICIAN_LIMIT)
             ),
+            // ชั่วโมงแรงงานรวม + แยกตามหมวด (จาก work_orders.labor_minutes)
+            'laborEffort' => $this->buildLaborEffort(
+                $this->reports->getLaborByCategory($viewer, $normalizedFilters)
+            ),
+        ];
+    }
+
+    private function buildLaborEffort(array $rows): array
+    {
+        $totalMinutes = 0;
+        $totalLabored = 0;
+        $byCategory = [];
+
+        foreach ($rows as $row) {
+            $minutes = (int) ($row['labor_minutes'] ?? 0);
+            $labored = (int) ($row['labored_tickets'] ?? 0);
+            $totalMinutes += $minutes;
+            $totalLabored += $labored;
+
+            $byCategory[] = [
+                'category_name' => (string) ($row['category_name'] ?? '-'),
+                'tickets' => (int) ($row['tickets'] ?? 0),
+                'labored_tickets' => $labored,
+                'labor_hours_label' => number_format(round($minutes / 60, 1), 1),
+                'avg_hours_label' => $labored > 0 ? number_format(round($minutes / $labored / 60, 1), 1) : '-',
+            ];
+        }
+
+        return [
+            'total_hours_label' => $totalMinutes > 0 ? number_format(round($totalMinutes / 60, 1), 1) : '-',
+            'avg_hours_label' => $totalLabored > 0 ? number_format(round($totalMinutes / $totalLabored / 60, 1), 1) : '-',
+            'labored_tickets' => $totalLabored,
+            'byCategory' => $byCategory,
+            'hasData' => $rows !== [],
         ];
     }
 
@@ -181,6 +215,7 @@ class ReportService
             'failure_count' => (int) ($row['failure_count'] ?? 0),
             'last_failure' => $this->formatDateTime($row['last_failure_at'] ?? null),
             'avg_resolution_hours_label' => $avgMinutes > 0 ? number_format(round($avgMinutes / 60, 1), 1) : '-',
+            'labor_hours_label' => (int) ($row['labor_minutes'] ?? 0) > 0 ? number_format(round((int) $row['labor_minutes'] / 60, 1), 1) : '-',
             'detail_url' => '/asset-registry/' . (int) ($row['id'] ?? 0),
         ];
     }

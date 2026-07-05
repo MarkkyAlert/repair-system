@@ -177,11 +177,13 @@ class ReportRepository
                 ROUND(COALESCE(AVG(CASE
                     WHEN t.resolved_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at)
                     ELSE NULL
-                END), 0), 0) AS avg_resolution_minutes
+                END), 0), 0) AS avg_resolution_minutes,
+                COALESCE(SUM(wo.labor_minutes), 0) AS labor_minutes
              FROM tickets t
              INNER JOIN assets a ON a.id = t.asset_id
              INNER JOIN asset_categories ac ON ac.id = a.asset_category_id
              INNER JOIN locations l ON l.id = a.location_id
+             LEFT JOIN work_orders wo ON wo.ticket_id = t.id
              WHERE $whereClause
              GROUP BY a.id, a.asset_code, a.name, a.status, ac.name, l.name
              ORDER BY failure_count DESC, last_failure_at DESC
@@ -254,6 +256,36 @@ class ReportRepository
              GROUP BY u.id, u.full_name
              ORDER BY resolved DESC, assigned DESC
              LIMIT " . $limit
+        );
+        $stmt->execute($params);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /**
+     * ชั่วโมงแรงงานแยกตามหมวดงาน (จาก work_orders.labor_minutes) — ใช้ filter+visibility ชุดเดียวกับ report.
+     * fan-out-free (work_orders UNIQUE(ticket_id) 1:1). HAVING labor_minutes>0 = โชว์เฉพาะหมวดที่มีแรงงานจริง.
+     */
+    public function getLaborByCategory(array $viewer, array $filters): array
+    {
+        $params = [];
+        $conditions = [$this->visibilityClause($viewer, $params)];
+        $this->applyReportFilters($conditions, $filters, $params);
+        $whereClause = implode(' AND ', $conditions);
+
+        $stmt = $this->db->prepare(
+            "SELECT
+                c.name AS category_name,
+                COUNT(t.id) AS tickets,
+                SUM(CASE WHEN wo.labor_minutes > 0 THEN 1 ELSE 0 END) AS labored_tickets,
+                COALESCE(SUM(wo.labor_minutes), 0) AS labor_minutes
+             FROM tickets t
+             INNER JOIN ticket_categories c ON c.id = t.ticket_category_id
+             LEFT JOIN work_orders wo ON wo.ticket_id = t.id
+             WHERE $whereClause
+             GROUP BY c.id, c.name
+             HAVING labor_minutes > 0
+             ORDER BY labor_minutes DESC"
         );
         $stmt->execute($params);
 

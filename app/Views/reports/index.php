@@ -267,6 +267,70 @@ $isCapped = !empty($rowsMeta['capped']);
     <section class="panel-card stack-md">
         <div class="panel-head">
             <div>
+                <h2 class="panel-title">ชั่วโมงแรงงาน</h2>
+                <p class="field-hint">สรุปชั่วโมงแรงงานที่ช่างบันทึก (จาก work order) แยกตามหมวดงาน — ดูว่างานประเภทไหนใช้แรงงานมากสุด</p>
+            </div>
+        </div>
+
+        <div class="stat-grid stat-grid-3">
+            <?= render_partial('partials/components/card', [
+                'title' => 'รวมชั่วโมงแรงงาน',
+                'value' => (string) ($laborEffort['total_hours_label'] ?? '-'),
+                'meta' => 'ชั่วโมงในช่วงที่กรอง',
+                'tone' => 'info',
+            ]) ?>
+            <?= render_partial('partials/components/card', [
+                'title' => 'เฉลี่ยต่องาน',
+                'value' => (string) ($laborEffort['avg_hours_label'] ?? '-'),
+                'meta' => 'ชั่วโมง/งานที่บันทึกแรงงาน',
+                'tone' => 'default',
+            ]) ?>
+            <?= render_partial('partials/components/card', [
+                'title' => 'จำนวนงานที่บันทึกแรงงาน',
+                'value' => (string) ($laborEffort['labored_tickets'] ?? 0),
+                'meta' => 'งานที่มีการบันทึกเวลาซ่อม',
+                'tone' => 'default',
+            ]) ?>
+        </div>
+
+        <?php if (!empty($laborEffort['byCategory'])): ?>
+            <div class="table-wrap">
+                <table class="data-table">
+                    <caption class="sr-only">ชั่วโมงแรงงานแยกตามหมวดงาน</caption>
+                    <thead>
+                    <tr>
+                        <th>หมวดหมู่งาน</th>
+                        <th data-sort-type="number">จำนวนงาน</th>
+                        <th data-sort-type="number">งานที่บันทึกแรงงาน</th>
+                        <th data-sort-type="number">รวมชั่วโมง</th>
+                        <th data-sort-type="number">เฉลี่ย/งาน (ชม.)</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($laborEffort['byCategory'] as $labor): ?>
+                        <tr>
+                            <td><?= e($labor['category_name']) ?></td>
+                            <td><?= e((string) $labor['tickets']) ?></td>
+                            <td><?= e((string) $labor['labored_tickets']) ?></td>
+                            <td><strong><?= e($labor['labor_hours_label']) ?></strong></td>
+                            <td><?= e($labor['avg_hours_label']) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php else: ?>
+            <?= render_partial('partials/components/empty-state', [
+                'icon' => 'clock',
+                'title' => 'ยังไม่มีข้อมูลชั่วโมงแรงงานในช่วงที่กรอง',
+                'description' => 'เมื่อช่างบันทึกเวลาซ่อม (labor) ในงานที่ปิด ระบบจะสรุปชั่วโมงแรงงานให้อัตโนมัติ',
+            ]) ?>
+        <?php endif; ?>
+    </section>
+
+    <section class="panel-card stack-md">
+        <div class="panel-head">
+            <div>
                 <h2 class="panel-title">ทรัพย์สินที่แจ้งซ่อมบ่อย</h2>
                 <p class="field-hint">จัดอันดับทรัพย์สินตามจำนวนครั้งที่แจ้งซ่อมในช่วงที่กรอง — ช่วยตัดสินใจว่าควรซ่อมใหญ่หรือเปลี่ยนอุปกรณ์ตัวไหน</p>
             </div>
@@ -289,6 +353,7 @@ $isCapped = !empty($rowsMeta['capped']);
                         <th data-sort-type="number">จำนวนครั้งที่แจ้งซ่อม</th>
                         <th data-sort-type="date">ครั้งล่าสุด</th>
                         <th data-sort-type="number">เวลาซ่อมเฉลี่ย (ชม.)</th>
+                        <th data-sort-type="number">ชม.แรงงาน</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -305,6 +370,7 @@ $isCapped = !empty($rowsMeta['capped']);
                             <td><strong><?= e((string) $asset['failure_count']) ?></strong> ครั้ง</td>
                             <td><?= e($asset['last_failure']) ?></td>
                             <td><?= e($asset['avg_resolution_hours_label']) ?></td>
+                            <td><?= e($asset['labor_hours_label']) ?></td>
                         </tr>
                     <?php endforeach; ?>
                     </tbody>

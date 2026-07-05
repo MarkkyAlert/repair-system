@@ -39,6 +39,7 @@ class ReportsController
             'assetReliability' => $data['assetReliability'],
             'slaCompliance' => $data['slaCompliance'],
             'technicianPerformance' => $data['technicianPerformance'],
+            'laborEffort' => $data['laborEffort'],
         ]);
     }
 
