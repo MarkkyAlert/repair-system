@@ -179,13 +179,13 @@ $isCapped = !empty($rowsMeta['capped']);
                     <caption class="sr-only">SLA ตรงตามกำหนด แยกตามระดับความสำคัญ</caption>
                     <thead>
                     <tr>
-                        <th>ระดับความสำคัญ</th>
-                        <th data-sort-type="number">ตอบรับ ตรง</th>
-                        <th data-sort-type="number">ตอบรับ เกิน</th>
-                        <th data-sort-type="number">ตอบรับ %</th>
-                        <th data-sort-type="number">แก้ไข ตรง</th>
-                        <th data-sort-type="number">แก้ไข เกิน</th>
-                        <th data-sort-type="number">แก้ไข %</th>
+                        <th data-sort-col="0">ระดับความสำคัญ</th>
+                        <th data-sort-col="1" data-sort-type="number">ตอบรับ ตรง</th>
+                        <th data-sort-col="2" data-sort-type="number">ตอบรับ เกิน</th>
+                        <th data-sort-col="3" data-sort-type="number">ตอบรับ %</th>
+                        <th data-sort-col="4" data-sort-type="number">แก้ไข ตรง</th>
+                        <th data-sort-col="5" data-sort-type="number">แก้ไข เกิน</th>
+                        <th data-sort-col="6" data-sort-type="number">แก้ไข %</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -229,14 +229,14 @@ $isCapped = !empty($rowsMeta['capped']);
                     <caption class="sr-only">ผลงานช่างเทคนิคต่อคน</caption>
                     <thead>
                     <tr>
-                        <th>ช่าง</th>
-                        <th data-sort-type="number">มอบหมาย</th>
-                        <th data-sort-type="number">เสร็จ</th>
-                        <th data-sort-type="number">ค้าง</th>
-                        <th data-sort-type="number">อัตราปิดงาน</th>
-                        <th data-sort-type="number">เวลาซ่อมเฉลี่ย (ชม.)</th>
-                        <th data-sort-type="number">คะแนนเฉลี่ย</th>
-                        <th data-sort-type="number">ชม.แรงงาน</th>
+                        <th data-sort-col="0">ช่าง</th>
+                        <th data-sort-col="1" data-sort-type="number">มอบหมาย</th>
+                        <th data-sort-col="2" data-sort-type="number">เสร็จ</th>
+                        <th data-sort-col="3" data-sort-type="number">ค้าง</th>
+                        <th data-sort-col="4" data-sort-type="number">อัตราปิดงาน</th>
+                        <th data-sort-col="5" data-sort-type="number">เวลาซ่อมเฉลี่ย (ชม.)</th>
+                        <th data-sort-col="6" data-sort-type="number">คะแนนเฉลี่ย</th>
+                        <th data-sort-col="7" data-sort-type="number">ชม.แรงงาน</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -299,11 +299,11 @@ $isCapped = !empty($rowsMeta['capped']);
                     <caption class="sr-only">ชั่วโมงแรงงานแยกตามหมวดงาน</caption>
                     <thead>
                     <tr>
-                        <th>หมวดหมู่งาน</th>
-                        <th data-sort-type="number">จำนวนงาน</th>
-                        <th data-sort-type="number">งานที่บันทึกแรงงาน</th>
-                        <th data-sort-type="number">รวมชั่วโมง</th>
-                        <th data-sort-type="number">เฉลี่ย/งาน (ชม.)</th>
+                        <th data-sort-col="0">หมวดหมู่งาน</th>
+                        <th data-sort-col="1" data-sort-type="number">จำนวนงาน</th>
+                        <th data-sort-col="2" data-sort-type="number">งานที่บันทึกแรงงาน</th>
+                        <th data-sort-col="3" data-sort-type="number">รวมชั่วโมง</th>
+                        <th data-sort-col="4" data-sort-type="number">เฉลี่ย/งาน (ชม.)</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -345,15 +345,15 @@ $isCapped = !empty($rowsMeta['capped']);
                     <caption class="sr-only">ทรัพย์สินที่แจ้งซ่อมบ่อย จัดอันดับตามจำนวนครั้งที่แจ้งซ่อม</caption>
                     <thead>
                     <tr>
-                        <th>อันดับ</th>
-                        <th>ทรัพย์สิน</th>
-                        <th>หมวดหมู่</th>
-                        <th>สถานที่</th>
-                        <th>สถานะ</th>
-                        <th data-sort-type="number">จำนวนครั้งที่แจ้งซ่อม</th>
-                        <th data-sort-type="date">ครั้งล่าสุด</th>
-                        <th data-sort-type="number">เวลาซ่อมเฉลี่ย (ชม.)</th>
-                        <th data-sort-type="number">ชม.แรงงาน</th>
+                        <th data-sort-col="0">อันดับ</th>
+                        <th data-sort-col="1">ทรัพย์สิน</th>
+                        <th data-sort-col="2">หมวดหมู่</th>
+                        <th data-sort-col="3">สถานที่</th>
+                        <th data-sort-col="4">สถานะ</th>
+                        <th data-sort-col="5" data-sort-type="number">จำนวนครั้งที่แจ้งซ่อม</th>
+                        <th data-sort-col="6" data-sort-type="date">ครั้งล่าสุด</th>
+                        <th data-sort-col="7" data-sort-type="number">เวลาซ่อมเฉลี่ย (ชม.)</th>
+                        <th data-sort-col="8" data-sort-type="number">ชม.แรงงาน</th>
                     </tr>
                     </thead>
                     <tbody>
