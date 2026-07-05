@@ -745,7 +745,7 @@ class ReportService
     {
         return [
             'ช่าง', 'งานค้างปัจจุบัน', 'สัดส่วนโหลด', 'ค้างเก่าสุด', 'รับ', 'ปิด', 'อัตราปิด',
-            'SLA ตรงเวลา', 'เวลาตอบรับ (ชม.)', 'MTTR (ชม.)', 'คะแนน', 'ชม.แรงงาน',
+            'SLA ตรงเวลา', 'เวลาตอบรับ (ชม.)', 'เวลาซ่อมเฉลี่ย (ชม.)', 'คะแนน', 'ชม.แรงงาน',
         ];
     }
 
@@ -1159,7 +1159,7 @@ class ReportService
 
     private function slaBreachExportHeaders(string $dimension): array
     {
-        return [$this->slaBreachDimensionLabel($dimension), 'ตอบรับ เกิน', 'แก้ไข เกิน', 'breach รวม', 'ทันกำหนด', '%เกิน'];
+        return [$this->slaBreachDimensionLabel($dimension), 'ตอบรับ เกิน', 'แก้ไข เกิน', 'เกินรวม', 'ทันกำหนด', '%เกิน'];
     }
 
     private function slaBreachExportRow(array $row): array

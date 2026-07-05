@@ -72,7 +72,7 @@
         <th class="num">อัตราปิด</th>
         <th class="num">SLA ตรงเวลา</th>
         <th class="num">ตอบรับ (ชม.)</th>
-        <th class="num">MTTR (ชม.)</th>
+        <th class="num">เวลาซ่อมเฉลี่ย (ชม.)</th>
         <th class="num">คะแนน</th>
         <th class="num">ชม.แรงงาน</th>
     </tr>

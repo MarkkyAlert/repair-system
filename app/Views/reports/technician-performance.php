@@ -166,7 +166,7 @@ $filterState = $filters['selected'] ?? [];
                         <th data-sort-col="6" data-sort-type="number">อัตราปิด</th>
                         <th data-sort-col="7" data-sort-type="number">SLA ตรงเวลา</th>
                         <th data-sort-col="8" data-sort-type="number">เวลาตอบรับ (ชม.)</th>
-                        <th data-sort-col="9" data-sort-type="number">MTTR (ชม.)</th>
+                        <th data-sort-col="9" data-sort-type="number">เวลาซ่อมเฉลี่ย (ชม.)</th>
                         <th data-sort-col="10" data-sort-type="number">คะแนน</th>
                         <th data-sort-col="11" data-sort-type="number">ชม.แรงงาน</th>
                     </tr>
