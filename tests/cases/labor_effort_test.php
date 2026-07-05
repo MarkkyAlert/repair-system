@@ -75,3 +75,47 @@ test('labor effort: asset reliability labor column + no fan-out on failure_count
         }
     }
 });
+
+test('asset reliability: avg-resolution rounds to hours the same way as summary/MTTR (no double-rounding)', function (): void {
+    // System-wide consistency guard: two resolved tickets of 17min + 120min average to 68.5min. Like the
+    // summary card and technician MTTR, the asset avg-resolution must round to 1.1h — the old ROUND(AVG,0)
+    // gave 69min → 1.15 → 1.2h, disagreeing with the rest of the report for identical underlying work.
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $rid = bin2hex(random_bytes(4));
+    $assetId = 0;
+    $t1 = 0;
+    $t2 = 0;
+
+    try {
+        le_pdo()->prepare("INSERT INTO assets (asset_code, name, asset_category_id, location_id) VALUES (?, 'LE Round Asset', 1, 1)")
+            ->execute(["LER-$rid"]);
+        $assetId = (int) le_pdo()->lastInsertId();
+
+        foreach ([17, 120] as $i => $minutes) {
+            le_pdo()->prepare(
+                "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, asset_id, status, requested_at, resolved_at)
+                 VALUES (?, 'le', 'x', 1, 1, 1, 1, ?, 'resolved', ?, ?)"
+            )->execute(["LERT-$rid-$i", $assetId, date('Y-m-d H:i:s', time() - $minutes * 60), date('Y-m-d H:i:s')]);
+            ${'t' . ($i + 1)} = (int) le_pdo()->lastInsertId();
+        }
+
+        $myAsset = null;
+        foreach (le_service()->getReportPageData($admin, [])['assetReliability'] as $a) {
+            if ($a['asset_code'] === "LER-$rid") {
+                $myAsset = $a;
+                break;
+            }
+        }
+        assert_true($myAsset !== null, 'asset appears in reliability');
+        assert_same('1.1', $myAsset['avg_resolution_hours_label'], 'avg 68.5min rounds to 1.1h (was 1.2h under double-rounding)');
+    } finally {
+        foreach ([$t1, $t2] as $ticketId) {
+            if ($ticketId > 0) {
+                le_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+            }
+        }
+        if ($assetId > 0) {
+            le_pdo()->prepare('DELETE FROM assets WHERE id = ?')->execute([$assetId]);
+        }
+    }
+});

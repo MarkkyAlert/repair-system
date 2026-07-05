@@ -204,7 +204,9 @@ class ReportService
 
     private function mapAssetReliabilityRow(array $row): array
     {
-        $avgMinutes = (int) ($row['avg_resolution_minutes'] ?? 0);
+        // float (not int): same single-rounding pipeline as summary + technician MTTR — keep the
+        // .5-minute precision so avg-resolution rounds to hours consistently across the whole report.
+        $avgMinutes = (float) ($row['avg_resolution_minutes'] ?? 0);
         $status = (string) ($row['status'] ?? 'active');
 
         return [
