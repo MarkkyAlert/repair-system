@@ -77,6 +77,475 @@ class ReportService
         ];
     }
 
+    // ===== Asset Reliability Report (หน้าแยกเต็มตัว /reports/asset-reliability) =====
+
+    // แสดงทุก asset ที่มีประวัติแจ้งซ่อมในช่วงกรอง (ไม่จำกัด 20 อันดับแบบ panel ท้าย /reports)
+    private const ASSET_REPORT_LIMIT = 500;
+
+    // เกณฑ์ให้คะแนนสุขภาพ (heuristic, ปรับได้) — รวมคะแนนแล้วจัด bucket ควรเปลี่ยน/เฝ้าระวัง/ปกติ
+    private const HEALTH_FAILURE_HIGH = 5;   // เสีย ≥ ครั้งนี้ = +2
+    private const HEALTH_FAILURE_MED = 3;    // เสีย ≥ ครั้งนี้ = +1
+    private const HEALTH_AGE_HIGH = 8;       // อายุ ≥ ปีนี้ = +2
+    private const HEALTH_AGE_MED = 5;        // อายุ ≥ ปีนี้ = +1
+    private const HEALTH_MTBF_SHORT_DAYS = 30;   // MTBF < นี้ (≥2 ครั้ง) = +1
+    private const HEALTH_SLOW_RESOLUTION_HOURS = 8; // ซ่อมเฉลี่ย ≥ นี้ = +1
+    private const HEALTH_REPLACE_SCORE = 4;  // ≥ นี้ = ควรเปลี่ยน
+    private const HEALTH_WATCH_SCORE = 2;    // ≥ นี้ = เฝ้าระวัง
+
+    public function getAssetReliabilityReportPage(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+
+        $normalizedFilters = $this->normalizeAssetReportFilters($filters);
+        $reference = $this->reports->getAssetReportReferenceData();
+        $rows = $this->collectAssetReportRows($viewer, $normalizedFilters, self::ASSET_REPORT_LIMIT);
+
+        return [
+            'filters' => $this->buildAssetReportFilterData($normalizedFilters, $reference),
+            'summary' => $this->buildAssetReportSummary($rows),
+            'rows' => $rows,
+            'rowsMeta' => [
+                'displayed' => count($rows),
+                'limit' => self::ASSET_REPORT_LIMIT,
+                'capped' => count($rows) >= self::ASSET_REPORT_LIMIT,
+            ],
+        ];
+    }
+
+    /** ดึง + map + เรียง (สุขภาพแย่สุดขึ้นบน = จุดขาย). ใช้ร่วมทั้งหน้าจอและ export ให้ตรงกันเสมอ. */
+    private function collectAssetReportRows(array $viewer, array $normalizedFilters, int $limit): array
+    {
+        $rows = array_map(
+            fn (array $row): array => $this->mapAssetReliabilityReportRow($row),
+            $this->reports->getAssetReliabilityReport($viewer, $normalizedFilters, $limit)
+        );
+
+        usort($rows, static fn (array $a, array $b): int => [$b['health_score'], $b['failure_count']] <=> [$a['health_score'], $a['failure_count']]);
+
+        return $rows;
+    }
+
+    private function buildAssetReportSummary(array $rows): array
+    {
+        $replace = 0;
+        $watch = 0;
+        $downtimeMinutes = 0;
+        $laborMinutes = 0;
+        foreach ($rows as $row) {
+            $replace += $row['health_tone'] === 'danger' ? 1 : 0;
+            $watch += $row['health_tone'] === 'warning' ? 1 : 0;
+            $downtimeMinutes += (int) $row['downtime_minutes'];
+            $laborMinutes += (int) $row['labor_minutes'];
+        }
+
+        return [
+            'assets' => count($rows),
+            'replace' => $replace,
+            'watch' => $watch,
+            'downtimeHoursLabel' => number_format(round($downtimeMinutes / 60, 1), 1),
+            'laborHoursLabel' => number_format(round($laborMinutes / 60, 1), 1),
+        ];
+    }
+
+    private function mapAssetReliabilityReportRow(array $row): array
+    {
+        $status = (string) ($row['status'] ?? 'active');
+        $failureCount = (int) ($row['failure_count'] ?? 0);
+        // single-rounding pipeline (float) เหมือน summary/MTTR — [[report-avg-time-rounding]]
+        $avgMinutes = (float) ($row['avg_resolution_minutes'] ?? 0);
+        $avgHours = round($avgMinutes / 60, 1);
+        $downtimeMinutes = (int) ($row['downtime_minutes'] ?? 0);
+        $laborMinutes = (int) ($row['labor_minutes'] ?? 0);
+
+        $ageYears = $this->yearsSince($row['purchase_date'] ?? null);
+        $warranty = $this->warrantyState($row['warranty_expires_at'] ?? null);
+        $mtbfDays = $this->meanTimeBetweenFailures($row['first_failure_at'] ?? null, $row['last_failure_at'] ?? null, $failureCount);
+
+        $health = $this->scoreAssetHealth([
+            'failure_count' => $failureCount,
+            'warranty_status' => $warranty['status'],
+            'age_years' => $ageYears,
+            'mtbf_days' => $mtbfDays,
+            'avg_resolution_hours' => $avgHours,
+            'status' => $status,
+        ]);
+
+        return [
+            'id' => (int) ($row['id'] ?? 0),
+            'asset_code' => (string) ($row['asset_code'] ?? ''),
+            'name' => (string) ($row['name'] ?? ''),
+            'category_name' => (string) ($row['category_name'] ?? '-'),
+            'location_name' => (string) ($row['location_name'] ?? '-'),
+            'status' => $status,
+            'status_label' => asset_status_label_th($status),
+            'status_tone' => match ($status) {
+                'active' => 'success',
+                'maintenance' => 'warning',
+                'retired', 'disposed' => 'danger',
+                default => 'default',
+            },
+            'failure_count' => $failureCount,
+            'last_failure' => $this->formatDateTime($row['last_failure_at'] ?? null),
+            'mtbf_days_label' => $mtbfDays !== null ? number_format(round($mtbfDays, 0), 0) . ' วัน' : '-',
+            'avg_resolution_hours_label' => $avgMinutes > 0 ? number_format($avgHours, 1) : '-',
+            'downtime_minutes' => $downtimeMinutes,
+            'downtime_hours_label' => $downtimeMinutes > 0 ? number_format(round($downtimeMinutes / 60, 1), 1) : '-',
+            'labor_minutes' => $laborMinutes,
+            'labor_hours_label' => $laborMinutes > 0 ? number_format(round($laborMinutes / 60, 1), 1) : '-',
+            'age_label' => $ageYears !== null ? number_format($ageYears, 1) . ' ปี' : '-',
+            'warranty_label' => $warranty['label'],
+            'warranty_tone' => $warranty['tone'],
+            'health_score' => $health['score'],
+            'health_label' => $health['label'],
+            'health_tone' => $health['tone'],
+            'health_reason' => $health['reason'],
+            'detail_url' => '/asset-registry/' . (int) ($row['id'] ?? 0),
+        ];
+    }
+
+    /**
+     * คะแนนสุขภาพแบบ heuristic — ระบบไม่มีข้อมูลต้นทุนซ่อม จึงใช้สัญญาณเชิงพฤติกรรม (ความถี่เสีย + อายุ +
+     * ประกัน + MTBF + เวลาซ่อม + สถานะ) แล้วจัด bucket. คืน reason อธิบายว่าทำไมให้ผู้ใช้ตัดสินใจต่อได้.
+     */
+    private function scoreAssetHealth(array $m): array
+    {
+        $score = 0;
+        $reasons = [];
+
+        $failures = (int) $m['failure_count'];
+        if ($failures >= self::HEALTH_FAILURE_HIGH) {
+            $score += 2;
+        } elseif ($failures >= self::HEALTH_FAILURE_MED) {
+            $score += 1;
+        }
+        if ($failures >= self::HEALTH_FAILURE_MED) {
+            $reasons[] = 'เสีย ' . $failures . ' ครั้ง';
+        }
+
+        if (($m['warranty_status'] ?? '') === 'expired') {
+            $score += 1;
+            $reasons[] = 'หมดประกัน';
+        }
+
+        $age = $m['age_years'];
+        if ($age !== null && $age >= self::HEALTH_AGE_HIGH) {
+            $score += 2;
+            $reasons[] = 'อายุ ' . number_format($age, 0) . ' ปี';
+        } elseif ($age !== null && $age >= self::HEALTH_AGE_MED) {
+            $score += 1;
+            $reasons[] = 'อายุ ' . number_format($age, 0) . ' ปี';
+        }
+
+        $mtbf = $m['mtbf_days'];
+        if ($mtbf !== null && $failures >= 2 && $mtbf < self::HEALTH_MTBF_SHORT_DAYS) {
+            $score += 1;
+            $reasons[] = 'เสียถี่ (ทุก ~' . number_format(round($mtbf, 0), 0) . ' วัน)';
+        }
+
+        if ((float) $m['avg_resolution_hours'] >= self::HEALTH_SLOW_RESOLUTION_HOURS) {
+            $score += 1;
+            $reasons[] = 'ซ่อมนานเฉลี่ย ' . number_format((float) $m['avg_resolution_hours'], 1) . ' ชม.';
+        }
+
+        if (($m['status'] ?? '') === 'maintenance') {
+            $score += 1;
+            $reasons[] = 'กำลังซ่อมอยู่';
+        }
+
+        if ($score >= self::HEALTH_REPLACE_SCORE) {
+            $label = 'ควรเปลี่ยน';
+            $tone = 'danger';
+        } elseif ($score >= self::HEALTH_WATCH_SCORE) {
+            $label = 'เฝ้าระวัง';
+            $tone = 'warning';
+        } else {
+            $label = 'ปกติ';
+            $tone = 'success';
+        }
+
+        return [
+            'score' => $score,
+            'label' => $label,
+            'tone' => $tone,
+            'reason' => $reasons === [] ? 'ไม่มีสัญญาณเสี่ยง' : implode(', ', $reasons),
+        ];
+    }
+
+    /** อายุเป็นปี (ทศนิยม) จากวันซื้อ — คืน null ถ้าไม่มี/รูปแบบผิด/อยู่ในอนาคต. */
+    private function yearsSince(mixed $date): ?float
+    {
+        if (!is_string($date) || trim($date) === '') {
+            return null;
+        }
+        $timestamp = strtotime((string) $date);
+        if ($timestamp === false || $timestamp > time()) {
+            return null;
+        }
+
+        return round((time() - $timestamp) / (365.25 * 86400), 1);
+    }
+
+    /** สถานะประกัน: expired (เลยวันหมด) / valid (ยังไม่หมด) / unknown (ไม่ระบุ). */
+    private function warrantyState(mixed $expiresAt): array
+    {
+        if (!is_string($expiresAt) || trim($expiresAt) === '') {
+            return ['status' => 'unknown', 'label' => 'ไม่ระบุ', 'tone' => 'default'];
+        }
+        $timestamp = strtotime((string) $expiresAt);
+        if ($timestamp === false) {
+            return ['status' => 'unknown', 'label' => 'ไม่ระบุ', 'tone' => 'default'];
+        }
+
+        return $timestamp < time()
+            ? ['status' => 'expired', 'label' => 'หมดประกัน', 'tone' => 'warning']
+            : ['status' => 'valid', 'label' => 'ในประกัน', 'tone' => 'success'];
+    }
+
+    /** MTBF = ช่วงเวลาระหว่างครั้งแรกกับครั้งล่าสุด หารด้วย (จำนวนครั้ง−1). null ถ้าเสีย < 2 ครั้ง. */
+    private function meanTimeBetweenFailures(mixed $firstAt, mixed $lastAt, int $failureCount): ?float
+    {
+        if ($failureCount < 2 || !is_string($firstAt) || !is_string($lastAt)) {
+            return null;
+        }
+        $first = strtotime((string) $firstAt);
+        $last = strtotime((string) $lastAt);
+        if ($first === false || $last === false || $last < $first) {
+            return null;
+        }
+
+        return (($last - $first) / 86400) / ($failureCount - 1);
+    }
+
+    private function normalizeAssetReportFilters(array $filters): array
+    {
+        $fromDate = is_string($filters['from_date'] ?? null) ? trim((string) $filters['from_date']) : '';
+        $toDate = is_string($filters['to_date'] ?? null) ? trim((string) $filters['to_date']) : '';
+        $status = is_string($filters['asset_status'] ?? null) ? trim((string) $filters['asset_status']) : '';
+        $allowedStatuses = ['active', 'maintenance', 'retired', 'disposed'];
+
+        return normalize_date_range($fromDate, $toDate) + [
+            'asset_category_id' => max(0, (int) ($filters['asset_category_id'] ?? 0)),
+            'location_id' => max(0, (int) ($filters['location_id'] ?? 0)),
+            'asset_status' => in_array($status, $allowedStatuses, true) ? $status : '',
+        ];
+    }
+
+    private function buildAssetReportFilterData(array $filters, array $reference): array
+    {
+        $queryFilters = array_filter([
+            'from_date' => (string) ($filters['from_date'] ?? ''),
+            'to_date' => (string) ($filters['to_date'] ?? ''),
+            'asset_category_id' => (int) ($filters['asset_category_id'] ?? 0) > 0 ? (string) ($filters['asset_category_id'] ?? '') : '',
+            'location_id' => (int) ($filters['location_id'] ?? 0) > 0 ? (string) ($filters['location_id'] ?? '') : '',
+            'asset_status' => (string) ($filters['asset_status'] ?? ''),
+        ], static fn (string $value): bool => $value !== '');
+
+        return [
+            'selected' => [
+                'from_date' => (string) ($filters['from_date'] ?? ''),
+                'to_date' => (string) ($filters['to_date'] ?? ''),
+                'asset_category_id' => (string) ($filters['asset_category_id'] ?? ''),
+                'location_id' => (string) ($filters['location_id'] ?? ''),
+                'asset_status' => (string) ($filters['asset_status'] ?? ''),
+            ],
+            'categoryOptions' => array_merge([
+                ['value' => '', 'label' => 'ทุกหมวดหมู่'],
+            ], array_map(static fn (array $row): array => [
+                'value' => (string) ($row['id'] ?? 0),
+                'label' => (string) ($row['name'] ?? '-'),
+            ], $reference['categories'] ?? [])),
+            'locationOptions' => array_merge([
+                ['value' => '', 'label' => 'ทุกสถานที่'],
+            ], array_map(static fn (array $row): array => [
+                'value' => (string) ($row['id'] ?? 0),
+                'label' => (string) ($row['name'] ?? '-'),
+            ], $reference['locations'] ?? [])),
+            'statusOptions' => array_merge([
+                ['value' => '', 'label' => 'ทุกสถานะ'],
+            ], array_map(static fn (string $value): array => [
+                'value' => $value,
+                'label' => asset_status_label_th($value),
+            ], ['active', 'maintenance', 'retired', 'disposed'])),
+            'active_count' => ((int) ($filters['asset_category_id'] ?? 0) > 0 ? 1 : 0)
+                + ((int) ($filters['location_id'] ?? 0) > 0 ? 1 : 0)
+                + ((string) ($filters['asset_status'] ?? '') !== '' ? 1 : 0)
+                + ((string) ($filters['from_date'] ?? '') !== '' ? 1 : 0)
+                + ((string) ($filters['to_date'] ?? '') !== '' ? 1 : 0),
+            'query_string' => http_build_query($queryFilters),
+        ];
+    }
+
+    private function describeAssetReportFilters(array $filters, array $reference): array
+    {
+        $categoryName = 'ทุกหมวดหมู่';
+        foreach (($reference['categories'] ?? []) as $category) {
+            if ((int) ($category['id'] ?? 0) === (int) ($filters['asset_category_id'] ?? 0)) {
+                $categoryName = (string) ($category['name'] ?? $categoryName);
+                break;
+            }
+        }
+
+        $locationName = 'ทุกสถานที่';
+        foreach (($reference['locations'] ?? []) as $location) {
+            if ((int) ($location['id'] ?? 0) === (int) ($filters['location_id'] ?? 0)) {
+                $locationName = (string) ($location['name'] ?? $locationName);
+                break;
+            }
+        }
+
+        return [
+            'from_date' => (string) ($filters['from_date'] ?? '') !== '' ? (string) ($filters['from_date'] ?? '') : 'ไม่ระบุ',
+            'to_date' => (string) ($filters['to_date'] ?? '') !== '' ? (string) ($filters['to_date'] ?? '') : 'ไม่ระบุ',
+            'category' => $categoryName,
+            'location' => $locationName,
+            'status' => (string) ($filters['asset_status'] ?? '') !== '' ? asset_status_label_th((string) ($filters['asset_status'] ?? '')) : 'ทุกสถานะ',
+        ];
+    }
+
+    /** header ของ export (ใช้ร่วม CSV/Excel/PDF ให้คอลัมน์ตรงกัน). */
+    private function assetReportExportHeaders(): array
+    {
+        return [
+            'รหัส', 'ชื่อ', 'หมวดหมู่', 'สถานที่', 'สถานะ', 'สุขภาพ', 'เหตุผล', 'จำนวนครั้ง',
+            'ครั้งล่าสุด', 'MTBF (วัน)', 'เวลาซ่อมเฉลี่ย (ชม.)', 'Downtime (ชม.)', 'ชม.แรงงาน', 'อายุ (ปี)', 'ประกัน',
+        ];
+    }
+
+    private function assetReportExportRow(array $row): array
+    {
+        return [
+            $row['asset_code'], $row['name'], $row['category_name'], $row['location_name'], $row['status_label'],
+            $row['health_label'], $row['health_reason'], $row['failure_count'], $row['last_failure'],
+            $row['mtbf_days_label'], $row['avg_resolution_hours_label'], $row['downtime_hours_label'],
+            $row['labor_hours_label'], $row['age_label'], $row['warranty_label'],
+        ];
+    }
+
+    private function assetReportExportRows(array $viewer, array $normalizedFilters, int $maxRows): array
+    {
+        $rows = $this->collectAssetReportRows($viewer, $normalizedFilters, $maxRows + 1);
+        if (count($rows) > $maxRows) {
+            throw new DomainException('ข้อมูลสำหรับ export มีมากเกิน ' . number_format($maxRows) . ' แถว กรุณากรองเงื่อนไขให้แคบลงก่อน export');
+        }
+
+        return $rows;
+    }
+
+    public function exportAssetReliabilityCsv(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+        $normalizedFilters = $this->normalizeAssetReportFilters($filters);
+        $rows = $this->assetReportExportRows($viewer, $normalizedFilters, self::EXPORT_MAX_ROWS_CSV);
+        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'asset_reliability_report', 'csv', $normalizedFilters);
+        $fileName = 'asset-reliability-' . date('Ymd-His') . '.csv';
+
+        try {
+            $stream = fopen('php://temp', 'w+b');
+            if ($stream === false) {
+                throw new RuntimeException('ไม่สามารถเตรียมไฟล์ CSV ได้');
+            }
+            fwrite($stream, "\xEF\xBB\xBF");
+            fputcsv($stream, $this->assetReportExportHeaders());
+            foreach ($rows as $row) {
+                fputcsv($stream, $this->sanitizeExportRow($this->assetReportExportRow($row)));
+            }
+            rewind($stream);
+            $content = (string) stream_get_contents($stream);
+            fclose($stream);
+            $this->reports->markExportJobCompleted($jobId, $fileName);
+
+            return ['content' => $content, 'file_name' => $fileName, 'content_type' => 'text/csv; charset=UTF-8'];
+        } catch (\Throwable $exception) {
+            $this->recordExportFailure($jobId, $exception);
+            throw new RuntimeException('ไม่สามารถสร้างไฟล์ CSV ได้', 0, $exception);
+        }
+    }
+
+    public function exportAssetReliabilityExcel(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+        $normalizedFilters = $this->normalizeAssetReportFilters($filters);
+        $rows = $this->assetReportExportRows($viewer, $normalizedFilters, self::EXPORT_MAX_ROWS_XLSX);
+        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'asset_reliability_report', 'xlsx', $normalizedFilters);
+        $fileName = 'asset-reliability-' . date('Ymd-His') . '.xlsx';
+
+        try {
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+            $sheet->setTitle('สุขภาพทรัพย์สิน');
+
+            $column = 'A';
+            foreach ($this->assetReportExportHeaders() as $header) {
+                $sheet->setCellValue($column . '1', $header);
+                $sheet->getColumnDimension($column)->setAutoSize(true);
+                $column++;
+            }
+
+            $rowNumber = 2;
+            foreach ($rows as $row) {
+                $sheet->fromArray($this->sanitizeExportRow($this->assetReportExportRow($row)), null, 'A' . $rowNumber);
+                $rowNumber++;
+            }
+
+            $writer = new Xlsx($spreadsheet);
+            ob_start();
+            $writer->save('php://output');
+            $content = (string) ob_get_clean();
+            $spreadsheet->disconnectWorksheets();
+            unset($spreadsheet);
+
+            $this->reports->markExportJobCompleted($jobId, $fileName);
+
+            return [
+                'content' => $content,
+                'file_name' => $fileName,
+                'content_type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ];
+        } catch (\Throwable $exception) {
+            $this->recordExportFailure($jobId, $exception);
+            throw new RuntimeException('ไม่สามารถสร้างไฟล์ Excel ได้', 0, $exception);
+        }
+    }
+
+    public function exportAssetReliabilityPdf(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+        $normalizedFilters = $this->normalizeAssetReportFilters($filters);
+        $rows = $this->assetReportExportRows($viewer, $normalizedFilters, self::EXPORT_MAX_ROWS_PDF);
+        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'asset_reliability_report', 'pdf', $normalizedFilters);
+        $fileName = 'asset-reliability-' . date('Ymd-His') . '.pdf';
+
+        try {
+            $html = View::capture('reports/asset-reliability-pdf', [
+                'generatedAt' => date('d/m/Y H:i'),
+                'summary' => $this->buildAssetReportSummary($rows),
+                'rows' => $rows,
+                'filters' => $this->describeAssetReportFilters($normalizedFilters, $this->reports->getAssetReportReferenceData()),
+            ]);
+
+            $options = new Options();
+            $dompdfTmp = sys_get_temp_dir();
+            if ($dompdfTmp === '' || !@is_writable($dompdfTmp)) {
+                $dompdfTmp = is_dir('/tmp') ? '/tmp' : BASE_PATH . '/storage/uploads';
+            }
+            $options->setTempDir($dompdfTmp);
+            $options->set('isRemoteEnabled', false);
+            $options->set('defaultFont', 'sarabun');
+            $dompdf = new Dompdf($options);
+            $dompdf->loadHtml($html, 'UTF-8');
+            $dompdf->setPaper('A4', 'landscape');
+            $dompdf->render();
+            $content = $dompdf->output();
+
+            $this->reports->markExportJobCompleted($jobId, $fileName);
+
+            return ['content' => $content, 'file_name' => $fileName, 'content_type' => 'application/pdf'];
+        } catch (\Throwable $exception) {
+            $this->recordExportFailure($jobId, $exception);
+            throw new RuntimeException('ไม่สามารถสร้างไฟล์ PDF ได้', 0, $exception);
+        }
+    }
+
     private function buildLaborEffort(array $rows): array
     {
         $totalMinutes = 0;

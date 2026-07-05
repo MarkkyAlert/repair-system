@@ -195,6 +195,118 @@ class ReportRepository
     }
 
     /**
+     * Asset Reliability Report แบบเต็ม — เหมือน getAssetReliabilityRows แต่ (a) ใช้ asset-centric filter
+     * (หมวดหมู่ asset / สถานะ asset / สถานที่ + ช่วงวันที่บน t.requested_at) และ (b) ดึงเมตริกเชิงลึกเพิ่ม
+     * (purchase_date, warranty_expires_at, first_failure_at สำหรับ MTBF, downtime สะสม). work_orders 1:1
+     * กับ ticket → LEFT JOIN แล้ว COUNT(*)/SUM(labor)/SUM(downtime) ไม่ fan-out.
+     */
+    public function getAssetReliabilityReport(array $viewer, array $filters, int $limit = 500): array
+    {
+        $params = [];
+        $conditions = [$this->visibilityClause($viewer, $params)];
+        $this->applyAssetReportFilters($conditions, $filters, $params);
+        $whereClause = implode(' AND ', $conditions);
+        $limit = max(1, min($limit, self::MAX_ROWS));
+
+        $stmt = $this->db->prepare(
+            "SELECT
+                a.id,
+                a.asset_code,
+                a.name,
+                a.status,
+                a.purchase_date,
+                a.warranty_expires_at,
+                ac.name AS category_name,
+                l.name AS location_name,
+                COUNT(*) AS failure_count,
+                MAX(t.requested_at) AS last_failure_at,
+                MIN(t.requested_at) AS first_failure_at,
+                ROUND(COALESCE(AVG(CASE
+                    WHEN t.resolved_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at)
+                    ELSE NULL
+                END), 0), 1) AS avg_resolution_minutes,
+                COALESCE(SUM(CASE
+                    WHEN t.resolved_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at)
+                    ELSE 0
+                END), 0) AS downtime_minutes,
+                COALESCE(SUM(wo.labor_minutes), 0) AS labor_minutes
+             FROM tickets t
+             INNER JOIN assets a ON a.id = t.asset_id
+             INNER JOIN asset_categories ac ON ac.id = a.asset_category_id
+             INNER JOIN locations l ON l.id = a.location_id
+             LEFT JOIN work_orders wo ON wo.ticket_id = t.id
+             WHERE $whereClause
+             GROUP BY a.id, a.asset_code, a.name, a.status, a.purchase_date, a.warranty_expires_at, ac.name, l.name
+             ORDER BY failure_count DESC, last_failure_at DESC
+             LIMIT " . $limit
+        );
+        $stmt->execute($params);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /** หมวดหมู่ asset + สถานที่ สำหรับ dropdown filter ของ Asset Reliability Report. */
+    public function getAssetReportReferenceData(): array
+    {
+        $categories = $this->db->query(
+            'SELECT id, name
+             FROM asset_categories
+             WHERE is_active = 1
+             ORDER BY sort_order ASC, name ASC, id ASC'
+        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $locations = $this->db->query(
+            'SELECT id, name
+             FROM locations
+             ORDER BY name ASC, id ASC'
+        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        return [
+            'categories' => $categories,
+            'locations' => $locations,
+        ];
+    }
+
+    /**
+     * Asset-centric filter — กรองบนคุณสมบัติ asset (หมวดหมู่/สถานะ/สถานที่) + ช่วงวันที่แจ้งซ่อมบน
+     * t.requested_at (มิเรอร์ date-clause ของ applyReportFilters). ใช้ prefix param แยกกัน asetreport_
+     * เพื่อไม่ชนกับ visibilityClause.
+     */
+    private function applyAssetReportFilters(array &$conditions, array $filters, array &$params): void
+    {
+        $fromDate = is_string($filters['from_datetime'] ?? null) ? trim((string) $filters['from_datetime']) : '';
+        $toDate = is_string($filters['to_datetime'] ?? null) ? trim((string) $filters['to_datetime']) : '';
+        $categoryId = (int) ($filters['asset_category_id'] ?? 0);
+        $locationId = (int) ($filters['location_id'] ?? 0);
+        $status = is_string($filters['asset_status'] ?? null) ? trim((string) $filters['asset_status']) : '';
+
+        if ($fromDate !== '') {
+            $conditions[] = 't.requested_at >= :assetreport_from_date';
+            $params['assetreport_from_date'] = $fromDate;
+        }
+
+        if ($toDate !== '') {
+            $conditions[] = 't.requested_at <= :assetreport_to_date';
+            $params['assetreport_to_date'] = $toDate;
+        }
+
+        if ($categoryId > 0) {
+            $conditions[] = 'a.asset_category_id = :assetreport_category_id';
+            $params['assetreport_category_id'] = $categoryId;
+        }
+
+        if ($locationId > 0) {
+            $conditions[] = 'a.location_id = :assetreport_location_id';
+            $params['assetreport_location_id'] = $locationId;
+        }
+
+        if ($status !== '') {
+            $conditions[] = 'a.status = :assetreport_status';
+            $params['assetreport_status'] = $status;
+        }
+    }
+
+    /**
      * SLA compliance — นับ met/breached ต่อ priority × metric_type (response/resolution) ใช้ filter +
      * visibility ชุดเดียวกับ report. breached = status='breached' หรือ pending ที่เลยกำหนดแล้ว
      * (ตรงกับนิยาม overdue เดิมใน buildSlaMetricState). pending ที่ยังไม่ถึงกำหนด = ผลยังไม่ออก → ไม่นับ.

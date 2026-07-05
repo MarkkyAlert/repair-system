@@ -102,4 +102,68 @@ class ReportsController
             Response::redirect('/reports');
         }
     }
+
+    public function assetReliability(): void
+    {
+        AuthMiddleware::handle();
+
+        $viewer = auth()->user() ?? [];
+
+        try {
+            $data = $this->reports->getAssetReliabilityReportPage($viewer, request()?->query ?? []);
+        } catch (DomainException $exception) {
+            flash('error', $exception->getMessage());
+            Response::redirect('/dashboard');
+        }
+
+        Response::view('reports/asset-reliability', [
+            'title' => 'สุขภาพทรัพย์สิน',
+            'pageHeading' => 'รายงานสุขภาพทรัพย์สิน',
+            'currentUser' => $viewer,
+            'filters' => $data['filters'],
+            'summary' => $data['summary'],
+            'rows' => $data['rows'],
+            'rowsMeta' => $data['rowsMeta'],
+        ]);
+    }
+
+    public function assetReliabilityExportCsv(): void
+    {
+        $this->downloadAssetReliability('exportAssetReliabilityCsv', 'asset-reliability.csv', 'text/csv; charset=UTF-8');
+    }
+
+    public function assetReliabilityExportExcel(): void
+    {
+        $this->downloadAssetReliability(
+            'exportAssetReliabilityExcel',
+            'asset-reliability.xlsx',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        );
+    }
+
+    public function assetReliabilityExportPdf(): void
+    {
+        $this->downloadAssetReliability('exportAssetReliabilityPdf', 'asset-reliability.pdf', 'application/pdf');
+    }
+
+    /** ตัวช่วยรวม flow export ของ Asset Reliability Report ทั้ง 3 format (csrf + download + redirect กลับ). */
+    private function downloadAssetReliability(string $serviceMethod, string $fallbackName, string $fallbackType): void
+    {
+        AuthMiddleware::handle();
+
+        $viewer = auth()->user() ?? [];
+
+        try {
+            csrf_validate();
+            $export = $this->reports->{$serviceMethod}($viewer, $_POST);
+            Response::download(
+                (string) ($export['content'] ?? ''),
+                (string) ($export['file_name'] ?? $fallbackName),
+                (string) ($export['content_type'] ?? $fallbackType)
+            );
+        } catch (DomainException|RuntimeException $exception) {
+            flash('error', $exception->getMessage());
+            Response::redirect('/reports/asset-reliability');
+        }
+    }
 }
