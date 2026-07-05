@@ -151,6 +151,61 @@ $isCapped = !empty($rowsMeta['capped']);
 
     <section class="panel-card stack-md">
         <div class="panel-head">
+            <div>
+                <h2 class="panel-title">ทรัพย์สินที่แจ้งซ่อมบ่อย</h2>
+                <p class="field-hint">จัดอันดับทรัพย์สินตามจำนวนครั้งที่แจ้งซ่อมในช่วงที่กรอง — ช่วยตัดสินใจว่าควรซ่อมใหญ่หรือเปลี่ยนอุปกรณ์ตัวไหน</p>
+            </div>
+            <?php if (!empty($assetReliability)): ?>
+                <span class="badge badge-default"><?= e((string) count($assetReliability)) ?> รายการ</span>
+            <?php endif; ?>
+        </div>
+
+        <?php if (!empty($assetReliability)): ?>
+            <div class="table-wrap">
+                <table class="data-table">
+                    <caption class="sr-only">ทรัพย์สินที่แจ้งซ่อมบ่อย จัดอันดับตามจำนวนครั้งที่แจ้งซ่อม</caption>
+                    <thead>
+                    <tr>
+                        <th>อันดับ</th>
+                        <th>ทรัพย์สิน</th>
+                        <th>หมวดหมู่</th>
+                        <th>สถานที่</th>
+                        <th>สถานะ</th>
+                        <th data-sort-type="number">จำนวนครั้งที่แจ้งซ่อม</th>
+                        <th data-sort-type="date">ครั้งล่าสุด</th>
+                        <th data-sort-type="number">เวลาซ่อมเฉลี่ย (ชม.)</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($assetReliability as $index => $asset): ?>
+                        <tr>
+                            <td class="leaderboard-number"><?= e((string) ($index + 1)) ?></td>
+                            <td>
+                                <a href="<?= e(url($asset['detail_url'])) ?>" class="leaderboard-number"><?= e($asset['asset_code']) ?></a>
+                                <div class="helper-text"><?= e($asset['name']) ?></div>
+                            </td>
+                            <td><?= e($asset['category_name']) ?></td>
+                            <td><?= e($asset['location_name']) ?></td>
+                            <td><span class="badge badge-<?= e($asset['status_tone']) ?>"><?= e($asset['status_label']) ?></span></td>
+                            <td><strong><?= e((string) $asset['failure_count']) ?></strong> ครั้ง</td>
+                            <td><?= e($asset['last_failure']) ?></td>
+                            <td><?= e($asset['avg_resolution_hours_label']) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php else: ?>
+            <?= render_partial('partials/components/empty-state', [
+                'icon' => 'wrench',
+                'title' => 'ยังไม่มีทรัพย์สินที่แจ้งซ่อมในช่วงนี้',
+                'description' => 'เมื่อมี ticket ที่ผูกกับทรัพย์สินในช่วงเวลาที่เลือก ระบบจะจัดอันดับให้อัตโนมัติ',
+            ]) ?>
+        <?php endif; ?>
+    </section>
+
+    <section class="panel-card stack-md">
+        <div class="panel-head">
             <h2 class="panel-title">รายการ Ticket พร้อมสถานะ SLA</h2>
             <?php if ($isCapped): ?>
                 <span class="badge badge-warning">แสดง <?= e((string) $rowsMeta['displayed']) ?> จาก <?= e((string) $rowsMeta['total']) ?> รายการ</span>

@@ -147,6 +147,46 @@ class ReportRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    /**
+     * ทรัพย์สินที่แจ้งซ่อมบ่อย — group ticket ตาม asset (เฉพาะ ticket ที่ผูก asset) โดยใช้
+     * filter + visibility ชุดเดียวกับ report เพื่อให้ทั้งหน้าสะท้อนตัวกรองเดียวกัน.
+     */
+    public function getAssetReliabilityRows(array $viewer, array $filters, int $limit = 20): array
+    {
+        $params = [];
+        $conditions = [$this->visibilityClause($viewer, $params)];
+        $this->applyReportFilters($conditions, $filters, $params);
+        $whereClause = implode(' AND ', $conditions);
+        $limit = max(1, min($limit, 200));
+
+        $stmt = $this->db->prepare(
+            "SELECT
+                a.id,
+                a.asset_code,
+                a.name,
+                a.status,
+                ac.name AS category_name,
+                l.name AS location_name,
+                COUNT(*) AS failure_count,
+                MAX(t.requested_at) AS last_failure_at,
+                ROUND(COALESCE(AVG(CASE
+                    WHEN t.resolved_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at)
+                    ELSE NULL
+                END), 0), 0) AS avg_resolution_minutes
+             FROM tickets t
+             INNER JOIN assets a ON a.id = t.asset_id
+             INNER JOIN asset_categories ac ON ac.id = a.asset_category_id
+             INNER JOIN locations l ON l.id = a.location_id
+             WHERE $whereClause
+             GROUP BY a.id, a.asset_code, a.name, a.status, ac.name, l.name
+             ORDER BY failure_count DESC, last_failure_at DESC
+             LIMIT " . $limit
+        );
+        $stmt->execute($params);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
     public function createExportJob(int $requestedBy, string $type, string $format, array $filters): int
     {
         try {

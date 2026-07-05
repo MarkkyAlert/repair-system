@@ -50,8 +50,42 @@ class ReportService
                 'limit' => $rowLimit,
                 'capped' => $totalTickets > $displayedCount,
             ],
+            // ทรัพย์สินที่แจ้งซ่อมบ่อย (ใช้ filter ชุดเดียวกับ report)
+            'assetReliability' => array_map(
+                fn (array $row): array => $this->mapAssetReliabilityRow($row),
+                $this->reports->getAssetReliabilityRows($viewer, $normalizedFilters, self::ASSET_RELIABILITY_LIMIT)
+            ),
         ];
     }
+
+    private function mapAssetReliabilityRow(array $row): array
+    {
+        $avgMinutes = (int) ($row['avg_resolution_minutes'] ?? 0);
+        $status = (string) ($row['status'] ?? 'active');
+
+        return [
+            'id' => (int) ($row['id'] ?? 0),
+            'asset_code' => (string) ($row['asset_code'] ?? ''),
+            'name' => (string) ($row['name'] ?? ''),
+            'category_name' => (string) ($row['category_name'] ?? '-'),
+            'location_name' => (string) ($row['location_name'] ?? '-'),
+            'status' => $status,
+            'status_label' => asset_status_label_th($status),
+            'status_tone' => match ($status) {
+                'active' => 'success',
+                'maintenance' => 'warning',
+                'retired', 'disposed' => 'danger',
+                default => 'default',
+            },
+            'failure_count' => (int) ($row['failure_count'] ?? 0),
+            'last_failure' => $this->formatDateTime($row['last_failure_at'] ?? null),
+            'avg_resolution_hours_label' => $avgMinutes > 0 ? number_format(round($avgMinutes / 60, 1), 1) : '-',
+            'detail_url' => '/asset-registry/' . (int) ($row['id'] ?? 0),
+        ];
+    }
+
+    // Asset reliability panel — จำนวน asset สูงสุดที่จัดอันดับบนหน้า report
+    private const ASSET_RELIABILITY_LIMIT = 20;
 
     // Export size guards — กัน OOM/request timeout เมื่อ ticket เยอะ (PDF หนักสุด, CSV เบาสุด)
     private const EXPORT_MAX_ROWS_XLSX = 10000;

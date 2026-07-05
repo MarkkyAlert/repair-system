@@ -36,6 +36,7 @@ class ReportsController
             'summary' => $data['summary'],
             'rows' => $data['rows'],
             'rowsMeta' => $data['rowsMeta'],
+            'assetReliability' => $data['assetReliability'],
         ]);
     }
 
