@@ -152,21 +152,21 @@ $isCapped = !empty($rowsMeta['capped']);
     <section class="panel-card stack-md">
         <div class="panel-head">
             <div>
-                <h2 class="panel-title">SLA ตรงตามกำหนด (Compliance)</h2>
-                <p class="field-hint">อัตราทำงานทันกำหนด SLA — Response (เวลาตอบรับ) และ Resolution (เวลาปิดงาน) แยกตามระดับความสำคัญ</p>
+                <h2 class="panel-title">SLA ตรงตามกำหนด</h2>
+                <p class="field-hint">อัตราทำงานทันกำหนด SLA — การตอบรับ และ การแก้ไข แยกตามระดับความสำคัญ</p>
             </div>
         </div>
 
         <?php $slaOverall = $slaCompliance['overall'] ?? []; ?>
         <div class="stat-grid stat-grid-2">
             <?= render_partial('partials/components/card', [
-                'title' => 'Response SLA (ตอบรับทันเวลา)',
+                'title' => 'SLA การตอบรับ',
                 'value' => (string) ($slaOverall['response']['pct_label'] ?? '-'),
                 'meta' => 'ตรงกำหนด ' . (int) ($slaOverall['response']['met'] ?? 0) . ' · เกิน ' . (int) ($slaOverall['response']['breached'] ?? 0),
                 'tone' => (string) ($slaOverall['response']['tone'] ?? 'default'),
             ]) ?>
             <?= render_partial('partials/components/card', [
-                'title' => 'Resolution SLA (ปิดงานทันเวลา)',
+                'title' => 'SLA การแก้ไข',
                 'value' => (string) ($slaOverall['resolution']['pct_label'] ?? '-'),
                 'meta' => 'ตรงกำหนด ' . (int) ($slaOverall['resolution']['met'] ?? 0) . ' · เกิน ' . (int) ($slaOverall['resolution']['breached'] ?? 0),
                 'tone' => (string) ($slaOverall['resolution']['tone'] ?? 'default'),
@@ -176,16 +176,16 @@ $isCapped = !empty($rowsMeta['capped']);
         <?php if (!empty($slaCompliance['byPriority'])): ?>
             <div class="table-wrap">
                 <table class="data-table">
-                    <caption class="sr-only">SLA compliance แยกตามระดับความสำคัญ</caption>
+                    <caption class="sr-only">SLA ตรงตามกำหนด แยกตามระดับความสำคัญ</caption>
                     <thead>
                     <tr>
                         <th>ระดับความสำคัญ</th>
-                        <th data-sort-type="number">Response ตรง</th>
-                        <th data-sort-type="number">Response เกิน</th>
-                        <th data-sort-type="number">Response %</th>
-                        <th data-sort-type="number">Resolution ตรง</th>
-                        <th data-sort-type="number">Resolution เกิน</th>
-                        <th data-sort-type="number">Resolution %</th>
+                        <th data-sort-type="number">ตอบรับ ตรง</th>
+                        <th data-sort-type="number">ตอบรับ เกิน</th>
+                        <th data-sort-type="number">ตอบรับ %</th>
+                        <th data-sort-type="number">แก้ไข ตรง</th>
+                        <th data-sort-type="number">แก้ไข เกิน</th>
+                        <th data-sort-type="number">แก้ไข %</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -215,7 +215,7 @@ $isCapped = !empty($rowsMeta['capped']);
     <section class="panel-card stack-md">
         <div class="panel-head">
             <div>
-                <h2 class="panel-title">ผลงานช่างเทคนิค (Technician Performance)</h2>
+                <h2 class="panel-title">ผลงานช่างเทคนิค</h2>
                 <p class="field-hint">สรุปผลงานช่างในช่วงที่กรอง — ปริมาณงาน · อัตราปิดงาน · เวลาซ่อมเฉลี่ย (MTTR) · คะแนน · ชั่วโมงแรงงาน</p>
             </div>
             <?php if (!empty($technicianPerformance)): ?>
@@ -234,7 +234,7 @@ $isCapped = !empty($rowsMeta['capped']);
                         <th data-sort-type="number">เสร็จ</th>
                         <th data-sort-type="number">ค้าง</th>
                         <th data-sort-type="number">อัตราปิดงาน</th>
-                        <th data-sort-type="number">MTTR (ชม.)</th>
+                        <th data-sort-type="number">เวลาซ่อมเฉลี่ย (ชม.)</th>
                         <th data-sort-type="number">คะแนนเฉลี่ย</th>
                         <th data-sort-type="number">ชม.แรงงาน</th>
                     </tr>
