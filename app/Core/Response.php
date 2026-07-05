@@ -48,6 +48,13 @@ class Response
     public static function download(string $content, string $fileName, string $contentType, string $disposition = 'attachment', int $status = 200): never
     {
         http_response_code($status);
+        // Download-signal cookie: echo the client's token back so the export overlay JS can detect
+        // the download has started and hide its spinner. Attachment responses don't navigate away or
+        // fire blur/unload reliably, so this cookie is the robust "download started" signal.
+        $downloadToken = preg_replace('/[^A-Za-z0-9._-]/', '', (string) ($_POST['_download_token'] ?? $_GET['_download_token'] ?? ''));
+        if ($downloadToken !== '' && !headers_sent()) {
+            setcookie('fileDownload', substr($downloadToken, 0, 64), ['expires' => 0, 'path' => '/', 'samesite' => 'Lax']);
+        }
         header('Content-Type: ' . $contentType);
         header('Content-Length: ' . strlen($content));
         header('Content-Disposition: ' . $disposition . '; filename="' . rawurlencode($fileName) . '"; filename*=UTF-8\'\'' . rawurlencode($fileName));

@@ -966,6 +966,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     var overlay = null;
     var hideTimer = null;
+    var pollTimer = null;
 
     var ensureOverlay = function () {
       if (overlay) return overlay;
@@ -986,19 +987,44 @@ document.addEventListener('DOMContentLoaded', () => {
     var hide = function () {
       if (overlay) overlay.hidden = true;
       if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
     };
 
-    // When download triggers, browser focus may shift — use that as hide signal.
+    // Secondary hide signals (some browsers shift focus / navigate on download).
     window.addEventListener('blur', function () { setTimeout(hide, 500); });
     window.addEventListener('pagehide', hide);
 
     links.forEach(function (link) {
       link.addEventListener('click', function () {
-        // Don't intercept — let browser handle the download.
-        // Just show overlay; browser navigation/download will continue.
+        // Don't intercept — let the browser handle the download. Show the overlay, then detect
+        // "download started" via a server-echoed cookie: attachment responses don't navigate away,
+        // so blur/pagehide are unreliable. Send a token in the form; Response::download echoes it
+        // back as a `fileDownload` cookie; poll for it and hide the instant it appears.
         var ov = ensureOverlay();
         ov.hidden = false;
-        // Fallback: auto-hide after 30s in case browser never signals back.
+
+        var token = String(Date.now()) + Math.random().toString(36).slice(2);
+        var form = typeof link.closest === 'function' ? link.closest('form') : null;
+        if (form) {
+          var field = form.querySelector('input[name="_download_token"]');
+          if (!field) {
+            field = document.createElement('input');
+            field.type = 'hidden';
+            field.name = '_download_token';
+            form.appendChild(field);
+          }
+          field.value = token;
+        }
+
+        if (pollTimer) clearInterval(pollTimer);
+        pollTimer = setInterval(function () {
+          if (document.cookie.indexOf('fileDownload=' + token) !== -1) {
+            document.cookie = 'fileDownload=; Max-Age=0; path=/';
+            hide();
+          }
+        }, 250);
+
+        // Ultimate fallback: auto-hide after 30s if no signal ever arrives.
         if (hideTimer) clearTimeout(hideTimer);
         hideTimer = setTimeout(hide, 30000);
       });
