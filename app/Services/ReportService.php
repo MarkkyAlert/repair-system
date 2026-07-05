@@ -671,6 +671,359 @@ class ReportService
         ];
     }
 
+    // ===== SLA Breach Analysis (หน้าแยกเต็มตัว /reports/sla-breach) =====
+
+    private const SLA_BREACH_DIMENSIONS = ['priority', 'category', 'department', 'location'];
+
+    public function getSlaBreachReportPage(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+
+        $normalizedFilters = $this->normalizeSlaBreachFilters($filters);
+        $reference = $this->reports->getSlaBreachReferenceData();
+        $rows = $this->collectSlaBreachRows($viewer, $normalizedFilters);
+
+        return [
+            'filters' => $this->buildSlaBreachFilterData($normalizedFilters, $reference),
+            'summary' => $this->buildSlaBreachSummary($rows),
+            'rows' => $rows,
+            'rowsMeta' => ['displayed' => count($rows), 'dimension' => $normalizedFilters['dimension']],
+        ];
+    }
+
+    /** ดึง breach ตามมิติที่เลือก → pivot → เรียง breach มากสุดขึ้นบน (bottleneck). ใช้ร่วมหน้าจอ + export. */
+    private function collectSlaBreachRows(array $viewer, array $normalizedFilters): array
+    {
+        $raw = $this->reports->getSlaBreachByDimension($viewer, $normalizedFilters, $normalizedFilters['dimension']);
+
+        return $this->buildSlaBreach($raw);
+    }
+
+    /** pivot (dimension_label × metric_type) → แถวต่อค่ามิติ พร้อม cell response/resolution + รวม breach/rate. */
+    private function buildSlaBreach(array $rows): array
+    {
+        $byDim = [];
+        foreach ($rows as $row) {
+            $metric = (string) ($row['metric_type'] ?? '');
+            if (!in_array($metric, ['response', 'resolution'], true)) {
+                continue;
+            }
+            $label = (string) ($row['dimension_label'] ?? '-');
+            if (!isset($byDim[$label])) {
+                $byDim[$label] = ['label' => $label, 'response' => ['met' => 0, 'breached' => 0], 'resolution' => ['met' => 0, 'breached' => 0]];
+            }
+            $byDim[$label][$metric]['met'] += (int) ($row['met'] ?? 0);
+            $byDim[$label][$metric]['breached'] += (int) ($row['breached'] ?? 0);
+        }
+
+        $result = array_map(function (array $d): array {
+            $response = $this->slaBreachCell($d['response']);
+            $resolution = $this->slaBreachCell($d['resolution']);
+            $totalBreached = $response['breached'] + $resolution['breached'];
+            $totalMet = $response['met'] + $resolution['met'];
+            $totalConcluded = $totalBreached + $totalMet;
+            $rate = $totalConcluded > 0 ? round($totalBreached / $totalConcluded * 100, 1) : null;
+
+            return [
+                'label' => $d['label'],
+                'response' => $response,
+                'resolution' => $resolution,
+                'total_breached' => $totalBreached,
+                'total_met' => $totalMet,
+                'total_concluded' => $totalConcluded,
+                'breach_rate' => $rate,
+                'breach_rate_label' => $rate === null ? '-' : number_format($rate, 1) . '%',
+                'breach_tone' => $this->breachTone($rate),
+            ];
+        }, array_values($byDim));
+
+        usort($result, static fn (array $a, array $b): int => [$b['total_breached'], $b['total_concluded']] <=> [$a['total_breached'], $a['total_concluded']]);
+
+        return $result;
+    }
+
+    private function slaBreachCell(array $counts): array
+    {
+        $met = (int) ($counts['met'] ?? 0);
+        $breached = (int) ($counts['breached'] ?? 0);
+        $concluded = $met + $breached;
+        $rate = $concluded > 0 ? round($breached / $concluded * 100, 1) : null;
+
+        return [
+            'met' => $met,
+            'breached' => $breached,
+            'concluded' => $concluded,
+            'breach_rate' => $rate,
+            'breach_rate_label' => $rate === null ? '-' : number_format($rate, 1) . '%',
+            'tone' => $this->breachTone($rate),
+        ];
+    }
+
+    /** tone มุม breach: เกินยิ่งเยอะยิ่งแย่ (คู่ตรงข้ามของ slaMetricCell ที่เป็นมุม compliance). */
+    private function breachTone(?float $rate): string
+    {
+        if ($rate === null) {
+            return 'default';
+        }
+
+        return $rate >= 25 ? 'danger' : ($rate >= 10 ? 'warning' : 'success');
+    }
+
+    private function buildSlaBreachSummary(array $rows): array
+    {
+        $responseBreached = 0;
+        $resolutionBreached = 0;
+        $totalBreached = 0;
+        $totalConcluded = 0;
+        foreach ($rows as $row) {
+            $responseBreached += (int) $row['response']['breached'];
+            $resolutionBreached += (int) $row['resolution']['breached'];
+            $totalBreached += (int) $row['total_breached'];
+            $totalConcluded += (int) $row['total_concluded'];
+        }
+        $rate = $totalConcluded > 0 ? round($totalBreached / $totalConcluded * 100, 1) : null;
+
+        return [
+            'total_breached' => $totalBreached,
+            'response_breached' => $responseBreached,
+            'resolution_breached' => $resolutionBreached,
+            'breach_rate_label' => $rate === null ? '-' : number_format($rate, 1) . '%',
+            'breach_tone' => $this->breachTone($rate),
+        ];
+    }
+
+    /** ป้ายไทยของหัวคอลัมน์มิติ (ใช้ทั้งตาราง/หัว export/PDF). */
+    private function slaBreachDimensionLabel(string $dimension): string
+    {
+        return match ($dimension) {
+            'category' => 'หมวดหมู่งาน',
+            'department' => 'แผนก',
+            'location' => 'สถานที่',
+            default => 'ระดับความสำคัญ',
+        };
+    }
+
+    private function normalizeSlaBreachFilters(array $filters): array
+    {
+        $fromDate = is_string($filters['from_date'] ?? null) ? trim((string) $filters['from_date']) : '';
+        $toDate = is_string($filters['to_date'] ?? null) ? trim((string) $filters['to_date']) : '';
+        $dimension = is_string($filters['dimension'] ?? null) ? trim((string) $filters['dimension']) : '';
+
+        return normalize_date_range($fromDate, $toDate) + [
+            'department_id' => max(0, (int) ($filters['department_id'] ?? 0)),
+            'category_id' => max(0, (int) ($filters['category_id'] ?? 0)),
+            'priority_id' => max(0, (int) ($filters['priority_id'] ?? 0)),
+            'location_id' => max(0, (int) ($filters['location_id'] ?? 0)),
+            'dimension' => in_array($dimension, self::SLA_BREACH_DIMENSIONS, true) ? $dimension : 'priority',
+        ];
+    }
+
+    private function buildSlaBreachFilterData(array $filters, array $reference): array
+    {
+        $option = static fn (array $rows, string $allLabel): array => array_merge(
+            [['value' => '', 'label' => $allLabel]],
+            array_map(static fn (array $row): array => [
+                'value' => (string) ($row['id'] ?? 0),
+                'label' => (string) ($row['name'] ?? '-'),
+            ], $rows)
+        );
+
+        $queryFilters = array_filter([
+            'from_date' => (string) ($filters['from_date'] ?? ''),
+            'to_date' => (string) ($filters['to_date'] ?? ''),
+            'department_id' => (int) ($filters['department_id'] ?? 0) > 0 ? (string) ($filters['department_id'] ?? '') : '',
+            'category_id' => (int) ($filters['category_id'] ?? 0) > 0 ? (string) ($filters['category_id'] ?? '') : '',
+            'priority_id' => (int) ($filters['priority_id'] ?? 0) > 0 ? (string) ($filters['priority_id'] ?? '') : '',
+            'location_id' => (int) ($filters['location_id'] ?? 0) > 0 ? (string) ($filters['location_id'] ?? '') : '',
+            'dimension' => (string) ($filters['dimension'] ?? 'priority'),
+        ], static fn (string $value): bool => $value !== '');
+
+        return [
+            'selected' => [
+                'from_date' => (string) ($filters['from_date'] ?? ''),
+                'to_date' => (string) ($filters['to_date'] ?? ''),
+                'department_id' => (string) ($filters['department_id'] ?? ''),
+                'category_id' => (string) ($filters['category_id'] ?? ''),
+                'priority_id' => (string) ($filters['priority_id'] ?? ''),
+                'location_id' => (string) ($filters['location_id'] ?? ''),
+                'dimension' => (string) ($filters['dimension'] ?? 'priority'),
+            ],
+            'dimensionLabel' => $this->slaBreachDimensionLabel((string) ($filters['dimension'] ?? 'priority')),
+            'dimensionOptions' => [
+                ['value' => 'priority', 'label' => 'ระดับความสำคัญ'],
+                ['value' => 'category', 'label' => 'หมวดหมู่งาน'],
+                ['value' => 'department', 'label' => 'แผนก'],
+                ['value' => 'location', 'label' => 'สถานที่'],
+            ],
+            'departmentOptions' => $option($reference['departments'] ?? [], 'ทุกแผนก'),
+            'categoryOptions' => $option($reference['categories'] ?? [], 'ทุกหมวดหมู่'),
+            'priorityOptions' => $option($reference['priorities'] ?? [], 'ทุกระดับ'),
+            'locationOptions' => $option($reference['locations'] ?? [], 'ทุกสถานที่'),
+            'active_count' => ((int) ($filters['department_id'] ?? 0) > 0 ? 1 : 0)
+                + ((int) ($filters['category_id'] ?? 0) > 0 ? 1 : 0)
+                + ((int) ($filters['priority_id'] ?? 0) > 0 ? 1 : 0)
+                + ((int) ($filters['location_id'] ?? 0) > 0 ? 1 : 0)
+                + ((string) ($filters['from_date'] ?? '') !== '' ? 1 : 0)
+                + ((string) ($filters['to_date'] ?? '') !== '' ? 1 : 0),
+            'query_string' => http_build_query($queryFilters),
+        ];
+    }
+
+    private function describeSlaBreachFilters(array $filters, array $reference): array
+    {
+        $name = static function (array $rows, int $id, string $fallback): string {
+            foreach ($rows as $row) {
+                if ((int) ($row['id'] ?? 0) === $id) {
+                    return (string) ($row['name'] ?? $fallback);
+                }
+            }
+            return $fallback;
+        };
+
+        return [
+            'dimension' => $this->slaBreachDimensionLabel((string) ($filters['dimension'] ?? 'priority')),
+            'from_date' => (string) ($filters['from_date'] ?? '') !== '' ? (string) ($filters['from_date'] ?? '') : 'ไม่ระบุ',
+            'to_date' => (string) ($filters['to_date'] ?? '') !== '' ? (string) ($filters['to_date'] ?? '') : 'ไม่ระบุ',
+            'department' => $name($reference['departments'] ?? [], (int) ($filters['department_id'] ?? 0), 'ทุกแผนก'),
+            'category' => $name($reference['categories'] ?? [], (int) ($filters['category_id'] ?? 0), 'ทุกหมวดหมู่'),
+            'priority' => $name($reference['priorities'] ?? [], (int) ($filters['priority_id'] ?? 0), 'ทุกระดับ'),
+            'location' => $name($reference['locations'] ?? [], (int) ($filters['location_id'] ?? 0), 'ทุกสถานที่'),
+        ];
+    }
+
+    private function slaBreachExportHeaders(string $dimension): array
+    {
+        return [$this->slaBreachDimensionLabel($dimension), 'ตอบรับ เกิน', 'แก้ไข เกิน', 'breach รวม', 'ทันกำหนด', '%เกิน'];
+    }
+
+    private function slaBreachExportRow(array $row): array
+    {
+        return [
+            $row['label'],
+            $row['response']['breached'],
+            $row['resolution']['breached'],
+            $row['total_breached'],
+            $row['total_met'],
+            $row['breach_rate_label'],
+        ];
+    }
+
+    public function exportSlaBreachCsv(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+        $normalizedFilters = $this->normalizeSlaBreachFilters($filters);
+        $rows = $this->collectSlaBreachRows($viewer, $normalizedFilters);
+        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'sla_breach_report', 'csv', $normalizedFilters);
+        $fileName = 'sla-breach-' . date('Ymd-His') . '.csv';
+
+        try {
+            $stream = fopen('php://temp', 'w+b');
+            if ($stream === false) {
+                throw new RuntimeException('ไม่สามารถเตรียมไฟล์ CSV ได้');
+            }
+            fwrite($stream, "\xEF\xBB\xBF");
+            fputcsv($stream, $this->slaBreachExportHeaders($normalizedFilters['dimension']));
+            foreach ($rows as $row) {
+                fputcsv($stream, $this->sanitizeExportRow($this->slaBreachExportRow($row)));
+            }
+            rewind($stream);
+            $content = (string) stream_get_contents($stream);
+            fclose($stream);
+            $this->reports->markExportJobCompleted($jobId, $fileName);
+
+            return ['content' => $content, 'file_name' => $fileName, 'content_type' => 'text/csv; charset=UTF-8'];
+        } catch (\Throwable $exception) {
+            $this->recordExportFailure($jobId, $exception);
+            throw new RuntimeException('ไม่สามารถสร้างไฟล์ CSV ได้', 0, $exception);
+        }
+    }
+
+    public function exportSlaBreachExcel(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+        $normalizedFilters = $this->normalizeSlaBreachFilters($filters);
+        $rows = $this->collectSlaBreachRows($viewer, $normalizedFilters);
+        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'sla_breach_report', 'xlsx', $normalizedFilters);
+        $fileName = 'sla-breach-' . date('Ymd-His') . '.xlsx';
+
+        try {
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+            $sheet->setTitle('SLA เกินกำหนด');
+
+            $column = 'A';
+            foreach ($this->slaBreachExportHeaders($normalizedFilters['dimension']) as $header) {
+                $sheet->setCellValue($column . '1', $header);
+                $sheet->getColumnDimension($column)->setAutoSize(true);
+                $column++;
+            }
+
+            $rowNumber = 2;
+            foreach ($rows as $row) {
+                $sheet->fromArray($this->sanitizeExportRow($this->slaBreachExportRow($row)), null, 'A' . $rowNumber);
+                $rowNumber++;
+            }
+
+            $writer = new Xlsx($spreadsheet);
+            ob_start();
+            $writer->save('php://output');
+            $content = (string) ob_get_clean();
+            $spreadsheet->disconnectWorksheets();
+            unset($spreadsheet);
+
+            $this->reports->markExportJobCompleted($jobId, $fileName);
+
+            return [
+                'content' => $content,
+                'file_name' => $fileName,
+                'content_type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ];
+        } catch (\Throwable $exception) {
+            $this->recordExportFailure($jobId, $exception);
+            throw new RuntimeException('ไม่สามารถสร้างไฟล์ Excel ได้', 0, $exception);
+        }
+    }
+
+    public function exportSlaBreachPdf(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+        $normalizedFilters = $this->normalizeSlaBreachFilters($filters);
+        $rows = $this->collectSlaBreachRows($viewer, $normalizedFilters);
+        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'sla_breach_report', 'pdf', $normalizedFilters);
+        $fileName = 'sla-breach-' . date('Ymd-His') . '.pdf';
+
+        try {
+            $html = View::capture('reports/sla-breach-pdf', [
+                'generatedAt' => date('d/m/Y H:i'),
+                'dimensionLabel' => $this->slaBreachDimensionLabel($normalizedFilters['dimension']),
+                'summary' => $this->buildSlaBreachSummary($rows),
+                'rows' => $rows,
+                'filters' => $this->describeSlaBreachFilters($normalizedFilters, $this->reports->getSlaBreachReferenceData()),
+            ]);
+
+            $options = new Options();
+            $dompdfTmp = sys_get_temp_dir();
+            if ($dompdfTmp === '' || !@is_writable($dompdfTmp)) {
+                $dompdfTmp = is_dir('/tmp') ? '/tmp' : BASE_PATH . '/storage/uploads';
+            }
+            $options->setTempDir($dompdfTmp);
+            $options->set('isRemoteEnabled', false);
+            $options->set('defaultFont', 'sarabun');
+            $dompdf = new Dompdf($options);
+            $dompdf->loadHtml($html, 'UTF-8');
+            $dompdf->setPaper('A4', 'landscape');
+            $dompdf->render();
+            $content = $dompdf->output();
+
+            $this->reports->markExportJobCompleted($jobId, $fileName);
+
+            return ['content' => $content, 'file_name' => $fileName, 'content_type' => 'application/pdf'];
+        } catch (\Throwable $exception) {
+            $this->recordExportFailure($jobId, $exception);
+            throw new RuntimeException('ไม่สามารถสร้างไฟล์ PDF ได้', 0, $exception);
+        }
+    }
+
     private function mapAssetReliabilityRow(array $row): array
     {
         // float (not int): same single-rounding pipeline as summary + technician MTTR — keep the

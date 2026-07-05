@@ -67,13 +67,17 @@
                     <?= lucide('qr-code', 'nav-icon') ?>
                     <span class="nav-label">ทรัพย์สินและ QR</span>
                 </a>
-                <a href="<?= e(url('/reports')) ?>" class="nav-link<?= $isReportsPath && !is_path('/reports/asset-reliability') ? ' is-active' : '' ?>" data-tooltip="รายงาน">
+                <a href="<?= e(url('/reports')) ?>" class="nav-link<?= $isReportsPath && !is_path('/reports/asset-reliability') && !is_path('/reports/sla-breach') ? ' is-active' : '' ?>" data-tooltip="รายงาน">
                     <?= lucide('bar-chart-3', 'nav-icon') ?>
                     <span class="nav-label">รายงานและวิเคราะห์</span>
                 </a>
                 <a href="<?= e(url('/reports/asset-reliability')) ?>" class="nav-link nav-link-sub<?= is_path('/reports/asset-reliability') ? ' is-active' : '' ?>" data-tooltip="สุขภาพทรัพย์สิน">
                     <?= lucide('activity', 'nav-icon') ?>
                     <span class="nav-label">สุขภาพทรัพย์สิน</span>
+                </a>
+                <a href="<?= e(url('/reports/sla-breach')) ?>" class="nav-link nav-link-sub<?= is_path('/reports/sla-breach') ? ' is-active' : '' ?>" data-tooltip="วิเคราะห์ SLA เกินกำหนด">
+                    <?= lucide('triangle-alert', 'nav-icon') ?>
+                    <span class="nav-label">วิเคราะห์ SLA เกิน</span>
                 </a>
             <?php endif; ?>
             <?php if ((string) ($viewer['role'] ?? 'guest') === 'admin'): ?>

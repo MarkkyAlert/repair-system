@@ -90,6 +90,10 @@ return static function (Router $router): void {
     $router->post('/reports/asset-reliability/export/csv', [ReportsController::class, 'assetReliabilityExportCsv']);
     $router->post('/reports/asset-reliability/export/excel', [ReportsController::class, 'assetReliabilityExportExcel']);
     $router->post('/reports/asset-reliability/export/pdf', [ReportsController::class, 'assetReliabilityExportPdf']);
+    $router->get('/reports/sla-breach', [ReportsController::class, 'slaBreach']);
+    $router->post('/reports/sla-breach/export/csv', [ReportsController::class, 'slaBreachExportCsv']);
+    $router->post('/reports/sla-breach/export/excel', [ReportsController::class, 'slaBreachExportExcel']);
+    $router->post('/reports/sla-breach/export/pdf', [ReportsController::class, 'slaBreachExportPdf']);
     $router->get('/attachments/{attachmentId}', [AttachmentsController::class, 'show']);
     $router->get('/assets', static fn () => Response::redirect('/asset-registry', 301));
     $router->get('/asset-registry', [AssetsController::class, 'index']);

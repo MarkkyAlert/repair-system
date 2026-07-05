@@ -129,25 +129,70 @@ class ReportsController
 
     public function assetReliabilityExportCsv(): void
     {
-        $this->downloadAssetReliability('exportAssetReliabilityCsv', 'asset-reliability.csv', 'text/csv; charset=UTF-8');
+        $this->downloadReport('exportAssetReliabilityCsv', 'asset-reliability.csv', 'text/csv; charset=UTF-8', '/reports/asset-reliability');
     }
 
     public function assetReliabilityExportExcel(): void
     {
-        $this->downloadAssetReliability(
+        $this->downloadReport(
             'exportAssetReliabilityExcel',
             'asset-reliability.xlsx',
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            '/reports/asset-reliability'
         );
     }
 
     public function assetReliabilityExportPdf(): void
     {
-        $this->downloadAssetReliability('exportAssetReliabilityPdf', 'asset-reliability.pdf', 'application/pdf');
+        $this->downloadReport('exportAssetReliabilityPdf', 'asset-reliability.pdf', 'application/pdf', '/reports/asset-reliability');
     }
 
-    /** ตัวช่วยรวม flow export ของ Asset Reliability Report ทั้ง 3 format (csrf + download + redirect กลับ). */
-    private function downloadAssetReliability(string $serviceMethod, string $fallbackName, string $fallbackType): void
+    public function slaBreach(): void
+    {
+        AuthMiddleware::handle();
+
+        $viewer = auth()->user() ?? [];
+
+        try {
+            $data = $this->reports->getSlaBreachReportPage($viewer, request()?->query ?? []);
+        } catch (DomainException $exception) {
+            flash('error', $exception->getMessage());
+            Response::redirect('/dashboard');
+        }
+
+        Response::view('reports/sla-breach', [
+            'title' => 'วิเคราะห์ SLA เกินกำหนด',
+            'pageHeading' => 'วิเคราะห์ SLA เกินกำหนด',
+            'currentUser' => $viewer,
+            'filters' => $data['filters'],
+            'summary' => $data['summary'],
+            'rows' => $data['rows'],
+            'rowsMeta' => $data['rowsMeta'],
+        ]);
+    }
+
+    public function slaBreachExportCsv(): void
+    {
+        $this->downloadReport('exportSlaBreachCsv', 'sla-breach.csv', 'text/csv; charset=UTF-8', '/reports/sla-breach');
+    }
+
+    public function slaBreachExportExcel(): void
+    {
+        $this->downloadReport(
+            'exportSlaBreachExcel',
+            'sla-breach.xlsx',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            '/reports/sla-breach'
+        );
+    }
+
+    public function slaBreachExportPdf(): void
+    {
+        $this->downloadReport('exportSlaBreachPdf', 'sla-breach.pdf', 'application/pdf', '/reports/sla-breach');
+    }
+
+    /** ตัวช่วยรวม flow export ของรายงานย่อย (csrf + download + redirect กลับหน้าเดิมเมื่อ error). */
+    private function downloadReport(string $serviceMethod, string $fallbackName, string $fallbackType, string $redirectPath): void
     {
         AuthMiddleware::handle();
 
@@ -163,7 +208,7 @@ class ReportsController
             );
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
-            Response::redirect('/reports/asset-reliability');
+            Response::redirect($redirectPath);
         }
     }
 }

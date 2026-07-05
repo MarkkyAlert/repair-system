@@ -337,6 +337,113 @@ class ReportRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    // มิติที่ยอมให้ group SLA breach ได้ (whitelist กัน SQL-injection: dimension มาจาก user input)
+    private const SLA_BREACH_DIMENSIONS = [
+        'priority' => ['join' => 'INNER JOIN priorities dim ON dim.id = t.priority_id', 'label' => 'dim.name', 'order' => 'dim.level DESC'],
+        'category' => ['join' => 'INNER JOIN ticket_categories dim ON dim.id = t.ticket_category_id', 'label' => 'dim.name', 'order' => 'dim.name ASC'],
+        'department' => ['join' => 'LEFT JOIN departments dim ON dim.id = t.requester_department_id', 'label' => "COALESCE(dim.name, 'ไม่ระบุแผนก')", 'order' => 'dim.name ASC'],
+        'location' => ['join' => 'INNER JOIN locations dim ON dim.id = t.location_id', 'label' => 'dim.name', 'order' => 'dim.name ASC'],
+    ];
+
+    /**
+     * SLA breach แยกตามมิติที่เลือก (priority/category/department/location) × metric_type — group
+     * ticket_sla_tracks → tickets → dimension แล้วนับ met/breached (นิยาม breach เดียวกับ
+     * getSlaComplianceByPriority). ts 2:1 กับ ticket แต่ join t→dimension เป็น 1:1 → group by (มิติ ×
+     * metric_type) ไม่ fan-out. dimension มาจาก whitelist เท่านั้น (interpolate ปลอดภัย).
+     */
+    public function getSlaBreachByDimension(array $viewer, array $filters, string $dimension): array
+    {
+        $map = self::SLA_BREACH_DIMENSIONS[$dimension] ?? self::SLA_BREACH_DIMENSIONS['priority'];
+
+        $params = [];
+        $conditions = [$this->visibilityClause($viewer, $params)];
+        $this->applySlaBreachFilters($conditions, $filters, $params);
+        $whereClause = implode(' AND ', $conditions);
+
+        $stmt = $this->db->prepare(
+            "SELECT
+                {$map['label']} AS dimension_label,
+                ts.metric_type,
+                SUM(CASE WHEN ts.status = 'met' THEN 1 ELSE 0 END) AS met,
+                SUM(CASE WHEN ts.status = 'breached' OR (ts.status = 'pending' AND ts.target_at < NOW()) THEN 1 ELSE 0 END) AS breached
+             FROM ticket_sla_tracks ts
+             INNER JOIN tickets t ON t.id = ts.ticket_id
+             {$map['join']}
+             WHERE $whereClause
+             GROUP BY dimension_label, ts.metric_type
+             ORDER BY {$map['order']}"
+        );
+        $stmt->execute($params);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /** dropdown filter ของ SLA Breach Report — แผนก + หมวดหมู่ + priority + สถานที่. */
+    public function getSlaBreachReferenceData(): array
+    {
+        $departments = $this->db->query(
+            'SELECT id, name FROM departments WHERE is_active = 1 ORDER BY name ASC, id ASC'
+        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $categories = $this->db->query(
+            'SELECT id, name FROM ticket_categories WHERE is_active = 1 ORDER BY sort_order ASC, name ASC, id ASC'
+        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $priorities = $this->db->query(
+            'SELECT id, name FROM priorities ORDER BY level DESC, id ASC'
+        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $locations = $this->db->query(
+            'SELECT id, name FROM locations ORDER BY name ASC, id ASC'
+        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        return [
+            'departments' => $departments,
+            'categories' => $categories,
+            'priorities' => $priorities,
+            'locations' => $locations,
+        ];
+    }
+
+    /**
+     * Filter สำหรับ SLA Breach Report — narrow ตามช่วงวันที่แจ้ง + แผนก + หมวดหมู่ + priority + สถานที่
+     * (บนตาราง t). prefix param slabreach_ กันชนกับ visibilityClause. breakdown dimension แยกต่างหาก.
+     */
+    private function applySlaBreachFilters(array &$conditions, array $filters, array &$params): void
+    {
+        $fromDate = is_string($filters['from_datetime'] ?? null) ? trim((string) $filters['from_datetime']) : '';
+        $toDate = is_string($filters['to_datetime'] ?? null) ? trim((string) $filters['to_datetime']) : '';
+        $departmentId = (int) ($filters['department_id'] ?? 0);
+        $categoryId = (int) ($filters['category_id'] ?? 0);
+        $priorityId = (int) ($filters['priority_id'] ?? 0);
+        $locationId = (int) ($filters['location_id'] ?? 0);
+
+        if ($fromDate !== '') {
+            $conditions[] = 't.requested_at >= :slabreach_from_date';
+            $params['slabreach_from_date'] = $fromDate;
+        }
+        if ($toDate !== '') {
+            $conditions[] = 't.requested_at <= :slabreach_to_date';
+            $params['slabreach_to_date'] = $toDate;
+        }
+        if ($departmentId > 0) {
+            $conditions[] = 't.requester_department_id = :slabreach_department_id';
+            $params['slabreach_department_id'] = $departmentId;
+        }
+        if ($categoryId > 0) {
+            $conditions[] = 't.ticket_category_id = :slabreach_category_id';
+            $params['slabreach_category_id'] = $categoryId;
+        }
+        if ($priorityId > 0) {
+            $conditions[] = 't.priority_id = :slabreach_priority_id';
+            $params['slabreach_priority_id'] = $priorityId;
+        }
+        if ($locationId > 0) {
+            $conditions[] = 't.location_id = :slabreach_location_id';
+            $params['slabreach_location_id'] = $locationId;
+        }
+    }
+
     /**
      * ผลงานช่างเทคนิคต่อคน — query เดียว fan-out-free (work_orders/ticket_ratings เป็น UNIQUE(ticket_id)
      * 1:1 → AVG(rating)/SUM(labor) ถูกต้อง). SLA ไม่รวมที่นี่ (sla_tracks 2:1 = fan-out; ดู SLA panel).
