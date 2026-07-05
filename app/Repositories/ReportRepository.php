@@ -9,6 +9,11 @@ use Throwable;
 
 class ReportRepository
 {
+    // Absolute runaway-query ceiling. ต้อง >= ReportService::EXPORT_MAX_ROWS_* ที่ใหญ่สุด (CSV 50k)
+    // เสมอ — ไม่งั้น overflow probe ของ export (getRows(maxRows+1)) จะถูกตัดเงียบ ๆ แล้ว export ได้ข้อมูล
+    // ไม่ครบโดยไม่มี warning. limit จริง (screen 250 / export 10k-3k-50k) + overflow warning เป็นของ service.
+    private const MAX_ROWS = 100000;
+
     public function __construct(private PDO $db)
     {
     }
@@ -88,7 +93,7 @@ class ReportRepository
         $this->applyReportFilters($conditions, $filters, $params);
         $whereClause = implode(' AND ', $conditions);
         $closedStatuses = ticket_terminal_statuses_sql();
-        $limitClause = $limit !== null ? 'LIMIT ' . max(1, min($limit, 1000)) : '';
+        $limitClause = $limit !== null ? 'LIMIT ' . max(1, min($limit, self::MAX_ROWS)) : '';
 
         $stmt = $this->db->prepare(
             "SELECT
