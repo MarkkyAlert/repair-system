@@ -30,6 +30,20 @@ class AdminController
     ) {
     }
 
+    /**
+     * Admin-only mutation wrapper — บังคับ role gate ('admin') ที่ controller ก่อน csrf/mutation
+     * (require_role → 403 abort). service assert_admin คงไว้เป็น defense-in-depth. ทุก admin action
+     * ใช้ตัวนี้แทน handleUpdate เพื่อกันการลืมส่ง role (ต้นตอ BAC แบบ EmailQueue::retry).
+     */
+    private function adminUpdate(
+        callable $callback,
+        string $successMessage = 'บันทึกข้อมูลเรียบร้อยแล้ว',
+        string $redirectTo = '/admin',
+        ?array $oldInputOnError = null
+    ): void {
+        $this->handleUpdate($callback, $successMessage, $redirectTo, ['admin'], 'หน้านี้สงวนสำหรับผู้ดูแลระบบเท่านั้น', $oldInputOnError);
+    }
+
     public function index(): void
     {
         AuthMiddleware::handle();
@@ -97,147 +111,147 @@ class AdminController
 
     public function updateUser(string $userId): void
     {
-        $this->handleUpdate(function (array $viewer) use ($userId): void {
+        $this->adminUpdate(function (array $viewer) use ($userId): void {
             $this->admin->updateUser((int) $userId, $viewer, $_POST);
         });
     }
 
     public function createUser(): void
     {
-        $this->handleUpdate(function (array $viewer): void {
+        $this->adminUpdate(function (array $viewer): void {
             $this->admin->createUser($viewer, $_POST);
         }, 'สร้างบัญชีผู้ใช้งานเรียบร้อยแล้ว');
     }
 
     public function createDepartment(): void
     {
-        $this->handleUpdate(function (array $viewer): void {
+        $this->adminUpdate(function (array $viewer): void {
             $this->reference->createDepartment($viewer, $_POST);
         }, 'เพิ่มแผนกเรียบร้อยแล้ว');
     }
 
     public function updateDepartment(string $departmentId): void
     {
-        $this->handleUpdate(function (array $viewer) use ($departmentId): void {
+        $this->adminUpdate(function (array $viewer) use ($departmentId): void {
             $this->reference->updateDepartment((int) $departmentId, $viewer, $_POST);
         });
     }
 
     public function deleteDepartment(string $departmentId): void
     {
-        $this->handleUpdate(function (array $viewer) use ($departmentId): void {
+        $this->adminUpdate(function (array $viewer) use ($departmentId): void {
             $this->reference->deleteDepartment((int) $departmentId, $viewer);
         }, 'ลบแผนกเรียบร้อยแล้ว');
     }
 
     public function createTicketCategory(): void
     {
-        $this->handleUpdate(function (array $viewer): void {
+        $this->adminUpdate(function (array $viewer): void {
             $this->reference->createTicketCategory($viewer, $_POST);
         }, 'เพิ่มหมวดหมู่งานเรียบร้อยแล้ว');
     }
 
     public function updateTicketCategory(string $categoryId): void
     {
-        $this->handleUpdate(function (array $viewer) use ($categoryId): void {
+        $this->adminUpdate(function (array $viewer) use ($categoryId): void {
             $this->reference->updateTicketCategory((int) $categoryId, $viewer, $_POST);
         });
     }
 
     public function deleteTicketCategory(string $categoryId): void
     {
-        $this->handleUpdate(function (array $viewer) use ($categoryId): void {
+        $this->adminUpdate(function (array $viewer) use ($categoryId): void {
             $this->reference->deleteTicketCategory((int) $categoryId, $viewer);
         }, 'ลบหมวดหมู่งานเรียบร้อยแล้ว');
     }
 
     public function createAssetCategory(): void
     {
-        $this->handleUpdate(function (array $viewer): void {
+        $this->adminUpdate(function (array $viewer): void {
             $this->reference->createAssetCategory($viewer, $_POST);
         }, 'เพิ่มหมวดหมู่ Asset เรียบร้อยแล้ว');
     }
 
     public function updateAssetCategory(string $categoryId): void
     {
-        $this->handleUpdate(function (array $viewer) use ($categoryId): void {
+        $this->adminUpdate(function (array $viewer) use ($categoryId): void {
             $this->reference->updateAssetCategory((int) $categoryId, $viewer, $_POST);
         });
     }
 
     public function deleteAssetCategory(string $categoryId): void
     {
-        $this->handleUpdate(function (array $viewer) use ($categoryId): void {
+        $this->adminUpdate(function (array $viewer) use ($categoryId): void {
             $this->reference->deleteAssetCategory((int) $categoryId, $viewer);
         }, 'ลบหมวดหมู่ Asset เรียบร้อยแล้ว');
     }
 
     public function createLocation(): void
     {
-        $this->handleUpdate(function (array $viewer): void {
+        $this->adminUpdate(function (array $viewer): void {
             $this->reference->createLocation($viewer, $_POST);
         }, 'เพิ่มสถานที่เรียบร้อยแล้ว');
     }
 
     public function updateLocation(string $locationId): void
     {
-        $this->handleUpdate(function (array $viewer) use ($locationId): void {
+        $this->adminUpdate(function (array $viewer) use ($locationId): void {
             $this->reference->updateLocation((int) $locationId, $viewer, $_POST);
         });
     }
 
     public function deleteLocation(string $locationId): void
     {
-        $this->handleUpdate(function (array $viewer) use ($locationId): void {
+        $this->adminUpdate(function (array $viewer) use ($locationId): void {
             $this->reference->deleteLocation((int) $locationId, $viewer);
         }, 'ลบสถานที่เรียบร้อยแล้ว');
     }
 
     public function createPriority(): void
     {
-        $this->handleUpdate(function (array $viewer): void {
+        $this->adminUpdate(function (array $viewer): void {
             $this->reference->createPriority($viewer, $_POST);
         }, 'เพิ่ม Priority เรียบร้อยแล้ว');
     }
 
     public function updatePriority(string $priorityId): void
     {
-        $this->handleUpdate(function (array $viewer) use ($priorityId): void {
+        $this->adminUpdate(function (array $viewer) use ($priorityId): void {
             $this->reference->updatePriority((int) $priorityId, $viewer, $_POST);
         });
     }
 
     public function deletePriority(string $priorityId): void
     {
-        $this->handleUpdate(function (array $viewer) use ($priorityId): void {
+        $this->adminUpdate(function (array $viewer) use ($priorityId): void {
             $this->reference->deletePriority((int) $priorityId, $viewer);
         }, 'ลบ Priority เรียบร้อยแล้ว');
     }
 
     public function updateSystemSettings(): void
     {
-        $this->handleUpdate(function (array $viewer): void {
+        $this->adminUpdate(function (array $viewer): void {
             $this->systemSettings->updateSystemSettings($viewer, $_POST);
         }, 'อัปเดตการตั้งค่าระบบเรียบร้อยแล้ว');
     }
 
     public function sendTestEmail(): void
     {
-        $this->handleUpdate(function (array $viewer): void {
+        $this->adminUpdate(function (array $viewer): void {
             $this->broadcast->sendTestEmail($viewer, $_POST);
         }, 'ส่งอีเมลทดสอบเรียบร้อยแล้ว');
     }
 
     public function updateSetting(): void
     {
-        $this->handleUpdate(function (array $viewer): void {
+        $this->adminUpdate(function (array $viewer): void {
             $this->systemSettings->updateSetting($viewer, $_POST);
         });
     }
 
     public function updateLogo(): void
     {
-        $this->handleUpdate(function (array $viewer): void {
+        $this->adminUpdate(function (array $viewer): void {
             $this->systemSettings->updateLogo($viewer, $_FILES, $_POST);
         }, 'อัปเดตโลโก้องค์กรเรียบร้อยแล้ว');
     }

@@ -174,7 +174,9 @@ class AssetsController
         $this->handleUpdate(
             fn (array $viewer) => $this->assets->regenerateQrToken((int) $assetId, $viewer),
             'สร้าง QR token ใหม่เรียบร้อยแล้ว',
-            '/asset-registry/' . (int) $assetId
+            '/asset-registry/' . (int) $assetId,
+            ['manager', 'admin'],
+            'คุณไม่มีสิทธิ์จัดการข้อมูล Asset และ QR'
         );
     }
 
