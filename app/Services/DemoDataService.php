@@ -62,7 +62,7 @@ class DemoDataService
 
             [$techIds, $created['users'], $techPassword] = $this->seedTechnician($departmentIds);
             [$assetIds, $created['assets']] = $this->seedAssets($createdByUserId, $assetCategoryIds, $locationIds);
-            $created['tickets'] = $this->seedTickets($createdByUserId, $techIds, $locationIds, $assetIds, $ticketCategoryIds, $priorityIds);
+            $created['tickets'] = $this->seedTickets($createdByUserId, $techIds, $departmentIds, $locationIds, $assetIds, $ticketCategoryIds, $priorityIds);
 
             // surface รหัสช่างตัวอย่างเฉพาะเมื่อสร้างบัญชีใหม่จริง (ถ้ามีอยู่แล้วไม่รู้/ไม่แตะรหัสเดิม)
             if ($created['users'] > 0) {
@@ -214,15 +214,17 @@ class DemoDataService
      */
     private function seedAssets(int $createdByUserId, array $assetCategoryIds, array $locationIds): array
     {
+        // ageMonths/warrantyMonths → กระจายอายุ+ประกัน ให้ asset-reliability โชว์ health/MTBF ได้ครบ
+        // (เก่า+หมดประกัน = สุขภาพแย่/ควรเปลี่ยน ; ใหม่+ในประกัน = ดี). warranty < age = หมดประกันแล้ว.
         $assetSpecs = [
-            ['code' => 'PC-001', 'name' => 'PC HR-01', 'category' => 'COMPUTER', 'location' => 'OFFICE-1F'],
-            ['code' => 'PC-002', 'name' => 'PC Finance-01', 'category' => 'COMPUTER', 'location' => 'OFFICE-2F'],
-            ['code' => 'PRT-001', 'name' => 'HP LaserJet Pro M404', 'category' => 'PRINTER', 'location' => 'OFFICE-1F'],
-            ['code' => 'AC-001', 'name' => 'Daikin Inverter 18000 BTU', 'category' => 'AC', 'location' => 'MEETING'],
-            ['code' => 'AC-002', 'name' => 'Mitsubishi 12000 BTU', 'category' => 'AC', 'location' => 'OFFICE-2F'],
-            ['code' => 'SRV-001', 'name' => 'Dell PowerEdge R350', 'category' => 'COMPUTER', 'location' => 'SERVER'],
-            ['code' => 'LGT-001', 'name' => 'หลอด LED ห้องประชุม', 'category' => 'LIGHTING', 'location' => 'MEETING'],
-            ['code' => 'PRT-002', 'name' => 'Brother MFC-L2750DW', 'category' => 'PRINTER', 'location' => 'OFFICE-2F'],
+            ['code' => 'PC-001', 'name' => 'PC HR-01', 'category' => 'COMPUTER', 'location' => 'OFFICE-1F', 'ageMonths' => 48, 'warrantyMonths' => 12],
+            ['code' => 'PC-002', 'name' => 'PC Finance-01', 'category' => 'COMPUTER', 'location' => 'OFFICE-2F', 'ageMonths' => 40, 'warrantyMonths' => 12],
+            ['code' => 'PRT-001', 'name' => 'HP LaserJet Pro M404', 'category' => 'PRINTER', 'location' => 'OFFICE-1F', 'ageMonths' => 60, 'warrantyMonths' => 12],
+            ['code' => 'AC-001', 'name' => 'Daikin Inverter 18000 BTU', 'category' => 'AC', 'location' => 'MEETING', 'ageMonths' => 66, 'warrantyMonths' => 24],
+            ['code' => 'AC-002', 'name' => 'Mitsubishi 12000 BTU', 'category' => 'AC', 'location' => 'OFFICE-2F', 'ageMonths' => 22, 'warrantyMonths' => 24],
+            ['code' => 'SRV-001', 'name' => 'Dell PowerEdge R350', 'category' => 'COMPUTER', 'location' => 'SERVER', 'ageMonths' => 78, 'warrantyMonths' => 36],
+            ['code' => 'LGT-001', 'name' => 'หลอด LED ห้องประชุม', 'category' => 'LIGHTING', 'location' => 'MEETING', 'ageMonths' => 6, 'warrantyMonths' => 12],
+            ['code' => 'PRT-002', 'name' => 'Brother MFC-L2750DW', 'category' => 'PRINTER', 'location' => 'OFFICE-2F', 'ageMonths' => 12, 'warrantyMonths' => 24],
         ];
         $assetIds = [];
         $count = 0;
@@ -232,6 +234,9 @@ class DemoDataService
             if ($categoryId === null || $locationId === null) {
                 continue;
             }
+
+            $purchaseDate = date('Y-m-d', strtotime("-{$spec['ageMonths']} months") ?: time());
+            $warrantyExpires = date('Y-m-d', strtotime($purchaseDate . " +{$spec['warrantyMonths']} months") ?: time());
 
             try {
                 $assetId = $this->assets->createAsset([
@@ -245,8 +250,8 @@ class DemoDataService
                     'brand' => '',
                     'model' => '',
                     'vendor' => '',
-                    'purchase_date' => '',
-                    'warranty_expires_at' => '',
+                    'purchase_date' => $purchaseDate,
+                    'warranty_expires_at' => $warrantyExpires,
                     'status' => 'active',
                     'notes' => '',
                     'generated_by' => $createdByUserId > 0 ? $createdByUserId : null,
@@ -267,12 +272,15 @@ class DemoDataService
      * @param array<string, int> $ticketCategoryIds
      * @param array<string, int> $priorityIds
      */
-    private function seedTickets(int $createdByUserId, array $techIds, array $locationIds, array $assetIds, array $ticketCategoryIds, array $priorityIds): int
+    private function seedTickets(int $createdByUserId, array $techIds, array $departmentIds, array $locationIds, array $assetIds, array $ticketCategoryIds, array $priorityIds): int
     {
         // Sample tickets need an admin to act as requester + manager, and at least one demo technician.
         if ($createdByUserId <= 0 || $techIds === []) {
             return 0;
         }
+
+        // แผนกผู้แจ้ง หมุนเวียนให้มิติ "แผนก" (hotspot/csat/backlog/sla/reopen) มีหลายแถว ไม่ใช่ 'ไม่ระบุแผนก' ล้วน.
+        $deptCodes = ['IT', 'FACILITY', 'ADMIN'];
 
         // spec ต่อ ticket (กระจายให้ทุกรายงานดูเต็ม): [title, daysAgo, status, cat, loc, pri, asset, techIdx,
         //   labor(min), rating[score,fb]|null, resolveHours|null (null=ยังไม่ปิด), reopen]. breach = resolveHours > 8.
@@ -315,6 +323,7 @@ class DemoDataService
             $isTerminalReject = in_array($status, ['rejected', 'cancelled'], true);
             $approvalStatus = $status === 'rejected' ? 'rejected' : 'approved';
             $tech = $techIds[$techIdx % $techCount] ?? null;
+            $deptId = $departmentIds[$deptCodes[$index % count($deptCodes)]] ?? null;
             $responseDue = date('Y-m-d H:i:s', $reqTs + 3600);
             $resolutionDue = date('Y-m-d H:i:s', $reqTs + 8 * 3600);
 
@@ -323,6 +332,7 @@ class DemoDataService
                 'title' => $title,
                 'description' => $title . ' — รายละเอียดตัวอย่างสำหรับสาธิตระบบ',
                 'requester_id' => $createdByUserId,
+                'requester_department_id' => $deptId,
                 'location_id' => $locationIds[$loc] ?? 0,
                 'asset_id' => $assetIds[$asset] ?? null,
                 'ticket_category_id' => $ticketCategoryIds[$cat] ?? 0,

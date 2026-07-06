@@ -809,11 +809,11 @@ class TicketRepository
 
         $stmt = $this->db->prepare(
             'INSERT IGNORE INTO tickets (
-                ticket_no, title, description, requester_id, location_id, asset_id, ticket_category_id, priority_id,
+                ticket_no, title, description, requester_id, requester_department_id, location_id, asset_id, ticket_category_id, priority_id,
                 assigned_manager_id, assigned_technician_id, approval_status, status, channel, impact_level, urgency_level,
                 requested_at, response_due_at, resolution_due_at, approved_at, resolved_at, completed_at, created_at, updated_at
              ) VALUES (
-                :ticket_no, :title, :description, :requester_id, :location_id, :asset_id, :ticket_category_id, :priority_id,
+                :ticket_no, :title, :description, :requester_id, :requester_department_id, :location_id, :asset_id, :ticket_category_id, :priority_id,
                 :manager_id, :technician_id, :approval_status, :status, "web", "medium", "medium",
                 :requested_at, :response_due_at, :resolution_due_at, :approved_at, :resolved_at, :completed_at, :created_at, NOW()
              )'
@@ -823,6 +823,7 @@ class TicketRepository
             'title' => (string) ($payload['title'] ?? ''),
             'description' => (string) ($payload['description'] ?? ''),
             'requester_id' => (int) ($payload['requester_id'] ?? 0),
+            'requester_department_id' => isset($payload['requester_department_id']) && (int) $payload['requester_department_id'] > 0 ? (int) $payload['requester_department_id'] : null,
             'location_id' => (int) ($payload['location_id'] ?? 0),
             'asset_id' => isset($payload['asset_id']) && (int) $payload['asset_id'] > 0 ? (int) $payload['asset_id'] : null,
             'ticket_category_id' => (int) ($payload['ticket_category_id'] ?? 0),

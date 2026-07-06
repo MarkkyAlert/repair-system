@@ -70,7 +70,7 @@
 
             <label class="checkbox-row">
                 <input type="checkbox" name="load_demo" value="1">
-                <span>โหลดข้อมูลตัวอย่าง (3 แผนก, 5 สถานที่, 8 ทรัพย์สิน, 3 Ticket ตัวอย่าง) — สำหรับ dev/demo เท่านั้น ไม่ควรใช้บน production; ระบบจะสร้างบัญชีช่างตัวอย่างพร้อมรหัสสุ่มและแสดงให้ครั้งเดียว</span>
+                <span>โหลดข้อมูลตัวอย่าง (3 แผนก, 5 สถานที่, 8 ทรัพย์สิน, 3 ช่าง, 20 Ticket ครอบทุกสถานะ) — สำหรับ dev/demo เท่านั้น ไม่ควรใช้บน production; ระบบจะสร้างบัญชีช่างตัวอย่างพร้อมรหัสสุ่มและแสดงให้ครั้งเดียว</span>
             </label>
 
             <?= render_partial('partials/components/button', [
