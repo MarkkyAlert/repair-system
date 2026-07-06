@@ -2416,6 +2416,9 @@ class ReportService
                 $score = (int) ($row['score'] ?? 0);
                 $technician = trim((string) ($row['technician_name'] ?? ''));
                 $category = trim((string) ($row['category_name'] ?? ''));
+                $createdAt = (string) ($row['created_at'] ?? '');
+                // รูปแบบ d/m/Y H:i ตรงกับที่ตัว sort ของ data-table (type="date") parse ได้ (ต่างจาก human_date ไทย)
+                $createdTs = $createdAt !== '' ? strtotime($createdAt) : false;
 
                 return [
                     'score' => $score,
@@ -2424,7 +2427,8 @@ class ReportService
                     'category_name' => $category !== '' ? $category : '-',
                     'ticket_id' => (int) ($row['ticket_id'] ?? 0),
                     'ticket_no' => (string) ($row['ticket_no'] ?? ''),
-                    'created_at' => (string) ($row['created_at'] ?? ''),
+                    'created_at' => $createdAt,
+                    'date_label' => $createdTs !== false ? date('d/m/Y H:i', $createdTs) : '-',
                     'tone' => $score <= 2 ? 'danger' : ($score === 3 ? 'warning' : 'success'),
                 ];
             },

@@ -237,12 +237,12 @@ $distColors = [5 => '#10b981', 4 => '#84cc16', 3 => '#f59e0b', 2 => '#f97316', 1
                     <caption class="sr-only">ความคิดเห็นจากผู้แจ้ง เรียงคะแนนน้อยสุดก่อน</caption>
                     <thead>
                     <tr>
-                        <th>คะแนน</th>
-                        <th>ความคิดเห็น</th>
-                        <th>ช่าง</th>
-                        <th>หมวดหมู่</th>
-                        <th>วันที่</th>
-                        <th>เลขที่ Ticket</th>
+                        <th data-sort-col="0" data-sort-type="number">คะแนน</th>
+                        <th data-sort-col="1">ความคิดเห็น</th>
+                        <th data-sort-col="2">ช่าง</th>
+                        <th data-sort-col="3">หมวดหมู่</th>
+                        <th data-sort-col="4" data-sort-type="date">วันที่</th>
+                        <th data-sort-col="5">เลขที่ Ticket</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -252,7 +252,7 @@ $distColors = [5 => '#10b981', 4 => '#84cc16', 3 => '#f59e0b', 2 => '#f97316', 1
                             <td style="max-width:420px; white-space:normal;"><?= e((string) $item['feedback']) ?></td>
                             <td><?= e((string) $item['technician_name']) ?></td>
                             <td><?= e((string) $item['category_name']) ?></td>
-                            <td><?= e(human_date((string) $item['created_at'])) ?></td>
+                            <td><?= e((string) $item['date_label']) ?></td>
                             <td>
                                 <?php if ((int) $item['ticket_id'] > 0): ?>
                                     <a href="<?= e(url('/tickets/' . (int) $item['ticket_id'])) ?>"><?= e((string) $item['ticket_no']) ?></a>
