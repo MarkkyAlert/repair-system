@@ -32,6 +32,7 @@ class DashboardController
             'csat' => $dashboard['csat'],
             'primaryCta' => $dashboard['primaryCta'],
             'cronHealth' => $dashboard['cronHealth'],
+            'setupChecklist' => $dashboard['setupChecklist'],
             'urgentAlerts' => $dashboard['urgentAlerts'],
             'chartSummaries' => $dashboard['chartSummaries'],
         ]);

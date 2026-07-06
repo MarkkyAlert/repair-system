@@ -83,6 +83,7 @@ class TicketService
             'charts' => $charts,
             'primaryCta' => $this->buildDashboardPrimaryCta((string) ($viewer['role'] ?? 'guest')),
             'cronHealth' => $this->buildDashboardCronHealth((string) ($viewer['role'] ?? 'guest')),
+            'setupChecklist' => $this->buildAdminSetupChecklist((string) ($viewer['role'] ?? 'guest')),
             'urgentAlerts' => $this->buildDashboardUrgentAlerts($formattedMetrics),
             'chartSummaries' => $this->buildDashboardChartSummaries($charts),
             'highlights' => [
@@ -143,6 +144,59 @@ class TicketService
         }
 
         return $stale;
+    }
+
+    /**
+     * Admin-only: checklist แนะนำตั้งค่าหลัง setup (5 ข้อ + สถานะ done + ลิงก์ไปตั้งค่า). ว่างถ้าไม่ใช่ admin.
+     * @return array{items: array<int, array>, done_count: int, total: int, complete: bool}|array{}
+     */
+    private function buildAdminSetupChecklist(string $role): array
+    {
+        if ($role !== 'admin') {
+            return [];
+        }
+
+        $items = [
+            [
+                'key' => 'mail', 'icon' => 'send', 'label' => 'ตั้งค่าอีเมล (SMTP)',
+                'hint' => 'เพื่อส่งอีเมลแจ้งเตือนและรีเซ็ตรหัสผ่าน',
+                'done' => strtolower((string) config('mail.driver', 'log')) !== 'log',
+                'href' => '/admin#tab-email', 'cta' => 'ตั้งค่าอีเมล',
+            ],
+            [
+                'key' => 'logo', 'icon' => 'settings', 'label' => 'อัปโหลดโลโก้องค์กร',
+                'hint' => 'แสดงบนหัวระบบ หน้าเข้าสู่ระบบ และรายงาน PDF',
+                'done' => branding_logo_url() !== null,
+                'href' => '/admin#tab-settings', 'cta' => 'ใส่โลโก้',
+            ],
+            [
+                'key' => 'users', 'icon' => 'users', 'label' => 'เพิ่มผู้ใช้และช่างเทคนิค',
+                'hint' => 'สร้างบัญชีช่างเพื่อรับและปิดงาน',
+                'done' => $this->reads->countTechnicians() >= 1,
+                'href' => '/admin#tab-users', 'cta' => 'เพิ่มผู้ใช้',
+            ],
+            [
+                'key' => 'data', 'icon' => 'clipboard-list', 'label' => 'มีข้อมูลในระบบ',
+                'hint' => 'โหลดข้อมูลตัวอย่างเพื่อทดลอง หรือเริ่มแจ้งซ่อมจริง',
+                'done' => $this->reads->countAllTickets() > 0,
+                'href' => '/admin#tab-settings', 'cta' => 'โหลดตัวอย่าง',
+            ],
+            [
+                'key' => 'cron', 'icon' => 'refresh-cw', 'label' => 'ตั้ง cron ให้ทำงานอัตโนมัติ',
+                'hint' => 'ส่งคิวอีเมล · ตรวจ SLA เกินกำหนด · สำรองข้อมูล',
+                'done' => $this->buildDashboardCronHealth('admin') === [],
+                'href' => '/dashboard', 'cta' => 'ดูสถานะ cron',
+            ],
+        ];
+
+        $doneCount = count(array_filter($items, static fn (array $item): bool => (bool) $item['done']));
+
+        return [
+            'items' => $items,
+            'done_count' => $doneCount,
+            'total' => count($items),
+            'complete' => $doneCount === count($items),
+        ];
     }
 
     /** Urgent-work alerts shown above the dashboard (view-model). */

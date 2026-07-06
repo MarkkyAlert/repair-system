@@ -256,6 +256,13 @@ class AdminController
         }, 'อัปเดตโลโก้องค์กรเรียบร้อยแล้ว');
     }
 
+    public function dismissSetupChecklist(): void
+    {
+        $this->adminUpdate(function (array $viewer): void {
+            $this->systemSettings->dismissSetupChecklist($viewer);
+        }, 'ซ่อนรายการเริ่มต้นใช้งานแล้ว', '/dashboard');
+    }
+
     public function broadcastForm(): void
     {
         AuthMiddleware::handle();

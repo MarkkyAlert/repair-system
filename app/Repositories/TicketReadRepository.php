@@ -704,6 +704,12 @@ class TicketReadRepository
         return (int) $this->db->query('SELECT COUNT(*) FROM tickets')->fetchColumn();
     }
 
+    /** จำนวนช่างเทคนิคที่ใช้งานอยู่ — ใช้เช็ค checklist "เพิ่มผู้ใช้/ช่าง". */
+    public function countTechnicians(): int
+    {
+        return (int) $this->db->query("SELECT COUNT(*) FROM users WHERE role = 'technician' AND is_active = 1")->fetchColumn();
+    }
+
     public function getMaxVisibleTicketId(array $viewer): int
     {
         $params = [];

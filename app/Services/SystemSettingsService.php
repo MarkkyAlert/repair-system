@@ -41,6 +41,13 @@ class SystemSettingsService
     ) {
     }
 
+    /** ซ่อนการ์ด checklist เริ่มต้นใช้งานบน dashboard (flag รวมทั้งระบบ). */
+    public function dismissSetupChecklist(array $viewer): void
+    {
+        assert_admin($viewer);
+        $this->settings->upsert('admin_setup_checklist_dismissed', '1', 'bool', false, (int) ($viewer['id'] ?? 0));
+    }
+
     public function updateSetting(array $viewer, array $input): void
     {
         assert_admin($viewer);

@@ -43,6 +43,36 @@ $metricCount = static fn (string $key): int => max(0, (int) ($metrics[$key] ?? 0
         'actions' => $heroActions,
     ]) ?>
 
+    <?php if (!empty($setupChecklist['items']) && empty($setupChecklist['complete']) && !setting('admin_setup_checklist_dismissed', false)): ?>
+        <section class="panel-card stack-md" aria-label="รายการตั้งค่าเริ่มต้นใช้งาน">
+            <div class="panel-head">
+                <div>
+                    <h2 class="panel-title">เริ่มต้นใช้งาน · ตั้งค่าที่แนะนำหลังติดตั้ง</h2>
+                    <p class="field-hint">ทำครบเพื่อให้ระบบพร้อมใช้งานเต็มที่ — เสร็จแล้ว <?= (int) $setupChecklist['done_count'] ?>/<?= (int) $setupChecklist['total'] ?></p>
+                </div>
+                <form method="post" action="<?= e(url('/admin/setup-checklist/dismiss')) ?>">
+                    <?= csrf_field() ?>
+                    <button type="submit" class="btn btn-ghost btn-sm"><span>ซ่อน</span></button>
+                </form>
+            </div>
+            <div class="stack-md">
+                <?php foreach ($setupChecklist['items'] as $item): ?>
+                    <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                        <span style="display:inline-flex; align-items:center; gap:8px; min-width:230px;">
+                            <?= lucide($item['done'] ? 'check-circle' : (string) $item['icon'], 'h-5 w-5') ?>
+                            <strong><?= e((string) $item['label']) ?></strong>
+                        </span>
+                        <span class="badge badge-<?= $item['done'] ? 'success' : 'warning' ?>"><?= $item['done'] ? 'เสร็จแล้ว' : 'ยังไม่ได้ตั้ง' ?></span>
+                        <span class="helper-text" style="flex:1; min-width:180px;"><?= e((string) $item['hint']) ?></span>
+                        <?php if (!$item['done']): ?>
+                            <a href="<?= e(url((string) $item['href'])) ?>" class="btn btn-ghost btn-sm"><span><?= e((string) $item['cta']) ?></span><?= lucide('chevron-right', 'button-icon') ?></a>
+                        <?php endif; ?>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        </section>
+    <?php endif; ?>
+
     <nav class="preset-bar" aria-label="ตัวกรองลัด Dashboard">
         <span class="helper-text">มุมมองด่วน</span>
         <a href="<?= e(url('/dashboard')) ?>" class="preset-chip<?= empty($filterState['preset']) ? ' is-active' : '' ?>"><?= lucide('layout-dashboard', 'h-3.5 w-3.5') ?> ทั้งหมด</a>
