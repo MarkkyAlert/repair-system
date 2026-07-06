@@ -129,6 +129,40 @@ test('backlog aging: rows sorted by >30 desc + total invariant across dimensions
     }
 });
 
+test('backlog aging: two technicians with the same full_name stay as separate rows (GROUP BY dim.id, not label)', function (): void {
+    $rid = bin2hex(random_bytes(4));
+    [$locId] = bla_location($rid);
+    $dupName = "ช่างชื่อซ้ำ $rid";
+    $ids = [];
+    $userIds = [];
+
+    try {
+        bla_pdo()->prepare(
+            'INSERT INTO users (username, email, password_hash, full_name, role, is_active)
+             VALUES (?, ?, "x", ?, "technician", 1), (?, ?, "x", ?, "technician", 1)'
+        )->execute(["bu1$rid", "bu1$rid@x.t", $dupName, "bu2$rid", "bu2$rid@x.t", $dupName]);
+        $userIds[] = $u1 = (int) bla_pdo()->query("SELECT id FROM users WHERE username = 'bu1$rid'")->fetchColumn();
+        $userIds[] = $u2 = (int) bla_pdo()->query("SELECT id FROM users WHERE username = 'bu2$rid'")->fetchColumn();
+
+        $ids[] = bla_ticket("BLD-$rid-1", $locId, 5, 'in_progress', $u1);
+        $ids[] = bla_ticket("BLD-$rid-2", $locId, 5, 'in_progress', $u2);
+
+        $rows = bla_service()->getBacklogAgingReportPage(['id' => 4, 'role' => 'admin'], ['dimension' => 'technician'])['rows'];
+        $dupRows = array_values(array_filter($rows, static fn (array $r): bool => $r['label'] === $dupName));
+        assert_same(2, count($dupRows), 'two same-named technicians produce two distinct rows, not one merged row');
+        assert_same(1, $dupRows[0]['total'], 'each technician keeps their own backlog count (not summed into one)');
+        assert_same(1, $dupRows[1]['total'], 'second same-named technician is a separate row');
+    } finally {
+        foreach ($ids as $id) {
+            bla_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
+        }
+        foreach ($userIds as $id) {
+            bla_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$id]);
+        }
+        bla_pdo()->prepare('DELETE FROM locations WHERE id = ?')->execute([$locId]);
+    }
+});
+
 test('backlog aging: export xlsx (1 sheet + dimension header) / pdf %PDF- / csv header', function (): void {
     $admin = ['id' => 4, 'role' => 'admin'];
     $baselineJobId = (int) bla_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM export_jobs')->fetchColumn();

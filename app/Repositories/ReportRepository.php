@@ -353,10 +353,10 @@ class ReportRepository
 
     // มิติที่ยอมให้ group SLA breach ได้ (whitelist กัน SQL-injection: dimension มาจาก user input)
     private const SLA_BREACH_DIMENSIONS = [
-        'priority' => ['join' => 'INNER JOIN priorities dim ON dim.id = t.priority_id', 'label' => 'dim.name', 'order' => 'dim.level DESC'],
-        'category' => ['join' => 'INNER JOIN ticket_categories dim ON dim.id = t.ticket_category_id', 'label' => 'dim.name', 'order' => 'dim.name ASC'],
-        'department' => ['join' => 'LEFT JOIN departments dim ON dim.id = t.requester_department_id', 'label' => "COALESCE(dim.name, 'ไม่ระบุแผนก')", 'order' => 'dim.name ASC'],
-        'location' => ['join' => 'INNER JOIN locations dim ON dim.id = t.location_id', 'label' => 'dim.name', 'order' => 'dim.name ASC'],
+        'priority' => ['join' => 'INNER JOIN priorities dim ON dim.id = t.priority_id', 'label' => 'dim.name', 'group' => 'dim.id', 'order' => 'dim.level DESC'],
+        'category' => ['join' => 'INNER JOIN ticket_categories dim ON dim.id = t.ticket_category_id', 'label' => 'dim.name', 'group' => 'dim.id', 'order' => 'dim.name ASC'],
+        'department' => ['join' => 'LEFT JOIN departments dim ON dim.id = t.requester_department_id', 'label' => "COALESCE(dim.name, 'ไม่ระบุแผนก')", 'group' => 'dim.id', 'order' => 'dim.name ASC'],
+        'location' => ['join' => 'INNER JOIN locations dim ON dim.id = t.location_id', 'label' => 'dim.name', 'group' => 'dim.id', 'order' => 'dim.name ASC'],
     ];
 
     /**
@@ -384,7 +384,7 @@ class ReportRepository
              INNER JOIN tickets t ON t.id = ts.ticket_id
              {$map['join']}
              WHERE $whereClause
-             GROUP BY dimension_label, ts.metric_type
+             GROUP BY {$map['group']}, ts.metric_type
              ORDER BY {$map['order']}"
         );
         $stmt->execute($params);
@@ -564,8 +564,8 @@ class ReportRepository
 
     // มิติที่ยอมให้ group Problem Hotspot ได้ (whitelist กัน SQL-injection)
     private const HOTSPOT_DIMENSIONS = [
-        'department' => ['join' => 'LEFT JOIN departments dim ON dim.id = t.requester_department_id', 'label' => "COALESCE(dim.name, 'ไม่ระบุแผนก')"],
-        'location' => ['join' => 'INNER JOIN locations dim ON dim.id = t.location_id', 'label' => 'dim.name'],
+        'department' => ['join' => 'LEFT JOIN departments dim ON dim.id = t.requester_department_id', 'label' => "COALESCE(dim.name, 'ไม่ระบุแผนก')", 'group' => 'dim.id'],
+        'location' => ['join' => 'INNER JOIN locations dim ON dim.id = t.location_id', 'label' => 'dim.name', 'group' => 'dim.id'],
     ];
 
     /**
@@ -604,7 +604,7 @@ class ReportRepository
              LEFT JOIN work_orders wo ON wo.ticket_id = t.id
              {$map['join']}
              WHERE $whereClause
-             GROUP BY dimension_label
+             GROUP BY {$map['group']}
              ORDER BY ticket_count DESC"
         );
         $stmt->execute($params);
@@ -705,11 +705,11 @@ class ReportRepository
 
     // มิติที่ยอมให้ group Backlog Aging ได้ (whitelist กัน SQL-injection). status → label ดิบ (service map ไทย).
     private const BACKLOG_DIMENSIONS = [
-        'priority' => ['join' => 'INNER JOIN priorities dim ON dim.id = t.priority_id', 'label' => 'dim.name'],
-        'status' => ['join' => '', 'label' => 't.status'],
-        'technician' => ['join' => 'LEFT JOIN users dim ON dim.id = t.assigned_technician_id', 'label' => "COALESCE(dim.full_name, 'ยังไม่มอบหมาย')"],
-        'department' => ['join' => 'LEFT JOIN departments dim ON dim.id = t.requester_department_id', 'label' => "COALESCE(dim.name, 'ไม่ระบุแผนก')"],
-        'location' => ['join' => 'INNER JOIN locations dim ON dim.id = t.location_id', 'label' => 'dim.name'],
+        'priority' => ['join' => 'INNER JOIN priorities dim ON dim.id = t.priority_id', 'label' => 'dim.name', 'group' => 'dim.id'],
+        'status' => ['join' => '', 'label' => 't.status', 'group' => 't.status'],
+        'technician' => ['join' => 'LEFT JOIN users dim ON dim.id = t.assigned_technician_id', 'label' => "COALESCE(dim.full_name, 'ยังไม่มอบหมาย')", 'group' => 'dim.id'],
+        'department' => ['join' => 'LEFT JOIN departments dim ON dim.id = t.requester_department_id', 'label' => "COALESCE(dim.name, 'ไม่ระบุแผนก')", 'group' => 'dim.id'],
+        'location' => ['join' => 'INNER JOIN locations dim ON dim.id = t.location_id', 'label' => 'dim.name', 'group' => 'dim.id'],
     ];
 
     /**
@@ -740,7 +740,7 @@ class ReportRepository
              FROM tickets t
              {$map['join']}
              WHERE $whereClause
-             GROUP BY dimension_label"
+             GROUP BY {$map['group']}"
         );
         $stmt->execute($params);
 
@@ -749,11 +749,11 @@ class ReportRepository
 
     // มิติที่ยอมให้ group Reopen/FTF ได้ (whitelist กัน SQL-injection)
     private const REOPEN_DIMENSIONS = [
-        'technician' => ['join' => 'LEFT JOIN users dim ON dim.id = t.assigned_technician_id', 'label' => "COALESCE(dim.full_name, 'ยังไม่มอบหมาย')"],
-        'category' => ['join' => 'INNER JOIN ticket_categories dim ON dim.id = t.ticket_category_id', 'label' => 'dim.name'],
-        'priority' => ['join' => 'INNER JOIN priorities dim ON dim.id = t.priority_id', 'label' => 'dim.name'],
-        'department' => ['join' => 'LEFT JOIN departments dim ON dim.id = t.requester_department_id', 'label' => "COALESCE(dim.name, 'ไม่ระบุแผนก')"],
-        'location' => ['join' => 'INNER JOIN locations dim ON dim.id = t.location_id', 'label' => 'dim.name'],
+        'technician' => ['join' => 'LEFT JOIN users dim ON dim.id = t.assigned_technician_id', 'label' => "COALESCE(dim.full_name, 'ยังไม่มอบหมาย')", 'group' => 'dim.id'],
+        'category' => ['join' => 'INNER JOIN ticket_categories dim ON dim.id = t.ticket_category_id', 'label' => 'dim.name', 'group' => 'dim.id'],
+        'priority' => ['join' => 'INNER JOIN priorities dim ON dim.id = t.priority_id', 'label' => 'dim.name', 'group' => 'dim.id'],
+        'department' => ['join' => 'LEFT JOIN departments dim ON dim.id = t.requester_department_id', 'label' => "COALESCE(dim.name, 'ไม่ระบุแผนก')", 'group' => 'dim.id'],
+        'location' => ['join' => 'INNER JOIN locations dim ON dim.id = t.location_id', 'label' => 'dim.name', 'group' => 'dim.id'],
     ];
 
     /**
@@ -791,7 +791,7 @@ class ReportRepository
              {$map['join']}
              LEFT JOIN ticket_activity_logs ro ON ro.ticket_id = r.ticket_id AND ro.action = 'ticket_reopened'
              WHERE $whereClause
-             GROUP BY dimension_label"
+             GROUP BY {$map['group']}"
         );
         $stmt->execute($params);
 
@@ -800,11 +800,11 @@ class ReportRepository
 
     // มิติที่ยอมให้ group CSAT ได้ (whitelist กัน SQL-injection). technician = ช่างที่ "ถูกให้คะแนน" จริง (tr.technician_id).
     private const CSAT_DIMENSIONS = [
-        'technician' => ['join' => 'LEFT JOIN users dim ON dim.id = tr.technician_id', 'label' => "COALESCE(dim.full_name, 'ไม่ระบุช่าง')"],
-        'category' => ['join' => 'INNER JOIN ticket_categories dim ON dim.id = t.ticket_category_id', 'label' => 'dim.name'],
-        'priority' => ['join' => 'INNER JOIN priorities dim ON dim.id = t.priority_id', 'label' => 'dim.name'],
-        'department' => ['join' => 'LEFT JOIN departments dim ON dim.id = t.requester_department_id', 'label' => "COALESCE(dim.name, 'ไม่ระบุแผนก')"],
-        'location' => ['join' => 'INNER JOIN locations dim ON dim.id = t.location_id', 'label' => 'dim.name'],
+        'technician' => ['join' => 'LEFT JOIN users dim ON dim.id = tr.technician_id', 'label' => "COALESCE(dim.full_name, 'ไม่ระบุช่าง')", 'group' => 'dim.id'],
+        'category' => ['join' => 'INNER JOIN ticket_categories dim ON dim.id = t.ticket_category_id', 'label' => 'dim.name', 'group' => 'dim.id'],
+        'priority' => ['join' => 'INNER JOIN priorities dim ON dim.id = t.priority_id', 'label' => 'dim.name', 'group' => 'dim.id'],
+        'department' => ['join' => 'LEFT JOIN departments dim ON dim.id = t.requester_department_id', 'label' => "COALESCE(dim.name, 'ไม่ระบุแผนก')", 'group' => 'dim.id'],
+        'location' => ['join' => 'INNER JOIN locations dim ON dim.id = t.location_id', 'label' => 'dim.name', 'group' => 'dim.id'],
     ];
 
     /** WHERE ร่วมของทุก query CSAT: visibility + dept/category (บน t) + date window บน tr.created_at (ตอนให้คะแนน). */
@@ -848,7 +848,7 @@ class ReportRepository
              INNER JOIN tickets t ON t.id = tr.ticket_id
              {$map['join']}
              WHERE $whereClause
-             GROUP BY dimension_label"
+             GROUP BY {$map['group']}"
         );
         $stmt->execute($params);
 
