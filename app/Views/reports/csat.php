@@ -7,7 +7,7 @@ $distColors = [5 => '#10b981', 4 => '#84cc16', 3 => '#f59e0b', 2 => '#f97316', 1
     <?= render_partial('partials/components/page-header', [
         'eyebrow' => 'เสียงลูกค้า / ควบคุมคุณภาพบริการ',
         'title' => 'ความพึงพอใจลูกค้า (CSAT)',
-        'description' => 'กระจายคะแนน · เจาะว่าช่าง/หมวดไหนคะแนนแย่สุด · อ่าน feedback จริงจากผู้แจ้ง',
+        'description' => 'กระจายคะแนน · เจาะว่าช่าง/หมวดไหนคะแนนแย่สุด · อ่านความคิดเห็นจริงจากผู้แจ้ง',
     ]) ?>
 
     <div class="action-bar">
@@ -125,7 +125,7 @@ $distColors = [5 => '#10b981', 4 => '#84cc16', 3 => '#f59e0b', 2 => '#f97316', 1
     <div class="action-bar report-export-bar">
         <div class="action-bar-left">
             <strong>ความพึงพอใจ แยกตาม<?= e($dimensionLabel) ?></strong>
-            <span class="helper-text">เลือกรูปแบบไฟล์เพื่อดาวน์โหลด (Excel มี sheet feedback ด้วย · PDF · CSV)</span>
+            <span class="helper-text">เลือกรูปแบบไฟล์เพื่อดาวน์โหลด (Excel มีแผ่นงานความคิดเห็นด้วย · PDF · CSV)</span>
         </div>
         <div class="action-bar-right">
             <details class="export-dropdown">
@@ -223,7 +223,7 @@ $distColors = [5 => '#10b981', 4 => '#84cc16', 3 => '#f59e0b', 2 => '#f97316', 1
     <section class="panel-card stack-md">
         <div class="panel-head">
             <div>
-                <h2 class="panel-title">เสียงจากลูกค้า (feedback)</h2>
+                <h2 class="panel-title">เสียงจากลูกค้า (ความคิดเห็น)</h2>
                 <p class="field-hint">ความคิดเห็นที่ผู้แจ้งเขียนไว้ เรียงคะแนนแย่ก่อน (แสดงสูงสุด 100 รายการ — ดาวน์โหลด Excel เพื่อดูมากขึ้น สูงสุด 500)</p>
             </div>
             <?php if (!empty($feedback)): ?>
@@ -242,7 +242,7 @@ $distColors = [5 => '#10b981', 4 => '#84cc16', 3 => '#f59e0b', 2 => '#f97316', 1
                         <th>ช่าง</th>
                         <th>หมวดหมู่</th>
                         <th>วันที่</th>
-                        <th>Ticket</th>
+                        <th>เลขที่ Ticket</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -269,7 +269,7 @@ $distColors = [5 => '#10b981', 4 => '#84cc16', 3 => '#f59e0b', 2 => '#f97316', 1
             <?= render_partial('partials/components/empty-state', [
                 'icon' => 'message-circle',
                 'title' => 'ยังไม่มีความคิดเห็น',
-                'description' => 'รีวิวในเงื่อนไขนี้ยังไม่มีข้อความ feedback แนบมา',
+                'description' => 'รีวิวในเงื่อนไขนี้ยังไม่มีความคิดเห็นแนบมา',
             ]) ?>
         <?php endif; ?>
     </section>

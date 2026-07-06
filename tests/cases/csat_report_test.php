@@ -252,9 +252,9 @@ test('csat: export csv/pdf = breakdown, excel = 2 sheets (breakdown + feedback)'
         $book = IOFactory::createReader('Xlsx')->load($tmp);
         assert_same(2, $book->getSheetCount(), 'two sheets');
         assert_same('ความพึงพอใจ', $book->getSheetNames()[0], 'sheet 1 = breakdown');
-        assert_same('feedback', $book->getSheetNames()[1], 'sheet 2 = feedback');
+        assert_same('ความคิดเห็น', $book->getSheetNames()[1], 'sheet 2 = feedback (Thai title)');
         assert_same('ช่าง', (string) $book->getSheet(0)->getCell('A1')->getValue(), 'breakdown first header = dimension');
-        assert_same('Ticket', (string) $book->getSheet(1)->getCell('A1')->getValue(), 'feedback first header = Ticket');
+        assert_same('เลขที่ Ticket', (string) $book->getSheet(1)->getCell('A1')->getValue(), 'feedback first header = ticket number');
         assert_same('ความคิดเห็น', (string) $book->getSheet(1)->getCell('C1')->getValue(), 'feedback carries the comment column');
         $book->disconnectWorksheets();
 

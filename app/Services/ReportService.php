@@ -2471,7 +2471,7 @@ class ReportService
 
     private function csatFeedbackExportHeaders(): array
     {
-        return ['Ticket', 'คะแนน', 'ความคิดเห็น', 'ช่าง', 'หมวดหมู่', 'วันที่'];
+        return ['เลขที่ Ticket', 'คะแนน', 'ความคิดเห็น', 'ช่าง', 'หมวดหมู่', 'วันที่'];
     }
 
     private function csatFeedbackExportRow(array $row): array
@@ -2540,7 +2540,7 @@ class ReportService
             // Sheet 2 — feedback ดิบ (คะแนนแย่ก่อน) — ใช้ helper ร่วม (sanitize ในตัว)
             $this->addExcelSheet(
                 $spreadsheet,
-                'feedback',
+                'ความคิดเห็น',
                 $this->csatFeedbackExportHeaders(),
                 array_map(fn (array $row): array => $this->csatFeedbackExportRow($row), $feedback)
             );
