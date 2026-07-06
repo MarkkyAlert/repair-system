@@ -68,8 +68,8 @@
         <th class="num">สัดส่วนโหลด</th>
         <th class="num">ค้างเก่าสุด</th>
         <th class="num">รับ</th>
-        <th class="num">ปิด</th>
-        <th class="num">อัตราปิด</th>
+        <th class="num">ปิดงาน</th>
+        <th class="num">อัตราปิดงาน</th>
         <th class="num">SLA ตรงเวลา</th>
         <th class="num">ตอบรับ (ชม.)</th>
         <th class="num">เวลาซ่อมเฉลี่ย (ชม.)</th>

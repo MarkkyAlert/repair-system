@@ -744,7 +744,7 @@ class ReportService
     private function technicianPerformanceExportHeaders(): array
     {
         return [
-            'ช่าง', 'งานค้างปัจจุบัน', 'สัดส่วนโหลด', 'ค้างเก่าสุด', 'รับ', 'ปิด', 'อัตราปิด',
+            'ช่าง', 'งานค้างปัจจุบัน', 'สัดส่วนโหลด', 'ค้างเก่าสุด', 'รับ', 'ปิดงาน', 'อัตราปิดงาน',
             'SLA ตรงเวลา', 'เวลาตอบรับ (ชม.)', 'เวลาซ่อมเฉลี่ย (ชม.)', 'คะแนน', 'ชม.แรงงาน',
         ];
     }
@@ -2706,7 +2706,7 @@ class ReportService
         $this->addExcelSheet($spreadsheet, 'SLA ตรงตามกำหนด', ['ระดับความสำคัญ', 'ตอบรับ ตรง', 'ตอบรับ เกิน', 'ตอบรับ %', 'แก้ไข ตรง', 'แก้ไข เกิน', 'แก้ไข %'], $slaRows);
 
         $this->addExcelSheet($spreadsheet, 'ผลงานช่างเทคนิค',
-            ['ช่าง', 'มอบหมาย', 'เสร็จ', 'ค้าง', 'อัตราปิดงาน', 'เวลาซ่อมเฉลี่ย (ชม.)', 'คะแนนเฉลี่ย', 'ชม.แรงงาน'],
+            ['ช่าง', 'มอบหมาย', 'ปิดงาน', 'ค้าง', 'อัตราปิดงาน', 'เวลาซ่อมเฉลี่ย (ชม.)', 'คะแนนเฉลี่ย', 'ชม.แรงงาน'],
             array_map(static fn (array $t): array => [$t['full_name'], $t['assigned'], $t['resolved'], $t['open'], $t['completion_label'], $t['mttr_hours_label'], $t['avg_rating_label'], $t['labor_hours_label']], $analytics['technicianPerformance'] ?? []));
 
         $this->addExcelSheet($spreadsheet, 'ชั่วโมงแรงงาน',

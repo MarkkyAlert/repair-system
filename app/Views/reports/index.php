@@ -69,7 +69,7 @@ $isCapped = !empty($rowsMeta['capped']);
             'tone' => 'default',
         ]) ?>
         <?= render_partial('partials/components/card', [
-            'title' => 'แก้ไข/เสร็จสิ้น',
+            'title' => 'ปิดงาน',
             'value' => (string) ($summary['resolved'] ?? 0),
             'meta' => 'ปริมาณงานที่ปิดแล้ว',
             'tone' => 'success',
@@ -231,7 +231,7 @@ $isCapped = !empty($rowsMeta['capped']);
                     <tr>
                         <th data-sort-col="0">ช่าง</th>
                         <th data-sort-col="1" data-sort-type="number">มอบหมาย</th>
-                        <th data-sort-col="2" data-sort-type="number">เสร็จ</th>
+                        <th data-sort-col="2" data-sort-type="number">ปิดงาน</th>
                         <th data-sort-col="3" data-sort-type="number">ค้าง</th>
                         <th data-sort-col="4" data-sort-type="number">อัตราปิดงาน</th>
                         <th data-sort-col="5" data-sort-type="number">เวลาซ่อมเฉลี่ย (ชม.)</th>

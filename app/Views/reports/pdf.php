@@ -54,7 +54,7 @@
         <div class="summary-value"><?= e((string) ($summary['total'] ?? 0)) ?></div>
     </div>
     <div class="summary-item">
-        <div class="summary-title">แก้ไข/เสร็จสิ้น</div>
+        <div class="summary-title">ปิดงาน</div>
         <div class="summary-value"><?= e((string) ($summary['resolved'] ?? 0)) ?></div>
     </div>
     <div class="summary-item">
@@ -120,7 +120,7 @@
         <tr>
             <th>ช่าง</th>
             <th class="num">มอบหมาย</th>
-            <th class="num">เสร็จ</th>
+            <th class="num">ปิดงาน</th>
             <th class="num">ค้าง</th>
             <th class="num">อัตราปิดงาน</th>
             <th class="num">เวลาซ่อมเฉลี่ย (ชม.)</th>

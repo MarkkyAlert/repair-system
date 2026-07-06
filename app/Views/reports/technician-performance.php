@@ -162,8 +162,8 @@ $filterState = $filters['selected'] ?? [];
                         <th data-sort-col="2" data-sort-type="number">สัดส่วนโหลด</th>
                         <th data-sort-col="3" data-sort-type="number">ค้างเก่าสุด</th>
                         <th data-sort-col="4" data-sort-type="number">รับ</th>
-                        <th data-sort-col="5" data-sort-type="number">ปิด</th>
-                        <th data-sort-col="6" data-sort-type="number">อัตราปิด</th>
+                        <th data-sort-col="5" data-sort-type="number">ปิดงาน</th>
+                        <th data-sort-col="6" data-sort-type="number">อัตราปิดงาน</th>
                         <th data-sort-col="7" data-sort-type="number">SLA ตรงเวลา</th>
                         <th data-sort-col="8" data-sort-type="number">เวลาตอบรับ (ชม.)</th>
                         <th data-sort-col="9" data-sort-type="number">เวลาซ่อมเฉลี่ย (ชม.)</th>
