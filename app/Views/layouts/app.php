@@ -68,7 +68,11 @@
                     <span class="nav-label">ทรัพย์สินและ QR</span>
                 </a>
                 <p class="nav-section-label">ภาพรวม & ผู้บริหาร</p>
-                <a href="<?= e(url('/reports')) ?>" class="nav-link nav-link-sub<?= $isReportsPath && !is_path('/reports/asset-reliability') && !is_path('/reports/sla-breach') && !is_path('/reports/technician-performance') && !is_path('/reports/problem-hotspot') && !is_path('/reports/trend') && !is_path('/reports/executive') && !is_path('/reports/backlog-aging') && !is_path('/reports/reopen-rate') && !is_path('/reports/csat') ? ' is-active' : '' ?>" data-tooltip="รายงานรวม">
+                <a href="<?= e(url('/reports/guide')) ?>" class="nav-link nav-link-sub<?= is_path('/reports/guide') ? ' is-active' : '' ?>" data-tooltip="คู่มืออ่านรายงาน · เริ่มที่นี่">
+                    <?= lucide('file-text', 'nav-icon') ?>
+                    <span class="nav-label">คู่มืออ่านรายงาน</span>
+                </a>
+                <a href="<?= e(url('/reports')) ?>" class="nav-link nav-link-sub<?= $isReportsPath && !is_path('/reports/guide') && !is_path('/reports/asset-reliability') && !is_path('/reports/sla-breach') && !is_path('/reports/technician-performance') && !is_path('/reports/problem-hotspot') && !is_path('/reports/trend') && !is_path('/reports/executive') && !is_path('/reports/backlog-aging') && !is_path('/reports/reopen-rate') && !is_path('/reports/csat') ? ' is-active' : '' ?>" data-tooltip="รายงานรวม">
                     <?= lucide('bar-chart-3', 'nav-icon') ?>
                     <span class="nav-label">รายงานรวม</span>
                 </a>

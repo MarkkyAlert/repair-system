@@ -43,6 +43,24 @@ class ReportsController
         ]);
     }
 
+    /** คู่มืออ่านรายงาน — เนื้อหา static (ไม่มี query) gate manager/admin ให้ตรงกับเมนู+รายงานอื่น. */
+    public function guide(): void
+    {
+        AuthMiddleware::handle();
+
+        $viewer = auth()->user() ?? [];
+        if (!is_manager_or_admin((string) ($viewer['role'] ?? 'guest'))) {
+            flash('error', 'หน้านี้สงวนสำหรับผู้จัดการและผู้ดูแลระบบเท่านั้น');
+            Response::redirect('/dashboard');
+        }
+
+        Response::view('reports/guide', [
+            'title' => 'คู่มืออ่านรายงาน',
+            'pageHeading' => 'คู่มืออ่านรายงาน',
+            'currentUser' => $viewer,
+        ]);
+    }
+
     public function exportExcel(): void
     {
         AuthMiddleware::handle();
