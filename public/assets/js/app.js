@@ -492,42 +492,54 @@ document.addEventListener('DOMContentLoaded', () => {
         const chartType = canvas.getAttribute('data-chart-type') || 'bar';
         const chartData = payload[key || ''];
 
-        if (!chartData || !Array.isArray(chartData.labels) || !Array.isArray(chartData.data)) {
+        // Accept either a single series ({data:[]}) or multiple series ({datasets:[{label,data}]}).
+        const hasDatasets = Array.isArray(chartData.datasets);
+        if (!chartData || !Array.isArray(chartData.labels) || (!Array.isArray(chartData.data) && !hasDatasets)) {
           return;
         }
 
-        const dataset = {
-          label: chartData.label || 'Dataset',
-          data: chartData.data,
-          borderWidth: 2,
+        const styleDataset = (source, index) => {
+          const color = palette[index % palette.length];
+          const dataset = {
+            label: source.label || 'Dataset',
+            data: source.data,
+            borderWidth: 2,
+          };
+
+          if (chartType === 'line') {
+            dataset.borderColor = color;
+            dataset.backgroundColor = hasDatasets ? 'transparent' : 'rgba(79, 70, 229, 0.16)';
+            dataset.fill = !hasDatasets;
+            dataset.tension = 0.35;
+            dataset.pointRadius = 3;
+            dataset.spanGaps = true;
+          } else if (chartType === 'doughnut') {
+            dataset.backgroundColor = chartData.labels.map((_, i) => palette[i % palette.length]);
+            dataset.borderColor = root.classList.contains('dark') ? '#020617' : '#ffffff';
+          } else {
+            dataset.backgroundColor = color;
+            dataset.borderRadius = 8;
+          }
+
+          return dataset;
         };
 
-        if (chartType === 'line') {
-          dataset.borderColor = '#4f46e5';
-          dataset.backgroundColor = 'rgba(79, 70, 229, 0.16)';
-          dataset.fill = true;
-          dataset.tension = 0.35;
-          dataset.pointRadius = 3;
-        } else if (chartType === 'doughnut') {
-          dataset.backgroundColor = chartData.labels.map((_, index) => palette[index % palette.length]);
-          dataset.borderColor = root.classList.contains('dark') ? '#020617' : '#ffffff';
-        } else {
-          dataset.backgroundColor = '#4f46e5';
-          dataset.borderRadius = 8;
-        }
+        const datasets = hasDatasets
+          ? chartData.datasets.map((source, index) => styleDataset(source, index))
+          : [styleDataset({ label: chartData.label, data: chartData.data }, 0)];
 
         new window.Chart(canvas, {
           type: chartType,
           data: {
             labels: chartData.labels,
-            datasets: [dataset],
+            datasets: datasets,
           },
           options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
               legend: {
-                display: chartType === 'doughnut',
+                display: chartType === 'doughnut' || hasDatasets,
                 labels: {
                   color: textColor,
                 },

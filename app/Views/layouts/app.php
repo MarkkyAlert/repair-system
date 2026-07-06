@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?= e(asset('css/app.css')) ?>">
-    <?php if (is_path('/dashboard')): ?>
+    <?php if (is_path('/dashboard') || is_path('/reports/trend')): ?>
         <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
     <?php endif; ?>
 </head>
@@ -67,7 +67,7 @@
                     <?= lucide('qr-code', 'nav-icon') ?>
                     <span class="nav-label">ทรัพย์สินและ QR</span>
                 </a>
-                <a href="<?= e(url('/reports')) ?>" class="nav-link<?= $isReportsPath && !is_path('/reports/asset-reliability') && !is_path('/reports/sla-breach') && !is_path('/reports/technician-performance') && !is_path('/reports/problem-hotspot') ? ' is-active' : '' ?>" data-tooltip="รายงาน">
+                <a href="<?= e(url('/reports')) ?>" class="nav-link<?= $isReportsPath && !is_path('/reports/asset-reliability') && !is_path('/reports/sla-breach') && !is_path('/reports/technician-performance') && !is_path('/reports/problem-hotspot') && !is_path('/reports/trend') ? ' is-active' : '' ?>" data-tooltip="รายงาน">
                     <?= lucide('bar-chart-3', 'nav-icon') ?>
                     <span class="nav-label">รายงานและวิเคราะห์</span>
                 </a>
@@ -86,6 +86,10 @@
                 <a href="<?= e(url('/reports/problem-hotspot')) ?>" class="nav-link nav-link-sub<?= is_path('/reports/problem-hotspot') ? ' is-active' : '' ?>" data-tooltip="พื้นที่ปัญหา">
                     <?= lucide('map-pin', 'nav-icon') ?>
                     <span class="nav-label">พื้นที่ปัญหา</span>
+                </a>
+                <a href="<?= e(url('/reports/trend')) ?>" class="nav-link nav-link-sub<?= is_path('/reports/trend') ? ' is-active' : '' ?>" data-tooltip="แนวโน้มตามเวลา">
+                    <?= lucide('trending-up', 'nav-icon') ?>
+                    <span class="nav-label">แนวโน้ม</span>
                 </a>
             <?php endif; ?>
             <?php if ((string) ($viewer['role'] ?? 'guest') === 'admin'): ?>

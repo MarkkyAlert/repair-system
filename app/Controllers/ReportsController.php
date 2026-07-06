@@ -279,6 +279,51 @@ class ReportsController
         $this->downloadReport('exportProblemHotspotPdf', 'problem-hotspot.pdf', 'application/pdf', '/reports/problem-hotspot');
     }
 
+    public function trend(): void
+    {
+        AuthMiddleware::handle();
+
+        $viewer = auth()->user() ?? [];
+
+        try {
+            $data = $this->reports->getTicketTrendReportPage($viewer, request()?->query ?? []);
+        } catch (DomainException $exception) {
+            flash('error', $exception->getMessage());
+            Response::redirect('/dashboard');
+        }
+
+        Response::view('reports/trend', [
+            'title' => 'แนวโน้ม',
+            'pageHeading' => 'แนวโน้มงานซ่อมตามเวลา',
+            'currentUser' => $viewer,
+            'filters' => $data['filters'],
+            'summary' => $data['summary'],
+            'charts' => $data['charts'],
+            'periods' => $data['periods'],
+            'rowsMeta' => $data['rowsMeta'],
+        ]);
+    }
+
+    public function trendExportCsv(): void
+    {
+        $this->downloadReport('exportTicketTrendCsv', 'ticket-trend.csv', 'text/csv; charset=UTF-8', '/reports/trend');
+    }
+
+    public function trendExportExcel(): void
+    {
+        $this->downloadReport(
+            'exportTicketTrendExcel',
+            'ticket-trend.xlsx',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            '/reports/trend'
+        );
+    }
+
+    public function trendExportPdf(): void
+    {
+        $this->downloadReport('exportTicketTrendPdf', 'ticket-trend.pdf', 'application/pdf', '/reports/trend');
+    }
+
     /** ตัวช่วยรวม flow export ของรายงานย่อย (csrf + download + redirect กลับหน้าเดิมเมื่อ error). */
     private function downloadReport(string $serviceMethod, string $fallbackName, string $fallbackType, string $redirectPath): void
     {

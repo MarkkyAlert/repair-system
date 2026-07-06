@@ -598,6 +598,97 @@ class ReportRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    // granularity → SQL DATE_FORMAT (whitelist กัน injection: key sortable ตรงกับ PHP ที่ gen bucket ฝั่ง service)
+    private const TREND_GRANULARITY = [
+        'day' => '%Y-%m-%d',
+        'week' => '%x-%v',
+        'month' => '%Y-%m',
+    ];
+
+    /** dept/category/status เท่านั้น (ตัดวันที่ออก) — trend ใช้ date filter คนละคอลัมน์ต่อ query. */
+    private function applyTrendDimensionFilters(array &$conditions, array $filters, array &$params): void
+    {
+        $dateless = $filters;
+        $dateless['from_datetime'] = '';
+        $dateless['to_datetime'] = '';
+        $this->applyReportFilters($conditions, $dateless, $params);
+    }
+
+    /** ปริมาณ ticket ที่ "แจ้ง" ต่องวด — group by DATE_FORMAT(requested_at). date window บน requested_at. */
+    public function getTicketTrendCreated(array $viewer, array $filters, string $granularity): array
+    {
+        $fmt = self::TREND_GRANULARITY[$granularity] ?? self::TREND_GRANULARITY['month'];
+        $from = is_string($filters['from_datetime'] ?? null) ? trim((string) $filters['from_datetime']) : '';
+        $to = is_string($filters['to_datetime'] ?? null) ? trim((string) $filters['to_datetime']) : '';
+
+        $params = [];
+        $conditions = [$this->visibilityClause($viewer, $params)];
+        $this->applyTrendDimensionFilters($conditions, $filters, $params);
+        if ($from !== '') {
+            $conditions[] = 't.requested_at >= :trend_from';
+            $params['trend_from'] = $from;
+        }
+        if ($to !== '') {
+            $conditions[] = 't.requested_at <= :trend_to';
+            $params['trend_to'] = $to;
+        }
+        $whereClause = implode(' AND ', $conditions);
+
+        $stmt = $this->db->prepare(
+            "SELECT DATE_FORMAT(t.requested_at, '$fmt') AS bucket, COUNT(*) AS created
+             FROM tickets t
+             WHERE $whereClause
+             GROUP BY bucket
+             ORDER BY bucket"
+        );
+        $stmt->execute($params);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /**
+     * งานที่ "ปิด" ต่องวด + MTTR + SLA ตรงเวลา + CSAT — group by DATE_FORMAT(resolved_at). date window บน
+     * resolved_at. ticket-level ไม่ fan-out (ticket_ratings 1:1). SLA base = ที่มี resolution_due_at.
+     */
+    public function getTicketTrendResolved(array $viewer, array $filters, string $granularity): array
+    {
+        $fmt = self::TREND_GRANULARITY[$granularity] ?? self::TREND_GRANULARITY['month'];
+        $from = is_string($filters['from_datetime'] ?? null) ? trim((string) $filters['from_datetime']) : '';
+        $to = is_string($filters['to_datetime'] ?? null) ? trim((string) $filters['to_datetime']) : '';
+
+        $params = [];
+        $conditions = [$this->visibilityClause($viewer, $params), 't.resolved_at IS NOT NULL'];
+        $this->applyTrendDimensionFilters($conditions, $filters, $params);
+        if ($from !== '') {
+            $conditions[] = 't.resolved_at >= :trend_from';
+            $params['trend_from'] = $from;
+        }
+        if ($to !== '') {
+            $conditions[] = 't.resolved_at <= :trend_to';
+            $params['trend_to'] = $to;
+        }
+        $whereClause = implode(' AND ', $conditions);
+
+        $stmt = $this->db->prepare(
+            "SELECT
+                DATE_FORMAT(t.resolved_at, '$fmt') AS bucket,
+                COUNT(*) AS resolved,
+                ROUND(AVG(TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at)), 1) AS mttr_minutes,
+                SUM(CASE WHEN t.resolution_due_at IS NOT NULL THEN 1 ELSE 0 END) AS sla_base,
+                SUM(CASE WHEN t.resolution_due_at IS NOT NULL AND t.resolved_at <= t.resolution_due_at THEN 1 ELSE 0 END) AS sla_on_time,
+                COALESCE(SUM(tr.score), 0) AS rating_sum,
+                COUNT(tr.score) AS rating_count
+             FROM tickets t
+             LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id
+             WHERE $whereClause
+             GROUP BY bucket
+             ORDER BY bucket"
+        );
+        $stmt->execute($params);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
     /**
      * ชั่วโมงแรงงานแยกตามหมวดงาน (จาก work_orders.labor_minutes) — ใช้ filter+visibility ชุดเดียวกับ report.
      * fan-out-free (work_orders UNIQUE(ticket_id) 1:1). HAVING labor_minutes>0 = โชว์เฉพาะหมวดที่มีแรงงานจริง.

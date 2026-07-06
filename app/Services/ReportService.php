@@ -1174,6 +1174,351 @@ class ReportService
         }
     }
 
+    // ===== Trend แนวโน้มตามเวลา (หน้าแยกเต็มตัว /reports/trend — กราฟ Chart.js) =====
+
+    private const TREND_GRANULARITIES = ['day', 'week', 'month'];
+    private const TREND_MONTHS_TH = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+
+    public function getTicketTrendReportPage(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+
+        $normalizedFilters = $this->normalizeTrendFilters($filters);
+        $reference = $this->reports->getFilterReferenceData();
+        $granularity = $normalizedFilters['granularity'];
+
+        $buckets = $this->trendBucketList($granularity, $normalizedFilters['from_date'], $normalizedFilters['to_date']);
+        $created = $this->indexByBucket($this->reports->getTicketTrendCreated($viewer, $normalizedFilters, $granularity));
+        $resolved = $this->indexByBucket($this->reports->getTicketTrendResolved($viewer, $normalizedFilters, $granularity));
+
+        $periods = [];
+        foreach ($buckets as $key => $label) {
+            $c = (int) ($created[$key]['created'] ?? 0);
+            $r = $resolved[$key] ?? [];
+            $resolvedCount = (int) ($r['resolved'] ?? 0);
+            $mttrMinutes = (float) ($r['mttr_minutes'] ?? 0);
+            $slaBase = (int) ($r['sla_base'] ?? 0);
+            $slaOnTime = (int) ($r['sla_on_time'] ?? 0);
+            $ratingCount = (int) ($r['rating_count'] ?? 0);
+            $ratingSum = (float) ($r['rating_sum'] ?? 0);
+
+            $slaPct = $slaBase > 0 ? round($slaOnTime / $slaBase * 100, 1) : null;
+            $mttrHours = $mttrMinutes > 0 ? round($mttrMinutes / 60, 1) : null;
+            $csat = $ratingCount > 0 ? round($ratingSum / $ratingCount, 2) : null;
+
+            $periods[] = [
+                'key' => $key,
+                'label' => $label,
+                'created' => $c,
+                'resolved' => $resolvedCount,
+                'net' => $c - $resolvedCount,
+                'sla_pct' => $slaPct,
+                'sla_pct_label' => $slaPct === null ? '-' : number_format($slaPct, 1) . '%',
+                'mttr_hours' => $mttrHours,
+                'mttr_hours_label' => $mttrHours === null ? '-' : number_format($mttrHours, 1),
+                'csat' => $csat,
+                'csat_label' => $csat === null ? '-' : number_format($csat, 2),
+            ];
+        }
+
+        $filterData = $this->buildFilterData($normalizedFilters, $reference);
+        $filterData['selected']['granularity'] = $granularity;
+        $filterData['granularityOptions'] = [
+            ['value' => 'month', 'label' => 'รายเดือน'],
+            ['value' => 'week', 'label' => 'รายสัปดาห์'],
+            ['value' => 'day', 'label' => 'รายวัน'],
+        ];
+
+        return [
+            'filters' => $filterData,
+            'summary' => $this->buildTrendSummary($periods),
+            'charts' => $this->buildTrendCharts($periods),
+            'periods' => $periods,
+            'rowsMeta' => ['displayed' => count($periods), 'granularity' => $granularity],
+        ];
+    }
+
+    /** @param array<int, array<string, mixed>> $rows @return array<string, array<string, mixed>> */
+    private function indexByBucket(array $rows): array
+    {
+        $indexed = [];
+        foreach ($rows as $row) {
+            $indexed[(string) ($row['bucket'] ?? '')] = $row;
+        }
+
+        return $indexed;
+    }
+
+    /** 4 กราฟ payload (shape เดียวกับ dashboard) — Volume ใช้ datasets 2 เส้น, ที่เหลือ single data. */
+    private function buildTrendCharts(array $periods): array
+    {
+        $labels = array_column($periods, 'label');
+        $created = array_column($periods, 'created');
+        $resolved = array_column($periods, 'resolved');
+        $sla = array_map(static fn (array $p) => $p['sla_pct'], $periods);
+        $mttr = array_map(static fn (array $p) => $p['mttr_hours'], $periods);
+        $csat = array_map(static fn (array $p) => $p['csat'], $periods);
+        $hasData = static fn (array $data): bool => array_sum(array_map(static fn ($v): float => (float) ($v ?? 0), $data)) > 0;
+
+        return [
+            'trendVolume' => [
+                'label' => 'ปริมาณงาน',
+                'labels' => $labels,
+                'datasets' => [
+                    ['label' => 'แจ้งซ่อม', 'data' => $created],
+                    ['label' => 'ปิดงาน', 'data' => $resolved],
+                ],
+                'has_data' => $hasData($created) || $hasData($resolved),
+            ],
+            'trendSla' => ['label' => 'SLA ตรงเวลา %', 'labels' => $labels, 'data' => $sla, 'has_data' => $hasData($sla)],
+            'trendMttr' => ['label' => 'เวลาซ่อมเฉลี่ย (ชม.)', 'labels' => $labels, 'data' => $mttr, 'has_data' => $hasData($mttr)],
+            'trendCsat' => ['label' => 'คะแนนเฉลี่ย', 'labels' => $labels, 'data' => $csat, 'has_data' => $hasData($csat)],
+        ];
+    }
+
+    /** งวดล่าสุด + Δ เทียบงวดก่อน (tone ตามทิศที่ "ดี": SLA/CSAT ขึ้น=ดี, MTTR ลง=ดี, created เป็นกลาง). */
+    private function buildTrendSummary(array $periods): array
+    {
+        $n = count($periods);
+        $last = $n > 0 ? $periods[$n - 1] : [];
+        $prev = $n > 1 ? $periods[$n - 2] : [];
+
+        return [
+            'latest_label' => (string) ($last['label'] ?? '-'),
+            'created' => $this->trendMetricCard((string) (($last['created'] ?? 0)), $last['created'] ?? null, $prev['created'] ?? null, 'neutral', 0),
+            'sla' => $this->trendMetricCard((string) ($last['sla_pct_label'] ?? '-'), $last['sla_pct'] ?? null, $prev['sla_pct'] ?? null, 'up_good', 1, '%'),
+            'mttr' => $this->trendMetricCard((string) ($last['mttr_hours_label'] ?? '-'), $last['mttr_hours'] ?? null, $prev['mttr_hours'] ?? null, 'down_good', 1, ' ชม.'),
+            'csat' => $this->trendMetricCard((string) ($last['csat_label'] ?? '-'), $last['csat'] ?? null, $prev['csat'] ?? null, 'up_good', 2),
+        ];
+    }
+
+    private function trendMetricCard(string $valueLabel, mixed $last, mixed $prev, string $goodDir, int $decimals, string $unit = ''): array
+    {
+        if ($last === null || $prev === null) {
+            return ['value' => $valueLabel, 'delta_label' => '—', 'tone' => 'default'];
+        }
+        $delta = round((float) $last - (float) $prev, $decimals);
+        $sign = $delta > 0 ? '+' : '';
+        $tone = 'default';
+        if ($goodDir === 'up_good') {
+            $tone = $delta > 0 ? 'success' : ($delta < 0 ? 'danger' : 'default');
+        } elseif ($goodDir === 'down_good') {
+            $tone = $delta < 0 ? 'success' : ($delta > 0 ? 'danger' : 'default');
+        }
+
+        return [
+            'value' => $valueLabel,
+            'delta_label' => $delta === 0.0 ? 'เท่าเดิม' : $sign . number_format($delta, $decimals) . $unit,
+            'tone' => $tone,
+        ];
+    }
+
+    private function normalizeTrendFilters(array $filters): array
+    {
+        $normalized = $this->normalizeReportFilters($filters);
+        $granularity = is_string($filters['granularity'] ?? null) ? trim((string) $filters['granularity']) : '';
+        $granularity = in_array($granularity, self::TREND_GRANULARITIES, true) ? $granularity : 'month';
+        $normalized['granularity'] = $granularity;
+
+        // default window ถ้าไม่ได้กรองวันที่ — ให้เห็น 12 งวดล่าสุด (day=30 วัน) เสมอ กันกราฟว่าง/ใหญ่เกิน
+        $to = $normalized['to_date'] !== '' ? $normalized['to_date'] : date('Y-m-d');
+        $from = $normalized['from_date'];
+        if ($from === '') {
+            $from = match ($granularity) {
+                'day' => date('Y-m-d', strtotime('-29 days', strtotime($to))),
+                'week' => date('Y-m-d', strtotime('-11 weeks', strtotime($to))),
+                default => date('Y-m-01', strtotime('-11 months', strtotime($to))),
+            };
+        }
+        $normalized['from_date'] = $from;
+        $normalized['to_date'] = $to;
+        $normalized['from_datetime'] = $from . ' 00:00:00';
+        $normalized['to_datetime'] = $to . ' 23:59:59';
+
+        return $normalized;
+    }
+
+    /** สร้าง bucket ที่คาดหวังทั้งช่วง (key ตรงกับ SQL DATE_FORMAT + label ไทย) — เพื่อ gap-fill งวดว่าง=0. */
+    private function trendBucketList(string $granularity, string $fromDate, string $toDate): array
+    {
+        try {
+            $cursor = new \DateTimeImmutable($fromDate);
+            $end = new \DateTimeImmutable($toDate);
+        } catch (\Throwable) {
+            return [];
+        }
+
+        if ($granularity === 'month') {
+            $cursor = $cursor->modify('first day of this month');
+        } elseif ($granularity === 'week') {
+            $cursor = $cursor->modify('monday this week');
+        }
+
+        $buckets = [];
+        $guard = 0;
+        while ($cursor <= $end && $guard < 400) {
+            [$key, $label] = $this->trendBucketKeyLabel($granularity, $cursor);
+            $buckets[$key] = $label;
+            $cursor = match ($granularity) {
+                'day' => $cursor->modify('+1 day'),
+                'week' => $cursor->modify('+1 week'),
+                default => $cursor->modify('first day of next month'),
+            };
+            $guard++;
+        }
+
+        return $buckets;
+    }
+
+    /** @return array{0: string, 1: string} [bucketKey, thaiLabel] */
+    private function trendBucketKeyLabel(string $granularity, \DateTimeInterface $d): array
+    {
+        if ($granularity === 'day') {
+            return [$d->format('Y-m-d'), $d->format('d/m')];
+        }
+        if ($granularity === 'week') {
+            return [$d->format('o-W'), $d->format('d/m')];
+        }
+
+        $key = $d->format('Y-m');
+        $label = self::TREND_MONTHS_TH[(int) $d->format('n') - 1] . ' ' . substr((string) ((int) $d->format('Y') + 543), -2);
+
+        return [$key, $label];
+    }
+
+    private function trendExportHeaders(): array
+    {
+        return ['ช่วงเวลา', 'แจ้งซ่อม', 'ปิดงาน', 'สุทธิ', 'SLA ตรงเวลา', 'เวลาซ่อมเฉลี่ย (ชม.)', 'คะแนนเฉลี่ย'];
+    }
+
+    private function trendExportRow(array $period): array
+    {
+        return [
+            $period['label'], $period['created'], $period['resolved'], $period['net'],
+            $period['sla_pct_label'], $period['mttr_hours_label'], $period['csat_label'],
+        ];
+    }
+
+    public function exportTicketTrendCsv(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+        $normalizedFilters = $this->normalizeTrendFilters($filters);
+        $periods = $this->getTicketTrendReportPage($viewer, $filters)['periods'];
+        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'ticket_trend_report', 'csv', $normalizedFilters);
+        $fileName = 'ticket-trend-' . date('Ymd-His') . '.csv';
+
+        try {
+            $stream = fopen('php://temp', 'w+b');
+            if ($stream === false) {
+                throw new RuntimeException('ไม่สามารถเตรียมไฟล์ CSV ได้');
+            }
+            fwrite($stream, "\xEF\xBB\xBF");
+            fputcsv($stream, $this->trendExportHeaders());
+            foreach ($periods as $period) {
+                fputcsv($stream, $this->sanitizeExportRow($this->trendExportRow($period)));
+            }
+            rewind($stream);
+            $content = (string) stream_get_contents($stream);
+            fclose($stream);
+            $this->reports->markExportJobCompleted($jobId, $fileName);
+
+            return ['content' => $content, 'file_name' => $fileName, 'content_type' => 'text/csv; charset=UTF-8'];
+        } catch (\Throwable $exception) {
+            $this->recordExportFailure($jobId, $exception);
+            throw new RuntimeException('ไม่สามารถสร้างไฟล์ CSV ได้', 0, $exception);
+        }
+    }
+
+    public function exportTicketTrendExcel(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+        $normalizedFilters = $this->normalizeTrendFilters($filters);
+        $periods = $this->getTicketTrendReportPage($viewer, $filters)['periods'];
+        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'ticket_trend_report', 'xlsx', $normalizedFilters);
+        $fileName = 'ticket-trend-' . date('Ymd-His') . '.xlsx';
+
+        try {
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+            $sheet->setTitle('แนวโน้ม');
+
+            $column = 'A';
+            foreach ($this->trendExportHeaders() as $header) {
+                $sheet->setCellValue($column . '1', $header);
+                $sheet->getColumnDimension($column)->setAutoSize(true);
+                $column++;
+            }
+
+            $rowNumber = 2;
+            foreach ($periods as $period) {
+                $sheet->fromArray($this->sanitizeExportRow($this->trendExportRow($period)), null, 'A' . $rowNumber);
+                $rowNumber++;
+            }
+
+            $writer = new Xlsx($spreadsheet);
+            ob_start();
+            $writer->save('php://output');
+            $content = (string) ob_get_clean();
+            $spreadsheet->disconnectWorksheets();
+            unset($spreadsheet);
+
+            $this->reports->markExportJobCompleted($jobId, $fileName);
+
+            return [
+                'content' => $content,
+                'file_name' => $fileName,
+                'content_type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ];
+        } catch (\Throwable $exception) {
+            $this->recordExportFailure($jobId, $exception);
+            throw new RuntimeException('ไม่สามารถสร้างไฟล์ Excel ได้', 0, $exception);
+        }
+    }
+
+    public function exportTicketTrendPdf(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+        $normalizedFilters = $this->normalizeTrendFilters($filters);
+        $page = $this->getTicketTrendReportPage($viewer, $filters);
+        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'ticket_trend_report', 'pdf', $normalizedFilters);
+        $fileName = 'ticket-trend-' . date('Ymd-His') . '.pdf';
+
+        try {
+            $html = View::capture('reports/trend-pdf', [
+                'generatedAt' => date('d/m/Y H:i'),
+                'granularityLabel' => match ($normalizedFilters['granularity']) {
+                    'day' => 'รายวัน',
+                    'week' => 'รายสัปดาห์',
+                    default => 'รายเดือน',
+                },
+                'summary' => $page['summary'],
+                'periods' => $page['periods'],
+                'filters' => $this->describeFilters($normalizedFilters, $this->reports->getFilterReferenceData()),
+            ]);
+
+            $options = new Options();
+            $dompdfTmp = sys_get_temp_dir();
+            if ($dompdfTmp === '' || !@is_writable($dompdfTmp)) {
+                $dompdfTmp = is_dir('/tmp') ? '/tmp' : BASE_PATH . '/storage/uploads';
+            }
+            $options->setTempDir($dompdfTmp);
+            $options->set('isRemoteEnabled', false);
+            $options->set('defaultFont', 'sarabun');
+            $dompdf = new Dompdf($options);
+            $dompdf->loadHtml($html, 'UTF-8');
+            $dompdf->setPaper('A4', 'landscape');
+            $dompdf->render();
+            $content = $dompdf->output();
+
+            $this->reports->markExportJobCompleted($jobId, $fileName);
+
+            return ['content' => $content, 'file_name' => $fileName, 'content_type' => 'application/pdf'];
+        } catch (\Throwable $exception) {
+            $this->recordExportFailure($jobId, $exception);
+            throw new RuntimeException('ไม่สามารถสร้างไฟล์ PDF ได้', 0, $exception);
+        }
+    }
+
     /**
      * Pivot flat rows (priority × metric) → overall + byPriority พร้อม %compliance + tone.
      * @return array{overall: array<string, array>, byPriority: array<int, array>, hasData: bool}
