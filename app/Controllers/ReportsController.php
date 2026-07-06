@@ -455,6 +455,52 @@ class ReportsController
         $this->downloadReport('exportReopenRatePdf', 'reopen-rate.pdf', 'application/pdf', '/reports/reopen-rate');
     }
 
+    public function csat(): void
+    {
+        AuthMiddleware::handle();
+
+        $viewer = auth()->user() ?? [];
+
+        try {
+            $data = $this->reports->getCsatReportPage($viewer, request()?->query ?? []);
+        } catch (DomainException $exception) {
+            flash('error', $exception->getMessage());
+            Response::redirect('/dashboard');
+        }
+
+        Response::view('reports/csat', [
+            'title' => 'ความพึงพอใจลูกค้า (CSAT)',
+            'pageHeading' => 'ความพึงพอใจลูกค้า (CSAT)',
+            'currentUser' => $viewer,
+            'filters' => $data['filters'],
+            'summary' => $data['summary'],
+            'distribution' => $data['distribution'],
+            'rows' => $data['rows'],
+            'feedback' => $data['feedback'],
+            'rowsMeta' => $data['rowsMeta'],
+        ]);
+    }
+
+    public function csatExportCsv(): void
+    {
+        $this->downloadReport('exportCsatCsv', 'csat.csv', 'text/csv; charset=UTF-8', '/reports/csat');
+    }
+
+    public function csatExportExcel(): void
+    {
+        $this->downloadReport(
+            'exportCsatExcel',
+            'csat.xlsx',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            '/reports/csat'
+        );
+    }
+
+    public function csatExportPdf(): void
+    {
+        $this->downloadReport('exportCsatPdf', 'csat.pdf', 'application/pdf', '/reports/csat');
+    }
+
     /** ตัวช่วยรวม flow export ของรายงานย่อย (csrf + download + redirect กลับหน้าเดิมเมื่อ error). */
     private function downloadReport(string $serviceMethod, string $fallbackName, string $fallbackType, string $redirectPath): void
     {

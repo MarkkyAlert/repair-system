@@ -798,6 +798,109 @@ class ReportRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    // มิติที่ยอมให้ group CSAT ได้ (whitelist กัน SQL-injection). technician = ช่างที่ "ถูกให้คะแนน" จริง (tr.technician_id).
+    private const CSAT_DIMENSIONS = [
+        'technician' => ['join' => 'LEFT JOIN users dim ON dim.id = tr.technician_id', 'label' => "COALESCE(dim.full_name, 'ไม่ระบุช่าง')"],
+        'category' => ['join' => 'INNER JOIN ticket_categories dim ON dim.id = t.ticket_category_id', 'label' => 'dim.name'],
+        'priority' => ['join' => 'INNER JOIN priorities dim ON dim.id = t.priority_id', 'label' => 'dim.name'],
+        'department' => ['join' => 'LEFT JOIN departments dim ON dim.id = t.requester_department_id', 'label' => "COALESCE(dim.name, 'ไม่ระบุแผนก')"],
+        'location' => ['join' => 'INNER JOIN locations dim ON dim.id = t.location_id', 'label' => 'dim.name'],
+    ];
+
+    /** WHERE ร่วมของทุก query CSAT: visibility + dept/category (บน t) + date window บน tr.created_at (ตอนให้คะแนน). */
+    private function ratingConditions(array $viewer, array $filters): array
+    {
+        $from = is_string($filters['from_datetime'] ?? null) ? trim((string) $filters['from_datetime']) : '';
+        $to = is_string($filters['to_datetime'] ?? null) ? trim((string) $filters['to_datetime']) : '';
+
+        $params = [];
+        $conditions = [$this->visibilityClause($viewer, $params)];
+        $this->applyTrendDimensionFilters($conditions, $filters, $params); // dept/category (บน t) ไม่มี date/status
+        if ($from !== '') {
+            $conditions[] = 'tr.created_at >= :csat_from';
+            $params['csat_from'] = $from;
+        }
+        if ($to !== '') {
+            $conditions[] = 'tr.created_at <= :csat_to';
+            $params['csat_to'] = $to;
+        }
+
+        return [implode(' AND ', $conditions), $params];
+    }
+
+    /**
+     * CSAT แยกตามมิติ — ค่าเฉลี่ยคะแนน/จำนวนรีวิว/พอใจ(≥4)/ไม่พอใจ(≤2) ต่อ ช่าง/หมวด/แผนก/สถานที่/priority.
+     * base = ticket_ratings (1:1 กับ ticket, UNIQUE(ticket_id)) → ไม่ fan-out ; dimension มาจาก whitelist เท่านั้น.
+     */
+    public function getRatingByDimension(array $viewer, array $filters, string $dimension): array
+    {
+        $map = self::CSAT_DIMENSIONS[$dimension] ?? self::CSAT_DIMENSIONS['technician'];
+        [$whereClause, $params] = $this->ratingConditions($viewer, $filters);
+
+        $stmt = $this->db->prepare(
+            "SELECT
+                {$map['label']} AS dimension_label,
+                ROUND(AVG(tr.score), 2) AS avg_score,
+                COUNT(*) AS rating_count,
+                SUM(tr.score) AS score_sum,
+                SUM(tr.score >= 4) AS satisfied,
+                SUM(tr.score <= 2) AS dissatisfied
+             FROM ticket_ratings tr
+             INNER JOIN tickets t ON t.id = tr.ticket_id
+             {$map['join']}
+             WHERE $whereClause
+             GROUP BY dimension_label"
+        );
+        $stmt->execute($params);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /** การกระจายคะแนน 1–5 (นับต่อ score) ในเงื่อนไขเดียวกับ report — service เติม bucket ที่หายให้เป็น 0. */
+    public function getRatingDistribution(array $viewer, array $filters): array
+    {
+        [$whereClause, $params] = $this->ratingConditions($viewer, $filters);
+
+        $stmt = $this->db->prepare(
+            "SELECT tr.score AS score, COUNT(*) AS rating_count
+             FROM ticket_ratings tr
+             INNER JOIN tickets t ON t.id = tr.ticket_id
+             WHERE $whereClause
+             GROUP BY tr.score"
+        );
+        $stmt->execute($params);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /** feedback ดิบที่ผู้แจ้งเขียน (เฉพาะที่ไม่ว่าง) เรียงคะแนนแย่ก่อน — สำหรับส่วน "อ่าน feedback". */
+    public function getRatingFeedback(array $viewer, array $filters, int $limit = 100): array
+    {
+        [$whereClause, $params] = $this->ratingConditions($viewer, $filters);
+        $limit = max(1, min($limit, 500));
+
+        $stmt = $this->db->prepare(
+            "SELECT
+                tr.score AS score,
+                tr.feedback AS feedback,
+                tr.created_at AS created_at,
+                t.id AS ticket_id,
+                t.ticket_no AS ticket_no,
+                u.full_name AS technician_name,
+                c.name AS category_name
+             FROM ticket_ratings tr
+             INNER JOIN tickets t ON t.id = tr.ticket_id
+             LEFT JOIN users u ON u.id = tr.technician_id
+             LEFT JOIN ticket_categories c ON c.id = t.ticket_category_id
+             WHERE $whereClause AND tr.feedback IS NOT NULL AND TRIM(tr.feedback) <> ''
+             ORDER BY tr.score ASC, tr.created_at DESC
+             LIMIT $limit"
+        );
+        $stmt->execute($params);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
     /**
      * ชั่วโมงแรงงานแยกตามหมวดงาน (จาก work_orders.labor_minutes) — ใช้ filter+visibility ชุดเดียวกับ report.
      * fan-out-free (work_orders UNIQUE(ticket_id) 1:1). HAVING labor_minutes>0 = โชว์เฉพาะหมวดที่มีแรงงานจริง.

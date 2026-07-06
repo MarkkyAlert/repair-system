@@ -2288,6 +2288,331 @@ class ReportService
         }
     }
 
+    // ===== CSAT / ความพึงพอใจ Report (หน้าแยกเต็มตัว /reports/csat) =====
+
+    private const CSAT_DIMENSIONS = ['technician', 'category', 'priority', 'department', 'location'];
+
+    public function getCsatReportPage(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+
+        $normalizedFilters = $this->normalizeCsatFilters($filters);
+        $reference = $this->reports->getFilterReferenceData();
+        $rows = $this->collectCsatRows($viewer, $normalizedFilters);
+        $summary = $this->buildCsatSummary($rows);
+
+        $filterData = $this->buildFilterData($normalizedFilters, $reference);
+        $filterData['selected']['dimension'] = $normalizedFilters['dimension'];
+        $filterData['dimensionLabel'] = $this->csatDimensionLabel($normalizedFilters['dimension']);
+        $filterData['dimensionOptions'] = [
+            ['value' => 'technician', 'label' => 'ช่าง'],
+            ['value' => 'category', 'label' => 'หมวดหมู่งาน'],
+            ['value' => 'priority', 'label' => 'ระดับความสำคัญ'],
+            ['value' => 'department', 'label' => 'แผนก'],
+            ['value' => 'location', 'label' => 'สถานที่'],
+        ];
+
+        return [
+            'filters' => $filterData,
+            'summary' => $summary,
+            'distribution' => $this->buildCsatDistribution($viewer, $normalizedFilters, $summary['rating_count']),
+            'rows' => $rows,
+            'feedback' => $this->collectCsatFeedback($viewer, $normalizedFilters),
+            'rowsMeta' => ['displayed' => count($rows), 'dimension' => $normalizedFilters['dimension']],
+        ];
+    }
+
+    /** ดึง + map + เรียงคะแนนแย่สุดขึ้นบน (avg น้อยก่อน, tie-break รีวิวเยอะก่อน). ใช้ร่วมหน้าจอ + export. */
+    private function collectCsatRows(array $viewer, array $normalizedFilters): array
+    {
+        $rows = array_map(
+            fn (array $row): array => $this->mapCsatRow($row),
+            $this->reports->getRatingByDimension($viewer, $normalizedFilters, $normalizedFilters['dimension'])
+        );
+
+        usort($rows, static fn (array $a, array $b): int => [$a['avg_score'], -$a['rating_count']] <=> [$b['avg_score'], -$b['rating_count']]);
+
+        return $rows;
+    }
+
+    private function mapCsatRow(array $row): array
+    {
+        $count = (int) ($row['rating_count'] ?? 0);
+        $scoreSum = (int) ($row['score_sum'] ?? 0);
+        $satisfied = (int) ($row['satisfied'] ?? 0);
+        $dissatisfied = (int) ($row['dissatisfied'] ?? 0);
+        // คิด avg จาก Σscore/Σcount เอง (pipeline เดียว) เพื่อให้ตรงกับ summary เป๊ะ — ไม่พึ่ง AVG() ที่ปัดแยก
+        $avg = $count > 0 ? round($scoreSum / $count, 2) : 0.0;
+
+        return [
+            'label' => (string) ($row['dimension_label'] ?? '-'),
+            'avg_score' => $avg,
+            'avg_label' => $count > 0 ? number_format($avg, 2) : '-',
+            'rating_count' => $count,
+            'score_sum' => $scoreSum,
+            'satisfied' => $satisfied,
+            'dissatisfied' => $dissatisfied,
+            'satisfied_pct_label' => $count > 0 ? number_format($satisfied / $count * 100, 1) . '%' : '-',
+            'dissatisfied_pct_label' => $count > 0 ? number_format($dissatisfied / $count * 100, 1) . '%' : '-',
+            'csat_tone' => $count > 0 ? $this->csatTone($avg) : 'default',
+        ];
+    }
+
+    /** tone ความพึงพอใจ: คะแนนยิ่งต่ำยิ่งแย่. */
+    private function csatTone(float $avg): string
+    {
+        return $avg >= 4.0 ? 'success' : ($avg >= 3.0 ? 'warning' : 'danger');
+    }
+
+    private function buildCsatSummary(array $rows): array
+    {
+        $count = (int) array_sum(array_column($rows, 'rating_count'));
+        $scoreSum = (int) array_sum(array_column($rows, 'score_sum'));
+        $satisfied = (int) array_sum(array_column($rows, 'satisfied'));
+        $dissatisfied = (int) array_sum(array_column($rows, 'dissatisfied'));
+        $avg = $count > 0 ? round($scoreSum / $count, 2) : null; // Σscore/Σcount — ไม่ใช่ avg-of-avg
+
+        return [
+            'avg_score' => $avg,
+            'avg_label' => $avg === null ? '-' : number_format($avg, 2),
+            'rating_count' => $count,
+            'satisfied' => $satisfied,
+            'dissatisfied' => $dissatisfied,
+            'satisfied_pct_label' => $count > 0 ? number_format($satisfied / $count * 100, 1) . '%' : '-',
+            'dissatisfied_pct_label' => $count > 0 ? number_format($dissatisfied / $count * 100, 1) . '%' : '-',
+            'csat_tone' => $avg === null ? 'default' : $this->csatTone($avg),
+        ];
+    }
+
+    /** กระจายคะแนน 5→1 พร้อม % (เทียบ total รีวิวทั้งหมด) — เติม bucket ที่ไม่มีเป็น 0. */
+    private function buildCsatDistribution(array $viewer, array $normalizedFilters, int $total): array
+    {
+        $counts = [];
+        foreach ($this->reports->getRatingDistribution($viewer, $normalizedFilters) as $row) {
+            $counts[(int) ($row['score'] ?? 0)] = (int) ($row['rating_count'] ?? 0);
+        }
+
+        $buckets = [];
+        for ($score = 5; $score >= 1; $score--) {
+            $count = $counts[$score] ?? 0;
+            $buckets[] = [
+                'score' => $score,
+                'count' => $count,
+                'pct' => $total > 0 ? round($count / $total * 100, 1) : 0.0,
+                'pct_label' => $total > 0 ? number_format($count / $total * 100, 1) . '%' : '0.0%',
+            ];
+        }
+
+        return $buckets;
+    }
+
+    /** รายการ feedback ดิบ (คะแนนแย่ก่อน) — text ยังไม่ escape ที่นี่ (escape ด้วย e() ในชั้น view). */
+    private function collectCsatFeedback(array $viewer, array $normalizedFilters): array
+    {
+        return array_map(
+            static function (array $row): array {
+                $score = (int) ($row['score'] ?? 0);
+                $technician = trim((string) ($row['technician_name'] ?? ''));
+                $category = trim((string) ($row['category_name'] ?? ''));
+
+                return [
+                    'score' => $score,
+                    'feedback' => (string) ($row['feedback'] ?? ''),
+                    'technician_name' => $technician !== '' ? $technician : 'ไม่ระบุช่าง',
+                    'category_name' => $category !== '' ? $category : '-',
+                    'ticket_id' => (int) ($row['ticket_id'] ?? 0),
+                    'ticket_no' => (string) ($row['ticket_no'] ?? ''),
+                    'created_at' => (string) ($row['created_at'] ?? ''),
+                    'tone' => $score <= 2 ? 'danger' : ($score === 3 ? 'warning' : 'success'),
+                ];
+            },
+            $this->reports->getRatingFeedback($viewer, $normalizedFilters, 100)
+        );
+    }
+
+    private function csatDimensionLabel(string $dimension): string
+    {
+        return match ($dimension) {
+            'category' => 'หมวดหมู่งาน',
+            'priority' => 'ระดับความสำคัญ',
+            'department' => 'แผนก',
+            'location' => 'สถานที่',
+            default => 'ช่าง',
+        };
+    }
+
+    private function normalizeCsatFilters(array $filters): array
+    {
+        $dimension = is_string($filters['dimension'] ?? null) ? trim((string) $filters['dimension']) : '';
+        $range = normalize_date_range(
+            is_string($filters['from_date'] ?? null) ? trim((string) $filters['from_date']) : '',
+            is_string($filters['to_date'] ?? null) ? trim((string) $filters['to_date']) : ''
+        );
+
+        return $range + [
+            'dimension' => in_array($dimension, self::CSAT_DIMENSIONS, true) ? $dimension : 'technician',
+            'department_id' => max(0, (int) ($filters['department_id'] ?? 0)),
+            'category_id' => max(0, (int) ($filters['category_id'] ?? 0)),
+            'status' => '', // กัน status leak เข้าตัวกรอง (บทเรียนจาก reopen code-review)
+        ];
+    }
+
+    private function csatExportHeaders(string $dimension): array
+    {
+        return [$this->csatDimensionLabel($dimension), 'คะแนนเฉลี่ย', 'จำนวนรีวิว', '%พอใจ(≥4★)', '%ไม่พอใจ(≤2★)'];
+    }
+
+    private function csatExportRow(array $row): array
+    {
+        return [$row['label'], $row['avg_label'], $row['rating_count'], $row['satisfied_pct_label'], $row['dissatisfied_pct_label']];
+    }
+
+    private function csatFeedbackExportHeaders(): array
+    {
+        return ['Ticket', 'คะแนน', 'ความคิดเห็น', 'ช่าง', 'หมวดหมู่', 'วันที่'];
+    }
+
+    private function csatFeedbackExportRow(array $row): array
+    {
+        return [$row['ticket_no'], $row['score'], $row['feedback'], $row['technician_name'], $row['category_name'], $row['created_at']];
+    }
+
+    public function exportCsatCsv(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+        $normalizedFilters = $this->normalizeCsatFilters($filters);
+        $rows = $this->collectCsatRows($viewer, $normalizedFilters);
+        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'csat_report', 'csv', $normalizedFilters);
+        $fileName = 'csat-' . date('Ymd-His') . '.csv';
+
+        try {
+            $stream = fopen('php://temp', 'w+b');
+            if ($stream === false) {
+                throw new RuntimeException('ไม่สามารถเตรียมไฟล์ CSV ได้');
+            }
+            fwrite($stream, "\xEF\xBB\xBF");
+            fputcsv($stream, $this->csatExportHeaders($normalizedFilters['dimension']));
+            foreach ($rows as $row) {
+                fputcsv($stream, $this->sanitizeExportRow($this->csatExportRow($row)));
+            }
+            rewind($stream);
+            $content = (string) stream_get_contents($stream);
+            fclose($stream);
+            $this->reports->markExportJobCompleted($jobId, $fileName);
+
+            return ['content' => $content, 'file_name' => $fileName, 'content_type' => 'text/csv; charset=UTF-8'];
+        } catch (\Throwable $exception) {
+            $this->recordExportFailure($jobId, $exception);
+            throw new RuntimeException('ไม่สามารถสร้างไฟล์ CSV ได้', 0, $exception);
+        }
+    }
+
+    public function exportCsatExcel(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+        $normalizedFilters = $this->normalizeCsatFilters($filters);
+        $rows = $this->collectCsatRows($viewer, $normalizedFilters);
+        $feedback = $this->collectCsatFeedback($viewer, $normalizedFilters);
+        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'csat_report', 'xlsx', $normalizedFilters);
+        $fileName = 'csat-' . date('Ymd-His') . '.xlsx';
+
+        try {
+            $spreadsheet = new Spreadsheet();
+
+            // Sheet 1 — สรุปแย่สุดต่อมิติ
+            $sheet = $spreadsheet->getActiveSheet();
+            $sheet->setTitle('ความพึงพอใจ');
+            $column = 'A';
+            foreach ($this->csatExportHeaders($normalizedFilters['dimension']) as $header) {
+                $sheet->setCellValue($column . '1', $header);
+                $sheet->getColumnDimension($column)->setAutoSize(true);
+                $column++;
+            }
+            $rowNumber = 2;
+            foreach ($rows as $row) {
+                $sheet->fromArray($this->sanitizeExportRow($this->csatExportRow($row)), null, 'A' . $rowNumber);
+                $rowNumber++;
+            }
+
+            // Sheet 2 — feedback ดิบ (คะแนนแย่ก่อน)
+            $feedbackSheet = $spreadsheet->createSheet();
+            $feedbackSheet->setTitle('feedback');
+            $column = 'A';
+            foreach ($this->csatFeedbackExportHeaders() as $header) {
+                $feedbackSheet->setCellValue($column . '1', $header);
+                $feedbackSheet->getColumnDimension($column)->setAutoSize(true);
+                $column++;
+            }
+            $rowNumber = 2;
+            foreach ($feedback as $row) {
+                $feedbackSheet->fromArray($this->sanitizeExportRow($this->csatFeedbackExportRow($row)), null, 'A' . $rowNumber);
+                $rowNumber++;
+            }
+
+            $spreadsheet->setActiveSheetIndex(0);
+
+            $writer = new Xlsx($spreadsheet);
+            ob_start();
+            $writer->save('php://output');
+            $content = (string) ob_get_clean();
+            $spreadsheet->disconnectWorksheets();
+            unset($spreadsheet);
+
+            $this->reports->markExportJobCompleted($jobId, $fileName);
+
+            return [
+                'content' => $content,
+                'file_name' => $fileName,
+                'content_type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ];
+        } catch (\Throwable $exception) {
+            $this->recordExportFailure($jobId, $exception);
+            throw new RuntimeException('ไม่สามารถสร้างไฟล์ Excel ได้', 0, $exception);
+        }
+    }
+
+    public function exportCsatPdf(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+        $normalizedFilters = $this->normalizeCsatFilters($filters);
+        $rows = $this->collectCsatRows($viewer, $normalizedFilters);
+        $summary = $this->buildCsatSummary($rows);
+        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'csat_report', 'pdf', $normalizedFilters);
+        $fileName = 'csat-' . date('Ymd-His') . '.pdf';
+
+        try {
+            $html = View::capture('reports/csat-pdf', [
+                'generatedAt' => date('d/m/Y H:i'),
+                'dimensionLabel' => $this->csatDimensionLabel($normalizedFilters['dimension']),
+                'summary' => $summary,
+                'distribution' => $this->buildCsatDistribution($viewer, $normalizedFilters, $summary['rating_count']),
+                'rows' => $rows,
+                'filters' => $this->describeFilters($normalizedFilters, $this->reports->getFilterReferenceData()),
+            ]);
+
+            $options = new Options();
+            $dompdfTmp = sys_get_temp_dir();
+            if ($dompdfTmp === '' || !@is_writable($dompdfTmp)) {
+                $dompdfTmp = is_dir('/tmp') ? '/tmp' : BASE_PATH . '/storage/uploads';
+            }
+            $options->setTempDir($dompdfTmp);
+            $options->set('isRemoteEnabled', false);
+            $options->set('defaultFont', 'sarabun');
+            $dompdf = new Dompdf($options);
+            $dompdf->loadHtml($html, 'UTF-8');
+            $dompdf->setPaper('A4', 'landscape');
+            $dompdf->render();
+            $content = $dompdf->output();
+
+            $this->reports->markExportJobCompleted($jobId, $fileName);
+
+            return ['content' => $content, 'file_name' => $fileName, 'content_type' => 'application/pdf'];
+        } catch (\Throwable $exception) {
+            $this->recordExportFailure($jobId, $exception);
+            throw new RuntimeException('ไม่สามารถสร้างไฟล์ PDF ได้', 0, $exception);
+        }
+    }
+
     /**
      * Pivot flat rows (priority × metric) → overall + byPriority พร้อม %compliance + tone.
      * @return array{overall: array<string, array>, byPriority: array<int, array>, hasData: bool}
