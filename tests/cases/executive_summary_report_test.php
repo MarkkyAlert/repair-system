@@ -42,6 +42,13 @@ test('executive: computePeriodWindows — this vs equal-length previous period (
     assert_same(date('Y-01-01'), $y['this']['from'], 'year this.from = Jan 1 this year');
     assert_same(date('Y-01-01', strtotime('-1 year')), $y['prev']['from'], 'year prev.from = Jan 1 last year');
 
+    // invariant: prev window must NEVER overlap the current period (prev.to < this.from) — guards the
+    // month-end overshoot where prev-month shorter than elapsed pushed prev.to into the current period.
+    foreach (['month', 'quarter', 'year'] as $preset) {
+        $w = exs_invoke('computePeriodWindows', [$preset, '', '']);
+        assert_true($w['prev']['to'] < $w['this']['from'], "$preset: prev window ends before this window starts (no overlap)");
+    }
+
     // custom: prev is the equal-length window ending the day before this.from
     $custom = exs_invoke('computePeriodWindows', ['custom', '2020-03-01', '2020-03-31']);
     assert_same('2020-03-01', $custom['this']['from'], 'custom this.from');
@@ -101,6 +108,42 @@ test('executive: KPI "แจ้งซ่อมทั้งหมด" (this perio
     } finally {
         foreach ($ids as $id) {
             exs_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
+        }
+    }
+});
+
+test('executive: "เกิน SLA" KPI is period-scoped breach, not the NOW-overdue snapshot', function (): void {
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $rid = bin2hex(random_bytes(4));
+    $ticketId = 0;
+
+    try {
+        // Ticket in a far-past window that is now CLOSED (terminal) but had a breached SLA track.
+        // The NOW-overdue snapshot (status NOT IN terminal) counts 0; the period breach count must count it.
+        exs_pdo()->prepare(
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at)
+             VALUES (?, 'x', 'x', 1, 1, 1, 1, 'closed', '2020-10-10 09:00:00')"
+        )->execute(["EXSB-$rid"]);
+        $ticketId = (int) exs_pdo()->lastInsertId();
+        exs_pdo()->prepare("INSERT INTO ticket_sla_tracks (ticket_id, metric_type, target_at, breached_at, status) VALUES (?, 'resolution', '2020-10-11 09:00:00', '2020-10-15 09:00:00', 'breached')")
+            ->execute([$ticketId]);
+
+        $filters = ['preset' => 'custom', 'from_date' => '2020-10-01', 'to_date' => '2020-10-31'];
+        $slaKpi = null;
+        foreach (exs_service()->getExecutiveSummaryPage($admin, $filters)['kpis'] as $k) {
+            if ($k['label'] === 'เกิน SLA') {
+                $slaKpi = $k;
+                break;
+            }
+        }
+        assert_true($slaKpi !== null, 'เกิน SLA KPI present');
+        assert_same('1', $slaKpi['value_label'], 'period-scoped breach counts the closed-but-breached ticket');
+
+        $overdue = exs_service()->getReportPageData($admin, ['from_date' => '2020-10-01', 'to_date' => '2020-10-31'])['summary']['overdue'];
+        assert_same(0, $overdue, 'NOW-overdue snapshot = 0 (ticket closed) — confirms the exec KPI uses a different, period-scoped metric');
+    } finally {
+        if ($ticketId > 0) {
+            exs_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
         }
     }
 });

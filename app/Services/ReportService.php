@@ -1038,6 +1038,8 @@ class ReportService
         $normalized = $this->normalizeReportFilters($filters);
         $dimension = is_string($filters['dimension'] ?? null) ? trim((string) $filters['dimension']) : '';
         $normalized['dimension'] = in_array($dimension, self::HOTSPOT_DIMENSIONS, true) ? $dimension : 'department';
+        // hotspot ไม่มี status filter ใน UI — ล้างทิ้ง กัน ?status= ใน URL มาจำกัดผลผิดคาด
+        $normalized['status'] = '';
 
         return $normalized;
     }
@@ -1319,6 +1321,8 @@ class ReportService
         $granularity = is_string($filters['granularity'] ?? null) ? trim((string) $filters['granularity']) : '';
         $granularity = in_array($granularity, self::TREND_GRANULARITIES, true) ? $granularity : 'month';
         $normalized['granularity'] = $granularity;
+        // trend ไม่มี status filter ใน UI — ล้างทิ้ง กัน ?status= ใน URL มาจำกัด volume/throughput (created/resolved) เพี้ยน
+        $normalized['status'] = '';
 
         // default window ถ้าไม่ได้กรองวันที่ — ให้เห็น 12 งวดล่าสุด (day=30 วัน) เสมอ กันกราฟว่าง/ใหญ่เกิน
         $to = $normalized['to_date'] !== '' ? $normalized['to_date'] : date('Y-m-d');
@@ -1559,7 +1563,9 @@ class ReportService
             $this->execKpiCard('แจ้งซ่อมทั้งหมด', $tTotal, $pTotal, 'neutral', 0, '', (string) $tTotal),
             $this->execKpiCard('ปิดงาน', $tResolved, $pResolved, 'neutral', 0, '', (string) $tResolved),
             $this->execKpiCard('อัตราปิดงาน', $tComp, $pComp, 'up_good', 1, '%', number_format($tComp, 1) . '%'),
-            $this->execKpiCard('เกิน SLA', (int) ($thisSum['overdue_tickets'] ?? 0), (int) ($prevSum['overdue_tickets'] ?? 0), 'down_good', 0, '', (string) (int) ($thisSum['overdue_tickets'] ?? 0)),
+            // period-scoped breach count (ticket ที่แจ้งในงวดแล้ว breach) — ไม่ใช่ overdue_tickets ที่เป็น
+            // snapshot "ค้างเกินตอนนี้" (งวดก่อนปิดไปหมด → baseline ≈ 0 ทำให้เทียบงวดเพี้ยน)
+            $this->execKpiCard('เกิน SLA', (int) ($thisSum['breached_tickets'] ?? 0), (int) ($prevSum['breached_tickets'] ?? 0), 'down_good', 0, '', (string) (int) ($thisSum['breached_tickets'] ?? 0)),
             $this->execKpiCard('เวลาซ่อมเฉลี่ย (ชม.)', $tMttr, $pMttr, 'down_good', 1, '', $tMttr > 0 ? number_format($tMttr, 1) : '-'),
             $this->execKpiCard('คะแนนเฉลี่ย', $tRating, $pRating, 'up_good', 1, '', $tRating > 0 ? number_format($tRating, 1) : '-'),
         ];
@@ -1629,6 +1635,12 @@ class ReportService
                 default => $thisFrom->modify('-1 month'),
             };
             $prevTo = $prevFrom->modify('+' . $elapsed . ' days');
+            // กัน prev เหลื่อมเข้างวดปัจจุบัน: ถ้าเดือน/ไตรมาสก่อนสั้นกว่า elapsed (เช่น 31 มี.ค. → prev ล้ำถึง 3 มี.ค.)
+            // ให้ตัด prevTo ไม่เกินวันก่อนงวดนี้เริ่ม (= วันสุดท้ายของงวดก่อน) — ไม่นับวันซ้ำสองงวด
+            $prevPeriodEnd = $thisFrom->modify('-1 day');
+            if ($prevTo > $prevPeriodEnd) {
+                $prevTo = $prevPeriodEnd;
+            }
         }
 
         return [

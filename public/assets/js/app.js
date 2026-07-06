@@ -493,8 +493,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const chartData = payload[key || ''];
 
         // Accept either a single series ({data:[]}) or multiple series ({datasets:[{label,data}]}).
+        // Guard !chartData FIRST — a canvas whose key is absent from the payload must skip only itself,
+        // not throw (which the shared try/catch would swallow, killing every chart on the page).
+        if (!chartData || !Array.isArray(chartData.labels)) {
+          return;
+        }
         const hasDatasets = Array.isArray(chartData.datasets);
-        if (!chartData || !Array.isArray(chartData.labels) || (!Array.isArray(chartData.data) && !hasDatasets)) {
+        if (!Array.isArray(chartData.data) && !hasDatasets) {
           return;
         }
 

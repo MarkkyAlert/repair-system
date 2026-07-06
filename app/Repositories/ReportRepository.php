@@ -66,6 +66,19 @@ class ReportRepository
                     THEN t.id
                     ELSE NULL
                 END), 0) AS overdue_tickets,
+                COALESCE(SUM(CASE
+                    WHEN EXISTS (
+                        SELECT 1
+                        FROM ticket_sla_tracks ts
+                        WHERE ts.ticket_id = t.id
+                          AND (
+                              ts.status = 'breached'
+                              OR (ts.status = 'pending' AND ts.target_at < NOW())
+                          )
+                    )
+                    THEN 1
+                    ELSE 0
+                END), 0) AS breached_tickets,
                 ROUND(COALESCE(AVG(CASE
                     WHEN t.resolved_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at)
                     ELSE NULL
@@ -81,6 +94,7 @@ class ReportRepository
             'total_tickets' => 0,
             'resolved_tickets' => 0,
             'overdue_tickets' => 0,
+            'breached_tickets' => 0,
             'avg_resolution_minutes' => 0,
             'avg_rating' => 0,
         ];
