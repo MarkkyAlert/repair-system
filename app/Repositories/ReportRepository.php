@@ -51,7 +51,7 @@ class ReportRepository
         $stmt = $this->db->prepare(
             "SELECT
                 COUNT(*) AS total_tickets,
-                COALESCE(SUM(CASE WHEN t.status IN ('resolved', 'completed') THEN 1 ELSE 0 END), 0) AS resolved_tickets,
+                COALESCE(SUM(CASE WHEN t.status IN ('resolved', 'completed', 'closed') THEN 1 ELSE 0 END), 0) AS resolved_tickets,
                 COALESCE(COUNT(DISTINCT CASE
                     WHEN t.status NOT IN ($closedStatuses)
                         AND EXISTS (

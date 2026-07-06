@@ -112,6 +112,32 @@ test('executive: KPI "แจ้งซ่อมทั้งหมด" (this perio
     }
 });
 
+test('summary: "ปิดงาน" (resolved) counts resolved+completed+closed, matching the technician report + glossary', function (): void {
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $rid = bin2hex(random_bytes(4));
+    $ids = [];
+
+    try {
+        // 3 successful-closure statuses (all count as ปิดงาน) + cancelled/submitted (must NOT count).
+        $statuses = ['resolved', 'completed', 'closed', 'cancelled', 'submitted'];
+        foreach ($statuses as $i => $status) {
+            exs_pdo()->prepare(
+                "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at)
+                 VALUES (?, 'x', 'x', 1, 1, 1, 1, ?, '2020-09-10 09:00:00')"
+            )->execute(["EXSC-$rid-$i", $status]);
+            $ids[] = (int) exs_pdo()->lastInsertId();
+        }
+
+        $summary = exs_service()->getReportPageData($admin, ['from_date' => '2020-09-01', 'to_date' => '2020-09-30'])['summary'];
+        assert_same(5, $summary['total'], 'all 5 tickets in the window');
+        assert_same(3, $summary['resolved'], 'ปิดงาน = resolved+completed+closed (closed must be included; cancelled/submitted excluded)');
+    } finally {
+        foreach ($ids as $id) {
+            exs_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
+        }
+    }
+});
+
 test('executive: "เกิน SLA" KPI is period-scoped breach, not the NOW-overdue snapshot', function (): void {
     $admin = ['id' => 4, 'role' => 'admin'];
     $rid = bin2hex(random_bytes(4));
