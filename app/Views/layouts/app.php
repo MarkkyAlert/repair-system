@@ -67,7 +67,7 @@
                     <?= lucide('qr-code', 'nav-icon') ?>
                     <span class="nav-label">ทรัพย์สินและ QR</span>
                 </a>
-                <a href="<?= e(url('/reports')) ?>" class="nav-link<?= $isReportsPath && !is_path('/reports/asset-reliability') && !is_path('/reports/sla-breach') && !is_path('/reports/technician-performance') && !is_path('/reports/problem-hotspot') && !is_path('/reports/trend') && !is_path('/reports/executive') && !is_path('/reports/backlog-aging') ? ' is-active' : '' ?>" data-tooltip="รายงาน">
+                <a href="<?= e(url('/reports')) ?>" class="nav-link<?= $isReportsPath && !is_path('/reports/asset-reliability') && !is_path('/reports/sla-breach') && !is_path('/reports/technician-performance') && !is_path('/reports/problem-hotspot') && !is_path('/reports/trend') && !is_path('/reports/executive') && !is_path('/reports/backlog-aging') && !is_path('/reports/reopen-rate') ? ' is-active' : '' ?>" data-tooltip="รายงาน">
                     <?= lucide('bar-chart-3', 'nav-icon') ?>
                     <span class="nav-label">รายงานและวิเคราะห์</span>
                 </a>
@@ -98,6 +98,10 @@
                 <a href="<?= e(url('/reports/backlog-aging')) ?>" class="nav-link nav-link-sub<?= is_path('/reports/backlog-aging') ? ' is-active' : '' ?>" data-tooltip="งานค้างตามอายุ">
                     <?= lucide('clock', 'nav-icon') ?>
                     <span class="nav-label">งานค้างตามอายุ</span>
+                </a>
+                <a href="<?= e(url('/reports/reopen-rate')) ?>" class="nav-link nav-link-sub<?= is_path('/reports/reopen-rate') ? ' is-active' : '' ?>" data-tooltip="งานเปิดซ้ำ / First-Time-Fix">
+                    <?= lucide('refresh-cw', 'nav-icon') ?>
+                    <span class="nav-label">งานเปิดซ้ำ</span>
                 </a>
             <?php endif; ?>
             <?php if ((string) ($viewer['role'] ?? 'guest') === 'admin'): ?>

@@ -2051,6 +2051,242 @@ class ReportService
         }
     }
 
+    // ===== Reopen / First-Time-Fix Report (หน้าแยกเต็มตัว /reports/reopen-rate) =====
+
+    private const REOPEN_DIMENSIONS = ['technician', 'category', 'priority', 'department', 'location'];
+
+    public function getReopenRateReportPage(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+
+        $normalizedFilters = $this->normalizeReopenFilters($filters);
+        $reference = $this->reports->getFilterReferenceData();
+        $rows = $this->collectReopenRows($viewer, $normalizedFilters);
+
+        $filterData = $this->buildFilterData($normalizedFilters, $reference);
+        $filterData['selected']['dimension'] = $normalizedFilters['dimension'];
+        $filterData['dimensionLabel'] = $this->reopenDimensionLabel($normalizedFilters['dimension']);
+        $filterData['dimensionOptions'] = [
+            ['value' => 'technician', 'label' => 'ช่าง'],
+            ['value' => 'category', 'label' => 'หมวดหมู่งาน'],
+            ['value' => 'priority', 'label' => 'ระดับความสำคัญ'],
+            ['value' => 'department', 'label' => 'แผนก'],
+            ['value' => 'location', 'label' => 'สถานที่'],
+        ];
+
+        return [
+            'filters' => $filterData,
+            'summary' => $this->buildReopenSummary($rows),
+            'rows' => $rows,
+            'rowsMeta' => ['displayed' => count($rows), 'dimension' => $normalizedFilters['dimension']],
+        ];
+    }
+
+    /** ดึง + map + เรียง %เปิดซ้ำมากสุดขึ้นบน (จุดคุณภาพแย่). ใช้ร่วมหน้าจอ + export. */
+    private function collectReopenRows(array $viewer, array $normalizedFilters): array
+    {
+        $rows = array_map(
+            fn (array $row): array => $this->mapReopenRow($row),
+            $this->reports->getReopenByDimension($viewer, $normalizedFilters, $normalizedFilters['dimension'])
+        );
+
+        usort($rows, static fn (array $a, array $b): int => [$b['reopen_rate'], $b['reopened']] <=> [$a['reopen_rate'], $a['reopened']]);
+
+        return $rows;
+    }
+
+    private function mapReopenRow(array $row): array
+    {
+        $resolved = (int) ($row['resolved'] ?? 0);
+        $reopened = (int) ($row['reopened'] ?? 0);
+        $rate = $resolved > 0 ? round($reopened / $resolved * 100, 1) : 0.0;
+        $ftf = $resolved > 0 ? round(($resolved - $reopened) / $resolved * 100, 1) : 0.0;
+
+        return [
+            'label' => (string) ($row['dimension_label'] ?? '-'),
+            'resolved' => $resolved,
+            'reopened' => $reopened,
+            'reopen_rate' => $rate,
+            'reopen_rate_label' => $resolved > 0 ? number_format($rate, 1) . '%' : '-',
+            'ftf_label' => $resolved > 0 ? number_format($ftf, 1) . '%' : '-',
+            'reopen_tone' => $this->reopenTone($rate),
+        ];
+    }
+
+    /** tone มุมคุณภาพ: เปิดซ้ำยิ่งเยอะยิ่งแย่. */
+    private function reopenTone(float $rate): string
+    {
+        return $rate >= 20 ? 'danger' : ($rate >= 10 ? 'warning' : 'success');
+    }
+
+    private function buildReopenSummary(array $rows): array
+    {
+        $resolved = (int) array_sum(array_column($rows, 'resolved'));
+        $reopened = (int) array_sum(array_column($rows, 'reopened'));
+        $rate = $resolved > 0 ? round($reopened / $resolved * 100, 1) : null;
+        $ftf = $resolved > 0 ? round(($resolved - $reopened) / $resolved * 100, 1) : null;
+
+        return [
+            'resolved' => $resolved,
+            'reopened' => $reopened,
+            'reopen_rate_label' => $rate === null ? '-' : number_format($rate, 1) . '%',
+            'ftf_label' => $ftf === null ? '-' : number_format($ftf, 1) . '%',
+            'reopen_tone' => $rate === null ? 'default' : $this->reopenTone($rate),
+        ];
+    }
+
+    private function reopenDimensionLabel(string $dimension): string
+    {
+        return match ($dimension) {
+            'category' => 'หมวดหมู่งาน',
+            'priority' => 'ระดับความสำคัญ',
+            'department' => 'แผนก',
+            'location' => 'สถานที่',
+            default => 'ช่าง',
+        };
+    }
+
+    private function normalizeReopenFilters(array $filters): array
+    {
+        $dimension = is_string($filters['dimension'] ?? null) ? trim((string) $filters['dimension']) : '';
+        $range = normalize_date_range(
+            is_string($filters['from_date'] ?? null) ? trim((string) $filters['from_date']) : '',
+            is_string($filters['to_date'] ?? null) ? trim((string) $filters['to_date']) : ''
+        );
+
+        return $range + [
+            'dimension' => in_array($dimension, self::REOPEN_DIMENSIONS, true) ? $dimension : 'technician',
+            'department_id' => max(0, (int) ($filters['department_id'] ?? 0)),
+            'category_id' => max(0, (int) ($filters['category_id'] ?? 0)),
+        ];
+    }
+
+    private function reopenExportHeaders(string $dimension): array
+    {
+        return [$this->reopenDimensionLabel($dimension), 'งานที่ปิด', 'เปิดซ้ำ', '%เปิดซ้ำ', '%ปิดจบรอบเดียว'];
+    }
+
+    private function reopenExportRow(array $row): array
+    {
+        return [$row['label'], $row['resolved'], $row['reopened'], $row['reopen_rate_label'], $row['ftf_label']];
+    }
+
+    public function exportReopenRateCsv(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+        $normalizedFilters = $this->normalizeReopenFilters($filters);
+        $rows = $this->collectReopenRows($viewer, $normalizedFilters);
+        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'reopen_rate_report', 'csv', $normalizedFilters);
+        $fileName = 'reopen-rate-' . date('Ymd-His') . '.csv';
+
+        try {
+            $stream = fopen('php://temp', 'w+b');
+            if ($stream === false) {
+                throw new RuntimeException('ไม่สามารถเตรียมไฟล์ CSV ได้');
+            }
+            fwrite($stream, "\xEF\xBB\xBF");
+            fputcsv($stream, $this->reopenExportHeaders($normalizedFilters['dimension']));
+            foreach ($rows as $row) {
+                fputcsv($stream, $this->sanitizeExportRow($this->reopenExportRow($row)));
+            }
+            rewind($stream);
+            $content = (string) stream_get_contents($stream);
+            fclose($stream);
+            $this->reports->markExportJobCompleted($jobId, $fileName);
+
+            return ['content' => $content, 'file_name' => $fileName, 'content_type' => 'text/csv; charset=UTF-8'];
+        } catch (\Throwable $exception) {
+            $this->recordExportFailure($jobId, $exception);
+            throw new RuntimeException('ไม่สามารถสร้างไฟล์ CSV ได้', 0, $exception);
+        }
+    }
+
+    public function exportReopenRateExcel(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+        $normalizedFilters = $this->normalizeReopenFilters($filters);
+        $rows = $this->collectReopenRows($viewer, $normalizedFilters);
+        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'reopen_rate_report', 'xlsx', $normalizedFilters);
+        $fileName = 'reopen-rate-' . date('Ymd-His') . '.xlsx';
+
+        try {
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+            $sheet->setTitle('งานเปิดซ้ำ');
+
+            $column = 'A';
+            foreach ($this->reopenExportHeaders($normalizedFilters['dimension']) as $header) {
+                $sheet->setCellValue($column . '1', $header);
+                $sheet->getColumnDimension($column)->setAutoSize(true);
+                $column++;
+            }
+
+            $rowNumber = 2;
+            foreach ($rows as $row) {
+                $sheet->fromArray($this->sanitizeExportRow($this->reopenExportRow($row)), null, 'A' . $rowNumber);
+                $rowNumber++;
+            }
+
+            $writer = new Xlsx($spreadsheet);
+            ob_start();
+            $writer->save('php://output');
+            $content = (string) ob_get_clean();
+            $spreadsheet->disconnectWorksheets();
+            unset($spreadsheet);
+
+            $this->reports->markExportJobCompleted($jobId, $fileName);
+
+            return [
+                'content' => $content,
+                'file_name' => $fileName,
+                'content_type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ];
+        } catch (\Throwable $exception) {
+            $this->recordExportFailure($jobId, $exception);
+            throw new RuntimeException('ไม่สามารถสร้างไฟล์ Excel ได้', 0, $exception);
+        }
+    }
+
+    public function exportReopenRatePdf(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+        $normalizedFilters = $this->normalizeReopenFilters($filters);
+        $rows = $this->collectReopenRows($viewer, $normalizedFilters);
+        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'reopen_rate_report', 'pdf', $normalizedFilters);
+        $fileName = 'reopen-rate-' . date('Ymd-His') . '.pdf';
+
+        try {
+            $html = View::capture('reports/reopen-rate-pdf', [
+                'generatedAt' => date('d/m/Y H:i'),
+                'dimensionLabel' => $this->reopenDimensionLabel($normalizedFilters['dimension']),
+                'summary' => $this->buildReopenSummary($rows),
+                'rows' => $rows,
+                'filters' => $this->describeFilters($normalizedFilters, $this->reports->getFilterReferenceData()),
+            ]);
+
+            $options = new Options();
+            $dompdfTmp = sys_get_temp_dir();
+            if ($dompdfTmp === '' || !@is_writable($dompdfTmp)) {
+                $dompdfTmp = is_dir('/tmp') ? '/tmp' : BASE_PATH . '/storage/uploads';
+            }
+            $options->setTempDir($dompdfTmp);
+            $options->set('isRemoteEnabled', false);
+            $options->set('defaultFont', 'sarabun');
+            $dompdf = new Dompdf($options);
+            $dompdf->loadHtml($html, 'UTF-8');
+            $dompdf->setPaper('A4', 'landscape');
+            $dompdf->render();
+            $content = $dompdf->output();
+
+            $this->reports->markExportJobCompleted($jobId, $fileName);
+
+            return ['content' => $content, 'file_name' => $fileName, 'content_type' => 'application/pdf'];
+        } catch (\Throwable $exception) {
+            $this->recordExportFailure($jobId, $exception);
+            throw new RuntimeException('ไม่สามารถสร้างไฟล์ PDF ได้', 0, $exception);
+        }
+    }
+
     /**
      * Pivot flat rows (priority × metric) → overall + byPriority พร้อม %compliance + tone.
      * @return array{overall: array<string, array>, byPriority: array<int, array>, hasData: bool}

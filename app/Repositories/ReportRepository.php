@@ -747,6 +747,57 @@ class ReportRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    // มิติที่ยอมให้ group Reopen/FTF ได้ (whitelist กัน SQL-injection)
+    private const REOPEN_DIMENSIONS = [
+        'technician' => ['join' => 'LEFT JOIN users dim ON dim.id = t.assigned_technician_id', 'label' => "COALESCE(dim.full_name, 'ยังไม่มอบหมาย')"],
+        'category' => ['join' => 'INNER JOIN ticket_categories dim ON dim.id = t.ticket_category_id', 'label' => 'dim.name'],
+        'priority' => ['join' => 'INNER JOIN priorities dim ON dim.id = t.priority_id', 'label' => 'dim.name'],
+        'department' => ['join' => 'LEFT JOIN departments dim ON dim.id = t.requester_department_id', 'label' => "COALESCE(dim.name, 'ไม่ระบุแผนก')"],
+        'location' => ['join' => 'INNER JOIN locations dim ON dim.id = t.location_id', 'label' => 'dim.name'],
+    ];
+
+    /**
+     * Reopen / First-Time-Fix — cohort ticket ที่ "ปิด" ในช่วง (activity `ticket_resolved`) แล้วนับว่าถูก
+     * "เปิดซ้ำ" (มี activity `ticket_reopened`) กี่ตัว ต่อมิติ. reopened ⊆ resolved cohort → rate ≤ 100%.
+     * ไม่ fan-out: COUNT(DISTINCT ticket_id) คุม many-events-per-ticket ; join t→dimension 1:1.
+     * date window บน r.created_at (ตอนปิดงาน) ; dimension มาจาก whitelist เท่านั้น.
+     */
+    public function getReopenByDimension(array $viewer, array $filters, string $dimension): array
+    {
+        $map = self::REOPEN_DIMENSIONS[$dimension] ?? self::REOPEN_DIMENSIONS['technician'];
+        $from = is_string($filters['from_datetime'] ?? null) ? trim((string) $filters['from_datetime']) : '';
+        $to = is_string($filters['to_datetime'] ?? null) ? trim((string) $filters['to_datetime']) : '';
+
+        $params = [];
+        $conditions = [$this->visibilityClause($viewer, $params), "r.action = 'ticket_resolved'"];
+        $this->applyTrendDimensionFilters($conditions, $filters, $params); // dept/category (บน t) ไม่มี date/status
+        if ($from !== '') {
+            $conditions[] = 'r.created_at >= :reopen_from';
+            $params['reopen_from'] = $from;
+        }
+        if ($to !== '') {
+            $conditions[] = 'r.created_at <= :reopen_to';
+            $params['reopen_to'] = $to;
+        }
+        $whereClause = implode(' AND ', $conditions);
+
+        $stmt = $this->db->prepare(
+            "SELECT
+                {$map['label']} AS dimension_label,
+                COUNT(DISTINCT r.ticket_id) AS resolved,
+                COUNT(DISTINCT ro.ticket_id) AS reopened
+             FROM ticket_activity_logs r
+             INNER JOIN tickets t ON t.id = r.ticket_id
+             {$map['join']}
+             LEFT JOIN ticket_activity_logs ro ON ro.ticket_id = r.ticket_id AND ro.action = 'ticket_reopened'
+             WHERE $whereClause
+             GROUP BY dimension_label"
+        );
+        $stmt->execute($params);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
     /**
      * ชั่วโมงแรงงานแยกตามหมวดงาน (จาก work_orders.labor_minutes) — ใช้ filter+visibility ชุดเดียวกับ report.
      * fan-out-free (work_orders UNIQUE(ticket_id) 1:1). HAVING labor_minutes>0 = โชว์เฉพาะหมวดที่มีแรงงานจริง.

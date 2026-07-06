@@ -411,6 +411,50 @@ class ReportsController
         $this->downloadReport('exportBacklogAgingPdf', 'backlog-aging.pdf', 'application/pdf', '/reports/backlog-aging');
     }
 
+    public function reopenRate(): void
+    {
+        AuthMiddleware::handle();
+
+        $viewer = auth()->user() ?? [];
+
+        try {
+            $data = $this->reports->getReopenRateReportPage($viewer, request()?->query ?? []);
+        } catch (DomainException $exception) {
+            flash('error', $exception->getMessage());
+            Response::redirect('/dashboard');
+        }
+
+        Response::view('reports/reopen-rate', [
+            'title' => 'งานเปิดซ้ำ',
+            'pageHeading' => 'งานเปิดซ้ำ / ปิดจบรอบเดียว (First-Time-Fix)',
+            'currentUser' => $viewer,
+            'filters' => $data['filters'],
+            'summary' => $data['summary'],
+            'rows' => $data['rows'],
+            'rowsMeta' => $data['rowsMeta'],
+        ]);
+    }
+
+    public function reopenRateExportCsv(): void
+    {
+        $this->downloadReport('exportReopenRateCsv', 'reopen-rate.csv', 'text/csv; charset=UTF-8', '/reports/reopen-rate');
+    }
+
+    public function reopenRateExportExcel(): void
+    {
+        $this->downloadReport(
+            'exportReopenRateExcel',
+            'reopen-rate.xlsx',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            '/reports/reopen-rate'
+        );
+    }
+
+    public function reopenRateExportPdf(): void
+    {
+        $this->downloadReport('exportReopenRatePdf', 'reopen-rate.pdf', 'application/pdf', '/reports/reopen-rate');
+    }
+
     /** ตัวช่วยรวม flow export ของรายงานย่อย (csrf + download + redirect กลับหน้าเดิมเมื่อ error). */
     private function downloadReport(string $serviceMethod, string $fallbackName, string $fallbackType, string $redirectPath): void
     {
