@@ -6,7 +6,7 @@ $dimensionLabel = (string) ($filters['dimensionLabel'] ?? 'ระดับคว
     <?= render_partial('partials/components/page-header', [
         'eyebrow' => 'ข้อมูลเพื่อการตัดสินใจ',
         'title' => 'วิเคราะห์ SLA เกินกำหนด',
-        'description' => 'ดูว่า SLA เกินกำหนดกระจุกตรงไหน แยก response/resolution เพื่อหา bottleneck จริง',
+        'description' => 'ดูว่า SLA เกินกำหนดกระจุกตรงไหน แยกตอบรับ/แก้ไข เพื่อหาคอขวดจริง',
     ]) ?>
 
     <div class="action-bar">
@@ -88,7 +88,7 @@ $dimensionLabel = (string) ($filters['dimensionLabel'] ?? 'ระดับคว
         <?= render_partial('partials/components/card', [
             'title' => 'เกินกำหนดทั้งหมด',
             'value' => (string) ($summary['total_breached'] ?? 0),
-            'meta' => 'จำนวนครั้งที่ SLA เกิน (response + resolution)',
+            'meta' => 'จำนวนครั้งที่ SLA เกิน (ตอบรับ + แก้ไข)',
             'tone' => 'danger',
         ]) ?>
         <?= render_partial('partials/components/card', [
@@ -168,7 +168,7 @@ $dimensionLabel = (string) ($filters['dimensionLabel'] ?? 'ระดับคว
     <section class="panel-card stack-md">
         <div class="panel-head">
             <div>
-                <h2 class="panel-title">จัดอันดับ bottleneck แยกตาม<?= e($dimensionLabel) ?></h2>
+                <h2 class="panel-title">จัดอันดับคอขวด แยกตาม<?= e($dimensionLabel) ?></h2>
                 <p class="field-hint">เรียงตามจำนวนที่เกินกำหนดมากสุด — ดูว่าคอขวดคือ "ตอบรับช้า" หรือ "แก้ไขช้า" ตรงกลุ่มไหน</p>
             </div>
             <?php if (!empty($rows)): ?>
