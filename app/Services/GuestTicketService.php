@@ -235,10 +235,12 @@ class GuestTicketService
             return null;
         }
 
-        // second factor: เบอร์ตรง หรือ อีเมลตรง (case-insensitive) — ไม่ตรง = ปฏิบัติเหมือนไม่พบ
-        $phone = trim((string) ($row['guest_phone'] ?? ''));
+        // second factor: เบอร์ตรง (เทียบเฉพาะตัวเลข — กันฟอร์แมตต่าง เช่น 081-234-5678 vs 0812345678)
+        // หรือ อีเมลตรง (case-insensitive) — ไม่ตรง = ปฏิบัติเหมือนไม่พบ (กัน enumeration)
+        $phoneDigits = preg_replace('/\D/', '', (string) ($row['guest_phone'] ?? ''));
+        $contactDigits = preg_replace('/\D/', '', $contact);
         $email = strtolower(trim((string) ($row['guest_email'] ?? '')));
-        $matches = ($phone !== '' && $phone === $contact)
+        $matches = ($phoneDigits !== '' && $contactDigits !== '' && $phoneDigits === $contactDigits)
             || ($email !== '' && $email === strtolower($contact));
         if (!$matches) {
             return null;

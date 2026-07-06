@@ -71,7 +71,7 @@ if (!function_exists('ticket_status_label_th')) {
 }
 
 if (!function_exists('ticket_status_tone')) {
-    /** สี badge ตามสถานะ ticket (มิเรอร์ TicketService::statusTone) — ใช้ในหน้า public track สถานะ. */
+    /** สี badge ตามสถานะ ticket — single source of truth (TicketService::statusTone เรียกต่อจากตัวนี้). */
     function ticket_status_tone(string $status): string
     {
         return match ($status) {

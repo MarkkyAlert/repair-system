@@ -1180,13 +1180,7 @@ class TicketService
 
     private function statusTone(string $status): string
     {
-        return match ($status) {
-            'resolved', 'completed' => 'success',
-            'pending_approval', 'on_hold' => 'warning',
-            'rejected', 'cancelled' => 'danger',
-            'approved', 'assigned', 'accepted', 'in_progress', 'submitted' => 'info',
-            default => 'default',
-        };
+        return ticket_status_tone($status);
     }
 
     private function approvalTone(string $status): string

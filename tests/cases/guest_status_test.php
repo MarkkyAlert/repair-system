@@ -30,7 +30,7 @@ function gs_seed(string $no, string $phone, string $email, string $status, ?int 
 test('guest status: second factor + status mapping + anti-enumeration', function (): void {
     $rid = strtoupper(bin2hex(random_bytes(3)));
     $ip = '198.51.100.' . random_int(1, 254);
-    $nos = ["GRT{$rid}N", "GRT{$rid}C", "GRT{$rid}R"];
+    $nos = ["GRT{$rid}N", "GRT{$rid}C", "GRT{$rid}R", "GRT{$rid}P"];
     $ticketId = 0;
 
     try {
@@ -46,6 +46,7 @@ test('guest status: second factor + status mapping + anti-enumeration', function
         gs_seed($nos[0], '0810000001', '', 'new', null, null);
         gs_seed($nos[1], '', "c$rid@t.com", 'converted', $ticketId, null);
         gs_seed($nos[2], '0810000003', '', 'rejected', null, 'ข้อมูลไม่เพียงพอ');
+        gs_seed($nos[3], '081-999-8888', '', 'new', null, null);
 
         $new = gs_service()->lookupGuestStatus($nos[0], '0810000001', $ip);
         assert_true($new !== null && $new['status'] === 'new', 'new found with correct phone');
@@ -64,8 +65,11 @@ test('guest status: second factor + status mapping + anti-enumeration', function
         assert_same('ข้อมูลไม่เพียงพอ', $rej['review_note'], 'rejected shows the review note');
 
         assert_true(gs_service()->lookupGuestStatus("GR-NOPE-$rid", 'x', $ip) === null, 'unknown request_no → null');
+
+        // phone stored with separators still matches a plain-digits lookup (and vice-versa)
+        assert_true(gs_service()->lookupGuestStatus($nos[3], '0819998888', $ip) !== null, 'phone matches ignoring format (dashes)');
     } finally {
-        gs_pdo()->prepare('DELETE FROM guest_ticket_requests WHERE request_no IN (?, ?, ?)')->execute($nos);
+        gs_pdo()->prepare('DELETE FROM guest_ticket_requests WHERE request_no IN (?, ?, ?, ?)')->execute($nos);
         if ($ticketId > 0) {
             gs_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
         }
