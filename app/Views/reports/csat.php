@@ -224,7 +224,7 @@ $distColors = [5 => '#10b981', 4 => '#84cc16', 3 => '#f59e0b', 2 => '#f97316', 1
         <div class="panel-head">
             <div>
                 <h2 class="panel-title">เสียงจากลูกค้า (feedback)</h2>
-                <p class="field-hint">ความคิดเห็นที่ผู้แจ้งเขียนไว้ เรียงคะแนนแย่ก่อน (แสดงสูงสุด 100 รายการ — ที่เหลือดูใน Excel)</p>
+                <p class="field-hint">ความคิดเห็นที่ผู้แจ้งเขียนไว้ เรียงคะแนนแย่ก่อน (แสดงสูงสุด 100 รายการ — ดาวน์โหลด Excel เพื่อดูมากขึ้น สูงสุด 500)</p>
             </div>
             <?php if (!empty($feedback)): ?>
                 <span class="badge badge-default"><?= e((string) count($feedback)) ?> ความคิดเห็น</span>

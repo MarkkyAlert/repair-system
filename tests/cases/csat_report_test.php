@@ -205,6 +205,36 @@ test('csat: null technician → ไม่ระบุช่าง + Σcount/Σsc
     }
 });
 
+test('csat: excel feedback sheet returns more than the 100-row on-screen cap', function (): void {
+    $rid = bin2hex(random_bytes(4));
+    $deptId = csat_department($rid);
+    [$locId] = csat_location($rid);
+    $ids = [];
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $baselineJobId = (int) csat_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM export_jobs')->fetchColumn();
+    $tmp = tempnam(sys_get_temp_dir(), 'csat_') . '.xlsx';
+
+    try {
+        // 101 rated tickets each with feedback → page is capped at 100, Excel must carry all 101.
+        for ($i = 0; $i < 101; $i++) {
+            $ids[] = csat_rate("CSAT-$rid-$i", $deptId, $locId, 3, 3, "ความเห็น $i");
+        }
+        $filters = ['dimension' => 'technician', 'department_id' => $deptId];
+
+        assert_same(100, count(csat_page('technician', $deptId)['feedback']), 'on-screen feedback capped at 100');
+
+        file_put_contents($tmp, (string) csat_service()->exportCsatExcel($admin, $filters)['content']);
+        $book = IOFactory::createReader('Xlsx')->load($tmp);
+        $dataRows = $book->getSheet(1)->getHighestDataRow() - 1; // minus header row
+        assert_same(101, $dataRows, 'Excel feedback sheet carries all 101 comments (beyond the page cap)');
+        $book->disconnectWorksheets();
+    } finally {
+        @unlink($tmp);
+        csat_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
+        csat_cleanup($ids, [$locId], $deptId);
+    }
+});
+
 test('csat: export csv/pdf = breakdown, excel = 2 sheets (breakdown + feedback)', function (): void {
     $rid = bin2hex(random_bytes(4));
     $deptId = csat_department($rid);

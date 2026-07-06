@@ -2291,6 +2291,8 @@ class ReportService
     // ===== CSAT / ความพึงพอใจ Report (หน้าแยกเต็มตัว /reports/csat) =====
 
     private const CSAT_DIMENSIONS = ['technician', 'category', 'priority', 'department', 'location'];
+    private const CSAT_FEEDBACK_PAGE_LIMIT = 100;   // แสดงบนหน้าจอ
+    private const CSAT_FEEDBACK_EXPORT_LIMIT = 500;  // Excel sheet 2 = ดึงได้มากกว่า (เพดาน repo = 500)
 
     public function getCsatReportPage(array $viewer, array $filters = []): array
     {
@@ -2407,7 +2409,7 @@ class ReportService
     }
 
     /** รายการ feedback ดิบ (คะแนนแย่ก่อน) — text ยังไม่ escape ที่นี่ (escape ด้วย e() ในชั้น view). */
-    private function collectCsatFeedback(array $viewer, array $normalizedFilters): array
+    private function collectCsatFeedback(array $viewer, array $normalizedFilters, int $limit = self::CSAT_FEEDBACK_PAGE_LIMIT): array
     {
         return array_map(
             static function (array $row): array {
@@ -2426,7 +2428,7 @@ class ReportService
                     'tone' => $score <= 2 ? 'danger' : ($score === 3 ? 'warning' : 'success'),
                 ];
             },
-            $this->reports->getRatingFeedback($viewer, $normalizedFilters, 100)
+            $this->reports->getRatingFeedback($viewer, $normalizedFilters, $limit)
         );
     }
 
@@ -2512,14 +2514,15 @@ class ReportService
         $this->ensureCanViewReports($viewer);
         $normalizedFilters = $this->normalizeCsatFilters($filters);
         $rows = $this->collectCsatRows($viewer, $normalizedFilters);
-        $feedback = $this->collectCsatFeedback($viewer, $normalizedFilters);
+        // Excel ดึง feedback ได้มากกว่าหน้าจอ (ตามที่ UI แจ้งว่า "ดูใน Excel") — เพดาน repo = 500
+        $feedback = $this->collectCsatFeedback($viewer, $normalizedFilters, self::CSAT_FEEDBACK_EXPORT_LIMIT);
         $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'csat_report', 'xlsx', $normalizedFilters);
         $fileName = 'csat-' . date('Ymd-His') . '.xlsx';
 
         try {
             $spreadsheet = new Spreadsheet();
 
-            // Sheet 1 — สรุปแย่สุดต่อมิติ
+            // Sheet 1 — สรุปแย่สุดต่อมิติ (active sheet)
             $sheet = $spreadsheet->getActiveSheet();
             $sheet->setTitle('ความพึงพอใจ');
             $column = 'A';
@@ -2534,20 +2537,13 @@ class ReportService
                 $rowNumber++;
             }
 
-            // Sheet 2 — feedback ดิบ (คะแนนแย่ก่อน)
-            $feedbackSheet = $spreadsheet->createSheet();
-            $feedbackSheet->setTitle('feedback');
-            $column = 'A';
-            foreach ($this->csatFeedbackExportHeaders() as $header) {
-                $feedbackSheet->setCellValue($column . '1', $header);
-                $feedbackSheet->getColumnDimension($column)->setAutoSize(true);
-                $column++;
-            }
-            $rowNumber = 2;
-            foreach ($feedback as $row) {
-                $feedbackSheet->fromArray($this->sanitizeExportRow($this->csatFeedbackExportRow($row)), null, 'A' . $rowNumber);
-                $rowNumber++;
-            }
+            // Sheet 2 — feedback ดิบ (คะแนนแย่ก่อน) — ใช้ helper ร่วม (sanitize ในตัว)
+            $this->addExcelSheet(
+                $spreadsheet,
+                'feedback',
+                $this->csatFeedbackExportHeaders(),
+                array_map(fn (array $row): array => $this->csatFeedbackExportRow($row), $feedback)
+            );
 
             $spreadsheet->setActiveSheetIndex(0);
 

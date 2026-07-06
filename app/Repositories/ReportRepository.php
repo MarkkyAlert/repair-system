@@ -840,7 +840,6 @@ class ReportRepository
         $stmt = $this->db->prepare(
             "SELECT
                 {$map['label']} AS dimension_label,
-                ROUND(AVG(tr.score), 2) AS avg_score,
                 COUNT(*) AS rating_count,
                 SUM(tr.score) AS score_sum,
                 SUM(tr.score >= 4) AS satisfied,
