@@ -2100,7 +2100,8 @@ class ReportService
         $resolved = (int) ($row['resolved'] ?? 0);
         $reopened = (int) ($row['reopened'] ?? 0);
         $rate = $resolved > 0 ? round($reopened / $resolved * 100, 1) : 0.0;
-        $ftf = $resolved > 0 ? round(($resolved - $reopened) / $resolved * 100, 1) : 0.0;
+        // FTF ต้องเป็นส่วนเติมเต็มของ rate เป๊ะ ๆ (จาก rate ที่ปัดแล้ว) มิฉะนั้น rate+ftf อาจได้ 100.1% ที่ขอบ .x5
+        $ftf = $resolved > 0 ? round(100 - $rate, 1) : 0.0;
 
         return [
             'label' => (string) ($row['dimension_label'] ?? '-'),
@@ -2124,7 +2125,7 @@ class ReportService
         $resolved = (int) array_sum(array_column($rows, 'resolved'));
         $reopened = (int) array_sum(array_column($rows, 'reopened'));
         $rate = $resolved > 0 ? round($reopened / $resolved * 100, 1) : null;
-        $ftf = $resolved > 0 ? round(($resolved - $reopened) / $resolved * 100, 1) : null;
+        $ftf = $rate === null ? null : round(100 - $rate, 1); // ส่วนเติมเต็มของ rate ที่ปัดแล้ว → รวมได้ 100.0% เสมอ
 
         return [
             'resolved' => $resolved,

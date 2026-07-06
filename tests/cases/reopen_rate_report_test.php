@@ -109,6 +109,37 @@ test('reopen: detection + rate/FTF math + tone + %reopen-desc sort', function ()
     }
 });
 
+test('reopen: %reopen + %FTF always reconcile to 100.0% at a .x5 rounding boundary', function (): void {
+    $rid = bin2hex(random_bytes(4));
+    [$locId, $locName] = rr_location($rid);
+    $ids = [];
+
+    try {
+        // 1 reopened / 16 resolved = 6.25% → rounds to 6.3%. Independently rounding FTF gave 93.8%
+        // (6.3+93.8 = 100.1%); FTF derived from the rounded rate gives 93.7% (sums to 100.0%).
+        for ($i = 0; $i < 16; $i++) {
+            $ids[] = $t = rr_ticket("RR-$rid-$i", $locId);
+            rr_log($t, 'ticket_resolved');
+        }
+        rr_log($ids[0], 'ticket_reopened');
+
+        $row = rr_row('location', $locName);
+        assert_true($row !== null, 'location appears');
+        assert_same(16, $row['resolved'], '16 resolved');
+        assert_same(1, $row['reopened'], '1 reopened');
+        assert_same('6.3%', $row['reopen_rate_label'], '6.25% rounds up to 6.3%');
+        assert_same('93.7%', $row['ftf_label'], 'FTF is the exact complement of the rounded rate, not 93.8%');
+        $sum = (float) rtrim($row['reopen_rate_label'], '%') + (float) rtrim($row['ftf_label'], '%');
+        assert_same(100.0, $sum, '%reopen + %FTF = 100.0% exactly (UI-stated invariant)');
+    } finally {
+        foreach ($ids as $id) {
+            rr_pdo()->prepare('DELETE FROM ticket_activity_logs WHERE ticket_id = ?')->execute([$id]);
+            rr_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
+        }
+        rr_pdo()->prepare('DELETE FROM locations WHERE id = ?')->execute([$locId]);
+    }
+});
+
 test('reopen: cohort window filters on the resolve-event date', function (): void {
     $rid = bin2hex(random_bytes(4));
     [$locId, $locName] = rr_location($rid);
