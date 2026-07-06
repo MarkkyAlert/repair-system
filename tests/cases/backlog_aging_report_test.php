@@ -1,0 +1,157 @@
+<?php
+declare(strict_types=1);
+
+use App\Services\ReportService;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+
+// Tests for the Backlog & Aging report (/reports/backlog-aging): open (non-terminal) tickets bucketed by
+// age (DATEDIFF(NOW(), requested_at)) into 0-3 / 3-7 / 7-30 / >30 days, pivoted by dimension. Proves the
+// bucket boundaries, open-only filter, Thai/null dimension labels, sort by >30 desc, and the invariant
+// that total backlog is identical across dimensions. Fresh isolated locations give exact assertions.
+
+function bla_pdo(): PDO
+{
+    return tvm_container()->get(PDO::class);
+}
+
+function bla_service(): ReportService
+{
+    return tvm_container()->get(ReportService::class);
+}
+
+function bla_location(string $rid, string $suffix = ''): array
+{
+    $name = "BLA Loc $rid$suffix";
+    bla_pdo()->prepare("INSERT INTO locations (code, name) VALUES (?, ?)")->execute(["BLAL-$rid$suffix", $name]);
+
+    return [(int) bla_pdo()->lastInsertId(), $name];
+}
+
+/** Open ticket at $locId requested $ageDays ago (default in_progress, assigned/dept nullable). */
+function bla_ticket(string $no, int $locId, int $ageDays, string $status = 'in_progress', ?int $tech = 3, ?int $dept = 4): int
+{
+    bla_pdo()->prepare(
+        "INSERT INTO tickets (ticket_no, title, description, requester_id, requester_department_id, location_id, ticket_category_id, priority_id, assigned_technician_id, status, requested_at)
+         VALUES (?, 'x', 'x', 1, ?, ?, 1, 1, ?, ?, ?)"
+    )->execute([$no, $dept, $locId, $tech, $status, date('Y-m-d H:i:s', strtotime("-$ageDays days"))]);
+
+    return (int) bla_pdo()->lastInsertId();
+}
+
+function bla_row(string $dimension, string $label): ?array
+{
+    $page = bla_service()->getBacklogAgingReportPage(['id' => 4, 'role' => 'admin'], ['dimension' => $dimension]);
+    foreach ($page['rows'] as $row) {
+        if ($row['label'] === $label) {
+            return $row;
+        }
+    }
+
+    return null;
+}
+
+test('backlog aging: age buckets 0-3/3-7/7-30/>30 + open-only + oldest', function (): void {
+    $rid = bin2hex(random_bytes(4));
+    [$locId, $locName] = bla_location($rid);
+    $ids = [];
+
+    try {
+        $ids[] = bla_ticket("BLA-$rid-a", $locId, 1);   // 0-3
+        $ids[] = bla_ticket("BLA-$rid-b", $locId, 5);   // 3-7
+        $ids[] = bla_ticket("BLA-$rid-c", $locId, 15);  // 7-30
+        $ids[] = bla_ticket("BLA-$rid-d", $locId, 40);  // >30
+        $ids[] = bla_ticket("BLA-$rid-e", $locId, 50, 'closed'); // terminal → excluded
+
+        $row = bla_row('location', $locName);
+        assert_true($row !== null, 'location appears');
+        assert_same(1, $row['bucket_0_3'], '1 ticket in 0-3 days');
+        assert_same(1, $row['bucket_3_7'], '1 ticket in 3-7 days');
+        assert_same(1, $row['bucket_7_30'], '1 ticket in 7-30 days');
+        assert_same(1, $row['bucket_30_plus'], '1 ticket in >30 days');
+        assert_same(4, $row['total'], 'total = 4 (closed ticket excluded)');
+        assert_same('40 วัน', $row['oldest_label'], 'oldest = 40 days (open only; the 50-day closed one is ignored)');
+    } finally {
+        foreach ($ids as $id) {
+            bla_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
+        }
+        bla_pdo()->prepare('DELETE FROM locations WHERE id = ?')->execute([$locId]);
+    }
+});
+
+test('backlog aging: dimension labels — status→Thai, null technician/department bucketed', function (): void {
+    $rid = bin2hex(random_bytes(4));
+    [$locId] = bla_location($rid);
+    $ticketId = 0;
+
+    try {
+        $ticketId = bla_ticket("BLA-$rid", $locId, 10, 'in_progress', null, null); // tech NULL, dept NULL
+
+        assert_true(bla_row('status', 'กำลังดำเนินการ') !== null, 'status dimension shows Thai label');
+        $tech = bla_row('technician', 'ยังไม่มอบหมาย');
+        assert_true($tech !== null && $tech['total'] >= 1, 'null technician → ยังไม่มอบหมาย');
+        $dept = bla_row('department', 'ไม่ระบุแผนก');
+        assert_true($dept !== null && $dept['total'] >= 1, 'null department → ไม่ระบุแผนก');
+    } finally {
+        if ($ticketId > 0) {
+            bla_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+        }
+        bla_pdo()->prepare('DELETE FROM locations WHERE id = ?')->execute([$locId]);
+    }
+});
+
+test('backlog aging: rows sorted by >30 desc + total invariant across dimensions', function (): void {
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $rid = bin2hex(random_bytes(4));
+    [$hiId, $hiName] = bla_location($rid, 'HI');
+    [$loId, $loName] = bla_location($rid, 'LO');
+    $ids = [];
+
+    try {
+        $ids[] = bla_ticket("BLAH-$rid-1", $hiId, 40); // >30
+        $ids[] = bla_ticket("BLAH-$rid-2", $hiId, 45); // >30
+        $ids[] = bla_ticket("BLAL-$rid", $loId, 2);    // 0-3, no >30
+
+        $codes = array_column(bla_service()->getBacklogAgingReportPage($admin, ['dimension' => 'location'])['rows'], 'label');
+        $hiPos = array_search($hiName, $codes, true);
+        $loPos = array_search($loName, $codes, true);
+        assert_true($hiPos !== false && $loPos !== false, 'both fresh locations appear');
+        assert_true($hiPos < $loPos, 'location with 2× >30 sorts above the one with none');
+
+        $byPriority = bla_service()->getBacklogAgingReportPage($admin, ['dimension' => 'priority'])['summary']['total'];
+        $byLocation = bla_service()->getBacklogAgingReportPage($admin, ['dimension' => 'location'])['summary']['total'];
+        assert_same($byPriority, $byLocation, 'total backlog is identical regardless of dimension');
+    } finally {
+        foreach ($ids as $id) {
+            bla_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
+        }
+        bla_pdo()->prepare('DELETE FROM locations WHERE id = ?')->execute([$hiId]);
+        bla_pdo()->prepare('DELETE FROM locations WHERE id = ?')->execute([$loId]);
+    }
+});
+
+test('backlog aging: export xlsx (1 sheet + dimension header) / pdf %PDF- / csv header', function (): void {
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $baselineJobId = (int) bla_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM export_jobs')->fetchColumn();
+    $tmp = tempnam(sys_get_temp_dir(), 'bla_') . '.xlsx';
+
+    try {
+        $export = bla_service()->exportBacklogAgingExcel($admin, ['dimension' => 'status']);
+        file_put_contents($tmp, (string) $export['content']);
+        $book = IOFactory::createReader('Xlsx')->load($tmp);
+        assert_same(1, $book->getSheetCount(), 'single sheet');
+        assert_same('งานค้างตามอายุ', $book->getSheetNames()[0], 'sheet title');
+        assert_same('สถานะ', (string) $book->getActiveSheet()->getCell('A1')->getValue(), 'first header = dimension label (status)');
+        assert_same('>30 วัน', (string) $book->getActiveSheet()->getCell('E1')->getValue(), '>30 bucket column');
+        $book->disconnectWorksheets();
+
+        $pdf = bla_service()->exportBacklogAgingPdf($admin, ['dimension' => 'priority']);
+        assert_same('%PDF-', substr((string) $pdf['content'], 0, 5), 'pdf magic bytes');
+
+        $csv = (string) bla_service()->exportBacklogAgingCsv($admin, ['dimension' => 'technician'])['content'];
+        assert_true(str_contains($csv, 'ช่าง'), 'csv first header reflects the technician dimension');
+        assert_true(str_contains($csv, 'เก่าสุด (วัน)'), 'csv carries the oldest column');
+    } finally {
+        @unlink($tmp);
+        bla_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
+    }
+});

@@ -367,6 +367,50 @@ class ReportsController
         $this->downloadReport('exportExecutiveSummaryPdf', 'executive-summary.pdf', 'application/pdf', '/reports/executive');
     }
 
+    public function backlogAging(): void
+    {
+        AuthMiddleware::handle();
+
+        $viewer = auth()->user() ?? [];
+
+        try {
+            $data = $this->reports->getBacklogAgingReportPage($viewer, request()?->query ?? []);
+        } catch (DomainException $exception) {
+            flash('error', $exception->getMessage());
+            Response::redirect('/dashboard');
+        }
+
+        Response::view('reports/backlog-aging', [
+            'title' => 'งานค้างตามอายุ',
+            'pageHeading' => 'งานค้างตามอายุ (Backlog Aging)',
+            'currentUser' => $viewer,
+            'filters' => $data['filters'],
+            'summary' => $data['summary'],
+            'rows' => $data['rows'],
+            'rowsMeta' => $data['rowsMeta'],
+        ]);
+    }
+
+    public function backlogAgingExportCsv(): void
+    {
+        $this->downloadReport('exportBacklogAgingCsv', 'backlog-aging.csv', 'text/csv; charset=UTF-8', '/reports/backlog-aging');
+    }
+
+    public function backlogAgingExportExcel(): void
+    {
+        $this->downloadReport(
+            'exportBacklogAgingExcel',
+            'backlog-aging.xlsx',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            '/reports/backlog-aging'
+        );
+    }
+
+    public function backlogAgingExportPdf(): void
+    {
+        $this->downloadReport('exportBacklogAgingPdf', 'backlog-aging.pdf', 'application/pdf', '/reports/backlog-aging');
+    }
+
     /** ตัวช่วยรวม flow export ของรายงานย่อย (csrf + download + redirect กลับหน้าเดิมเมื่อ error). */
     private function downloadReport(string $serviceMethod, string $fallbackName, string $fallbackType, string $redirectPath): void
     {

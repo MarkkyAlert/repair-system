@@ -689,6 +689,50 @@ class ReportRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    // มิติที่ยอมให้ group Backlog Aging ได้ (whitelist กัน SQL-injection). status → label ดิบ (service map ไทย).
+    private const BACKLOG_DIMENSIONS = [
+        'priority' => ['join' => 'INNER JOIN priorities dim ON dim.id = t.priority_id', 'label' => 'dim.name'],
+        'status' => ['join' => '', 'label' => 't.status'],
+        'technician' => ['join' => 'LEFT JOIN users dim ON dim.id = t.assigned_technician_id', 'label' => "COALESCE(dim.full_name, 'ยังไม่มอบหมาย')"],
+        'department' => ['join' => 'LEFT JOIN departments dim ON dim.id = t.requester_department_id', 'label' => "COALESCE(dim.name, 'ไม่ระบุแผนก')"],
+        'location' => ['join' => 'INNER JOIN locations dim ON dim.id = t.location_id', 'label' => 'dim.name'],
+    ];
+
+    /**
+     * Backlog Aging — pivot ticket ที่ยัง "ไม่ปิด" (status NOT IN terminal) ตามมิติ × ช่วงอายุ
+     * (0-3/3-7/7-30/>30 วัน). อายุ = DATEDIFF(NOW(), requested_at). Snapshot ปัจจุบัน ไม่มี date filter.
+     * ไม่ fan-out (tickets ล้วน + join 1:1/nullable). dimension มาจาก whitelist เท่านั้น.
+     */
+    public function getBacklogAgingByDimension(array $viewer, array $filters, string $dimension): array
+    {
+        $map = self::BACKLOG_DIMENSIONS[$dimension] ?? self::BACKLOG_DIMENSIONS['priority'];
+        $terminal = ticket_terminal_statuses_sql();
+        $age = 'DATEDIFF(NOW(), t.requested_at)';
+
+        $params = [];
+        $conditions = [$this->visibilityClause($viewer, $params), "t.status NOT IN ($terminal)"];
+        $this->applyTrendDimensionFilters($conditions, $filters, $params); // dept/category (ไม่มี date/status)
+        $whereClause = implode(' AND ', $conditions);
+
+        $stmt = $this->db->prepare(
+            "SELECT
+                {$map['label']} AS dimension_label,
+                SUM(CASE WHEN $age < 3 THEN 1 ELSE 0 END) AS bucket_0_3,
+                SUM(CASE WHEN $age BETWEEN 3 AND 6 THEN 1 ELSE 0 END) AS bucket_3_7,
+                SUM(CASE WHEN $age BETWEEN 7 AND 29 THEN 1 ELSE 0 END) AS bucket_7_30,
+                SUM(CASE WHEN $age >= 30 THEN 1 ELSE 0 END) AS bucket_30_plus,
+                COUNT(*) AS total,
+                MAX($age) AS oldest_days
+             FROM tickets t
+             {$map['join']}
+             WHERE $whereClause
+             GROUP BY dimension_label"
+        );
+        $stmt->execute($params);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
     /**
      * ชั่วโมงแรงงานแยกตามหมวดงาน (จาก work_orders.labor_minutes) — ใช้ filter+visibility ชุดเดียวกับ report.
      * fan-out-free (work_orders UNIQUE(ticket_id) 1:1). HAVING labor_minutes>0 = โชว์เฉพาะหมวดที่มีแรงงานจริง.

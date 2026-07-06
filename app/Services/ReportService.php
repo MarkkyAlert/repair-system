@@ -1801,6 +1801,244 @@ class ReportService
         }
     }
 
+    // ===== Backlog & Aging Report (หน้าแยกเต็มตัว /reports/backlog-aging) =====
+
+    private const BACKLOG_DIMENSIONS = ['priority', 'status', 'technician', 'department', 'location'];
+
+    public function getBacklogAgingReportPage(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+
+        $normalizedFilters = $this->normalizeBacklogFilters($filters);
+        $reference = $this->reports->getFilterReferenceData();
+        $rows = $this->collectBacklogAgingRows($viewer, $normalizedFilters);
+
+        $filterData = $this->buildFilterData($normalizedFilters, $reference);
+        $filterData['selected']['dimension'] = $normalizedFilters['dimension'];
+        $filterData['dimensionLabel'] = $this->backlogDimensionLabel($normalizedFilters['dimension']);
+        $filterData['dimensionOptions'] = [
+            ['value' => 'priority', 'label' => 'ระดับความสำคัญ'],
+            ['value' => 'status', 'label' => 'สถานะ'],
+            ['value' => 'technician', 'label' => 'ช่าง'],
+            ['value' => 'department', 'label' => 'แผนก'],
+            ['value' => 'location', 'label' => 'สถานที่'],
+        ];
+
+        return [
+            'filters' => $filterData,
+            'summary' => $this->buildBacklogSummary($rows),
+            'rows' => $rows,
+            'rowsMeta' => ['displayed' => count($rows), 'dimension' => $normalizedFilters['dimension']],
+        ];
+    }
+
+    /** ดึง + map + เรียงงานค้าง >30 วันมากสุดขึ้นบน. ใช้ร่วมทั้งหน้าจอ + export. */
+    private function collectBacklogAgingRows(array $viewer, array $normalizedFilters): array
+    {
+        $rows = array_map(
+            fn (array $row): array => $this->mapBacklogAgingRow($row, $normalizedFilters['dimension']),
+            $this->reports->getBacklogAgingByDimension($viewer, $normalizedFilters, $normalizedFilters['dimension'])
+        );
+
+        usort($rows, static fn (array $a, array $b): int => [$b['bucket_30_plus'], $b['total']] <=> [$a['bucket_30_plus'], $a['total']]);
+
+        return $rows;
+    }
+
+    private function mapBacklogAgingRow(array $row, string $dimension): array
+    {
+        $b03 = (int) ($row['bucket_0_3'] ?? 0);
+        $b37 = (int) ($row['bucket_3_7'] ?? 0);
+        $b730 = (int) ($row['bucket_7_30'] ?? 0);
+        $b30 = (int) ($row['bucket_30_plus'] ?? 0);
+        $oldest = (int) ($row['oldest_days'] ?? 0);
+        $label = (string) ($row['dimension_label'] ?? '-');
+        if ($dimension === 'status') {
+            $label = ticket_status_label_th($label);
+        }
+
+        return [
+            'label' => $label,
+            'bucket_0_3' => $b03,
+            'bucket_3_7' => $b37,
+            'bucket_7_30' => $b730,
+            'bucket_30_plus' => $b30,
+            'total' => (int) ($row['total'] ?? 0),
+            'oldest_days' => $oldest,
+            'oldest_label' => $oldest > 0 ? $oldest . ' วัน' : '-',
+            'warn_tone' => $b730 > 0 ? 'warning' : 'default',
+            'over30_tone' => $b30 > 0 ? 'danger' : 'default',
+        ];
+    }
+
+    private function buildBacklogSummary(array $rows): array
+    {
+        $oldest = 0;
+        foreach ($rows as $row) {
+            $oldest = max($oldest, (int) $row['oldest_days']);
+        }
+
+        return [
+            'total' => (int) array_sum(array_column($rows, 'total')),
+            'bucket_0_3' => (int) array_sum(array_column($rows, 'bucket_0_3')),
+            'bucket_3_7' => (int) array_sum(array_column($rows, 'bucket_3_7')),
+            'bucket_7_30' => (int) array_sum(array_column($rows, 'bucket_7_30')),
+            'bucket_30_plus' => (int) array_sum(array_column($rows, 'bucket_30_plus')),
+            'oldest_label' => $oldest > 0 ? $oldest . ' วัน' : '-',
+        ];
+    }
+
+    private function backlogDimensionLabel(string $dimension): string
+    {
+        return match ($dimension) {
+            'status' => 'สถานะ',
+            'technician' => 'ช่าง',
+            'department' => 'แผนก',
+            'location' => 'สถานที่',
+            default => 'ระดับความสำคัญ',
+        };
+    }
+
+    private function normalizeBacklogFilters(array $filters): array
+    {
+        $dimension = is_string($filters['dimension'] ?? null) ? trim((string) $filters['dimension']) : '';
+
+        return [
+            'dimension' => in_array($dimension, self::BACKLOG_DIMENSIONS, true) ? $dimension : 'priority',
+            'department_id' => max(0, (int) ($filters['department_id'] ?? 0)),
+            'category_id' => max(0, (int) ($filters['category_id'] ?? 0)),
+        ];
+    }
+
+    private function backlogExportHeaders(string $dimension): array
+    {
+        return [$this->backlogDimensionLabel($dimension), '0-3 วัน', '3-7 วัน', '7-30 วัน', '>30 วัน', 'รวม', 'เก่าสุด (วัน)'];
+    }
+
+    private function backlogExportRow(array $row): array
+    {
+        return [
+            $row['label'], $row['bucket_0_3'], $row['bucket_3_7'], $row['bucket_7_30'],
+            $row['bucket_30_plus'], $row['total'], $row['oldest_days'],
+        ];
+    }
+
+    public function exportBacklogAgingCsv(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+        $normalizedFilters = $this->normalizeBacklogFilters($filters);
+        $rows = $this->collectBacklogAgingRows($viewer, $normalizedFilters);
+        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'backlog_aging_report', 'csv', $normalizedFilters);
+        $fileName = 'backlog-aging-' . date('Ymd-His') . '.csv';
+
+        try {
+            $stream = fopen('php://temp', 'w+b');
+            if ($stream === false) {
+                throw new RuntimeException('ไม่สามารถเตรียมไฟล์ CSV ได้');
+            }
+            fwrite($stream, "\xEF\xBB\xBF");
+            fputcsv($stream, $this->backlogExportHeaders($normalizedFilters['dimension']));
+            foreach ($rows as $row) {
+                fputcsv($stream, $this->sanitizeExportRow($this->backlogExportRow($row)));
+            }
+            rewind($stream);
+            $content = (string) stream_get_contents($stream);
+            fclose($stream);
+            $this->reports->markExportJobCompleted($jobId, $fileName);
+
+            return ['content' => $content, 'file_name' => $fileName, 'content_type' => 'text/csv; charset=UTF-8'];
+        } catch (\Throwable $exception) {
+            $this->recordExportFailure($jobId, $exception);
+            throw new RuntimeException('ไม่สามารถสร้างไฟล์ CSV ได้', 0, $exception);
+        }
+    }
+
+    public function exportBacklogAgingExcel(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+        $normalizedFilters = $this->normalizeBacklogFilters($filters);
+        $rows = $this->collectBacklogAgingRows($viewer, $normalizedFilters);
+        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'backlog_aging_report', 'xlsx', $normalizedFilters);
+        $fileName = 'backlog-aging-' . date('Ymd-His') . '.xlsx';
+
+        try {
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+            $sheet->setTitle('งานค้างตามอายุ');
+
+            $column = 'A';
+            foreach ($this->backlogExportHeaders($normalizedFilters['dimension']) as $header) {
+                $sheet->setCellValue($column . '1', $header);
+                $sheet->getColumnDimension($column)->setAutoSize(true);
+                $column++;
+            }
+
+            $rowNumber = 2;
+            foreach ($rows as $row) {
+                $sheet->fromArray($this->sanitizeExportRow($this->backlogExportRow($row)), null, 'A' . $rowNumber);
+                $rowNumber++;
+            }
+
+            $writer = new Xlsx($spreadsheet);
+            ob_start();
+            $writer->save('php://output');
+            $content = (string) ob_get_clean();
+            $spreadsheet->disconnectWorksheets();
+            unset($spreadsheet);
+
+            $this->reports->markExportJobCompleted($jobId, $fileName);
+
+            return [
+                'content' => $content,
+                'file_name' => $fileName,
+                'content_type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ];
+        } catch (\Throwable $exception) {
+            $this->recordExportFailure($jobId, $exception);
+            throw new RuntimeException('ไม่สามารถสร้างไฟล์ Excel ได้', 0, $exception);
+        }
+    }
+
+    public function exportBacklogAgingPdf(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+        $normalizedFilters = $this->normalizeBacklogFilters($filters);
+        $rows = $this->collectBacklogAgingRows($viewer, $normalizedFilters);
+        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'backlog_aging_report', 'pdf', $normalizedFilters);
+        $fileName = 'backlog-aging-' . date('Ymd-His') . '.pdf';
+
+        try {
+            $html = View::capture('reports/backlog-aging-pdf', [
+                'generatedAt' => date('d/m/Y H:i'),
+                'dimensionLabel' => $this->backlogDimensionLabel($normalizedFilters['dimension']),
+                'summary' => $this->buildBacklogSummary($rows),
+                'rows' => $rows,
+                'filters' => $this->describeFilters($normalizedFilters, $this->reports->getFilterReferenceData()),
+            ]);
+
+            $options = new Options();
+            $dompdfTmp = sys_get_temp_dir();
+            if ($dompdfTmp === '' || !@is_writable($dompdfTmp)) {
+                $dompdfTmp = is_dir('/tmp') ? '/tmp' : BASE_PATH . '/storage/uploads';
+            }
+            $options->setTempDir($dompdfTmp);
+            $options->set('isRemoteEnabled', false);
+            $options->set('defaultFont', 'sarabun');
+            $dompdf = new Dompdf($options);
+            $dompdf->loadHtml($html, 'UTF-8');
+            $dompdf->setPaper('A4', 'landscape');
+            $dompdf->render();
+            $content = $dompdf->output();
+
+            $this->reports->markExportJobCompleted($jobId, $fileName);
+
+            return ['content' => $content, 'file_name' => $fileName, 'content_type' => 'application/pdf'];
+        } catch (\Throwable $exception) {
+            $this->recordExportFailure($jobId, $exception);
+            throw new RuntimeException('ไม่สามารถสร้างไฟล์ PDF ได้', 0, $exception);
+        }
+    }
+
     /**
      * Pivot flat rows (priority × metric) → overall + byPriority พร้อม %compliance + tone.
      * @return array{overall: array<string, array>, byPriority: array<int, array>, hasData: bool}

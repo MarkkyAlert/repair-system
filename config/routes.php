@@ -110,6 +110,10 @@ return static function (Router $router): void {
     $router->post('/reports/executive/export/csv', [ReportsController::class, 'executiveSummaryExportCsv']);
     $router->post('/reports/executive/export/excel', [ReportsController::class, 'executiveSummaryExportExcel']);
     $router->post('/reports/executive/export/pdf', [ReportsController::class, 'executiveSummaryExportPdf']);
+    $router->get('/reports/backlog-aging', [ReportsController::class, 'backlogAging']);
+    $router->post('/reports/backlog-aging/export/csv', [ReportsController::class, 'backlogAgingExportCsv']);
+    $router->post('/reports/backlog-aging/export/excel', [ReportsController::class, 'backlogAgingExportExcel']);
+    $router->post('/reports/backlog-aging/export/pdf', [ReportsController::class, 'backlogAgingExportPdf']);
     $router->get('/attachments/{attachmentId}', [AttachmentsController::class, 'show']);
     $router->get('/assets', static fn () => Response::redirect('/asset-registry', 301));
     $router->get('/asset-registry', [AssetsController::class, 'index']);
