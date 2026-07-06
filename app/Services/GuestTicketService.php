@@ -13,6 +13,8 @@ class GuestTicketService
 {
     private const RATE_LIMIT_MAX = 3;
     private const RATE_LIMIT_DECAY = 600; // 10 minutes
+    private const LOOKUP_RATE_LIMIT_MAX = 10;   // เช็คสถานะ: 10 ครั้ง/10 นาที ต่อ IP (กัน brute-force second factor)
+    private const LOOKUP_RATE_LIMIT_DECAY = 600;
 
     public function __construct(
         private GuestTicketRequestRepository $requests,
@@ -205,6 +207,58 @@ class GuestTicketService
         } finally {
             $this->requests->releaseConvertLock($requestId);
         }
+    }
+
+    /**
+     * เช็คสถานะคำขอ guest แบบ public — ต้องมี second factor (เบอร์/อีเมลที่แจ้งไว้) เพราะ request_no เดาได้.
+     * คืน null เมื่อไม่พบ/second factor ไม่ตรง (เรียกใช้ควรแสดง error กลาง ๆ กัน enumeration). throw เมื่อ rate-limit เกิน.
+     * @return array{request_no:string, guest_name:string, created_at:string, status:string, status_label:string,
+     *   status_tone:string, ticket_no:?string, ticket_status_label:?string, ticket_status_tone:?string, review_note:?string}|null
+     */
+    public function lookupGuestStatus(string $requestNo, string $contact, string $ipAddress): ?array
+    {
+        $rateKey = 'guest_lookup:' . sha1($ipAddress !== '' ? $ipAddress : 'unknown');
+        if ($this->rateLimiter->tooManyAttempts($rateKey, self::LOOKUP_RATE_LIMIT_MAX, self::LOOKUP_RATE_LIMIT_DECAY)) {
+            $seconds = $this->rateLimiter->availableIn($rateKey, self::LOOKUP_RATE_LIMIT_DECAY);
+            throw new DomainException('ตรวจสอบสถานะบ่อยเกินไป กรุณาลองใหม่ในอีก ' . max(1, (int) ceil($seconds / 60)) . ' นาที');
+        }
+        $this->rateLimiter->hit($rateKey, self::LOOKUP_RATE_LIMIT_DECAY);
+
+        $requestNo = strtoupper(trim($requestNo));
+        $contact = trim($contact);
+        if ($requestNo === '' || $contact === '') {
+            return null;
+        }
+
+        $row = $this->requests->findByRequestNo($requestNo);
+        if ($row === null) {
+            return null;
+        }
+
+        // second factor: เบอร์ตรง หรือ อีเมลตรง (case-insensitive) — ไม่ตรง = ปฏิบัติเหมือนไม่พบ
+        $phone = trim((string) ($row['guest_phone'] ?? ''));
+        $email = strtolower(trim((string) ($row['guest_email'] ?? '')));
+        $matches = ($phone !== '' && $phone === $contact)
+            || ($email !== '' && $email === strtolower($contact));
+        if (!$matches) {
+            return null;
+        }
+
+        $status = (string) ($row['status'] ?? 'new');
+        $ticketStatus = $status === 'converted' ? (string) ($row['ticket_status'] ?? '') : '';
+
+        return [
+            'request_no' => (string) ($row['request_no'] ?? $requestNo),
+            'guest_name' => (string) ($row['guest_name'] ?? ''),
+            'created_at' => (string) ($row['created_at'] ?? ''),
+            'status' => $status,
+            'status_label' => guest_request_status_label_th($status),
+            'status_tone' => match ($status) { 'converted' => 'success', 'rejected' => 'danger', default => 'warning' },
+            'ticket_no' => $status === 'converted' ? (string) ($row['ticket_no'] ?? '') : null,
+            'ticket_status_label' => $ticketStatus !== '' ? ticket_status_label_th($ticketStatus) : null,
+            'ticket_status_tone' => $ticketStatus !== '' ? ticket_status_tone($ticketStatus) : null,
+            'review_note' => $status === 'rejected' ? (string) ($row['review_note'] ?? '') : null,
+        ];
     }
 
     private function generateRequestNo(): string

@@ -11,6 +11,7 @@ use App\Controllers\DashboardController;
 use App\Controllers\EmailQueueController;
 use App\Controllers\EmailTemplateController;
 use App\Controllers\GuestRequestController;
+use App\Controllers\GuestStatusController;
 use App\Controllers\NotificationsController;
 use App\Controllers\ReportsController;
 use App\Controllers\ScanController;
@@ -145,6 +146,8 @@ return static function (Router $router): void {
     $router->get('/scan/{token}', [ScanController::class, 'show']);
     $router->get('/scan/{token}/report', [ScanController::class, 'showReport']);
     $router->post('/scan/{token}/report', [ScanController::class, 'submitReport']);
+    $router->get('/track', [GuestStatusController::class, 'form']);
+    $router->post('/track', [GuestStatusController::class, 'lookup']);
     $router->get('/admin/guest-requests', [GuestRequestController::class, 'index']);
     $router->get('/admin/guest-requests/state', [GuestRequestController::class, 'state']);
     $router->post('/admin/guest-requests/{requestId}/convert', [GuestRequestController::class, 'convert']);

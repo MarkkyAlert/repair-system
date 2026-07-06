@@ -70,6 +70,33 @@ if (!function_exists('ticket_status_label_th')) {
     }
 }
 
+if (!function_exists('ticket_status_tone')) {
+    /** สี badge ตามสถานะ ticket (มิเรอร์ TicketService::statusTone) — ใช้ในหน้า public track สถานะ. */
+    function ticket_status_tone(string $status): string
+    {
+        return match ($status) {
+            'resolved', 'completed' => 'success',
+            'pending_approval', 'on_hold' => 'warning',
+            'rejected', 'cancelled' => 'danger',
+            'approved', 'assigned', 'accepted', 'in_progress', 'submitted' => 'info',
+            default => 'default',
+        };
+    }
+}
+
+if (!function_exists('guest_request_status_label_th')) {
+    function guest_request_status_label_th(string $status): string
+    {
+        static $map = [
+            'new' => 'รอการตรวจสอบ',
+            'converted' => 'รับเรื่องแล้ว',
+            'rejected' => 'ไม่รับเรื่อง',
+        ];
+
+        return $map[$status] ?? humanize_label($status);
+    }
+}
+
 if (!function_exists('ticket_status_values')) {
     /**
      * Canonical ordered list of tickets.status enum values — single source of truth for

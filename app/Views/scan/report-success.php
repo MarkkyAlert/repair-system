@@ -10,6 +10,10 @@
                 <p style="font-size:1.5rem;font-weight:800;color:var(--indigo-600);margin:.5rem 0;font-family:var(--font-mono,monospace)"><?= e($requestNo) ?></p>
                 <p class="helper-text">เก็บเลขนี้ไว้สำหรับติดตามผล</p>
             </div>
+
+            <div style="margin-top:1.5rem">
+                <?= render_partial('partials/components/button', ['label' => 'ติดตามสถานะคำขอ', 'href' => '/track?ref=' . rawurlencode((string) $requestNo), 'variant' => 'primary', 'icon' => 'search', 'iconPosition' => 'right']) ?>
+            </div>
         </div>
     </div>
 </section>

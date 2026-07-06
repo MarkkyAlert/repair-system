@@ -58,6 +58,21 @@ class GuestTicketRequestRepository
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
+    /** ค้นด้วยเลขอ้างอิง + join ticket ที่แปลงแล้ว (ticket_no/status) — ใช้หน้า public track สถานะ. */
+    public function findByRequestNo(string $requestNo): ?array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT g.*, t.ticket_no, t.status AS ticket_status
+             FROM guest_ticket_requests g
+             LEFT JOIN tickets t ON t.id = g.converted_ticket_id
+             WHERE g.request_no = :request_no
+             LIMIT 1'
+        );
+        $stmt->execute(['request_no' => $requestNo]);
+
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
     public function listByStatus(string $status, int $limit, int $offset): array
     {
         $limit = max(1, min($limit, 100));
