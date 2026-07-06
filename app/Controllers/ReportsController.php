@@ -61,6 +61,27 @@ class ReportsController
         ]);
     }
 
+    /** ดาวน์โหลดชุดตัวอย่างรายงาน (ZIP: PDF+Excel 4 รายงานเด่น) — GET download, gate manager/admin. */
+    public function samplePack(): void
+    {
+        AuthMiddleware::handle();
+
+        $viewer = auth()->user() ?? [];
+        if (!is_manager_or_admin((string) ($viewer['role'] ?? 'guest'))) {
+            flash('error', 'หน้านี้สงวนสำหรับผู้จัดการและผู้ดูแลระบบเท่านั้น');
+            Response::redirect('/dashboard');
+        }
+
+        try {
+            $pack = $this->reports->generateSamplePack($viewer);
+        } catch (DomainException | RuntimeException $exception) {
+            flash('error', $exception->getMessage());
+            Response::redirect('/reports/guide');
+        }
+
+        Response::download((string) $pack['content'], (string) $pack['file_name'], 'application/zip');
+    }
+
     public function exportExcel(): void
     {
         AuthMiddleware::handle();

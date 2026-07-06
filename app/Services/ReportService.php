@@ -3335,6 +3335,59 @@ class ReportService
         return $cell;
     }
 
+    /**
+     * Sample Pack — รวม PDF+Excel ของ 4 รายงานเด่น + README เป็น ZIP เดียว (ช่วยขาย/พรีเซนต์).
+     * ใช้ default filter ของแต่ละรายงาน (ไม่ว่าง) ; bundle ในหน่วยความจำผ่าน addFromString (temp file แค่ zip เดียว).
+     */
+    public function generateSamplePack(array $viewer): array
+    {
+        $this->ensureCanViewReports($viewer);
+
+        // [ชื่อไฟล์ไทย, เมธอด PDF, เมธอด Excel, filter]. executive ใช้ 'year' เพราะเป็น period-to-date
+        // (เดือน/ไตรมาสต้นงวดจะโล่ง) — ปีให้เห็นภาพเต็ม ; ที่เหลือ default (ทั้งช่วง) พอ.
+        $catalog = [
+            ['1-สรุปผู้บริหาร', 'exportExecutiveSummaryPdf', 'exportExecutiveSummaryExcel', ['preset' => 'year']],
+            ['2-วิเคราะห์ SLA เกิน', 'exportSlaBreachPdf', 'exportSlaBreachExcel', []],
+            ['3-ความพึงพอใจลูกค้า', 'exportCsatPdf', 'exportCsatExcel', []],
+            ['4-แนวโน้มงานซ่อม', 'exportTicketTrendPdf', 'exportTicketTrendExcel', []],
+        ];
+
+        $tmp = tempnam(sys_get_temp_dir(), 'pack') . '.zip';
+        $zip = new \ZipArchive();
+        if ($zip->open($tmp, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+            @unlink($tmp);
+            throw new RuntimeException('ไม่สามารถเตรียมไฟล์ ZIP ได้');
+        }
+
+        try {
+            $lines = ['ชุดตัวอย่างรายงาน — ระบบแจ้งซ่อมและบำรุงรักษา', 'สร้างเมื่อ ' . date('d/m/Y H:i'), '', 'ไฟล์ในชุดนี้:'];
+            foreach ($catalog as [$name, $pdfMethod, $excelMethod, $filters]) {
+                $pdf = $this->{$pdfMethod}($viewer, $filters);
+                $excel = $this->{$excelMethod}($viewer, $filters);
+                $zip->addFromString($name . '.pdf', (string) ($pdf['content'] ?? ''));
+                $zip->addFromString($name . '.xlsx', (string) ($excel['content'] ?? ''));
+                $lines[] = "  • {$name}.pdf / {$name}.xlsx";
+            }
+            $lines[] = '';
+            $lines[] = '* ตัวเลขสร้างจากข้อมูลในระบบขณะดาวน์โหลด — โหลด "ข้อมูลตัวอย่าง" ที่หน้าผู้ดูแลระบบเพื่อให้รายงานดูเต็ม';
+            $zip->addFromString('README.txt', implode("\n", $lines));
+            $zip->close();
+
+            $content = (string) file_get_contents($tmp);
+            @unlink($tmp);
+
+            return [
+                'content' => $content,
+                'file_name' => 'report-sample-pack-' . date('Ymd') . '.zip',
+                'content_type' => 'application/zip',
+            ];
+        } catch (\Throwable $exception) {
+            @$zip->close();
+            @unlink($tmp);
+            throw new RuntimeException('ไม่สามารถสร้างชุดตัวอย่างรายงานได้', 0, $exception);
+        }
+    }
+
     private function ensureCanViewReports(array $viewer): void
     {
         if (!is_manager_or_admin((string) ($viewer['role'] ?? 'guest'))) {

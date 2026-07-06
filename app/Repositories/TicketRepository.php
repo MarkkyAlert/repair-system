@@ -803,15 +803,19 @@ class TicketRepository
 
     public function createSeedTicket(array $payload): int
     {
+        // วันที่ปรับได้ (สำหรับ demo ที่กระจายช่วงเวลา) — ไม่ส่งมาก็ default = ตอนนี้ / +1h / +8h เหมือนเดิม.
+        $requestedAt = (string) ($payload['requested_at'] ?? date('Y-m-d H:i:s'));
+        $reqTs = strtotime($requestedAt) ?: time();
+
         $stmt = $this->db->prepare(
             'INSERT IGNORE INTO tickets (
                 ticket_no, title, description, requester_id, location_id, asset_id, ticket_category_id, priority_id,
                 assigned_manager_id, assigned_technician_id, approval_status, status, channel, impact_level, urgency_level,
-                requested_at, response_due_at, resolution_due_at, approved_at, completed_at, created_at, updated_at
+                requested_at, response_due_at, resolution_due_at, approved_at, resolved_at, completed_at, created_at, updated_at
              ) VALUES (
                 :ticket_no, :title, :description, :requester_id, :location_id, :asset_id, :ticket_category_id, :priority_id,
                 :manager_id, :technician_id, :approval_status, :status, "web", "medium", "medium",
-                NOW(), DATE_ADD(NOW(), INTERVAL 1 HOUR), DATE_ADD(NOW(), INTERVAL 8 HOUR), :approved_at, :completed_at, NOW(), NOW()
+                :requested_at, :response_due_at, :resolution_due_at, :approved_at, :resolved_at, :completed_at, :created_at, NOW()
              )'
         );
         $stmt->execute([
@@ -827,11 +831,71 @@ class TicketRepository
             'technician_id' => isset($payload['technician_id']) && (int) $payload['technician_id'] > 0 ? (int) $payload['technician_id'] : null,
             'approval_status' => (string) ($payload['approval_status'] ?? 'pending'),
             'status' => (string) ($payload['status'] ?? 'pending_approval'),
+            'requested_at' => $requestedAt,
+            'created_at' => $requestedAt,
+            'response_due_at' => (string) ($payload['response_due_at'] ?? date('Y-m-d H:i:s', $reqTs + 3600)),
+            'resolution_due_at' => (string) ($payload['resolution_due_at'] ?? date('Y-m-d H:i:s', $reqTs + 8 * 3600)),
             'approved_at' => $payload['approved_at'] ?? null,
+            'resolved_at' => $payload['resolved_at'] ?? null,
             'completed_at' => $payload['completed_at'] ?? null,
         ]);
 
         return (int) $this->db->lastInsertId();
+    }
+
+    /** Seed work order (labor) — idempotent ผ่าน UNIQUE(ticket_id)/UNIQUE(work_order_no). ใช้ตอนโหลด demo data. */
+    public function createSeedWorkOrder(int $ticketId, int $technicianId, int $assignedBy, string $status, int $laborMinutes, string $assignedAt, ?string $completedAt): void
+    {
+        $stmt = $this->db->prepare(
+            'INSERT IGNORE INTO work_orders (work_order_no, ticket_id, technician_id, assigned_by, status, labor_minutes, assigned_at, completed_at, created_at, updated_at)
+             VALUES (:wo, :ticket_id, :tech, :by, :status, :labor, :assigned_at, :completed_at, :created_at, NOW())'
+        );
+        $stmt->execute([
+            'wo' => 'WO-DEMO-' . $ticketId,
+            'ticket_id' => $ticketId,
+            'tech' => $technicianId,
+            'by' => $assignedBy,
+            'status' => $status,
+            'labor' => max(0, $laborMinutes),
+            'assigned_at' => $assignedAt,
+            'completed_at' => $completedAt,
+            'created_at' => $assignedAt,
+        ]);
+    }
+
+    /** Seed SLA track (response/resolution) — idempotent ผ่าน UNIQUE(ticket_id, metric_type). ใช้ตอนโหลด demo data. */
+    public function createSeedSlaTrack(int $ticketId, string $metricType, string $targetAt, ?string $achievedAt, ?string $breachedAt, string $status): void
+    {
+        $stmt = $this->db->prepare(
+            'INSERT IGNORE INTO ticket_sla_tracks (ticket_id, metric_type, target_at, achieved_at, breached_at, status, created_at)
+             VALUES (:ticket_id, :metric, :target, :achieved, :breached, :status, :created)'
+        );
+        $stmt->execute([
+            'ticket_id' => $ticketId,
+            'metric' => $metricType,
+            'target' => $targetAt,
+            'achieved' => $achievedAt,
+            'breached' => $breachedAt,
+            'status' => $status,
+            'created' => $targetAt,
+        ]);
+    }
+
+    /** Seed activity log (เช่น ticket_resolved / ticket_reopened) — ใช้ตอนโหลด demo data. */
+    public function createSeedActivityLog(int $ticketId, int $actorId, string $action, ?string $fromStatus, ?string $toStatus, string $createdAt): void
+    {
+        $stmt = $this->db->prepare(
+            'INSERT INTO ticket_activity_logs (ticket_id, actor_id, action, from_status, to_status, created_at)
+             VALUES (:ticket_id, :actor, :action, :from, :to, :created)'
+        );
+        $stmt->execute([
+            'ticket_id' => $ticketId,
+            'actor' => $actorId,
+            'action' => $action,
+            'from' => $fromStatus,
+            'to' => $toStatus,
+            'created' => $createdAt,
+        ]);
     }
 
     public function createSeedRating(int $ticketId, int $requesterId, ?int $technicianId, int $score, string $feedback): void

@@ -89,6 +89,21 @@ $groups = [
         </ol>
     </section>
 
+    <section class="panel-card stack-md">
+        <div class="panel-head">
+            <div>
+                <h2 class="panel-title">ดูตัวอย่างผลลัพธ์จริง</h2>
+                <p class="field-hint">รวม PDF + Excel ของ 4 รายงานเด่น (สรุปผู้บริหาร · SLA · ความพึงพอใจ · แนวโน้ม) พร้อมพรีเซนต์</p>
+            </div>
+            <?= render_partial('partials/components/button', [
+                'label' => 'ดาวน์โหลดชุดตัวอย่าง (PDF+Excel)',
+                'href' => '/reports/sample-pack',
+                'variant' => 'primary',
+                'icon' => 'download',
+            ]) ?>
+        </div>
+    </section>
+
     <?php foreach ($groups as $groupName => $reports): ?>
         <section class="stack-md">
             <p class="nav-section-label"><?= e($groupName) ?></p>

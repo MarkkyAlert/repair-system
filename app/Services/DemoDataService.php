@@ -60,9 +60,9 @@ class DemoDataService
             $assetCategoryIds = $this->codeMap($this->admin->getAssetCategories());
             $priorityIds = $this->codeMap($this->admin->getPriorities());
 
-            [$techId, $created['users'], $techPassword] = $this->seedTechnician($departmentIds);
+            [$techIds, $created['users'], $techPassword] = $this->seedTechnician($departmentIds);
             [$assetIds, $created['assets']] = $this->seedAssets($createdByUserId, $assetCategoryIds, $locationIds);
-            $created['tickets'] = $this->seedTickets($createdByUserId, $techId, $locationIds, $assetIds, $ticketCategoryIds, $priorityIds);
+            $created['tickets'] = $this->seedTickets($createdByUserId, $techIds, $locationIds, $assetIds, $ticketCategoryIds, $priorityIds);
 
             // surface รหัสช่างตัวอย่างเฉพาะเมื่อสร้างบัญชีใหม่จริง (ถ้ามีอยู่แล้วไม่รู้/ไม่แตะรหัสเดิม)
             if ($created['users'] > 0) {
@@ -171,28 +171,40 @@ class DemoDataService
      * @param array<string, int> $departmentIds
      * @return array{0: int, 1: int, 2: string} [technicianUserId, usersCreated, plainPassword ('' ถ้าไม่ได้สร้าง)]
      */
+    /**
+     * สร้างช่างตัวอย่าง 3 คน (ต่างแผนก) เพื่อให้รายงานผลงานช่าง/CSAT-ต่อช่างมีหลายแถว.
+     * @return array{0: array<int, int>, 1: int, 2: string} [techIds, created, sharedPassword]
+     */
     private function seedTechnician(array $departmentIds): array
     {
         // สุ่มรหัสผ่านต่อการโหลดหนึ่งครั้ง — ห้ามใช้ค่าคงที่ที่เปิดเผยใน source (BAC/known-password).
-        // caller (setup/admin) จะ surface รหัสนี้ให้ operator เห็น "ครั้งเดียว" หลังโหลด.
+        // caller (setup/admin) จะ surface รหัสนี้ให้ operator เห็น "ครั้งเดียว" หลังโหลด. ช่างทุกคนใช้รหัสเดียวกัน (demo).
         $plainPassword = bin2hex(random_bytes(8));
-        try {
-            $techId = $this->admin->createUser([
-                'username' => 'tech_demo',
-                'email' => 'tech_demo@example.com',
-                'password_hash' => password_hash($plainPassword, PASSWORD_BCRYPT),
-                'full_name' => 'ช่างเทคนิคตัวอย่าง',
-                'phone' => '',
-                'role' => 'technician',
-                'department_id' => $departmentIds['IT'] ?? null,
-                'is_active' => true,
-            ]);
+        $techs = [
+            ['username' => 'tech_demo', 'full_name' => 'สมชาย ช่างเทคนิค', 'dept' => 'IT'],
+            ['username' => 'tech_demo2', 'full_name' => 'วิภา ช่างซ่อมบำรุง', 'dept' => 'FACILITY'],
+            ['username' => 'tech_demo3', 'full_name' => 'ธนา ช่างไฟฟ้า', 'dept' => 'FACILITY'],
+        ];
 
-            return [$techId, 1, $plainPassword];
-        } catch (DomainException) {
-            // Username/email already exists — best-effort: skip user creation (ไม่แตะรหัสเดิม)
-            return [0, 0, ''];
+        $ids = [];
+        foreach ($techs as $tech) {
+            try {
+                $ids[] = $this->admin->createUser([
+                    'username' => $tech['username'],
+                    'email' => $tech['username'] . '@example.com',
+                    'password_hash' => password_hash($plainPassword, PASSWORD_BCRYPT),
+                    'full_name' => $tech['full_name'],
+                    'phone' => '',
+                    'role' => 'technician',
+                    'department_id' => $departmentIds[$tech['dept']] ?? null,
+                    'is_active' => true,
+                ]);
+            } catch (DomainException) {
+                // Username/email already exists — best-effort: skip (ไม่แตะรหัสเดิม)
+            }
         }
+
+        return [$ids, count($ids), $plainPassword];
     }
 
     /**
@@ -255,87 +267,120 @@ class DemoDataService
      * @param array<string, int> $ticketCategoryIds
      * @param array<string, int> $priorityIds
      */
-    private function seedTickets(int $createdByUserId, int $techId, array $locationIds, array $assetIds, array $ticketCategoryIds, array $priorityIds): int
+    private function seedTickets(int $createdByUserId, array $techIds, array $locationIds, array $assetIds, array $ticketCategoryIds, array $priorityIds): int
     {
-        // Sample tickets need an admin to act as requester + manager.
-        if ($createdByUserId <= 0) {
+        // Sample tickets need an admin to act as requester + manager, and at least one demo technician.
+        if ($createdByUserId <= 0 || $techIds === []) {
             return 0;
         }
 
-        $samples = [
-            [
-                'ticket_no' => 'DEMO-001',
-                'title' => 'PC HR-01 เปิดไม่ติด',
-                'description' => 'กดปุ่ม power แล้วไฟไม่เข้า ลองสลับปลั๊กแล้วก็ไม่ได้',
-                'asset' => 'PC-001',
-                'location' => 'OFFICE-1F',
-                'category' => 'HARDWARE',
-                'priority' => 'HIGH',
-                'status' => 'pending_approval',
-                'approval_status' => 'pending',
-                'rated' => false,
-            ],
-            [
-                'ticket_no' => 'DEMO-002',
-                'title' => 'แอร์ห้องประชุมไม่เย็น',
-                'description' => 'เปิดมา 30 นาทียังไม่เย็น เสียงผิดปกติ',
-                'asset' => 'AC-001',
-                'location' => 'MEETING',
-                'category' => 'ELECTRICAL',
-                'priority' => 'MEDIUM',
-                'status' => 'in_progress',
-                'approval_status' => 'approved',
-                'rated' => false,
-            ],
-            [
-                'ticket_no' => 'DEMO-003',
-                'title' => 'เครื่องพิมพ์กระดาษติด',
-                'description' => 'มีเสียงดังจาก feeder',
-                'asset' => 'PRT-001',
-                'location' => 'OFFICE-1F',
-                'category' => 'HARDWARE',
-                'priority' => 'LOW',
-                'status' => 'completed',
-                'approval_status' => 'approved',
-                'rated' => true,
-            ],
+        // spec ต่อ ticket (กระจายให้ทุกรายงานดูเต็ม): [title, daysAgo, status, cat, loc, pri, asset, techIdx,
+        //   labor(min), rating[score,fb]|null, resolveHours|null (null=ยังไม่ปิด), reopen]. breach = resolveHours > 8.
+        $specs = [
+            // ── ปิดงานแล้ว (resolved/completed/closed) ── มีคะแนน/แรงงาน/SLA/บางตัว breach+reopen
+            ['เครื่องพิมพ์ HR ไม่พิมพ์งาน', 84, 'closed', 'HARDWARE', 'OFFICE-1F', 'MEDIUM', 'PRT-001', 0, 45, [5, 'ช่างมาไว แก้จบในครั้งเดียว ประทับใจมาก'], 3, false],
+            ['จอคอมการเงินกระพริบถี่', 78, 'completed', 'HARDWARE', 'OFFICE-2F', 'HIGH', 'PC-001', 1, 90, [4, 'โดยรวมดี แต่รอชิ้นส่วนนานไปหน่อย'], 20, false],
+            ['แอร์ห้องประชุมใหญ่ไม่เย็น', 70, 'closed', 'ELECTRICAL', 'MEETING', 'HIGH', 'AC-001', 2, 180, [3, 'เย็นแล้วแต่ใช้เวลานาน'], 30, false],
+            ['ไฟห้องเก็บของดับทั้งห้อง', 63, 'resolved', 'ELECTRICAL', 'WAREHOUSE', 'LOW', 'LGT-001', 0, 25, [5, 'รวดเร็วมากครับ'], 2, false],
+            ['เมาส์และคีย์บอร์ดฝ่าย IT พัง', 58, 'completed', 'HARDWARE', 'OFFICE-1F', 'LOW', 'PC-002', 1, 15, [4, 'เรียบร้อยดี'], 1, false],
+            ['เซิร์ฟเวอร์ช้าผิดปกติทั้งวัน', 52, 'completed', 'SOFTWARE', 'SERVER', 'URGENT', 'SRV-001', 2, 240, [2, 'แก้ช้ามาก งานสะดุดทั้งวัน ต้องตามหลายรอบ'], 48, true],
+            ['เครื่องพิมพ์ชั้น 2 กระดาษติดบ่อย', 45, 'closed', 'HARDWARE', 'OFFICE-2F', 'MEDIUM', 'PRT-002', 0, 60, [1, 'เปิดซ้ำหลายรอบยังไม่หายขาด ผิดหวัง'], 36, true],
+            ['ติดตั้งโปรแกรมบัญชีเวอร์ชันใหม่', 38, 'completed', 'SOFTWARE', 'OFFICE-1F', 'MEDIUM', 'PC-001', 1, 120, [5, 'ติดตั้งเรียบร้อย สอนใช้งานด้วย ดีมาก'], 5, false],
+            ['แอร์โรงอาหารมีเสียงดัง', 30, 'resolved', 'ELECTRICAL', 'MEETING', 'MEDIUM', 'AC-002', 2, 75, null, 6, false],
+            ['สายแลนหลุดห้องประชุมย่อย', 2, 'closed', 'HARDWARE', 'MEETING', 'LOW', 'PC-002', 0, 20, [4, 'ok ครับ'], 2, false],
+            ['จอมอนิเตอร์ห้องเซิร์ฟเวอร์ไม่ติด', 4, 'completed', 'HARDWARE', 'SERVER', 'HIGH', 'SRV-001', 1, 50, [3, 'พอใช้ได้'], 4, false],
+            ['ไฟออฟฟิศชั้น 1 บางดวงดับ', 6, 'resolved', 'ELECTRICAL', 'OFFICE-1F', 'LOW', 'LGT-001', 2, 30, null, 3, false],
+            // ── งานค้าง (backlog) ── ยังไม่ปิด อายุหลากหลาย (2 ตัวเกิน 30 วัน)
+            ['PC ฝ่ายขายเปิดไม่ติด (รอชิ้นส่วน)', 40, 'on_hold', 'HARDWARE', 'OFFICE-2F', 'HIGH', 'PC-002', 0, 30, null, null, false],
+            ['แอร์ห้องเซิร์ฟเวอร์ไม่เย็นพอ', 33, 'in_progress', 'ELECTRICAL', 'SERVER', 'URGENT', 'AC-001', 1, 60, null, null, false],
+            ['ตั้งค่าเครื่องพิมพ์ใหม่ยังไม่ได้', 15, 'in_progress', 'HARDWARE', 'OFFICE-1F', 'MEDIUM', 'PRT-002', 2, 20, null, null, false],
+            ['ขอเพิ่ม RAM เครื่องกราฟิก', 9, 'accepted', 'HARDWARE', 'OFFICE-2F', 'LOW', 'PC-001', 0, 0, null, null, false],
+            ['ไฟคลังสินค้ากระพริบ', 5, 'assigned', 'ELECTRICAL', 'WAREHOUSE', 'MEDIUM', 'LGT-001', 1, 0, null, null, false],
+            ['เมนบอร์ดเซิร์ฟเวอร์สำรองเสีย', 3, 'on_hold', 'HARDWARE', 'SERVER', 'HIGH', 'SRV-001', 2, 0, null, null, false],
+            // ── terminal ที่ไม่นับเป็นปิดงาน/ค้าง ──
+            ['ขอย้ายปลั๊กไฟ (ผู้แจ้งยกเลิกเอง)', 20, 'cancelled', 'ELECTRICAL', 'OFFICE-1F', 'LOW', 'LGT-001', 0, 0, null, null, false],
+            ['แจ้งผิดแผนก (ปฏิเสธ)', 14, 'rejected', 'SOFTWARE', 'OFFICE-2F', 'LOW', 'PC-002', 0, 0, null, null, false],
         ];
 
-        $now = date('Y-m-d H:i:s');
+        $techCount = count($techIds);
         $count = 0;
-        foreach ($samples as $sample) {
-            $approvedAt = $sample['approval_status'] === 'approved' ? $now : null;
-            $completedAt = $sample['status'] === 'completed' ? $now : null;
-            $assignedTech = in_array($sample['status'], ['in_progress', 'completed'], true) && $techId > 0 ? $techId : null;
+        $index = 0;
+        foreach ($specs as [$title, $daysAgo, $status, $cat, $loc, $pri, $asset, $techIdx, $labor, $rating, $resolveHours, $reopen]) {
+            $index++;
+            $reqTs = strtotime("-{$daysAgo} days -" . (($index % 8) + 1) . ' hours') ?: time();
+            $requestedAt = date('Y-m-d H:i:s', $reqTs);
+            $isDone = $resolveHours !== null;
+            $resolvedAt = $isDone ? date('Y-m-d H:i:s', $reqTs + $resolveHours * 3600) : null;
+            $completedAt = in_array($status, ['completed', 'closed'], true) ? $resolvedAt : null;
+            $isTerminalReject = in_array($status, ['rejected', 'cancelled'], true);
+            $approvalStatus = $status === 'rejected' ? 'rejected' : 'approved';
+            $tech = $techIds[$techIdx % $techCount] ?? null;
+            $responseDue = date('Y-m-d H:i:s', $reqTs + 3600);
+            $resolutionDue = date('Y-m-d H:i:s', $reqTs + 8 * 3600);
 
             $ticketId = $this->tickets->createSeedTicket([
-                'ticket_no' => $sample['ticket_no'],
-                'title' => $sample['title'],
-                'description' => $sample['description'],
+                'ticket_no' => sprintf('DEMO-%03d', $index),
+                'title' => $title,
+                'description' => $title . ' — รายละเอียดตัวอย่างสำหรับสาธิตระบบ',
                 'requester_id' => $createdByUserId,
-                'location_id' => $locationIds[$sample['location']] ?? 0,
-                'asset_id' => $assetIds[$sample['asset']] ?? null,
-                'ticket_category_id' => $ticketCategoryIds[$sample['category']] ?? 0,
-                'priority_id' => $priorityIds[$sample['priority']] ?? 0,
+                'location_id' => $locationIds[$loc] ?? 0,
+                'asset_id' => $assetIds[$asset] ?? null,
+                'ticket_category_id' => $ticketCategoryIds[$cat] ?? 0,
+                'priority_id' => $priorityIds[$pri] ?? 0,
                 'manager_id' => $createdByUserId,
-                'technician_id' => $assignedTech,
-                'approval_status' => $sample['approval_status'],
-                'status' => $sample['status'],
-                'approved_at' => $approvedAt,
+                'technician_id' => $isTerminalReject ? null : $tech,
+                'approval_status' => $approvalStatus,
+                'status' => $status,
+                'requested_at' => $requestedAt,
+                'response_due_at' => $responseDue,
+                'resolution_due_at' => $resolutionDue,
+                'approved_at' => $status === 'rejected' ? null : date('Y-m-d H:i:s', $reqTs + 1800),
+                'resolved_at' => $resolvedAt,
                 'completed_at' => $completedAt,
             ]);
 
-            if ($ticketId > 0) {
-                $count++;
-                if ($sample['rated']) {
-                    $this->tickets->createSeedRating(
-                        $ticketId,
-                        $createdByUserId,
-                        $techId > 0 ? $techId : null,
-                        5,
-                        'บริการดีมาก ช่างมาตรงเวลา'
-                    );
+            if ($ticketId <= 0) {
+                continue;
+            }
+            $count++;
+
+            if ($isTerminalReject) {
+                continue; // ไม่นับ SLA/แรงงาน/คะแนน ให้ terminal ที่ไม่ใช่งานจริง
+            }
+
+            // Work order + labor (ช่างที่ลงมือทำ)
+            if ($tech !== null && in_array($status, ['in_progress', 'on_hold', 'accepted', 'resolved', 'completed', 'closed'], true)) {
+                $woStatus = $isDone ? 'completed' : ($status === 'in_progress' ? 'in_progress' : 'assigned');
+                $this->tickets->createSeedWorkOrder($ticketId, $tech, $createdByUserId, $woStatus, $labor, $requestedAt, $isDone ? $resolvedAt : null);
+            }
+
+            // SLA tracks: response (met) + resolution (met/breached เมื่อปิด, pending เมื่อยังค้าง)
+            $this->tickets->createSeedSlaTrack($ticketId, 'response', $responseDue, date('Y-m-d H:i:s', $reqTs + 1200), null, 'met');
+            if ($isDone) {
+                $breach = $resolveHours > 8;
+                $this->tickets->createSeedSlaTrack(
+                    $ticketId,
+                    'resolution',
+                    $resolutionDue,
+                    $breach ? null : $resolvedAt,
+                    $breach ? date('Y-m-d H:i:s', $reqTs + ($resolveHours + 1) * 3600) : null,
+                    $breach ? 'breached' : 'met'
+                );
+            } else {
+                $this->tickets->createSeedSlaTrack($ticketId, 'resolution', $resolutionDue, null, null, 'pending');
+            }
+
+            // Activity logs: resolved (+ reopened บางตัว → reopen rate ไม่เป็น 0)
+            if ($isDone) {
+                $this->tickets->createSeedActivityLog($ticketId, $tech ?? $createdByUserId, 'ticket_resolved', 'in_progress', 'resolved', (string) $resolvedAt);
+                if ($reopen) {
+                    $this->tickets->createSeedActivityLog($ticketId, $createdByUserId, 'ticket_reopened', 'resolved', 'assigned', date('Y-m-d H:i:s', strtotime((string) $resolvedAt) + 2 * 86400));
                 }
+            }
+
+            // Rating (คะแนน + ความคิดเห็น) — มี ≤2★ ให้เห็นจุดที่ต้องปรับปรุง
+            if ($rating !== null) {
+                $this->tickets->createSeedRating($ticketId, $createdByUserId, $tech, (int) $rating[0], (string) $rating[1]);
             }
         }
 
