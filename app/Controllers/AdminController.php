@@ -8,6 +8,7 @@ use App\Middleware\AuthMiddleware;
 use App\Repositories\TicketReadRepository;
 use App\Repositories\UserRepository;
 use App\Services\AdminService;
+use App\Services\BackupService;
 use App\Services\BroadcastService;
 use App\Services\DemoDataService;
 use App\Services\ReferenceDataService;
@@ -27,6 +28,7 @@ class AdminController
         private DemoDataService $demoData,
         private TicketReadRepository $reads,
         private UserRepository $users,
+        private BackupService $backup,
     ) {
     }
 
@@ -81,6 +83,7 @@ class AdminController
             'loginAttempts' => $data['loginAttempts'],
             'loginAttemptStats' => $data['loginAttemptStats'],
             'canLoadDemo' => $this->reads->countAllTickets() === 0,
+            'backup' => $this->backup->getStatus(),
         ]);
     }
 

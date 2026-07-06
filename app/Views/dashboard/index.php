@@ -99,7 +99,7 @@ $metricCount = static fn (string $key): int => max(0, (int) ($metrics[$key] ?? 0
             </div>
             <div class="operations-alert-actions">
                 <?php foreach ($cronHealth as $cron): ?>
-                    <a class="operations-alert-chip tone-warning" href="<?= e(url('/admin/email-queue')) ?>">
+                    <a class="operations-alert-chip tone-warning" href="<?= e(url($cron['href'] ?? '/admin/email-queue')) ?>">
                         <?= lucide('clock', 'h-4 w-4') ?>
                         <span><?= e($cron['label']) ?> · <?= e($cron['last_run'] !== '' ? 'รัน ' . human_date($cron['last_run']) : 'ยังไม่เคยรัน') ?></span>
                     </a>

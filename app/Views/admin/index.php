@@ -40,6 +40,7 @@
         <a href="#tab-security" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-security"><?= lucide('shield', 'h-4 w-4') ?><span>ความปลอดภัย</span><?php if ((int) ($loginAttemptStats['recent_failures'] ?? 0) > 0): ?> <span class="admin-tab-badge"><?= e((string) (int) $loginAttemptStats['recent_failures']) ?></span><?php endif; ?></a>
         <a href="#tab-email" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-email"><?= lucide('send', 'h-4 w-4') ?><span>อีเมล</span></a>
         <a href="#tab-settings" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-settings"><?= lucide('settings', 'h-4 w-4') ?><span>การตั้งค่า</span></a>
+        <a href="#tab-backup" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-backup"><?= lucide('database', 'h-4 w-4') ?><span>สำรอง & กู้คืน</span></a>
     </nav>
     </div>
 
@@ -54,6 +55,7 @@
     <?php include __DIR__ . '/tabs/security.php'; ?>
     <?php include __DIR__ . '/tabs/email.php'; ?>
     <?php include __DIR__ . '/tabs/settings.php'; ?>
+    <?php include __DIR__ . '/tabs/backup.php'; ?>
 </section>
 
 <script src="<?= e(asset('js/admin.js')) ?>" defer></script>

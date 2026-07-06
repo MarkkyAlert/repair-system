@@ -128,10 +128,10 @@ class TicketService
         }
 
         $checks = [
-            ['key' => 'cron_email_queue_last_run_at', 'label' => 'คิวอีเมล', 'staleMinutes' => 30],
-            ['key' => 'cron_overdue_check_last_run_at', 'label' => 'ตรวจ SLA เกินกำหนด', 'staleMinutes' => 60],
-            ['key' => 'cron_backup_last_run_at', 'label' => 'สำรอง database', 'staleMinutes' => 60 * 24 * 2],
-            ['key' => 'cron_orphan_cleanup_last_run_at', 'label' => 'ล้างไฟล์แนบกำพร้า', 'staleMinutes' => 60 * 24 * 8],
+            ['key' => 'cron_email_queue_last_run_at', 'label' => 'คิวอีเมล', 'staleMinutes' => 30, 'href' => '/admin/email-queue'],
+            ['key' => 'cron_overdue_check_last_run_at', 'label' => 'ตรวจ SLA เกินกำหนด', 'staleMinutes' => 60, 'href' => '/admin/email-queue'],
+            ['key' => 'cron_backup_last_run_at', 'label' => 'สำรอง database', 'staleMinutes' => BackupService::STALE_MINUTES, 'href' => '/admin#tab-backup'],
+            ['key' => 'cron_orphan_cleanup_last_run_at', 'label' => 'ล้างไฟล์แนบกำพร้า', 'staleMinutes' => 60 * 24 * 8, 'href' => '/admin/email-queue'],
         ];
 
         $stale = [];
@@ -139,7 +139,7 @@ class TicketService
             $lastRun = (string) setting($check['key'], '');
             $lastTs = $lastRun !== '' ? strtotime($lastRun) : false;
             if ($lastTs === false || $lastTs < (time() - ($check['staleMinutes'] * 60))) {
-                $stale[] = ['label' => $check['label'], 'last_run' => $lastRun];
+                $stale[] = ['label' => $check['label'], 'last_run' => $lastRun, 'href' => $check['href']];
             }
         }
 
