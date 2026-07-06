@@ -67,9 +67,13 @@
                     <?= lucide('qr-code', 'nav-icon') ?>
                     <span class="nav-label">ทรัพย์สินและ QR</span>
                 </a>
-                <a href="<?= e(url('/reports')) ?>" class="nav-link<?= $isReportsPath && !is_path('/reports/asset-reliability') && !is_path('/reports/sla-breach') && !is_path('/reports/technician-performance') && !is_path('/reports/problem-hotspot') && !is_path('/reports/trend') ? ' is-active' : '' ?>" data-tooltip="รายงาน">
+                <a href="<?= e(url('/reports')) ?>" class="nav-link<?= $isReportsPath && !is_path('/reports/asset-reliability') && !is_path('/reports/sla-breach') && !is_path('/reports/technician-performance') && !is_path('/reports/problem-hotspot') && !is_path('/reports/trend') && !is_path('/reports/executive') ? ' is-active' : '' ?>" data-tooltip="รายงาน">
                     <?= lucide('bar-chart-3', 'nav-icon') ?>
                     <span class="nav-label">รายงานและวิเคราะห์</span>
+                </a>
+                <a href="<?= e(url('/reports/executive')) ?>" class="nav-link nav-link-sub<?= is_path('/reports/executive') ? ' is-active' : '' ?>" data-tooltip="สรุปผู้บริหาร">
+                    <?= lucide('star', 'nav-icon') ?>
+                    <span class="nav-label">สรุปผู้บริหาร</span>
                 </a>
                 <a href="<?= e(url('/reports/asset-reliability')) ?>" class="nav-link nav-link-sub<?= is_path('/reports/asset-reliability') ? ' is-active' : '' ?>" data-tooltip="สุขภาพทรัพย์สิน">
                     <?= lucide('activity', 'nav-icon') ?>

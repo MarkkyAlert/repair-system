@@ -324,6 +324,49 @@ class ReportsController
         $this->downloadReport('exportTicketTrendPdf', 'ticket-trend.pdf', 'application/pdf', '/reports/trend');
     }
 
+    public function executiveSummary(): void
+    {
+        AuthMiddleware::handle();
+
+        $viewer = auth()->user() ?? [];
+
+        try {
+            $data = $this->reports->getExecutiveSummaryPage($viewer, request()?->query ?? []);
+        } catch (DomainException $exception) {
+            flash('error', $exception->getMessage());
+            Response::redirect('/dashboard');
+        }
+
+        Response::view('reports/executive', [
+            'title' => 'สรุปผู้บริหาร',
+            'pageHeading' => 'สรุปผู้บริหาร (เทียบงวด)',
+            'currentUser' => $viewer,
+            'filters' => $data['filters'],
+            'period' => $data['period'],
+            'kpis' => $data['kpis'],
+        ]);
+    }
+
+    public function executiveSummaryExportCsv(): void
+    {
+        $this->downloadReport('exportExecutiveSummaryCsv', 'executive-summary.csv', 'text/csv; charset=UTF-8', '/reports/executive');
+    }
+
+    public function executiveSummaryExportExcel(): void
+    {
+        $this->downloadReport(
+            'exportExecutiveSummaryExcel',
+            'executive-summary.xlsx',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            '/reports/executive'
+        );
+    }
+
+    public function executiveSummaryExportPdf(): void
+    {
+        $this->downloadReport('exportExecutiveSummaryPdf', 'executive-summary.pdf', 'application/pdf', '/reports/executive');
+    }
+
     /** ตัวช่วยรวม flow export ของรายงานย่อย (csrf + download + redirect กลับหน้าเดิมเมื่อ error). */
     private function downloadReport(string $serviceMethod, string $fallbackName, string $fallbackType, string $redirectPath): void
     {

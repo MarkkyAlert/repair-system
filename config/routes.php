@@ -106,6 +106,10 @@ return static function (Router $router): void {
     $router->post('/reports/trend/export/csv', [ReportsController::class, 'trendExportCsv']);
     $router->post('/reports/trend/export/excel', [ReportsController::class, 'trendExportExcel']);
     $router->post('/reports/trend/export/pdf', [ReportsController::class, 'trendExportPdf']);
+    $router->get('/reports/executive', [ReportsController::class, 'executiveSummary']);
+    $router->post('/reports/executive/export/csv', [ReportsController::class, 'executiveSummaryExportCsv']);
+    $router->post('/reports/executive/export/excel', [ReportsController::class, 'executiveSummaryExportExcel']);
+    $router->post('/reports/executive/export/pdf', [ReportsController::class, 'executiveSummaryExportPdf']);
     $router->get('/attachments/{attachmentId}', [AttachmentsController::class, 'show']);
     $router->get('/assets', static fn () => Response::redirect('/asset-registry', 301));
     $router->get('/asset-registry', [AssetsController::class, 'index']);

@@ -1519,6 +1519,288 @@ class ReportService
         }
     }
 
+    // ===== Executive KPI Summary (หน้าแยกเต็มตัว /reports/executive — one-pager เทียบงวด) =====
+
+    private const EXEC_PRESETS = ['month', 'quarter', 'year', 'custom'];
+
+    public function getExecutiveSummaryPage(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+
+        $normalizedFilters = $this->normalizeExecFilters($filters);
+        $reference = $this->reports->getFilterReferenceData();
+        $window = $this->computePeriodWindows($normalizedFilters['preset'], $normalizedFilters['from_date'], $normalizedFilters['to_date']);
+
+        $base = [
+            'department_id' => $normalizedFilters['department_id'],
+            'category_id' => $normalizedFilters['category_id'],
+        ];
+        $thisSum = $this->reports->getSummary($viewer, $base + [
+            'from_datetime' => $window['this']['from'] . ' 00:00:00',
+            'to_datetime' => $window['this']['to'] . ' 23:59:59',
+        ]);
+        $prevSum = $this->reports->getSummary($viewer, $base + [
+            'from_datetime' => $window['prev']['from'] . ' 00:00:00',
+            'to_datetime' => $window['prev']['to'] . ' 23:59:59',
+        ]);
+
+        $tTotal = (int) ($thisSum['total_tickets'] ?? 0);
+        $pTotal = (int) ($prevSum['total_tickets'] ?? 0);
+        $tResolved = (int) ($thisSum['resolved_tickets'] ?? 0);
+        $pResolved = (int) ($prevSum['resolved_tickets'] ?? 0);
+        $tComp = $tTotal > 0 ? round($tResolved / $tTotal * 100, 1) : 0.0;
+        $pComp = $pTotal > 0 ? round($pResolved / $pTotal * 100, 1) : 0.0;
+        $tMttr = round(((float) ($thisSum['avg_resolution_minutes'] ?? 0)) / 60, 1);
+        $pMttr = round(((float) ($prevSum['avg_resolution_minutes'] ?? 0)) / 60, 1);
+        $tRating = (float) ($thisSum['avg_rating'] ?? 0);
+        $pRating = (float) ($prevSum['avg_rating'] ?? 0);
+
+        $kpis = [
+            $this->execKpiCard('แจ้งซ่อมทั้งหมด', $tTotal, $pTotal, 'neutral', 0, '', (string) $tTotal),
+            $this->execKpiCard('ปิดงาน', $tResolved, $pResolved, 'neutral', 0, '', (string) $tResolved),
+            $this->execKpiCard('อัตราปิดงาน', $tComp, $pComp, 'up_good', 1, '%', number_format($tComp, 1) . '%'),
+            $this->execKpiCard('เกิน SLA', (int) ($thisSum['overdue_tickets'] ?? 0), (int) ($prevSum['overdue_tickets'] ?? 0), 'down_good', 0, '', (string) (int) ($thisSum['overdue_tickets'] ?? 0)),
+            $this->execKpiCard('เวลาซ่อมเฉลี่ย (ชม.)', $tMttr, $pMttr, 'down_good', 1, '', $tMttr > 0 ? number_format($tMttr, 1) : '-'),
+            $this->execKpiCard('คะแนนเฉลี่ย', $tRating, $pRating, 'up_good', 1, '', $tRating > 0 ? number_format($tRating, 1) : '-'),
+        ];
+
+        $filterData = $this->buildFilterData($normalizedFilters, $reference);
+        $filterData['selected']['preset'] = $normalizedFilters['preset'];
+        $filterData['presetOptions'] = [
+            ['value' => 'month', 'label' => 'เดือนนี้'],
+            ['value' => 'quarter', 'label' => 'ไตรมาสนี้'],
+            ['value' => 'year', 'label' => 'ปีนี้'],
+            ['value' => 'custom', 'label' => 'กำหนดเอง'],
+        ];
+
+        return [
+            'filters' => $filterData,
+            'period' => [
+                'this' => $window['this']['label'],
+                'prev' => $window['prev']['label'],
+            ],
+            'kpis' => $kpis,
+        ];
+    }
+
+    private function normalizeExecFilters(array $filters): array
+    {
+        $preset = is_string($filters['preset'] ?? null) ? trim((string) $filters['preset']) : '';
+        $range = normalize_date_range(
+            is_string($filters['from_date'] ?? null) ? trim((string) $filters['from_date']) : '',
+            is_string($filters['to_date'] ?? null) ? trim((string) $filters['to_date']) : ''
+        );
+
+        return [
+            'preset' => in_array($preset, self::EXEC_PRESETS, true) ? $preset : 'month',
+            'from_date' => $range['from_date'],
+            'to_date' => $range['to_date'],
+            'department_id' => max(0, (int) ($filters['department_id'] ?? 0)),
+            'category_id' => max(0, (int) ($filters['category_id'] ?? 0)),
+        ];
+    }
+
+    /**
+     * คืนช่วง "งวดนี้" + "งวดก่อน" แบบ elapsed-to-date (ยาวเท่ากัน กัน bias งวดปัจจุบันยังไม่จบ):
+     * preset → ต้นงวดถึงวันนี้ vs ต้นงวดก่อน + จำนวนวันที่ผ่านไปเท่ากัน ; custom → ช่วงที่เลือก vs ช่วงยาว
+     * เท่ากันที่อยู่ติดก่อนหน้า.
+     * @return array{this: array{from:string,to:string,label:string}, prev: array{from:string,to:string,label:string}}
+     */
+    private function computePeriodWindows(string $preset, string $fromDate, string $toDate): array
+    {
+        $today = new \DateTimeImmutable('today');
+
+        if ($preset === 'custom') {
+            $thisFrom = $fromDate !== '' ? new \DateTimeImmutable($fromDate) : $today->setDate((int) $today->format('Y'), (int) $today->format('n'), 1);
+            $thisTo = $toDate !== '' ? new \DateTimeImmutable($toDate) : $today;
+            if ($thisTo < $thisFrom) {
+                [$thisFrom, $thisTo] = [$thisTo, $thisFrom];
+            }
+            $lengthDays = (int) $thisFrom->diff($thisTo)->days;
+            $prevTo = $thisFrom->modify('-1 day');
+            $prevFrom = $prevTo->modify('-' . $lengthDays . ' days');
+        } else {
+            $thisFrom = $this->execPeriodStart($today, $preset);
+            $thisTo = $today;
+            $elapsed = (int) $thisFrom->diff($thisTo)->days;
+            $prevFrom = match ($preset) {
+                'year' => $thisFrom->modify('-1 year'),
+                'quarter' => $thisFrom->modify('-3 months'),
+                default => $thisFrom->modify('-1 month'),
+            };
+            $prevTo = $prevFrom->modify('+' . $elapsed . ' days');
+        }
+
+        return [
+            'this' => ['from' => $thisFrom->format('Y-m-d'), 'to' => $thisTo->format('Y-m-d'), 'label' => $thisFrom->format('d/m/Y') . ' – ' . $thisTo->format('d/m/Y')],
+            'prev' => ['from' => $prevFrom->format('Y-m-d'), 'to' => $prevTo->format('Y-m-d'), 'label' => $prevFrom->format('d/m/Y') . ' – ' . $prevTo->format('d/m/Y')],
+        ];
+    }
+
+    private function execPeriodStart(\DateTimeImmutable $today, string $preset): \DateTimeImmutable
+    {
+        $year = (int) $today->format('Y');
+        if ($preset === 'year') {
+            return $today->setDate($year, 1, 1);
+        }
+        if ($preset === 'quarter') {
+            $quarterStartMonth = intdiv((int) $today->format('n') - 1, 3) * 3 + 1;
+            return $today->setDate($year, $quarterStartMonth, 1);
+        }
+
+        return $today->setDate($year, (int) $today->format('n'), 1);
+    }
+
+    /**
+     * การ์ด KPI 1 ตัว: value งวดนี้ + delta/pct เทียบงวดก่อน + tone ตามทิศที่ "ดี" (up_good/down_good/neutral).
+     */
+    private function execKpiCard(string $label, float $thisVal, float $prevVal, string $goodDir, int $decimals, string $unit, string $valueLabel): array
+    {
+        $delta = round($thisVal - $prevVal, $decimals);
+        $pct = $prevVal != 0.0 ? round(($thisVal - $prevVal) / abs($prevVal) * 100, 1) : null;
+        $arrow = $delta > 0 ? '↑' : ($delta < 0 ? '↓' : '→');
+        $tone = match ($goodDir) {
+            'up_good' => $delta > 0 ? 'success' : ($delta < 0 ? 'danger' : 'default'),
+            'down_good' => $delta < 0 ? 'success' : ($delta > 0 ? 'danger' : 'default'),
+            default => 'default',
+        };
+        $prevLabel = number_format($prevVal, $decimals) . $unit;
+
+        return [
+            'label' => $label,
+            'value_label' => $valueLabel,
+            'prev_value_label' => $prevLabel,
+            'delta_label' => $delta === 0.0 ? 'เท่าเดิม' : $arrow . ' ' . ($delta > 0 ? '+' : '') . number_format($delta, $decimals) . $unit,
+            'pct_label' => $pct === null ? '—' : ($pct > 0 ? '+' : '') . number_format($pct, 1) . '%',
+            'tone' => $tone,
+        ];
+    }
+
+    private function execExportHeaders(): array
+    {
+        return ['KPI', 'งวดนี้', 'งวดก่อน', 'เปลี่ยนแปลง', '%เปลี่ยน'];
+    }
+
+    private function execExportRow(array $kpi): array
+    {
+        return [$kpi['label'], $kpi['value_label'], $kpi['prev_value_label'], $kpi['delta_label'], $kpi['pct_label']];
+    }
+
+    public function exportExecutiveSummaryCsv(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+        $normalizedFilters = $this->normalizeExecFilters($filters);
+        $kpis = $this->getExecutiveSummaryPage($viewer, $filters)['kpis'];
+        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'executive_summary_report', 'csv', $normalizedFilters);
+        $fileName = 'executive-summary-' . date('Ymd-His') . '.csv';
+
+        try {
+            $stream = fopen('php://temp', 'w+b');
+            if ($stream === false) {
+                throw new RuntimeException('ไม่สามารถเตรียมไฟล์ CSV ได้');
+            }
+            fwrite($stream, "\xEF\xBB\xBF");
+            fputcsv($stream, $this->execExportHeaders());
+            foreach ($kpis as $kpi) {
+                fputcsv($stream, $this->sanitizeExportRow($this->execExportRow($kpi)));
+            }
+            rewind($stream);
+            $content = (string) stream_get_contents($stream);
+            fclose($stream);
+            $this->reports->markExportJobCompleted($jobId, $fileName);
+
+            return ['content' => $content, 'file_name' => $fileName, 'content_type' => 'text/csv; charset=UTF-8'];
+        } catch (\Throwable $exception) {
+            $this->recordExportFailure($jobId, $exception);
+            throw new RuntimeException('ไม่สามารถสร้างไฟล์ CSV ได้', 0, $exception);
+        }
+    }
+
+    public function exportExecutiveSummaryExcel(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+        $normalizedFilters = $this->normalizeExecFilters($filters);
+        $kpis = $this->getExecutiveSummaryPage($viewer, $filters)['kpis'];
+        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'executive_summary_report', 'xlsx', $normalizedFilters);
+        $fileName = 'executive-summary-' . date('Ymd-His') . '.xlsx';
+
+        try {
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+            $sheet->setTitle('สรุปผู้บริหาร');
+
+            $column = 'A';
+            foreach ($this->execExportHeaders() as $header) {
+                $sheet->setCellValue($column . '1', $header);
+                $sheet->getColumnDimension($column)->setAutoSize(true);
+                $column++;
+            }
+
+            $rowNumber = 2;
+            foreach ($kpis as $kpi) {
+                $sheet->fromArray($this->sanitizeExportRow($this->execExportRow($kpi)), null, 'A' . $rowNumber);
+                $rowNumber++;
+            }
+
+            $writer = new Xlsx($spreadsheet);
+            ob_start();
+            $writer->save('php://output');
+            $content = (string) ob_get_clean();
+            $spreadsheet->disconnectWorksheets();
+            unset($spreadsheet);
+
+            $this->reports->markExportJobCompleted($jobId, $fileName);
+
+            return [
+                'content' => $content,
+                'file_name' => $fileName,
+                'content_type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ];
+        } catch (\Throwable $exception) {
+            $this->recordExportFailure($jobId, $exception);
+            throw new RuntimeException('ไม่สามารถสร้างไฟล์ Excel ได้', 0, $exception);
+        }
+    }
+
+    public function exportExecutiveSummaryPdf(array $viewer, array $filters = []): array
+    {
+        $this->ensureCanViewReports($viewer);
+        $normalizedFilters = $this->normalizeExecFilters($filters);
+        $page = $this->getExecutiveSummaryPage($viewer, $filters);
+        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'executive_summary_report', 'pdf', $normalizedFilters);
+        $fileName = 'executive-summary-' . date('Ymd-His') . '.pdf';
+
+        try {
+            $html = View::capture('reports/executive-pdf', [
+                'generatedAt' => date('d/m/Y H:i'),
+                'period' => $page['period'],
+                'kpis' => $page['kpis'],
+                'filters' => $this->describeFilters($normalizedFilters, $this->reports->getFilterReferenceData()),
+            ]);
+
+            $options = new Options();
+            $dompdfTmp = sys_get_temp_dir();
+            if ($dompdfTmp === '' || !@is_writable($dompdfTmp)) {
+                $dompdfTmp = is_dir('/tmp') ? '/tmp' : BASE_PATH . '/storage/uploads';
+            }
+            $options->setTempDir($dompdfTmp);
+            $options->set('isRemoteEnabled', false);
+            $options->set('defaultFont', 'sarabun');
+            $dompdf = new Dompdf($options);
+            $dompdf->loadHtml($html, 'UTF-8');
+            $dompdf->setPaper('A4', 'landscape');
+            $dompdf->render();
+            $content = $dompdf->output();
+
+            $this->reports->markExportJobCompleted($jobId, $fileName);
+
+            return ['content' => $content, 'file_name' => $fileName, 'content_type' => 'application/pdf'];
+        } catch (\Throwable $exception) {
+            $this->recordExportFailure($jobId, $exception);
+            throw new RuntimeException('ไม่สามารถสร้างไฟล์ PDF ได้', 0, $exception);
+        }
+    }
+
     /**
      * Pivot flat rows (priority × metric) → overall + byPriority พร้อม %compliance + tone.
      * @return array{overall: array<string, array>, byPriority: array<int, array>, hasData: bool}
