@@ -11,6 +11,19 @@ php tests/run.php          # or: composer test
 
 The suite runs against an **isolated `repair_system_test` database** (set in `run.php` via `$_ENV['DB_NAME']`), never the dev DB. Workflow tests insert a fresh ticket, drive the real service, assert, then delete it (child rows cascade) — repeatable, no residue. Exit code `0` = all pass, `1` = at least one failure (CI-friendly).
 
+## Pre-push hook (run tests before every push)
+
+`.githooks/pre-push` runs the suite before each `git push` and **aborts the push if anything fails**. It first checks that `repair_system_test` is reachable and has the schema loaded (via `tests/check_db.php`); if not, it tells you to run `./tests/setup_test_db.sh` instead of failing with a cryptic PDO error mid-suite.
+
+Enable it **once per clone** — the hook lives in the repo, but `core.hooksPath` is stored in the local `.git/config`, which is not cloned:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+- POSIX `sh`; works on macOS/Linux. It finds `php` on `PATH`, or set `PHP_BIN=/path/to/php git push`.
+- **Emergency bypass:** `git push --no-verify` skips the hook. Use only when you genuinely must push without a green suite — CI runs the same tests on every push/PR anyway, so a red push will still be caught there.
+
 ## Layout
 
 - `run.php` — boots the app autoloader + DI container, runs every `cases/*.php`, reports pass/fail.

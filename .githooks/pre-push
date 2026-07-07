@@ -1,0 +1,49 @@
+#!/bin/sh
+# pre-push: run the test suite before every push. If tests fail (or the test DB isn't ready),
+# the push is aborted. Emergency bypass (avoid unless truly necessary): git push --no-verify
+#
+# Enable in a fresh clone with:  git config core.hooksPath .githooks
+# Override the PHP binary with:  PHP_BIN=/path/to/php git push
+set -u
+
+# Run from the repo root so relative paths (tests/…) resolve no matter where git invoked us.
+cd "$(git rev-parse --show-toplevel)" || exit 1
+
+TEST_DB_NAME="${TEST_DB_NAME:-repair_system_test}"
+export TEST_DB_NAME
+
+# --- locate PHP (PHP_BIN override → php on PATH → XAMPP fallback) ---
+if [ -n "${PHP_BIN:-}" ]; then
+    :
+elif command -v php >/dev/null 2>&1; then
+    PHP_BIN=php
+elif [ -x /Applications/XAMPP/xamppfiles/bin/php ]; then
+    PHP_BIN=/Applications/XAMPP/xamppfiles/bin/php
+else
+    echo "pre-push: ไม่พบ php — ตั้ง PHP_BIN=/path/to/php แล้วลองใหม่ (หรือข้ามด้วย git push --no-verify)" >&2
+    exit 1
+fi
+
+# --- 1) test DB must be reachable + schema loaded (clear guidance instead of a cryptic crash) ---
+echo "pre-push: ตรวจ test DB ($TEST_DB_NAME)..." >&2
+db_err=$("$PHP_BIN" tests/check_db.php 2>&1 >/dev/null)
+if [ $? -ne 0 ]; then
+    echo "" >&2
+    echo "pre-push: ❌ ต่อ test DB ไม่ได้ หรือ schema ยังไม่พร้อม ($TEST_DB_NAME)" >&2
+    echo "  รายละเอียด: $db_err" >&2
+    echo "  แก้: ให้ MySQL ทำงานอยู่ แล้วรัน  ./tests/setup_test_db.sh  (สร้าง DB + โหลด schema/seed)" >&2
+    echo "  ฉุกเฉินจริง ๆ เท่านั้น: ข้ามด้วย  git push --no-verify" >&2
+    exit 1
+fi
+
+# --- 2) run the suite; non-zero exit blocks the push ---
+echo "pre-push: กำลังรันเทสต์ (php tests/run.php)..." >&2
+if "$PHP_BIN" tests/run.php; then
+    echo "pre-push: ✅ เทสต์ผ่าน — อนุญาต push" >&2
+    exit 0
+fi
+
+echo "" >&2
+echo "pre-push: ❌ เทสต์ไม่ผ่าน — ยกเลิก push" >&2
+echo "  แก้ให้เขียวก่อน push  (ฉุกเฉินจริง ๆ เท่านั้น: git push --no-verify)" >&2
+exit 1
