@@ -29,7 +29,6 @@ class BackupService
         $row = $this->settings->getByKey('cron_backup_last_run_at');
         $lastRunAt = trim((string) ($row['setting_value'] ?? ''));
         $lastTs = $lastRunAt !== '' ? strtotime($lastRunAt) : false;
-        $isStale = $lastTs === false || $lastTs < (time() - self::STALE_MINUTES * 60);
 
         $paths = glob(storage_path('backups') . '/db-*.sql.gz') ?: [];
         usort($paths, static fn (string $a, string $b): int => filemtime($b) <=> filemtime($a));
@@ -49,6 +48,12 @@ class BackupService
         }
 
         $newest = $paths[0] ?? null;
+        $newestTs = $newest !== null ? (int) @filemtime($newest) : null;
+
+        // "เก่า" ดูจากหลักฐานล่าสุดของการสำรองจริง — เวลาที่ cron บันทึก หรือ mtime ของไฟล์ล่าสุด แล้วแต่ตัวไหนใหม่กว่า.
+        // ไฟล์สดทำให้ไม่ stale แม้ cron ไม่ได้บันทึกเวลา ; ไม่มีหลักฐานเลย (ไม่มีทั้ง setting และไฟล์) = stale.
+        $evidenceTs = max($lastTs !== false ? $lastTs : 0, $newestTs ?? 0);
+        $isStale = $evidenceTs === 0 || $evidenceTs < (time() - self::STALE_MINUTES * 60);
 
         return [
             'has_backups' => $newest !== null,
@@ -58,7 +63,7 @@ class BackupService
             'file_count' => count($paths),
             'total_size' => $this->humanSize($totalBytes),
             'newest_file' => $newest !== null ? basename($newest) : null,
-            'newest_at' => $newest !== null ? date('Y-m-d H:i:s', (int) @filemtime($newest)) : null,
+            'newest_at' => $newestTs !== null ? date('Y-m-d H:i:s', $newestTs) : null,
             'newest_size' => $newest !== null ? $this->humanSize((int) (@filesize($newest) ?: 0)) : null,
             'retention' => self::DEFAULT_RETENTION,
             'backup_dir' => 'storage/backups',

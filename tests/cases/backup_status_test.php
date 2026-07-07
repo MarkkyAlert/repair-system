@@ -31,16 +31,18 @@ test('backup status: staleness by last-run age + file listing + restore command'
         assert_true($fresh['has_backups'] === true, 'detects backup files');
         assert_same($tmpName, $fresh['newest_file'], 'newest file is the temp file');
         assert_true($fresh['file_count'] >= 1, 'counts at least the temp file');
+        assert_true(($fresh['newest_at'] ?? '') !== '', 'exposes newest file mtime');
         assert_same((string) config('db.name', 'repair_system'), (string) $fresh['restore']['db_name'], 'restore uses configured db name');
         assert_same($tmpName, (string) $fresh['restore']['newest_file'], 'restore references the newest file');
 
-        // last-run older than the threshold → stale
-        $settings->upsert('cron_backup_last_run_at', date('Y-m-d H:i:s', time() - (BackupService::STALE_MINUTES + 60) * 60), 'string', false, 0);
-        assert_true($svc->getStatus()['is_stale'] === true, 'last-run beyond threshold → stale');
-
-        // empty last-run (never recorded) → stale
+        // file-aware freshness: a recent backup FILE keeps status fresh even with no cron timestamp
         $settings->upsert('cron_backup_last_run_at', '', 'string', false, 0);
-        assert_true($svc->getStatus()['is_stale'] === true, 'never run → stale');
+        assert_true($svc->getStatus()['is_stale'] === false, 'recent file → not stale even without cron timestamp');
+
+        // stale only when the most recent evidence (file mtime AND cron timestamp) is old
+        touch($tmpPath, time() - (BackupService::STALE_MINUTES + 60) * 60);
+        $settings->upsert('cron_backup_last_run_at', date('Y-m-d H:i:s', time() - (BackupService::STALE_MINUTES + 60) * 60), 'string', false, 0);
+        assert_true($svc->getStatus()['is_stale'] === true, 'old file + old last-run → stale');
     } finally {
         @unlink($tmpPath);
         if ($original === null) {

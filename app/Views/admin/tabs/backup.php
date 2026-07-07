@@ -8,10 +8,16 @@ $dbUser = (string) ($restore['db_user'] ?? 'root');
 $newestGz = (string) ($restore['newest_file'] ?? 'db-YYYY-MM-DD_HHMMSS.sql.gz');
 $newestSql = preg_replace('/\.gz$/', '', $newestGz);
 
-// สถานะรวม: ยังไม่เคยสำรอง / ค้างนาน / ปกติ
-if (empty($backup['has_backups']) && (string) ($backup['last_run_at'] ?? '') === '') {
-    $statusTone = 'default';
-    $statusLabel = 'ยังไม่เคยสำรอง';
+// สถานะรวม — ต้องมีไฟล์สำรองจริงถึงจะ "ปกติ": ไม่พบไฟล์ / ยังไม่เคยสำรอง / ค้างนาน / ปกติ
+if (empty($backup['has_backups'])) {
+    if ((string) ($backup['last_run_at'] ?? '') !== '') {
+        // เคยบันทึกว่าสำรองแล้ว แต่ไม่พบไฟล์ในโฟลเดอร์ = ผิดปกติ (ไฟล์อาจถูกลบ/ดิสก์ไม่ถูก mount)
+        $statusTone = 'danger';
+        $statusLabel = 'ไม่พบไฟล์สำรอง';
+    } else {
+        $statusTone = 'default';
+        $statusLabel = 'ยังไม่เคยสำรอง';
+    }
 } elseif (!empty($backup['is_stale'])) {
     $statusTone = 'warning';
     $statusLabel = 'สำรองข้อมูลค้างนาน';
@@ -46,12 +52,17 @@ $cmdVerify = 'mysql -u ' . $dbUser . ' -p -e "SHOW TABLES" ' . $dbName;
             <dt>สำรองล่าสุด (cron)</dt>
             <dd><?= (string) ($backup['last_run_at'] ?? '') !== '' ? e(human_date((string) $backup['last_run_at'])) : '—' ?></dd>
             <dt>ไฟล์ล่าสุด</dt>
-            <dd><?php if (!empty($backup['newest_file'])): ?><code><?= e((string) $backup['newest_file']) ?></code> · <?= e((string) $backup['newest_size']) ?><?php else: ?>—<?php endif; ?></dd>
+            <dd><?php if (!empty($backup['newest_file'])): ?><code><?= e((string) $backup['newest_file']) ?></code> · <?= e((string) $backup['newest_size']) ?><?php if (!empty($backup['newest_at'])): ?> · <?= e(human_date((string) $backup['newest_at'])) ?><?php endif; ?><?php else: ?>—<?php endif; ?></dd>
             <dt>จำนวนชุดที่เก็บ</dt><dd><?= (int) ($backup['file_count'] ?? 0) ?> ชุด · รวม <?= e((string) ($backup['total_size'] ?? '0 B')) ?></dd>
             <dt>นโยบายเก็บย้อนหลัง</dt><dd><?= (int) ($backup['retention'] ?? 14) ?> ชุดล่าสุด (เก่ากว่านั้นลบอัตโนมัติ)</dd>
             <dt>โฟลเดอร์</dt><dd><code><?= e($dir) ?></code></dd>
         </dl>
-        <?php if (!empty($backup['is_stale'])): ?>
+        <?php if (empty($backup['has_backups']) && (string) ($backup['last_run_at'] ?? '') !== ''): ?>
+            <p class="helper-text" style="display:flex;align-items:center;gap:6px;color:var(--danger-700,#be123c)">
+                <?= lucide('triangle-alert', 'h-4 w-4') ?>
+                มีบันทึกว่าสำรองล่าสุดเมื่อ <?= e(human_date((string) $backup['last_run_at'])) ?> แต่ไม่พบไฟล์ใน <code><?= e($dir) ?></code> — ตรวจว่าโฟลเดอร์/ดิสก์ยังปกติ
+            </p>
+        <?php elseif (!empty($backup['is_stale'])): ?>
             <p class="helper-text" style="display:flex;align-items:center;gap:6px;color:var(--warning-700,#b45309)">
                 <?= lucide('triangle-alert', 'h-4 w-4') ?>
                 ไม่พบการสำรองภายใน <?= (int) ($backup['stale_hours'] ?? 48) ?> ชม.ล่าสุด — ตรวจว่า cron <code>bin/backup-database.php</code> ยังทำงานอยู่
