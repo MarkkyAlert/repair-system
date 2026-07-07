@@ -1,0 +1,94 @@
+name: tests
+
+# Run the self-written test suite (tests/run.php) on every push and every pull request.
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+
+    # DB credentials passed to PHP via the environment. App\Core\Env::get() reads
+    # $_ENV -> $_SERVER -> getenv(), so these are picked up through getenv() at runtime.
+    # DB_NAME itself is set by tests/run.php from TEST_DB_NAME (-> repair_system_test).
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: "3306"
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      TEST_DB_NAME: repair_system_test
+
+    # Ephemeral MySQL for the test DB. The job runs on the runner (not in a container),
+    # so the service is reached over TCP at 127.0.0.1:3306 — matching bootstrap.php's
+    # mysql:host=... DSN (host=localhost would use a socket and fail).
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -uroot -proot --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # PHP 8.1 to match composer.json ("php": "^8.1"). Extensions:
+      #  - pdo_mysql: DB driver used by bootstrap.php
+      #  - mbstring:  used across the app (mb_*) and required by phpspreadsheet/dompdf
+      #  - gd:        hard-required by phpspreadsheet + dompdf, and by endroid/qr-code PNG output
+      #  - zip:       hard-required by phpspreadsheet (xlsx) + ZipArchive (Export Sample Pack)
+      #  - dom/xml/fileinfo/iconv: required by phpspreadsheet/dompdf
+      #  - intl:      phpspreadsheet number-format wizard (kept for safety; optional)
+      # The remaining deps' requires (ctype, libxml, simplexml, xmlreader/writer, zlib, json,
+      # filter, hash) ship in setup-php's base PHP build.
+      - name: Set up PHP 8.1
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.1"
+          extensions: mbstring, dom, xml, gd, zip, intl, pdo_mysql, fileinfo, iconv
+          tools: composer
+          coverage: none
+
+      # Cache vendor/ keyed on composer.lock so installs are fast on unchanged deps.
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-
+
+      # Install real runtime deps (phpmailer, dompdf, phpspreadsheet, endroid/qr-code).
+      # No --no-dev so a future require-dev tool (e.g. PHPStan) is available in CI.
+      - name: Install Composer dependencies
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      # Service has a health check, but confirm reachability from the runner before importing.
+      - name: Wait for MySQL
+        run: |
+          for i in $(seq 1 30); do
+            if mysqladmin ping -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USERNAME" -p"$DB_PASSWORD" --silent; then
+              echo "MySQL is up"; exit 0
+            fi
+            echo "Waiting for MySQL... ($i)"; sleep 2
+          done
+          echo "MySQL did not become ready in time"; exit 1
+
+      # Mirror tests/setup_test_db.sh: (re)create the DB, then import schema + seed into it.
+      # schema.sql/seed.sql contain no CREATE DATABASE/USE, so the DB is chosen on the CLI.
+      - name: Create test database + import schema and seed
+        run: |
+          mysql -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USERNAME" -p"$DB_PASSWORD" \
+            -e "DROP DATABASE IF EXISTS \`$TEST_DB_NAME\`; CREATE DATABASE \`$TEST_DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          mysql -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USERNAME" -p"$DB_PASSWORD" "$TEST_DB_NAME" < database/schema.sql
+          mysql -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USERNAME" -p"$DB_PASSWORD" "$TEST_DB_NAME" < database/seed.sql
+
+      # Final step: run the suite. run.php exits 1 on any failure, which fails the job.
+      - name: Run test suite
+        run: php tests/run.php
