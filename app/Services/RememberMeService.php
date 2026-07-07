@@ -25,7 +25,8 @@ class RememberMeService
 
         $raw = bin2hex(random_bytes(32));
         $hash = hash('sha256', $raw);
-        $this->users->updateRememberToken($userId, $hash);
+        $expiresAt = date('Y-m-d H:i:s', time() + self::LIFETIME_SECONDS);
+        $this->users->updateRememberToken($userId, $hash, $expiresAt);
         $this->writeCookie($userId, $raw);
     }
 

@@ -159,6 +159,7 @@ class UserRepository
              FROM users
              WHERE remember_token = :token
                AND is_active = 1
+               AND remember_token_expires_at > NOW()
              LIMIT 1'
         );
         $stmt->execute(['token' => $tokenHash]);
@@ -166,17 +167,18 @@ class UserRepository
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
-    public function updateRememberToken(int $userId, ?string $tokenHash): void
+    public function updateRememberToken(int $userId, ?string $tokenHash, ?string $expiresAt = null): void
     {
         if ($userId <= 0) {
             return;
         }
 
         $stmt = $this->db->prepare(
-            'UPDATE users SET remember_token = :token, updated_at = :updated_at WHERE id = :id'
+            'UPDATE users SET remember_token = :token, remember_token_expires_at = :expires_at, updated_at = :updated_at WHERE id = :id'
         );
         $stmt->execute([
             'token' => $tokenHash,
+            'expires_at' => $expiresAt,
             'updated_at' => date('Y-m-d H:i:s'),
             'id' => $userId,
         ]);

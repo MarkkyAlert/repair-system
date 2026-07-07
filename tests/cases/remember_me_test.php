@@ -149,6 +149,42 @@ test('remember-me(security): clearCurrent revokes the token (logout kills persis
     }
 });
 
+test('remember-me(security): issueFor sets a ~30-day server-side expiry', function (): void {
+    $userId = rm_seed_user();
+    try {
+        rm_auth()->logout();
+        $before = time();
+        @rm_service()->issueFor($userId);
+
+        $exp = rm_pdo()->query("SELECT remember_token_expires_at FROM users WHERE id = $userId")->fetchColumn();
+        assert_true($exp !== false && $exp !== null, 'expires_at is set on issue');
+        $expected = $before + RememberMeService::LIFETIME_SECONDS; // 30 days
+        assert_true(abs(strtotime((string) $exp) - $expected) <= 120, "expiry is ~30 days out (got $exp)");
+    } finally {
+        rm_cleanup($userId);
+    }
+});
+
+test('remember-me(security): a token past its server-side expiry is rejected (NULL treated as expired)', function (): void {
+    $userId = rm_seed_user();
+    try {
+        rm_auth()->logout();
+        @rm_service()->issueFor($userId);
+        $raw = rm_cookie_raw(); // a genuinely valid raw + user_id
+
+        // force the server-side expiry into the past
+        rm_pdo()->prepare('UPDATE users SET remember_token_expires_at = ? WHERE id = ?')
+            ->execute([date('Y-m-d H:i:s', time() - 3600), $userId]);
+
+        rm_auth()->logout();
+        $_COOKIE[RememberMeService::COOKIE_NAME] = $userId . '|' . $raw;
+        assert_false(@rm_service()->attemptRestore(), 'an expired token must NOT restore even with a valid raw + user_id');
+        assert_false(isset($_COOKIE[RememberMeService::COOKIE_NAME]), 'the expired cookie is cleared');
+    } finally {
+        rm_cleanup($userId);
+    }
+});
+
 // ── reject / guard paths (never reach auth->login) ──
 
 test('remember-me: malformed / unknown / empty cookies are rejected and cleared; issueFor(<=0) is a no-op', function (): void {
