@@ -1,9 +1,11 @@
 name: tests
 
-# Run the self-written test suite (tests/run.php) on every push and every pull request.
+# Run the self-written test suite (tests/run.php) on every push and every pull request,
+# plus manual runs (Actions tab → "Run workflow", or: gh workflow run tests.yml --ref <branch>).
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
   tests:
