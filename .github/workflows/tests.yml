@@ -39,7 +39,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # PHP 8.1 to match composer.json ("php": "^8.1"). Extensions:
+      # PHP 8.2: within composer.json's "php": "^8.1", and required by the committed
+      # composer.lock (phpspreadsheet -> maennchen/zipstream-php 3.1.2 needs php ^8.2).
+      # It also matches the dev environment (8.2.4) that produced the lock. Extensions:
       #  - pdo_mysql: DB driver used by bootstrap.php
       #  - mbstring:  used across the app (mb_*) and required by phpspreadsheet/dompdf
       #  - gd:        hard-required by phpspreadsheet + dompdf, and by endroid/qr-code PNG output
@@ -48,10 +50,10 @@ jobs:
       #  - intl:      phpspreadsheet number-format wizard (kept for safety; optional)
       # The remaining deps' requires (ctype, libxml, simplexml, xmlreader/writer, zlib, json,
       # filter, hash) ship in setup-php's base PHP build.
-      - name: Set up PHP 8.1
+      - name: Set up PHP 8.2
         uses: shivammathur/setup-php@v2
         with:
-          php-version: "8.1"
+          php-version: "8.2"
           extensions: mbstring, dom, xml, gd, zip, intl, pdo_mysql, fileinfo, iconv
           tools: composer
           coverage: none
