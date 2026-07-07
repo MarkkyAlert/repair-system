@@ -1,0 +1,205 @@
+<?php
+declare(strict_types=1);
+
+use App\Core\AuthManager;
+use App\Services\RememberMeService;
+
+// Security tests for RememberMeService (persistent "remember me" login). Drives the real service against
+// the test DB, manipulating the cookie via $_COOKIE directly (the service reads/writes $_COOKIE itself).
+// setcookie() emits a "headers already sent" warning under the CLI harness (dots were printed) — service
+// calls are prefixed with @ to hush ONLY that; state is verified from $_COOKIE + the DB, never from the
+// warning. auth->login/logout use Session::put/forget (no Session::regenerate), so the restore path —
+// including the auth->login step — runs under CLI; we call auth->logout() to force auth->check() false.
+
+function rm_service(): RememberMeService
+{
+    return tvm_container()->get(RememberMeService::class);
+}
+
+function rm_auth(): AuthManager
+{
+    return tvm_container()->get(AuthManager::class);
+}
+
+function rm_pdo(): PDO
+{
+    return tvm_container()->get(PDO::class);
+}
+
+function rm_seed_user(): int
+{
+    $s = bin2hex(random_bytes(4));
+    rm_pdo()->prepare('INSERT INTO users (username, email, password_hash, full_name, role, is_active, created_at, updated_at) VALUES (?, ?, "x", "RM User", "requester", 1, NOW(), NOW())')
+        ->execute(["rm_$s", "rm_$s@x.t"]);
+    return (int) rm_pdo()->lastInsertId();
+}
+
+/** Stored remember_token hash for a user (null when the column is NULL). */
+function rm_token_of(int $userId): ?string
+{
+    $v = rm_pdo()->query("SELECT remember_token FROM users WHERE id = $userId")->fetchColumn();
+    return ($v === false || $v === null) ? null : (string) $v;
+}
+
+/** Raw token from the cookie the service just wrote ("userId|raw"). */
+function rm_cookie_raw(): string
+{
+    $cookie = (string) ($_COOKIE[RememberMeService::COOKIE_NAME] ?? '');
+    return str_contains($cookie, '|') ? explode('|', $cookie, 2)[1] : '';
+}
+
+function rm_cleanup(int $userId): void
+{
+    rm_auth()->logout();
+    unset($_COOKIE[RememberMeService::COOKIE_NAME]);
+    rm_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$userId]);
+}
+
+// ── security properties ──
+
+test('remember-me: issueFor stores a sha256 hash, never the raw token', function (): void {
+    $userId = rm_seed_user();
+    try {
+        rm_auth()->logout();
+        unset($_COOKIE[RememberMeService::COOKIE_NAME]);
+
+        @rm_service()->issueFor($userId);
+
+        $cookie = (string) ($_COOKIE[RememberMeService::COOKIE_NAME] ?? '');
+        assert_true(str_contains($cookie, '|'), 'a cookie was written');
+        [$cookieUser, $raw] = explode('|', $cookie, 2);
+        assert_same($userId, (int) $cookieUser, 'cookie carries the user id');
+        assert_true(preg_match('/^[a-f0-9]{64}$/', $raw) === 1, 'raw token is 64 hex chars');
+
+        $stored = rm_token_of($userId);
+        assert_same(hash('sha256', $raw), $stored, 'DB stores sha256(raw)');
+        assert_true($stored !== $raw, 'DB does NOT store the raw token (a DB leak is not directly usable)');
+    } finally {
+        rm_cleanup($userId);
+    }
+});
+
+test('remember-me(security): a token with a mismatched user_id cannot impersonate', function (): void {
+    $userId = rm_seed_user();
+    try {
+        rm_auth()->logout();
+        @rm_service()->issueFor($userId);
+        $raw = rm_cookie_raw();
+        $originalHash = rm_token_of($userId);
+
+        // same (valid) raw, but claim a DIFFERENT user_id
+        rm_auth()->logout();
+        $_COOKIE[RememberMeService::COOKIE_NAME] = '999999999|' . $raw;
+        $restored = @rm_service()->attemptRestore();
+
+        assert_false($restored, 'mismatched user_id must NOT restore');
+        assert_false(isset($_COOKIE[RememberMeService::COOKIE_NAME]), 'the cookie is cleared on mismatch');
+        assert_false(rm_auth()->check(), 'nobody is logged in');
+        assert_same($originalHash, rm_token_of($userId), 'the real user\'s token was not rotated (restore failed first)');
+    } finally {
+        rm_cleanup($userId);
+    }
+});
+
+test('remember-me(security): attemptRestore rotates the token — the old one cannot be reused', function (): void {
+    $userId = rm_seed_user();
+    try {
+        rm_auth()->logout();
+        @rm_service()->issueFor($userId);
+        $oldRaw = rm_cookie_raw();
+        $oldHash = rm_token_of($userId);
+        assert_same(hash('sha256', $oldRaw), $oldHash, 'precondition: DB holds the issued hash');
+
+        rm_auth()->logout(); // ensure check() is false so the cookie path runs
+        $restored = @rm_service()->attemptRestore();
+        assert_true($restored, 'a valid cookie restores the session');
+
+        $newHash = rm_token_of($userId);
+        assert_true($newHash !== null && $newHash !== $oldHash, 'the token was ROTATED to a new hash on restore');
+        assert_same(hash('sha256', rm_cookie_raw()), $newHash, 'the new cookie matches the new DB hash');
+
+        // replay the OLD cookie → its hash is gone from the DB
+        rm_auth()->logout();
+        $_COOKIE[RememberMeService::COOKIE_NAME] = $userId . '|' . $oldRaw;
+        $replay = @rm_service()->attemptRestore();
+        assert_false($replay, 'the OLD (pre-rotation) token cannot be reused');
+    } finally {
+        rm_cleanup($userId);
+    }
+});
+
+test('remember-me(security): clearCurrent revokes the token (logout kills persistent login)', function (): void {
+    $userId = rm_seed_user();
+    try {
+        rm_auth()->logout();
+        @rm_service()->issueFor($userId);
+        $raw = rm_cookie_raw();
+        assert_true(rm_token_of($userId) !== null, 'token issued');
+
+        @rm_service()->clearCurrent();
+        assert_same(null, rm_token_of($userId), 'token nulled in the DB');
+        assert_false(isset($_COOKIE[RememberMeService::COOKIE_NAME]), 'cookie cleared');
+
+        // the old cookie can no longer restore
+        rm_auth()->logout();
+        $_COOKIE[RememberMeService::COOKIE_NAME] = $userId . '|' . $raw;
+        assert_false(@rm_service()->attemptRestore(), 'a revoked token cannot restore');
+    } finally {
+        rm_cleanup($userId);
+    }
+});
+
+// ── reject / guard paths (never reach auth->login) ──
+
+test('remember-me: malformed / unknown / empty cookies are rejected and cleared; issueFor(<=0) is a no-op', function (): void {
+    $userId = rm_seed_user();
+    try {
+        // no "|" separator
+        rm_auth()->logout();
+        $_COOKIE[RememberMeService::COOKIE_NAME] = 'garbage-no-pipe';
+        assert_false(@rm_service()->attemptRestore(), 'cookie without "|" is rejected');
+        assert_false(isset($_COOKIE[RememberMeService::COOKIE_NAME]), 'malformed cookie cleared');
+
+        // raw is not 64 hex
+        rm_auth()->logout();
+        $_COOKIE[RememberMeService::COOKIE_NAME] = $userId . '|deadbeef';
+        assert_false(@rm_service()->attemptRestore(), 'cookie with a bad raw is rejected');
+        assert_false(isset($_COOKIE[RememberMeService::COOKIE_NAME]), 'cleared');
+
+        // valid format but not in the DB
+        rm_auth()->logout();
+        $_COOKIE[RememberMeService::COOKIE_NAME] = $userId . '|' . str_repeat('a', 64);
+        assert_false(@rm_service()->attemptRestore(), 'unknown token is rejected');
+        assert_false(isset($_COOKIE[RememberMeService::COOKIE_NAME]), 'cleared');
+
+        // empty cookie
+        rm_auth()->logout();
+        unset($_COOKIE[RememberMeService::COOKIE_NAME]);
+        assert_false(@rm_service()->attemptRestore(), 'no cookie → false');
+
+        // issueFor with a non-positive id writes nothing
+        unset($_COOKIE[RememberMeService::COOKIE_NAME]);
+        @rm_service()->issueFor(0);
+        assert_false(isset($_COOKIE[RememberMeService::COOKIE_NAME]), 'issueFor(0) writes no cookie');
+        @rm_service()->issueFor(-5);
+        assert_false(isset($_COOKIE[RememberMeService::COOKIE_NAME]), 'issueFor(-5) writes no cookie');
+    } finally {
+        rm_cleanup($userId);
+    }
+});
+
+test('remember-me: attemptRestore short-circuits to true when already authenticated (cookie untouched)', function (): void {
+    $userId = rm_seed_user();
+    try {
+        rm_auth()->login(['id' => $userId, 'role' => 'requester', 'full_name' => 'RM User', 'email' => 'rm@x.t']);
+        assert_true(rm_auth()->check(), 'precondition: authenticated');
+
+        $_COOKIE[RememberMeService::COOKIE_NAME] = 'should-not-be-read';
+        $ok = @rm_service()->attemptRestore();
+
+        assert_true($ok, 'already-authenticated → true immediately');
+        assert_same('should-not-be-read', (string) ($_COOKIE[RememberMeService::COOKIE_NAME] ?? ''), 'cookie is not touched when already authenticated');
+    } finally {
+        rm_cleanup($userId);
+    }
+});
