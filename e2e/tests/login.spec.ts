@@ -1,0 +1,16 @@
+import { test, expect } from '@playwright/test';
+
+// Golden path A — login (happy path).
+// This exercises the real session handoff (Session::regenerate() + auth->login()) that the PHP
+// unit tests deliberately skip because it can't run under CLI. E2E covers exactly that gap.
+test('golden path A — login lands on the dashboard', async ({ page }) => {
+  await page.goto('/login');
+
+  await page.fill('input[name="login"]', 'admin');
+  await page.fill('input[name="password"]', 'admin12345');
+  await page.getByRole('button', { name: 'เข้าสู่ระบบ' }).click();
+
+  // Post-login: redirected to the dashboard and the authenticated shell is present.
+  await expect(page).toHaveURL(/\/dashboard/);
+  await expect(page.locator('#app-sidebar')).toBeVisible(); // sidebar only renders when logged in
+});

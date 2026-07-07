@@ -1,0 +1,12 @@
+{
+  "name": "repair-system-e2e",
+  "private": true,
+  "description": "Playwright E2E for the 3 golden paths (login, guest scan report, ticket lifecycle).",
+  "scripts": {
+    "test": "playwright test",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1"
+  }
+}
