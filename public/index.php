@@ -16,8 +16,12 @@ try {
     $allowedDuringSetup = str_starts_with($requestPath, '/setup')
         || str_starts_with($requestPath, '/branding/');
     if (!$allowedDuringSetup) {
+        // Redirect to /setup only when setup is genuinely pending: no completed flag AND no admin yet.
+        // Mirrors SetupController::show()/execute() so a seed/admin-provisioned deploy (admin exists,
+        // flag not set) doesn't bounce /setup ↔ /login forever.
         $settings = $container->get(SettingsRepository::class);
-        if ($settings instanceof SettingsRepository && !SetupController::isSetupCompletedStatic($settings)) {
+        $pdo = $container->get(PDO::class);
+        if (SetupController::requiresSetupRedirect($settings, $pdo)) {
             Response::redirect('/setup');
         }
     }

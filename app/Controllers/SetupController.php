@@ -156,6 +156,22 @@ class SetupController
         return (string) ($row['setting_value'] ?? '0') === '1';
     }
 
+    /** True if at least one active admin already exists (a seed/manual deploy already has one). */
+    public static function hasActiveAdmin(PDO $db): bool
+    {
+        return (int) $db->query("SELECT COUNT(*) FROM users WHERE role = 'admin' AND is_active = 1")->fetchColumn() > 0;
+    }
+
+    /**
+     * Whether a request must be redirected to /setup. Setup counts as done once the flag is set OR an
+     * active admin already exists — the SAME rule show()/execute() use to guard /setup. Keeping the gate
+     * (public/index.php) in sync prevents the /setup ↔ /login loop on seed/admin-provisioned deploys.
+     */
+    public static function requiresSetupRedirect(SettingsRepository $settings, PDO $db): bool
+    {
+        return !self::isSetupCompletedStatic($settings) && !self::hasActiveAdmin($db);
+    }
+
     private function isSetupCompleted(): bool
     {
         return self::isSetupCompletedStatic($this->settings);
@@ -163,10 +179,7 @@ class SetupController
 
     private function adminExists(): bool
     {
-        $stmt = $this->users->findByLogin('admin');
-        // Could be any admin — use a broader check via DB
-        $count = (int) app(\PDO::class)->query("SELECT COUNT(*) FROM users WHERE role = 'admin' AND is_active = 1")->fetchColumn();
-        return $count > 0;
+        return self::hasActiveAdmin($this->db);
     }
 
     private function findFirstAdmin(): ?array
