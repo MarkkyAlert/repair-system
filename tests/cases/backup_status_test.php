@@ -23,6 +23,7 @@ test('backup status: staleness by last-run age + file listing + restore command'
     try {
         file_put_contents($tmpPath, str_repeat('x', 2048));
         touch($tmpPath, time()); // ensure it is the newest file
+        clearstatcache(true, $tmpPath); // getStatus() reads filemtime(); drop any cached stat so touch() is seen
 
         // fresh last-run → not stale, and the temp file is detected as newest
         $settings->upsert('cron_backup_last_run_at', date('Y-m-d H:i:s'), 'string', false, 0);
@@ -41,6 +42,7 @@ test('backup status: staleness by last-run age + file listing + restore command'
 
         // stale only when the most recent evidence (file mtime AND cron timestamp) is old
         touch($tmpPath, time() - (BackupService::STALE_MINUTES + 60) * 60);
+        clearstatcache(true, $tmpPath); // filemtime() caches per-process; without this getStatus() re-reads the pre-touch mtime
         $settings->upsert('cron_backup_last_run_at', date('Y-m-d H:i:s', time() - (BackupService::STALE_MINUTES + 60) * 60), 'string', false, 0);
         assert_true($svc->getStatus()['is_stale'] === true, 'old file + old last-run → stale');
     } finally {
