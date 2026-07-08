@@ -20,6 +20,12 @@ class ReportsController
         AuthMiddleware::handle();
 
         $viewer = auth()->user() ?? [];
+        // Gate at the controller too (consistent with guide()/samplePack()); ReportService::ensureCanViewReports
+        // stays as the defense-in-depth boundary that also covers the export endpoints.
+        if (!is_manager_or_admin((string) ($viewer['role'] ?? 'guest'))) {
+            flash('error', 'หน้านี้สงวนสำหรับผู้จัดการและผู้ดูแลระบบเท่านั้น');
+            Response::redirect('/dashboard');
+        }
 
         try {
             $data = $this->reports->getReportPageData($viewer, request()?->query ?? []);
