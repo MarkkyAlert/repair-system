@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { expectNoMissingIcons } from '../helpers/icons';
 
 // Golden path A — login (happy path).
 // This exercises the real session handoff (Session::regenerate() + auth->login()) that the PHP
@@ -13,4 +14,8 @@ test('golden path A — login lands on the dashboard', async ({ page }) => {
   // Post-login: redirected to the dashboard and the authenticated shell is present.
   await expect(page).toHaveURL(/\/dashboard/);
   await expect(page.locator('#app-sidebar')).toBeVisible(); // sidebar only renders when logged in
+
+  // The authenticated shell renders the nav "แจ้งซ่อมใหม่" (plus-circle) + notification bell (alert-circle);
+  // fail if either — or any other icon — fell back to the missing-icon placeholder.
+  await expectNoMissingIcons(page);
 });

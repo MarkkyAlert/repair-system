@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import path from 'node:path';
+import { expectNoMissingIcons } from '../helpers/icons';
 
 // Golden path C — one full ticket lifecycle through the real UI, across roles:
 // requester creates → admin approves + assigns → technician accepts + starts + resolves →
@@ -24,6 +25,7 @@ test('golden path C — full ticket lifecycle across roles', async ({ browser })
     // 1) requester creates the ticket ------------------------------------------------
     const rp = await requester.newPage();
     await rp.goto('/tickets/create');
+    await expectNoMissingIcons(rp); // shell (plus-circle, alert-circle) on the create page
     await rp.fill('input[name="title"]', title);
     await rp.fill('textarea[name="description"]', 'E2E automated lifecycle — safe to delete.');
     await rp.selectOption('select[name="priority_id"]', { index: 1 });
@@ -66,6 +68,7 @@ test('golden path C — full ticket lifecycle across roles', async ({ browser })
     // 5) requester confirms + rates --------------------------------------------------
     const rp2 = await requester.newPage();
     await rp2.goto(`/tickets/${ticketId}`);
+    await expectNoMissingIcons(rp2); // resolved ticket: requester sees complete + reopen (rotate-ccw) actions
     await rp2.locator('#action-complete label[for="star5"]').click(); // custom star widget: radios are hidden, click the label
     await rp2.fill('#action-complete textarea[name="closure_note"]', 'E2E closure');
     await rp2.getByRole('button', { name: 'ยืนยันปิดงานและส่งคะแนน' }).click();
