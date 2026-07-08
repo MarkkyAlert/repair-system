@@ -101,7 +101,7 @@ namespace {
         // These keys own dedicated, validated forms (/admin/system-settings, /admin/settings/logo, /admin/categories/*).
         // Letting them through the freeform endpoint would bypass that validation — the guard blocks it. Snapshot +
         // restore so that if the guard is ever disabled (power-proof) the attempted writes don't poison the test DB.
-        $protectedKeys = ['app_logo_path', 'app_name', 'default_timezone', 'ticket_prefix', 'business_hours'];
+        $protectedKeys = ['app_logo_path', 'app_name', 'default_timezone', 'ticket_prefix', 'business_hours', 'setup_completed'];
         $snapshot = ss_snapshot(array_merge($protectedKeys, ['category_sla_99']));
         try {
             foreach ($protectedKeys as $key) {
@@ -120,6 +120,27 @@ namespace {
 
             // the guard fires before any upsert — the protected rows are untouched (app_name still its seed value)
             assert_same('Repair System', ss_get('app_name')['setting_value'] ?? null, 'app_name was NOT overwritten via the generic endpoint');
+        } finally {
+            ss_restore($snapshot);
+        }
+    });
+
+    test('updateSetting(security): setup_completed is blocked here, but SetupController\'s own path still writes it', function (): void {
+        // setup_completed gates the first-run /setup flow — an admin must not flip it through the freeform form.
+        // But SetupController sets it via SettingsRepository::upsert() directly (not updateSetting), so protecting
+        // the generic endpoint must NOT lock the legitimate setup path. Assert both halves.
+        $snapshot = ss_snapshot(['setup_completed']);
+        try {
+            ss_reject_setting(
+                ['setting_key' => 'setup_completed', 'value_type' => 'bool', 'setting_value' => '0'],
+                'Setting key "setup_completed" ถูกควบคุมโดยระบบ กรุณาแก้ผ่านฟอร์มเฉพาะ',
+                'setup_completed cannot be flipped via the generic endpoint'
+            );
+
+            // the repository path SetupController uses is unaffected by the endpoint guard
+            $repo = tvm_container()->get(\App\Repositories\SettingsRepository::class);
+            $repo->upsert('setup_completed', '1', 'bool', false, 4); // mirrors SetupController::completeSetup()
+            assert_same('1', ss_get('setup_completed')['setting_value'] ?? null, 'the setup path can still set the flag');
         } finally {
             ss_restore($snapshot);
         }

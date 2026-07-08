@@ -25,6 +25,7 @@ class SystemSettingsService
         'default_timezone',  // /admin/system-settings
         'ticket_prefix',     // /admin/system-settings
         'business_hours',    // /admin/system-settings
+        'setup_completed',   // /setup — system-state flag (SetupController writes it via the repo, not this endpoint)
     ];
 
     /**
