@@ -1,0 +1,28 @@
+# Baseline records the currently-accepted false positives (Excel column string-increment `$col++`, an $_COOKIE
+# unset quirk) so CI stays at zero NEW errors while still flagging anything new. Regenerate with:
+#   vendor/bin/phpstan analyse --generate-baseline phpstan-baseline.neon --memory-limit=1G
+includes:
+    - phpstan-baseline.neon
+
+parameters:
+    # Start conservative: native PHP with no framework to supply types, so a high level would drown real
+    # cross-layer bugs in "PHPStan can't infer this" noise. Raise deliberately once level 3 is clean.
+    level: 3
+    paths:
+        - app
+        - tests
+    # app/Views/* are templates: they read variables injected via extract() in the view() helper, so they have
+    # no static type contract and PHPStan cannot see those variables (pure noise, not real bugs). Exclude them
+    # rather than @phpstan-ignore each line. vendor/, storage/ and database/ (incl. migrate_*.sql) sit outside
+    # the analysed paths anyway; listed to make intent explicit and stay correct if paths ever widen.
+    excludePaths:
+        - app/Views
+        - vendor
+        - storage
+        - database
+    bootstrapFiles:
+        - phpstan-bootstrap.php
+    # tests/cases/*.php are required (not autoloaded) by run.php; tell PHPStan to load them so the shared
+    # test helpers (test(), assert_*, tvm_container(), call_private()) resolve when analysing the cases.
+    scanDirectories:
+        - tests

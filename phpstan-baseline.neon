@@ -1,0 +1,25 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Cannot use \+\+ on literal\-string\.$#'
+			identifier: postInc.type
+			count: 1
+			path: app/Services/AssetService.php
+
+		-
+			message: '#^Cannot use \+\+ on ''A''\|''B''\|''C''\|''D''\|''E''\|''F''\|''G''\|''H''\|''I''\|''J''\|''K''\|''L''\|''M''\|''N''\|''O''\.$#'
+			identifier: postInc.type
+			count: 1
+			path: app/Services/ReportService.php
+
+		-
+			message: '#^Cannot use \+\+ on literal\-string\.$#'
+			identifier: postInc.type
+			count: 10
+			path: app/Services/ReportService.php
+
+		-
+			message: '#^Cannot unset offset ''remember_me'' on array\<mixed, mixed\>\.$#'
+			identifier: unset.offset
+			count: 1
+			path: tests/cases/remember_me_test.php
