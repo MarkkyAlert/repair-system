@@ -1,19 +1,8 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Services {
-    // Test double for the SAPI-only is_uploaded_file(). In CLI it ALWAYS returns false, which makes
-    // validateUploads() reject every file at its first guard (line 43) before the real security checks
-    // (finfo MIME sniff → whitelist → size → server-side extension map) ever run. Shadowing it via
-    // PHP's namespace fallback lets those REAL checks execute against real temp files — which is exactly
-    // what the Group-1 tests verify. AttachmentService itself is unchanged, and only files that actually
-    // exist pass (mirrors the intent of the origin check). is_uploaded_file is NOT the security-critical
-    // part here; the content sniffing is, and it runs unmodified.
-    function is_uploaded_file(string $filename): bool
-    {
-        return is_file($filename);
-    }
-}
+// The is_uploaded_file() shadow (so validateUploads' origin guard passes in CLI and the real MIME/size checks
+// run) now lives once in tests/shadow_functions.php, loaded before every case. See the note there.
 
 namespace {
 

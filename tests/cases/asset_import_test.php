@@ -9,10 +9,9 @@ use App\Services\AssetImportService;
 //   1. validateRows does NOT check the DB for a duplicate asset_code/serial (no existing-lookup); an
 //      in-DB collision surfaces only at executeImport (createAsset throws → the row is skipped).
 //   2. executeImport takes a $viewer and throws DomainException unless the viewer is manager/admin.
-// This file drives validateRows/executeImport with arrays only — it declares NO is_uploaded_file shadow
-// (it sorts before attachment_test.php, whose unconditional shadow would then redeclare-fatal). CSV parsing
-// of the shared ParsesCsvUpload trait is covered in user_import_test.php. Everything seeded/imported is
-// deleted in finally (asset delete cascades its QR token).
+// parseUploadedFile is exercised here too (the central is_uploaded_file shadow in tests/shadow_functions.php,
+// loaded before every case, makes CLI parsing work regardless of file load order). Everything seeded/imported
+// is deleted in finally (asset delete cascades its QR token).
 
 function ai_service(): AssetImportService
 {
@@ -224,5 +223,53 @@ test('assetImport.executeImport(resilience): a row colliding at insert is skippe
     } finally {
         ai_pdo()->prepare('DELETE FROM assets WHERE id = ?')->execute([$seedId]);
         ai_delete_assets([$survivor['asset_code']]);
+    }
+});
+
+// ── parseUploadedFile / ParsesCsvUpload (now covered here too — order-independent since the shadow is central) ──
+
+function ai_tmp_csv(string $bytes): string
+{
+    $path = tempnam(sys_get_temp_dir(), 'aimp_') . '.csv';
+    file_put_contents($path, $bytes);
+    return $path;
+}
+
+function ai_file(string $csv, string $name = 'assets.csv'): array
+{
+    return ['name' => $name, 'tmp_name' => ai_tmp_csv($csv), 'size' => strlen($csv), 'error' => UPLOAD_ERR_OK];
+}
+
+test('assetImport.parseUploadedFile: parses a valid CSV (header/escaping/_line/blank-skip) and rejects a missing column', function (): void {
+    $header = 'asset_code,name,serial_number,category_code,location_code,department_code,custodian_username,brand,model,vendor,purchase_date,warranty_expires_at,status,notes';
+    $csv = $header . "\n"
+        . "AST-1,\"Printer, Color\",SN1,CAT,LOC,,,HP,M1,ACME,2024-01-01,2025-01-01,active,ok\n"
+        . "\n" // blank line — skipped
+        . "AST-2,Router,SN2,CAT,LOC,,,TP,R2,ACME,,,active,\n";
+    $file = ai_file($csv);
+    try {
+        $rows = ai_service()->parseUploadedFile($file);
+        assert_same(2, count($rows), 'the blank line is skipped; two data rows remain');
+        assert_same(2, (int) $rows[0]['_line'], 'first data row is line 2 (header is line 1)');
+        assert_same('AST-1', $rows[0]['asset_code'], 'columns are keyed by header name');
+        assert_same('Printer, Color', $rows[0]['name'], 'a quoted field with a comma is parsed by fgetcsv');
+        assert_same(4, (int) $rows[1]['_line'], 'the second data row keeps its real line number (blank line counted)');
+    } finally {
+        @unlink($file['tmp_name']);
+    }
+
+    // header missing the 'notes' column → rejected
+    $missing = ai_file("asset_code,name,serial_number,category_code,location_code,department_code,custodian_username,brand,model,vendor,purchase_date,warranty_expires_at,status\nAST-9,X,,CAT,LOC,,,,,,,,active\n");
+    try {
+        $threw = false;
+        try {
+            ai_service()->parseUploadedFile($missing);
+        } catch (DomainException $e) {
+            $threw = true;
+            assert_true(str_contains($e->getMessage(), 'ไม่ครบ column'), 'message names the missing column: ' . $e->getMessage());
+        }
+        assert_true($threw, 'a CSV missing a required column is rejected');
+    } finally {
+        @unlink($missing['tmp_name']);
     }
 });

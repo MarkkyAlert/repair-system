@@ -1,20 +1,8 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Services {
-    // Test double for the SAPI-only is_uploaded_file(), used by updateLogo() (line ~174). In CLI it always
-    // returns false, tripping updateLogo's "can't read the upload" guard before the size/MIME checks ever run.
-    // Shadowing it via PHP's namespace fallback lets those REAL validation checks execute against real temp
-    // files. attachment_test.php declares the SAME shadow (it also drives an upload path) and, being earlier
-    // alphabetically, loads first — so guard the declaration to avoid a redeclare fatal. The service itself is
-    // unchanged; the security-critical part (finfo MIME sniff) runs unmodified.
-    if (!\function_exists('App\\Services\\is_uploaded_file')) {
-        function is_uploaded_file(string $filename): bool
-        {
-            return \is_file($filename);
-        }
-    }
-}
+// The is_uploaded_file() shadow that lets updateLogo's origin guard pass in CLI (so the size/MIME checks run)
+// now lives once in tests/shadow_functions.php, loaded before every case. See the note there.
 
 namespace {
 

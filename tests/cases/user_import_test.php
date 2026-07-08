@@ -1,27 +1,16 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Services {
-    // Test double for the SAPI-only is_uploaded_file(), used by ParsesCsvUpload::parseCsvUpload (line ~23).
-    // In CLI it always returns false, tripping the "upload failed" guard before the CSV is ever read. Shadowing
-    // it lets the real parser run against a real temp file. attachment_test.php declares the SAME shadow and,
-    // being earlier alphabetically, loads first — so guard the declaration to avoid a redeclare fatal.
-    // (asset_import_test.php sorts BEFORE attachment_test.php, so it deliberately declares NO shadow and does no
-    //  file-parsing — the shared trait is covered here instead. See the note at the bottom of this file.)
-    if (!\function_exists('App\\Services\\is_uploaded_file')) {
-        function is_uploaded_file(string $filename): bool
-        {
-            return \is_file($filename);
-        }
-    }
-}
+// The is_uploaded_file() shadow that lets ParsesCsvUpload's origin guard pass in CLI (so the CSV is parsed)
+// now lives once in tests/shadow_functions.php, loaded before every case. See the note there.
 
 namespace {
 
     use App\Services\UserImportService;
 
     // Tests for UserImportService (CSV user import). validateRows/executeImport take arrays directly, so most
-    // tests need no file. parseUploadedFile is exercised too (via the is_uploaded_file shadow above). Error
+    // tests need no file. parseUploadedFile is exercised too (the central is_uploaded_file shadow in
+    // tests/shadow_functions.php lets it read a real temp file in CLI). Error
     // handling is collect-per-row: validateRows returns {valid, invalid[{line,errors}], total}; executeImport
     // returns {imported, skipped[{line,username,reason}], reset_emails_queued} — neither throws on a bad row.
     // Everything seeded/imported is deleted in finally (net-zero on the test DB).

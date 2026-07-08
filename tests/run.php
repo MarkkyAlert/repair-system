@@ -10,6 +10,8 @@ require __DIR__ . '/../vendor/autoload.php';
 // Boot the DI container before any output so bootstrap's Session::start() doesn't warn in CLI.
 [$GLOBALS['__container']] = require __DIR__ . '/../bootstrap.php';
 require __DIR__ . '/harness.php';
+// Shared SAPI-function shadows (is_uploaded_file), declared once before any case → order-independent.
+require __DIR__ . '/shadow_functions.php';
 
 foreach (glob(__DIR__ . '/cases/*.php') as $case) {
     require $case;
