@@ -15,19 +15,22 @@ class TicketRepository
 
     public function markSlaBreachedById(int $slaTrackId, string $breachedAt): bool
     {
+        // NOTE: :overdue_before binds the same value as :breached_at but must be a DISTINCT placeholder —
+        // native prepared statements (PDO::ATTR_EMULATE_PREPARES=false) reject a reused named parameter (HY093).
         $stmt = $this->db->prepare(
             'UPDATE ticket_sla_tracks
              SET breached_at = COALESCE(breached_at, :breached_at),
                  status = :status
              WHERE id = :sla_track_id
                AND status = :pending_status
-               AND target_at < :breached_at'
+               AND target_at < :overdue_before'
         );
         $stmt->execute([
             'breached_at' => $breachedAt,
             'status' => 'breached',
             'sla_track_id' => $slaTrackId,
             'pending_status' => 'pending',
+            'overdue_before' => $breachedAt,
         ]);
 
         return $stmt->rowCount() > 0;
