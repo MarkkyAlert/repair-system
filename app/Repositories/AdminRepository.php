@@ -793,7 +793,7 @@ class AdminRepository
         }
     }
 
-    private function throwFriendlyUniqueViolation(PDOException $exception, string $codeMessage, string $nameMessage): void
+    private function throwFriendlyUniqueViolation(PDOException $exception, string $codeMessage, string $nameMessage): never
     {
         if (is_duplicate_key_error($exception)) {
             $message = strtolower($exception->getMessage());
