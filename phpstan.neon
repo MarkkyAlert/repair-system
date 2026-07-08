@@ -8,6 +8,11 @@ parameters:
     # Start conservative: native PHP with no framework to supply types, so a high level would drown real
     # cross-layer bugs in "PHPStan can't infer this" noise. Raise deliberately once level 3 is clean.
     level: 3
+    # The baseline's postInc.type entries (Excel column $col++) are env-sensitive: PHPStan infers literal-string
+    # under the local PHP 8.2.4 but not under CI's setup-php 8.2.x patch, so on CI those baseline entries go
+    # unmatched. Don't fail the build on an unmatched baseline entry — a genuinely NEW error (outside the
+    # baseline) still fails. Keeps the baseline portable across local/CI without hiding real regressions.
+    reportUnmatchedIgnoredErrors: false
     paths:
         - app
         - tests
