@@ -7,6 +7,8 @@
 /storage/framework/views/*
 /storage/uploads/*
 !/storage/uploads/.gitkeep
+/storage/logs/*
+!/storage/logs/.gitkeep
 /storage/mail-logs/*
 .DS_Store
 
