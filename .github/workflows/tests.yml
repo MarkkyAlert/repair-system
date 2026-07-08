@@ -93,6 +93,11 @@ jobs:
           mysql -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USERNAME" -p"$DB_PASSWORD" "$TEST_DB_NAME" < database/schema.sql
           mysql -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USERNAME" -p"$DB_PASSWORD" "$TEST_DB_NAME" < database/seed.sql
 
+      # Static analysis first (no MySQL needed) so type issues fail the job fast, before the DB-backed suite.
+      # --memory-limit=1G: the default 128M is not enough for a level-3 whole-project analysis.
+      - name: PHPStan static analysis
+        run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
+
       # Final step: run the suite. run.php exits 1 on any failure, which fails the job.
       - name: Run test suite
         run: php tests/run.php
