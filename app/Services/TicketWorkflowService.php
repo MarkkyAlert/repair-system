@@ -6,7 +6,6 @@ namespace App\Services;
 use App\Repositories\TicketReadRepository;
 use App\Repositories\TicketRepository;
 use DomainException;
-use Throwable;
 
 /**
  * Ticket lifecycle mutations split out of TicketService: approve/reject/assign (manager),
@@ -243,10 +242,7 @@ class TicketWorkflowService
             $resolutionDueAt
         );
 
-        try {
-            $this->notifications->notifyTicketEvent($ticketId, 'ticket.reopened', (int) ($viewer['id'] ?? 0));
-        } catch (Throwable) {
-        }
+        $this->notifications->notifyTicketEvent($ticketId, 'ticket.reopened', (int) ($viewer['id'] ?? 0));
     }
 
     /** Requester cancels their own ticket (→ cancelled). Reason required. */

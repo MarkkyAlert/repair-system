@@ -111,6 +111,18 @@ class NotificationService
 
     public function notifyTicketEvent(int $ticketId, string $eventType, int $actorId): void
     {
+        // Notifications are a best-effort side effect: a failure here must never turn an already-committed
+        // ticket transition into a user-facing error (dispatch/email already swallow + log their own failures;
+        // this guards the remaining reads). Every workflow transition can call this plainly, with no try-catch.
+        try {
+            $this->dispatchTicketEvent($ticketId, $eventType, $actorId);
+        } catch (Throwable $exception) {
+            error_log('[notify.ticket] ' . $eventType . ' ticket ' . $ticketId . ': ' . $exception->getMessage());
+        }
+    }
+
+    private function dispatchTicketEvent(int $ticketId, string $eventType, int $actorId): void
+    {
         $context = $this->reads->findTicketNotificationContextById($ticketId);
         if ($context === null) {
             return;
