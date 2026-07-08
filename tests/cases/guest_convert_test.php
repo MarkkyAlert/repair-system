@@ -1,7 +1,11 @@
 <?php
 declare(strict_types=1);
 
+use App\Repositories\AssetRepository;
+use App\Repositories\GuestTicketRequestRepository;
 use App\Services\GuestTicketService;
+use App\Services\LoginRateLimiter;
+use App\Services\NotificationService;
 use App\Services\TicketService;
 
 // Regression tests for the Guest QR convert race fix. The advisory lock + status-check-under-lock
@@ -147,6 +151,44 @@ test('guest convert: createTicket failure leaves request new + no orphan ticket'
         assert_true($threw, 'convert with invalid refs throws');
         assert_same($before, gc_ticket_count(), 'no ticket created on failure');
         assert_same('new', gc_request_status($reqId), 'request stays new (returned to queue)');
+    } finally {
+        gc_cleanup($reqId, []);
+    }
+});
+
+test('guest convert: a claim/link failure AFTER the ticket is created rolls it back — no orphan (atomic)', function (): void {
+    // The gap the older tests missed: createTicket SUCCEEDS but claimAndLink fails (abnormal path). Before the
+    // atomic-transaction fix that left an orphan ticket (created but the request still 'new'). convert now wraps
+    // create + claim/link in one transaction, so the ticket rolls back with the failed link.
+    $reqId = gc_insert_request();
+    try {
+        $admin = ['id' => 4, 'role' => 'admin'];
+        $pdo = gc_pdo();
+        // real repo everywhere except claimAndLink, which we force to fail (simulate the abnormal path)
+        $failingRepo = new class ($pdo) extends GuestTicketRequestRepository {
+            public function claimAndLink(int $id, int $ticketId, int $reviewerId): bool
+            {
+                return false;
+            }
+        };
+        $service = new GuestTicketService(
+            $failingRepo,
+            tvm_container()->get(AssetRepository::class),
+            tvm_container()->get(LoginRateLimiter::class),
+            tvm_container()->get(NotificationService::class),
+            $pdo
+        );
+
+        $before = gc_ticket_count();
+        $threw = false;
+        try {
+            $service->convertToTicket($reqId, $admin, 1, 1, gc_tickets());
+        } catch (RuntimeException) {
+            $threw = true;
+        }
+        assert_true($threw, 'convert surfaces the claim/link failure');
+        assert_same($before, gc_ticket_count(), 'the created ticket was rolled back — no orphan ticket');
+        assert_same('new', gc_request_status($reqId), 'the request is still new (safely retryable)');
     } finally {
         gc_cleanup($reqId, []);
     }

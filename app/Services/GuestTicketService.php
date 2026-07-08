@@ -6,6 +6,7 @@ namespace App\Services;
 use App\Repositories\AssetRepository;
 use App\Repositories\GuestTicketRequestRepository;
 use DomainException;
+use PDO;
 use RuntimeException;
 use Throwable;
 
@@ -21,6 +22,7 @@ class GuestTicketService
         private AssetRepository $assets,
         private LoginRateLimiter $rateLimiter,
         private NotificationService $notifications,
+        private PDO $db,
     ) {
     }
 
@@ -169,15 +171,26 @@ class GuestTicketService
                 'submission_token' => bin2hex(random_bytes(32)),
             ];
 
-            // ถ้า createTicket throw → exception ทะลุ finally (lock ปลด), claimAndLink ไม่ทันรัน →
-            // request ยัง 'new' + ไม่มี ticket ค้าง (createTicket rollback transaction ของตัวเอง)
-            $ticketId = $tickets->createTicket($viewer, $ticketInput, []);
-
-            // ถือ exclusive lock + ยืนยัน status='new' มาแล้ว → claimAndLink (WHERE status='new')
-            // สำเร็จเสมอ; guard ไว้เผื่อกรณีผิดปกติเท่านั้น (ไม่เกิด orphan เพราะไม่มี path อื่นชิงได้)
-            if (!$this->requests->claimAndLink($requestId, $ticketId, (int) ($viewer['id'] ?? 0))) {
-                throw new RuntimeException('เชื่อมโยง Ticket #' . $ticketId . ' กับ guest request ไม่สำเร็จ กรุณาตรวจสอบ Ticket ' . $ticketId);
+            // Atomic: create ticket + claim/link ในทรานแซกชันเดียว. createTicket ตรวจ inTransaction() แล้ว
+            // participate (ไม่ commit/notify เอง) → ถ้า claimAndLink ล้มหรือคืน false ให้ rollback ทั้งคู่
+            // จึง "ได้ทั้งคู่ หรือไม่ได้เลย" ไม่มี ticket กำพร้า (สร้างแล้วแต่ request ยังไม่ถูก mark converted).
+            $this->db->beginTransaction();
+            try {
+                $ticketId = $tickets->createTicket($viewer, $ticketInput, []);
+                if (!$this->requests->claimAndLink($requestId, $ticketId, (int) ($viewer['id'] ?? 0))) {
+                    throw new RuntimeException('เชื่อมโยง Ticket กับ guest request ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+                }
+                $this->db->commit();
+            } catch (Throwable $exception) {
+                if ($this->db->inTransaction()) {
+                    $this->db->rollBack();
+                }
+                throw $exception;
             }
+
+            // ticket + link durable แล้ว จึงแจ้งผู้อนุมัติ — วางหลัง commit (createNotification เปิด
+            // transaction ของตัวเอง จึงต้องไม่อยู่ในทรานแซกชันด้านบน) และเป็น best-effort.
+            $this->notifications->notifyTicketEvent($ticketId, 'ticket.created', (int) ($viewer['id'] ?? 0));
 
             return $ticketId;
         } finally {

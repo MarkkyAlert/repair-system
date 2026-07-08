@@ -469,10 +469,15 @@ class TicketService
         $storedPaths = [];
         $ticketId = 0;
         $created = false;
+        // Participate in an outer transaction when the caller already opened one (guest-request convert wraps
+        // ticket-create + claim/link atomically); own commit/rollback/notify only when we started it.
+        $startedTransaction = !$this->db->inTransaction();
 
         try {
             // RISK MAP: Ticket insert + attachment rows/files must stay atomic; keep storedPaths cleanup with any rollback.
-            $this->db->beginTransaction();
+            if ($startedTransaction) {
+                $this->db->beginTransaction();
+            }
             $result = $this->tickets->createTicket([
                 'submission_token' => $submissionToken,
                 'title' => $title,
@@ -497,16 +502,20 @@ class TicketService
                 $storedPaths = $this->attachments->storeValidated($validatedFiles, $ticketId, (int) ($viewer['id'] ?? 0));
             }
 
-            $this->db->commit();
+            if ($startedTransaction) {
+                $this->db->commit();
+            }
         } catch (Throwable $exception) {
-            if ($this->db->inTransaction()) {
+            if ($startedTransaction && $this->db->inTransaction()) {
                 $this->db->rollBack();
             }
             $this->attachments->deleteStoredFiles($storedPaths);
             throw $exception;
         }
 
-        if ($created) {
+        // When participating in an outer transaction the ticket isn't durable until that caller commits — it is
+        // then responsible for notifying. Notify here only when we committed above.
+        if ($created && $startedTransaction) {
             try {
                 $this->notifications->notifyTicketEvent($ticketId, 'ticket.created', (int) ($viewer['id'] ?? 0));
             } catch (Throwable) {
