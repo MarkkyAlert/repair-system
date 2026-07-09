@@ -141,7 +141,7 @@ class SetupController
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
             }
-            error_log('[setup.execute] ' . $exception->getMessage());
+            log_caught_exception('setup.execute', $exception);
             flash('error', 'ไม่สามารถตั้งค่าระบบได้ กรุณาตรวจสอบ log');
             Response::redirect('/setup');
         }

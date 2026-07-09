@@ -117,7 +117,7 @@ class NotificationService
         try {
             $this->dispatchTicketEvent($ticketId, $eventType, $actorId);
         } catch (Throwable $exception) {
-            error_log('[notify.ticket] ' . $eventType . ' ticket ' . $ticketId . ': ' . $exception->getMessage());
+            log_caught_exception('notify.ticket', $exception, ['event' => $eventType, 'ticket' => $ticketId]);
         }
     }
 
@@ -208,7 +208,7 @@ class NotificationService
         try {
             $this->emails->queueTicketEventEmails($context, $emailRecipients, $eventType, $title, $message);
         } catch (Throwable $exception) {
-            error_log('[notify.email.ticket] ' . $eventType . ' ticket ' . $ticketId . ': ' . $exception->getMessage());
+            log_caught_exception('notify.email.ticket', $exception, ['event' => $eventType, 'ticket' => $ticketId]);
         }
     }
 
@@ -265,7 +265,7 @@ class NotificationService
         try {
             $this->emails->queueCommentEventEmails($context, $emailRecipients, $commentId, $isInternal, $body, $action, $title, $message);
         } catch (Throwable $exception) {
-            error_log('[notify.email.comment] ' . $action . ' comment ' . $commentId . ' ticket ' . $ticketId . ': ' . $exception->getMessage());
+            log_caught_exception('notify.email.comment', $exception, ['action' => $action, 'comment' => $commentId, 'ticket' => $ticketId]);
         }
     }
 
@@ -296,7 +296,7 @@ class NotificationService
         try {
             $this->emails->queueSystemAnnouncementEmails($emailRecipients, $title, $message);
         } catch (Throwable $exception) {
-            error_log('[notify.email.broadcast] ' . $exception->getMessage());
+            log_caught_exception('notify.email.broadcast', $exception);
         }
 
         return [
@@ -341,7 +341,7 @@ class NotificationService
         try {
             $this->emails->queueSlaBreachedEmails($context, $emailRecipients, $metricType, $title, $message);
         } catch (Throwable $exception) {
-            error_log('[notify.email.sla] ' . $metricType . ' ticket ' . $ticketId . ': ' . $exception->getMessage());
+            log_caught_exception('notify.email.sla', $exception, ['metric' => $metricType, 'ticket' => $ticketId]);
         }
     }
 
@@ -378,7 +378,10 @@ class NotificationService
         try {
             $this->notifications->createNotification($payload, $recipientIds);
         } catch (Throwable $exception) {
-            error_log('[notify.dispatch] type=' . (string) ($payload['type'] ?? '?') . ' related=' . (string) ($payload['related_type'] ?? '?') . ':' . (string) ($payload['related_id'] ?? '?') . ' err=' . $exception->getMessage());
+            log_caught_exception('notify.dispatch', $exception, [
+                'type' => (string) ($payload['type'] ?? '?'),
+                'related' => (string) ($payload['related_type'] ?? '?') . ':' . (string) ($payload['related_id'] ?? '?'),
+            ]);
         }
     }
 

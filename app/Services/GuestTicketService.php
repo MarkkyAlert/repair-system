@@ -100,7 +100,7 @@ class GuestTicketService
         try {
             $this->notifications->notifyGuestRequestSubmitted($id, $requestNo, $name);
         } catch (Throwable $exception) {
-            error_log('[guest.submit.notify] ' . $exception->getMessage());
+            log_caught_exception('guest.submit.notify', $exception, ['request' => $requestNo]);
         }
 
         return [

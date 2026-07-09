@@ -124,7 +124,7 @@ class CommentService
         try {
             $this->attachments->deleteStoredFiles($paths);
         } catch (Throwable $exception) {
-            error_log('[comment.delete] file cleanup failed for comment ' . $commentId . ': ' . $exception->getMessage());
+            log_caught_exception('comment.delete', $exception, ['comment' => $commentId, 'reason' => 'file cleanup failed']);
         }
 
         try {

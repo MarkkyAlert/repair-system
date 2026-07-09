@@ -107,6 +107,32 @@ function log_uncaught_exception(\Throwable $exception): void
     error_log('[uncaught] ' . $exception);
 }
 
+/**
+ * Log an exception caught in a best-effort side-effect path (notifications, cleanup, audit) that is
+ * deliberately swallowed so it can't fail the main operation. Records the marker, caller-supplied context,
+ * and the exception CLASS + message + file:line — enough to debug without a noisy full stack trace.
+ *
+ * @param array<string, mixed> $context
+ */
+function log_caught_exception(string $marker, \Throwable $exception, array $context = []): void
+{
+    $parts = [];
+    foreach ($context as $key => $value) {
+        $parts[] = $key . '=' . (is_scalar($value) ? (string) $value : (string) json_encode($value, JSON_UNESCAPED_UNICODE));
+    }
+    $suffix = $parts === [] ? '' : ' ' . implode(' ', $parts);
+
+    error_log(sprintf(
+        '[%s]%s %s: %s in %s:%d',
+        $marker,
+        $suffix,
+        $exception::class,
+        $exception->getMessage(),
+        $exception->getFile(),
+        $exception->getLine()
+    ));
+}
+
 /** Format-only validators (callers keep their own required/empty guards and error messages). */
 function is_valid_email(string $email): bool
 {

@@ -97,7 +97,7 @@ class AuthService
         try {
             $this->loginAttempts->record($login, $userId, $ipAddress, $userAgent !== '' ? $userAgent : null, $success, $reason);
         } catch (\Throwable $e) {
-            error_log('[login_attempts] ' . $e->getMessage());
+            log_caught_exception('login_attempts', $e);
         }
     }
 
