@@ -319,3 +319,32 @@ test('workflow: bulkApproveTickets approves eligible ones and reports the rest',
         wf_cleanup($bad);
     }
 });
+
+// ── atomicity: a failing step inside a transition rolls back the whole thing (no partial write) ──
+
+test('workflow(atomicity): a failing step in approveTicket rolls back the status update', function (): void {
+    $id = wf_insert_ticket(['status' => 'pending_approval', 'approval_status' => 'pending']);
+    try {
+        $threw = false;
+        try {
+            // actor 999999 does not exist → the approval/activity insert violates its user FK AFTER the ticket
+            // UPDATE, so the whole transition must roll back (nothing partially applied)
+            wf_service()->approveTicket($id, ['id' => 999999, 'role' => 'admin'], ['note' => 'ok']);
+        } catch (Throwable) {
+            $threw = true;
+        }
+
+        assert_true($threw, 'the failing transition must surface an error');
+        assert_same('pending_approval', (string) wf_state($id)['status'], 'the ticket status was rolled back (no partial update)');
+        assert_same(
+            0,
+            (int) wf_pdo()->query("SELECT COUNT(*) FROM ticket_activity_logs WHERE ticket_id = $id")->fetchColumn(),
+            'no activity log survived the rollback'
+        );
+    } finally {
+        if (wf_pdo()->inTransaction()) {
+            wf_pdo()->rollBack(); // defensive: if the transition's own rollback were removed (power-proof), clean up here
+        }
+        wf_cleanup($id);
+    }
+});

@@ -258,3 +258,27 @@ test('comment(concurrency): a stale original_updated_at is rejected (optimistic 
         cm_cleanup($ticketId);
     }
 });
+
+// ── idempotency: resubmitting the same submission_token must not duplicate the comment ──
+
+test('comment(idempotency): the same submission_token twice creates only one comment', function (): void {
+    $ticketId = cm_seed_ticket();
+    $token = cm_token();
+    try {
+        cm_service()->createComment($ticketId, cm_owner(), ['body' => 'first', 'submission_token' => $token]);
+        cm_service()->createComment($ticketId, cm_owner(), ['body' => 'second (same token)', 'submission_token' => $token]);
+
+        assert_same(
+            1,
+            (int) cm_pdo()->query('SELECT COUNT(*) FROM ticket_comments WHERE submission_token = ' . cm_pdo()->quote($token))->fetchColumn(),
+            'a resubmitted token must not create a duplicate comment'
+        );
+        assert_same(
+            'first',
+            (string) cm_pdo()->query('SELECT body FROM ticket_comments WHERE submission_token = ' . cm_pdo()->quote($token))->fetchColumn(),
+            'the original comment is kept (the resubmit is a no-op)'
+        );
+    } finally {
+        cm_cleanup($ticketId);
+    }
+});
