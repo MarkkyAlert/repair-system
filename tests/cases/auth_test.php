@@ -278,6 +278,9 @@ test('auth: login returns identical generic error for wrong-password / unknown-u
         foreach ([$active['username'], $unknownLogin, $disabled['username']] as $login) {
             auth_rate_limiter()->clear('login:' . sha1(strtolower($login) . '|' . $ip));
         }
+        // the per-IP bucket (L1) accumulates across the file-based limiter's runs — clear it so repeated
+        // suite runs within the 15-min window don't push this fixed IP over the cap and trip the throttle
+        auth_rate_limiter()->clear('login-ip:' . sha1($ip));
     }
 });
 
@@ -304,6 +307,7 @@ test('auth: login is blocked once the attempt cap is exceeded', function (): voi
         assert_true($threw, 'exceeding the attempt cap must be blocked');
     } finally {
         $limiter->clear($key);
+        $limiter->clear('login-ip:' . sha1($ip)); // clear the per-IP bucket (L1) too so it can't accumulate across runs
         auth_cleanup(null, [$login]);
     }
 });
