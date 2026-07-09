@@ -436,7 +436,7 @@ class ReportService
         $this->ensureCanViewReports($viewer);
         $normalizedFilters = $this->normalizeAssetReportFilters($filters);
         $rows = $this->assetReportExportRows($viewer, $normalizedFilters, self::EXPORT_MAX_ROWS_CSV);
-        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'asset_reliability_report', 'csv', $normalizedFilters);
+        $jobId = $this->createExportJob((int) ($viewer['id'] ?? 0), 'asset_reliability_report', 'csv', $normalizedFilters);
         $fileName = 'asset-reliability-' . date('Ymd-His') . '.csv';
 
         try {
@@ -466,7 +466,7 @@ class ReportService
         $this->ensureCanViewReports($viewer);
         $normalizedFilters = $this->normalizeAssetReportFilters($filters);
         $rows = $this->assetReportExportRows($viewer, $normalizedFilters, self::EXPORT_MAX_ROWS_XLSX);
-        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'asset_reliability_report', 'xlsx', $normalizedFilters);
+        $jobId = $this->createExportJob((int) ($viewer['id'] ?? 0), 'asset_reliability_report', 'xlsx', $normalizedFilters);
         $fileName = 'asset-reliability-' . date('Ymd-His') . '.xlsx';
 
         try {
@@ -512,7 +512,7 @@ class ReportService
         $this->ensureCanViewReports($viewer);
         $normalizedFilters = $this->normalizeAssetReportFilters($filters);
         $rows = $this->assetReportExportRows($viewer, $normalizedFilters, self::EXPORT_MAX_ROWS_PDF);
-        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'asset_reliability_report', 'pdf', $normalizedFilters);
+        $jobId = $this->createExportJob((int) ($viewer['id'] ?? 0), 'asset_reliability_report', 'pdf', $normalizedFilters);
         $fileName = 'asset-reliability-' . date('Ymd-His') . '.pdf';
 
         try {
@@ -763,7 +763,7 @@ class ReportService
         $this->ensureCanViewReports($viewer);
         $normalizedFilters = $this->normalizeReportFilters($filters);
         $rows = $this->collectTechnicianPerformanceRows($viewer, $normalizedFilters);
-        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'technician_performance_report', 'csv', $normalizedFilters);
+        $jobId = $this->createExportJob((int) ($viewer['id'] ?? 0), 'technician_performance_report', 'csv', $normalizedFilters);
         $fileName = 'technician-performance-' . date('Ymd-His') . '.csv';
 
         try {
@@ -793,7 +793,7 @@ class ReportService
         $this->ensureCanViewReports($viewer);
         $normalizedFilters = $this->normalizeReportFilters($filters);
         $rows = $this->collectTechnicianPerformanceRows($viewer, $normalizedFilters);
-        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'technician_performance_report', 'xlsx', $normalizedFilters);
+        $jobId = $this->createExportJob((int) ($viewer['id'] ?? 0), 'technician_performance_report', 'xlsx', $normalizedFilters);
         $fileName = 'technician-performance-' . date('Ymd-His') . '.xlsx';
 
         try {
@@ -839,7 +839,7 @@ class ReportService
         $this->ensureCanViewReports($viewer);
         $normalizedFilters = $this->normalizeReportFilters($filters);
         $rows = $this->collectTechnicianPerformanceRows($viewer, $normalizedFilters);
-        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'technician_performance_report', 'pdf', $normalizedFilters);
+        $jobId = $this->createExportJob((int) ($viewer['id'] ?? 0), 'technician_performance_report', 'pdf', $normalizedFilters);
         $fileName = 'technician-performance-' . date('Ymd-His') . '.pdf';
 
         try {
@@ -1065,7 +1065,7 @@ class ReportService
         $this->ensureCanViewReports($viewer);
         $normalizedFilters = $this->normalizeHotspotFilters($filters);
         $rows = $this->collectProblemHotspotRows($viewer, $normalizedFilters);
-        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'problem_hotspot_report', 'csv', $normalizedFilters);
+        $jobId = $this->createExportJob((int) ($viewer['id'] ?? 0), 'problem_hotspot_report', 'csv', $normalizedFilters);
         $fileName = 'problem-hotspot-' . date('Ymd-His') . '.csv';
 
         try {
@@ -1095,7 +1095,7 @@ class ReportService
         $this->ensureCanViewReports($viewer);
         $normalizedFilters = $this->normalizeHotspotFilters($filters);
         $rows = $this->collectProblemHotspotRows($viewer, $normalizedFilters);
-        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'problem_hotspot_report', 'xlsx', $normalizedFilters);
+        $jobId = $this->createExportJob((int) ($viewer['id'] ?? 0), 'problem_hotspot_report', 'xlsx', $normalizedFilters);
         $fileName = 'problem-hotspot-' . date('Ymd-His') . '.xlsx';
 
         try {
@@ -1141,7 +1141,7 @@ class ReportService
         $this->ensureCanViewReports($viewer);
         $normalizedFilters = $this->normalizeHotspotFilters($filters);
         $rows = $this->collectProblemHotspotRows($viewer, $normalizedFilters);
-        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'problem_hotspot_report', 'pdf', $normalizedFilters);
+        $jobId = $this->createExportJob((int) ($viewer['id'] ?? 0), 'problem_hotspot_report', 'pdf', $normalizedFilters);
         $fileName = 'problem-hotspot-' . date('Ymd-His') . '.pdf';
 
         try {
@@ -1408,7 +1408,7 @@ class ReportService
         $this->ensureCanViewReports($viewer);
         $normalizedFilters = $this->normalizeTrendFilters($filters);
         $periods = $this->getTicketTrendReportPage($viewer, $filters)['periods'];
-        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'ticket_trend_report', 'csv', $normalizedFilters);
+        $jobId = $this->createExportJob((int) ($viewer['id'] ?? 0), 'ticket_trend_report', 'csv', $normalizedFilters);
         $fileName = 'ticket-trend-' . date('Ymd-His') . '.csv';
 
         try {
@@ -1438,7 +1438,7 @@ class ReportService
         $this->ensureCanViewReports($viewer);
         $normalizedFilters = $this->normalizeTrendFilters($filters);
         $periods = $this->getTicketTrendReportPage($viewer, $filters)['periods'];
-        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'ticket_trend_report', 'xlsx', $normalizedFilters);
+        $jobId = $this->createExportJob((int) ($viewer['id'] ?? 0), 'ticket_trend_report', 'xlsx', $normalizedFilters);
         $fileName = 'ticket-trend-' . date('Ymd-His') . '.xlsx';
 
         try {
@@ -1484,7 +1484,7 @@ class ReportService
         $this->ensureCanViewReports($viewer);
         $normalizedFilters = $this->normalizeTrendFilters($filters);
         $page = $this->getTicketTrendReportPage($viewer, $filters);
-        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'ticket_trend_report', 'pdf', $normalizedFilters);
+        $jobId = $this->createExportJob((int) ($viewer['id'] ?? 0), 'ticket_trend_report', 'pdf', $normalizedFilters);
         $fileName = 'ticket-trend-' . date('Ymd-His') . '.pdf';
 
         try {
@@ -1703,7 +1703,7 @@ class ReportService
         $this->ensureCanViewReports($viewer);
         $normalizedFilters = $this->normalizeExecFilters($filters);
         $kpis = $this->getExecutiveSummaryPage($viewer, $filters)['kpis'];
-        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'executive_summary_report', 'csv', $normalizedFilters);
+        $jobId = $this->createExportJob((int) ($viewer['id'] ?? 0), 'executive_summary_report', 'csv', $normalizedFilters);
         $fileName = 'executive-summary-' . date('Ymd-His') . '.csv';
 
         try {
@@ -1733,7 +1733,7 @@ class ReportService
         $this->ensureCanViewReports($viewer);
         $normalizedFilters = $this->normalizeExecFilters($filters);
         $kpis = $this->getExecutiveSummaryPage($viewer, $filters)['kpis'];
-        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'executive_summary_report', 'xlsx', $normalizedFilters);
+        $jobId = $this->createExportJob((int) ($viewer['id'] ?? 0), 'executive_summary_report', 'xlsx', $normalizedFilters);
         $fileName = 'executive-summary-' . date('Ymd-His') . '.xlsx';
 
         try {
@@ -1779,7 +1779,7 @@ class ReportService
         $this->ensureCanViewReports($viewer);
         $normalizedFilters = $this->normalizeExecFilters($filters);
         $page = $this->getExecutiveSummaryPage($viewer, $filters);
-        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'executive_summary_report', 'pdf', $normalizedFilters);
+        $jobId = $this->createExportJob((int) ($viewer['id'] ?? 0), 'executive_summary_report', 'pdf', $normalizedFilters);
         $fileName = 'executive-summary-' . date('Ymd-His') . '.pdf';
 
         try {
@@ -1940,7 +1940,7 @@ class ReportService
         $this->ensureCanViewReports($viewer);
         $normalizedFilters = $this->normalizeBacklogFilters($filters);
         $rows = $this->collectBacklogAgingRows($viewer, $normalizedFilters);
-        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'backlog_aging_report', 'csv', $normalizedFilters);
+        $jobId = $this->createExportJob((int) ($viewer['id'] ?? 0), 'backlog_aging_report', 'csv', $normalizedFilters);
         $fileName = 'backlog-aging-' . date('Ymd-His') . '.csv';
 
         try {
@@ -1970,7 +1970,7 @@ class ReportService
         $this->ensureCanViewReports($viewer);
         $normalizedFilters = $this->normalizeBacklogFilters($filters);
         $rows = $this->collectBacklogAgingRows($viewer, $normalizedFilters);
-        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'backlog_aging_report', 'xlsx', $normalizedFilters);
+        $jobId = $this->createExportJob((int) ($viewer['id'] ?? 0), 'backlog_aging_report', 'xlsx', $normalizedFilters);
         $fileName = 'backlog-aging-' . date('Ymd-His') . '.xlsx';
 
         try {
@@ -2016,7 +2016,7 @@ class ReportService
         $this->ensureCanViewReports($viewer);
         $normalizedFilters = $this->normalizeBacklogFilters($filters);
         $rows = $this->collectBacklogAgingRows($viewer, $normalizedFilters);
-        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'backlog_aging_report', 'pdf', $normalizedFilters);
+        $jobId = $this->createExportJob((int) ($viewer['id'] ?? 0), 'backlog_aging_report', 'pdf', $normalizedFilters);
         $fileName = 'backlog-aging-' . date('Ymd-His') . '.pdf';
 
         try {
@@ -2177,7 +2177,7 @@ class ReportService
         $this->ensureCanViewReports($viewer);
         $normalizedFilters = $this->normalizeReopenFilters($filters);
         $rows = $this->collectReopenRows($viewer, $normalizedFilters);
-        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'reopen_rate_report', 'csv', $normalizedFilters);
+        $jobId = $this->createExportJob((int) ($viewer['id'] ?? 0), 'reopen_rate_report', 'csv', $normalizedFilters);
         $fileName = 'reopen-rate-' . date('Ymd-His') . '.csv';
 
         try {
@@ -2207,7 +2207,7 @@ class ReportService
         $this->ensureCanViewReports($viewer);
         $normalizedFilters = $this->normalizeReopenFilters($filters);
         $rows = $this->collectReopenRows($viewer, $normalizedFilters);
-        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'reopen_rate_report', 'xlsx', $normalizedFilters);
+        $jobId = $this->createExportJob((int) ($viewer['id'] ?? 0), 'reopen_rate_report', 'xlsx', $normalizedFilters);
         $fileName = 'reopen-rate-' . date('Ymd-His') . '.xlsx';
 
         try {
@@ -2253,7 +2253,7 @@ class ReportService
         $this->ensureCanViewReports($viewer);
         $normalizedFilters = $this->normalizeReopenFilters($filters);
         $rows = $this->collectReopenRows($viewer, $normalizedFilters);
-        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'reopen_rate_report', 'pdf', $normalizedFilters);
+        $jobId = $this->createExportJob((int) ($viewer['id'] ?? 0), 'reopen_rate_report', 'pdf', $normalizedFilters);
         $fileName = 'reopen-rate-' . date('Ymd-His') . '.pdf';
 
         try {
@@ -2488,7 +2488,7 @@ class ReportService
         $this->ensureCanViewReports($viewer);
         $normalizedFilters = $this->normalizeCsatFilters($filters);
         $rows = $this->collectCsatRows($viewer, $normalizedFilters);
-        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'csat_report', 'csv', $normalizedFilters);
+        $jobId = $this->createExportJob((int) ($viewer['id'] ?? 0), 'csat_report', 'csv', $normalizedFilters);
         $fileName = 'csat-' . date('Ymd-His') . '.csv';
 
         try {
@@ -2520,7 +2520,7 @@ class ReportService
         $rows = $this->collectCsatRows($viewer, $normalizedFilters);
         // Excel ดึง feedback ได้มากกว่าหน้าจอ (ตามที่ UI แจ้งว่า "ดูใน Excel") — เพดาน repo = 500
         $feedback = $this->collectCsatFeedback($viewer, $normalizedFilters, self::CSAT_FEEDBACK_EXPORT_LIMIT);
-        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'csat_report', 'xlsx', $normalizedFilters);
+        $jobId = $this->createExportJob((int) ($viewer['id'] ?? 0), 'csat_report', 'xlsx', $normalizedFilters);
         $fileName = 'csat-' . date('Ymd-His') . '.xlsx';
 
         try {
@@ -2577,7 +2577,7 @@ class ReportService
         $normalizedFilters = $this->normalizeCsatFilters($filters);
         $rows = $this->collectCsatRows($viewer, $normalizedFilters);
         $summary = $this->buildCsatSummary($rows);
-        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'csat_report', 'pdf', $normalizedFilters);
+        $jobId = $this->createExportJob((int) ($viewer['id'] ?? 0), 'csat_report', 'pdf', $normalizedFilters);
         $fileName = 'csat-' . date('Ymd-His') . '.pdf';
 
         try {
@@ -2919,7 +2919,7 @@ class ReportService
         $this->ensureCanViewReports($viewer);
         $normalizedFilters = $this->normalizeSlaBreachFilters($filters);
         $rows = $this->collectSlaBreachRows($viewer, $normalizedFilters);
-        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'sla_breach_report', 'csv', $normalizedFilters);
+        $jobId = $this->createExportJob((int) ($viewer['id'] ?? 0), 'sla_breach_report', 'csv', $normalizedFilters);
         $fileName = 'sla-breach-' . date('Ymd-His') . '.csv';
 
         try {
@@ -2949,7 +2949,7 @@ class ReportService
         $this->ensureCanViewReports($viewer);
         $normalizedFilters = $this->normalizeSlaBreachFilters($filters);
         $rows = $this->collectSlaBreachRows($viewer, $normalizedFilters);
-        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'sla_breach_report', 'xlsx', $normalizedFilters);
+        $jobId = $this->createExportJob((int) ($viewer['id'] ?? 0), 'sla_breach_report', 'xlsx', $normalizedFilters);
         $fileName = 'sla-breach-' . date('Ymd-His') . '.xlsx';
 
         try {
@@ -2995,7 +2995,7 @@ class ReportService
         $this->ensureCanViewReports($viewer);
         $normalizedFilters = $this->normalizeSlaBreachFilters($filters);
         $rows = $this->collectSlaBreachRows($viewer, $normalizedFilters);
-        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'sla_breach_report', 'pdf', $normalizedFilters);
+        $jobId = $this->createExportJob((int) ($viewer['id'] ?? 0), 'sla_breach_report', 'pdf', $normalizedFilters);
         $fileName = 'sla-breach-' . date('Ymd-His') . '.pdf';
 
         try {
@@ -3093,7 +3093,7 @@ class ReportService
         $normalizedFilters = $this->normalizeReportFilters($filters);
         $rows = $this->exportRows($viewer, $normalizedFilters, self::EXPORT_MAX_ROWS_XLSX);
         // RISK MAP: Export is triggered by GET but creates an export job; add throttling/idempotency if exports become heavy.
-        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'ticket_report', 'xlsx', $normalizedFilters);
+        $jobId = $this->createExportJob((int) ($viewer['id'] ?? 0), 'ticket_report', 'xlsx', $normalizedFilters);
         $fileName = 'ticket-report-' . date('Ymd-His') . '.xlsx';
 
         try {
@@ -3179,7 +3179,7 @@ class ReportService
         $rows = $this->exportRows($viewer, $normalizedFilters, self::EXPORT_MAX_ROWS_PDF);
         $summary = $this->reports->getSummary($viewer, $normalizedFilters);
         // RISK MAP: Export is triggered by GET but creates an export job; add throttling/idempotency if exports become heavy.
-        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'ticket_report', 'pdf', $normalizedFilters);
+        $jobId = $this->createExportJob((int) ($viewer['id'] ?? 0), 'ticket_report', 'pdf', $normalizedFilters);
         $fileName = 'ticket-report-' . date('Ymd-His') . '.pdf';
 
         try {
@@ -3232,7 +3232,7 @@ class ReportService
         $normalizedFilters = $this->normalizeReportFilters($filters);
         $rows = $this->exportRows($viewer, $normalizedFilters, self::EXPORT_MAX_ROWS_CSV);
         // RISK MAP: Export is triggered by GET but creates an export job; add throttling/idempotency if exports become heavy.
-        $jobId = $this->reports->createExportJob((int) ($viewer['id'] ?? 0), 'ticket_report', 'csv', $normalizedFilters);
+        $jobId = $this->createExportJob((int) ($viewer['id'] ?? 0), 'ticket_report', 'csv', $normalizedFilters);
         $fileName = 'ticket-report-' . date('Ymd-His') . '.csv';
 
         try {
@@ -3318,6 +3318,25 @@ class ReportService
         }
     }
 
+    /**
+     * When true, export-job tracking is suppressed (createExportJob returns 0 → the later
+     * markExportJobCompleted/Failed become no-op UPDATEs on id 0). Used only by the sample-pack preview.
+     */
+    private bool $suppressExportJobTracking = false;
+
+    /**
+     * Single entry point for creating an export_jobs audit row. Every deliberate export (POST /reports/export/*)
+     * records one; the sample-pack GET preview suppresses it so refreshes/bot-preloads don't inflate the audit.
+     */
+    private function createExportJob(int $requestedBy, string $type, string $format, array $filters): int
+    {
+        if ($this->suppressExportJobTracking) {
+            return 0;
+        }
+
+        return $this->reports->createExportJob($requestedBy, $type, $format, $filters);
+    }
+
     private function sanitizeExportRow(array $values): array
     {
         return array_map(fn (mixed $value): string => $this->sanitizeExportCell($value), $values);
@@ -3359,6 +3378,9 @@ class ReportService
             throw new RuntimeException('ไม่สามารถเตรียมไฟล์ ZIP ได้');
         }
 
+        // The sample pack is a GET preview bundle — it must NOT create export_jobs audit rows (a refresh or a
+        // link-preview bot would inflate the trail). Only deliberate POST exports are audited.
+        $this->suppressExportJobTracking = true;
         try {
             $lines = ['ชุดตัวอย่างรายงาน — ระบบแจ้งซ่อมและบำรุงรักษา', 'สร้างเมื่อ ' . date('d/m/Y H:i'), '', 'ไฟล์ในชุดนี้:'];
             foreach ($catalog as [$name, $pdfMethod, $excelMethod, $filters]) {
@@ -3385,6 +3407,8 @@ class ReportService
             @$zip->close();
             @unlink($tmp);
             throw new RuntimeException('ไม่สามารถสร้างชุดตัวอย่างรายงานได้', 0, $exception);
+        } finally {
+            $this->suppressExportJobTracking = false;
         }
     }
 

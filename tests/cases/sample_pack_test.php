@@ -73,3 +73,21 @@ test('sample pack: manager/admin gate — requester & technician are blocked', f
         assert_true($blocked, "$role must be blocked from the sample pack (ensureCanViewReports)");
     }
 });
+
+test('sample pack: generation creates NO export_jobs, but a deliberate export still is audited', function (): void {
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $before = (int) sp_pdo()->query('SELECT COUNT(*) FROM export_jobs')->fetchColumn();
+    $baselineId = (int) sp_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM export_jobs')->fetchColumn();
+    try {
+        // the sample pack is a GET preview bundle → it must NOT create export_jobs audit rows
+        sp_service()->generateSamplePack($admin);
+        assert_same($before, (int) sp_pdo()->query('SELECT COUNT(*) FROM export_jobs')->fetchColumn(), 'sample pack creates no export_jobs');
+
+        // ...but a deliberate export still records exactly one job (suppression is scoped to the pack, and the
+        // flag was reset afterwards — a leak would suppress this export too and fail the +1 assertion)
+        sp_service()->exportExecutiveSummaryPdf($admin, []);
+        assert_same($before + 1, (int) sp_pdo()->query('SELECT COUNT(*) FROM export_jobs')->fetchColumn(), 'a deliberate export still records exactly one export_job');
+    } finally {
+        sp_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineId]);
+    }
+});
