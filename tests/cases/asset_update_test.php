@@ -1,0 +1,86 @@
+<?php
+declare(strict_types=1);
+
+use App\Repositories\AssetRepository;
+
+// Locks the asset-update optimistic lock (AssetRepository::updateAsset): the UPDATE carries
+// WHERE id = ? AND updated_at = :original_updated_at, so a stale edit form (an original_updated_at that no
+// longer matches the row) matches zero rows → the re-query confirms the row moved on → DomainException,
+// leaving the newer value intact. Regression target: drop the updated_at guard and a stale edit silently
+// overwrites a newer one (lost update). Seeded with a deliberately-old updated_at so the stale case is
+// unambiguous (not the sub-second same-timestamp edge).
+
+function aupd_repo(): AssetRepository
+{
+    return tvm_container()->get(AssetRepository::class);
+}
+
+function aupd_pdo(): PDO
+{
+    return tvm_container()->get(PDO::class);
+}
+
+/** Seed an asset with a known, deliberately-old updated_at; returns [id, base payload with valid FKs]. */
+function aupd_seed(): array
+{
+    $ref = tvm_container()->get(AssetRepository::class)->getAssetFormReferenceData();
+    $catId = (int) ($ref['categories'][0]['id'] ?? 0);
+    $locId = (int) ($ref['locations'][0]['id'] ?? 0);
+    $code = 'AUPD-' . strtoupper(bin2hex(random_bytes(3)));
+
+    aupd_pdo()->prepare(
+        "INSERT INTO assets (asset_code, name, asset_category_id, location_id, status, created_at, updated_at)
+         VALUES (?, 'Original Name', ?, ?, 'active', NOW(), '2020-01-01 00:00:00')"
+    )->execute([$code, $catId, $locId]);
+    $id = (int) aupd_pdo()->lastInsertId();
+
+    $base = [
+        'asset_code' => $code,
+        'name' => 'Original Name',
+        'serial_number' => null,
+        'asset_category_id' => $catId,
+        'department_id' => null,
+        'location_id' => $locId,
+        'custodian_user_id' => null,
+        'brand' => null,
+        'model' => null,
+        'vendor' => null,
+        'purchase_date' => null,
+        'warranty_expires_at' => null,
+        'status' => 'active',
+        'notes' => null,
+    ];
+
+    return [$id, $base];
+}
+
+test('assetUpdate(optimistic-lock): a fresh update succeeds; a stale one is rejected and does not overwrite', function (): void {
+    [$id, $base] = aupd_seed();
+
+    try {
+        // update #1 — original_updated_at matches the seeded value → the WHERE matches → succeeds
+        aupd_repo()->updateAsset($id, array_merge($base, ['name' => 'First Update', 'original_updated_at' => '2020-01-01 00:00:00']));
+        assert_same(
+            'First Update',
+            (string) aupd_pdo()->query("SELECT name FROM assets WHERE id = $id")->fetchColumn(),
+            'the fresh update lands'
+        );
+
+        // update #2 — carries the SAME, now-stale original_updated_at → the WHERE no longer matches → rejected
+        $rejected = false;
+        try {
+            aupd_repo()->updateAsset($id, array_merge($base, ['name' => 'Stale Overwrite', 'original_updated_at' => '2020-01-01 00:00:00']));
+        } catch (DomainException $e) {
+            $rejected = true;
+            assert_contains_str('ถูกแก้ไขโดยผู้ใช้อื่น', $e->getMessage(), 'the stale update reports a conflict');
+        }
+        assert_true($rejected, 'a stale optimistic-lock update must be rejected');
+        assert_same(
+            'First Update',
+            (string) aupd_pdo()->query("SELECT name FROM assets WHERE id = $id")->fetchColumn(),
+            'the stale update did NOT overwrite the newer value (no lost update)'
+        );
+    } finally {
+        aupd_pdo()->prepare('DELETE FROM assets WHERE id = ?')->execute([$id]);
+    }
+});
