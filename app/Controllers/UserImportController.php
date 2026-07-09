@@ -88,6 +88,12 @@ class UserImportController
                 $summary .= ' · ข้าม ' . $skipped . ' รายการ';
             }
             flash('success', $summary);
+
+            $resetFailures = $result['reset_failures'] ?? [];
+            if ($resetFailures !== []) {
+                $names = implode(', ', array_map(static fn (array $f): string => (string) ($f['username'] ?? ''), $resetFailures));
+                flash('error', 'ส่งอีเมลตั้งรหัสผ่านไม่สำเร็จ ' . count($resetFailures) . ' ผู้ใช้ (' . $names . ') — ผู้ใช้ถูกสร้างแล้วแต่ยังไม่มีรหัสผ่าน กรุณารีเซ็ตรหัสผ่านให้เอง');
+            }
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
             Response::redirect('/admin/users/import');

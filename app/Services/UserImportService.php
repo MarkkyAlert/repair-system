@@ -139,6 +139,7 @@ class UserImportService
         $imported = 0;
         $skipped = [];
         $sentResetEmails = 0;
+        $resetFailures = [];
 
         foreach ($validRows as $row) {
             try {
@@ -165,7 +166,14 @@ class UserImportService
                         $this->auth->createPasswordReset((string) $row['email']);
                         $sentResetEmails++;
                     } catch (Throwable) {
-                        // Reset email enqueue failure should not break import
+                        // The user is created active with a random password; a reset-email failure must not
+                        // break the import, but it also must not be swallowed silently — record who did not
+                        // receive a reset so the admin can reset them manually.
+                        $resetFailures[] = [
+                            'line' => (int) ($row['line'] ?? 0),
+                            'username' => (string) ($row['username'] ?? ''),
+                            'email' => (string) ($row['email'] ?? ''),
+                        ];
                     }
                 }
             } catch (Throwable $exception) {
@@ -183,6 +191,7 @@ class UserImportService
             'imported' => $imported,
             'skipped' => $skipped,
             'reset_emails_queued' => $sentResetEmails,
+            'reset_failures' => $resetFailures,
         ];
     }
 }

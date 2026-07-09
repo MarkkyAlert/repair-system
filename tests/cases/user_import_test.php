@@ -292,4 +292,41 @@ namespace {
             @unlink($wrongExt['tmp_name']);
         }
     });
+
+    test('userImport.executeImport(auto_password): a reset-email failure is surfaced, not swallowed (user still created)', function (): void {
+        // empty password → auto-generate a random one → a reset email is attempted; if that fails the user is
+        // still created but nobody knows the password, so the failure must be reported (not silently swallowed).
+        $row = ui_exec_row(['password' => '', 'auto_password' => true]);
+
+        // real repos, but an AuthService whose createPasswordReset always fails (e.g. the mail queue is down)
+        $failingAuth = new class extends \App\Services\AuthService {
+            public function __construct()
+            {
+            }
+
+            public function createPasswordReset(string $email): ?string
+            {
+                throw new RuntimeException('reset email queue is down');
+            }
+        };
+        $importer = new \App\Services\UserImportService(
+            tvm_container()->get(\App\Repositories\AdminRepository::class),
+            tvm_container()->get(\App\Repositories\UserRepository::class),
+            $failingAuth
+        );
+
+        try {
+            $result = $importer->executeImport([$row]);
+
+            assert_same(1, (int) $result['imported'], 'the user is still created (import does not fail on a reset-email error)');
+            assert_same(0, (int) $result['reset_emails_queued'], 'no reset email was queued');
+            assert_same(1, count($result['reset_failures']), 'the reset failure is surfaced (not swallowed)');
+            assert_same($row['username'], (string) ($result['reset_failures'][0]['username'] ?? ''), 'the failing user is named so an admin can reset them manually');
+
+            $exists = ui_pdo()->query('SELECT COUNT(*) FROM users WHERE username = ' . ui_pdo()->quote($row['username']))->fetchColumn();
+            assert_same(1, (int) $exists, 'the user row exists despite the reset-email failure');
+        } finally {
+            ui_delete_users([$row['username']]);
+        }
+    });
 }
