@@ -229,3 +229,38 @@ test('reference data: cannot delete a priority that a ticket uses (guard + row s
         }
     }
 });
+
+test('reference data: cannot delete a ticket category that a ticket uses (guard + row survives)', function (): void {
+    rd_bind_request();
+    $suffix = bin2hex(random_bytes(4));
+    $catId = 0;
+    $ticketId = 0;
+    try {
+        rd_pdo()->prepare('INSERT INTO ticket_categories (code, name, sort_order, is_active, created_at, updated_at) VALUES (?, ?, 0, 1, NOW(), NOW())')
+            ->execute(['RDCAT' . strtoupper($suffix), 'RD Category ' . $suffix]);
+        $catId = (int) rd_pdo()->lastInsertId();
+
+        $loc = (int) rd_pdo()->query('SELECT COALESCE((SELECT id FROM locations LIMIT 1), 1)')->fetchColumn();
+        $pri = (int) rd_pdo()->query('SELECT COALESCE((SELECT id FROM priorities LIMIT 1), 1)')->fetchColumn();
+        rd_pdo()->prepare('INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at) VALUES (?, "RD", "x", 1, ?, ?, ?, "in_progress", NOW())')
+            ->execute(['RDC-' . $suffix, $loc, $catId, $pri]);
+        $ticketId = (int) rd_pdo()->lastInsertId();
+
+        $threw = false;
+        try {
+            rd_service()->deleteTicketCategory($catId, rd_admin());
+        } catch (DomainException $e) {
+            $threw = true;
+            assert_same('หมวดหมู่งานนี้ถูกใช้งานแล้ว กรุณาปิดใช้งานแทนการลบ', $e->getMessage());
+        }
+        assert_true($threw, 'deleting an in-use ticket category must throw');
+        assert_same(1, (int) rd_pdo()->query("SELECT COUNT(*) FROM ticket_categories WHERE id = $catId")->fetchColumn(), 'category was NOT deleted');
+    } finally {
+        if ($ticketId > 0) {
+            rd_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+        }
+        if ($catId > 0) {
+            rd_pdo()->prepare('DELETE FROM ticket_categories WHERE id = ?')->execute([$catId]);
+        }
+    }
+});
