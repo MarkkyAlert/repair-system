@@ -222,3 +222,39 @@ test('comment: createComment happy path stores the comment (no attachments)', fu
         cm_cleanup($ticketId);
     }
 });
+
+// ── concurrency: optimistic lock on update (original_updated_at) ──
+
+test('comment(concurrency): a stale original_updated_at is rejected (optimistic lock) and does not overwrite', function (): void {
+    $ticketId = cm_seed_ticket();
+    try {
+        [$cId, $staleVersion] = cm_seed_comment($ticketId, 1, 'original body');
+
+        // simulate a concurrent edit that bumps updated_at to a clearly different value (avoid DATETIME
+        // second-granularity collisions) — the version we loaded ($staleVersion) is now out of date
+        cm_pdo()->prepare('UPDATE ticket_comments SET body = ?, updated_at = ? WHERE id = ?')
+            ->execute(['edited by someone else', date('Y-m-d H:i:s', time() + 5), $cId]);
+
+        $threw = false;
+        try {
+            cm_service()->updateComment($ticketId, $cId, cm_owner(), ['body' => 'my late edit', 'original_updated_at' => $staleVersion]);
+        } catch (DomainException $e) {
+            $threw = true;
+            assert_same('Comment ถูกแก้ไขโดยผู้ใช้อื่นแล้ว กรุณารีเฟรชหน้าแล้วลองอีกครั้ง', $e->getMessage());
+        }
+        assert_true($threw, 'a stale version must be rejected (lost update prevented)');
+        assert_same('edited by someone else', cm_body($cId), 'the late edit did NOT overwrite the concurrent edit');
+
+        // a missing version stamp is rejected before touching the row
+        $threw2 = false;
+        try {
+            cm_service()->updateComment($ticketId, $cId, cm_owner(), ['body' => 'x', 'original_updated_at' => '']);
+        } catch (DomainException $e) {
+            $threw2 = true;
+            assert_same('ข้อมูล comment ไม่ครบถ้วน กรุณารีเฟรชหน้าแล้วลองอีกครั้ง', $e->getMessage());
+        }
+        assert_true($threw2, 'a missing original_updated_at is rejected');
+    } finally {
+        cm_cleanup($ticketId);
+    }
+});
