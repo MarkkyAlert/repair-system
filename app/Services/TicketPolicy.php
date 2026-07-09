@@ -83,9 +83,11 @@ class TicketPolicy
 
     public function canRequesterReopenTicket(array $ticket, array $viewer): bool
     {
+        // Only a resolved (awaiting confirmation) ticket can be sent back for rework. A completed ticket is
+        // final — an unhappy requester opens a NEW ticket via duplicate (canDuplicateTicket), not a reopen.
         return $this->canRequesterManageClosure($ticket, $viewer)
             && (string) ($ticket['approval_status'] ?? '') === 'approved'
-            && in_array((string) ($ticket['status'] ?? ''), ['resolved', 'completed'], true);
+            && (string) ($ticket['status'] ?? '') === 'resolved';
     }
 
     public function canRequesterCancelTicket(array $ticket, array $viewer): bool

@@ -686,7 +686,7 @@ class TicketRepository
 
         try {
             $this->db->beginTransaction();
-            $this->lockTicketForTransition($ticketId, ['resolved', 'completed'], 'approved', 'requester_id', $actorId);
+            $this->lockTicketForTransition($ticketId, ['resolved'], 'approved', 'requester_id', $actorId);
 
             $ticketStmt = $this->db->prepare(
                 'UPDATE tickets

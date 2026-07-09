@@ -217,10 +217,20 @@ test('workflow(neg): completeResolvedTicket rejects a ticket that is not resolve
     }
 });
 
-test('workflow(neg): reopenTicket rejects a ticket that is not resolved/completed', function (): void {
+test('workflow(neg): reopenTicket rejects a ticket that is not resolved', function (): void {
     $id = wf_insert_ticket(['status' => 'in_progress', 'approval_status' => 'approved', 'requester_id' => 1, 'assigned_technician_id' => 3]);
     try {
         wf_reject(fn () => wf_service()->reopenTicket($id, ['id' => 1, 'role' => 'requester'], ['reopen_note' => 'ทำใหม่']), $id, 'reopen non-resolved');
+    } finally {
+        wf_cleanup($id);
+    }
+});
+
+test('workflow: a completed ticket can no longer be reopened (completed is final)', function (): void {
+    // F6 business rule: completed is terminal for reopen — an unhappy requester opens a NEW ticket (duplicate).
+    $id = wf_insert_ticket(['status' => 'completed', 'approval_status' => 'approved', 'requester_id' => 1, 'assigned_technician_id' => 3]);
+    try {
+        wf_reject(fn () => wf_service()->reopenTicket($id, ['id' => 1, 'role' => 'requester'], ['reopen_note' => 'ขอเปิดใหม่']), $id, 'reopen completed is blocked');
     } finally {
         wf_cleanup($id);
     }
