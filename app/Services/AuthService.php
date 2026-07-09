@@ -12,6 +12,12 @@ use DomainException;
 
 class AuthService
 {
+    // Per-IP failed-login cap (password-spraying guard). Deliberately higher than the per-account cap (5) so a
+    // shared-NAT office is not locked out by one bad actor, but low enough to blunt spraying one password across
+    // many usernames from a single source.
+    private const IP_ATTEMPT_CAP = 20;
+    private const ATTEMPT_DECAY_SECONDS = 900;
+
     public function __construct(
         private UserRepository $users,
         private PasswordResetRepository $passwordResets,
@@ -27,10 +33,17 @@ class AuthService
     {
         $login = trim($login);
         $limiterKey = $this->limiterKey($login, $ipAddress);
+        $ipKey = $this->ipLimiterKey($ipAddress);
         $userAgent = (string) ($_SERVER['HTTP_USER_AGENT'] ?? '');
 
-        if ($this->rateLimiter->tooManyAttempts($limiterKey)) {
-            $seconds = $this->rateLimiter->availableIn($limiterKey);
+        // Two nets: the per-(account, IP) cap stops brute-forcing one account; the per-IP cap stops password
+        // spraying (one password across many usernames from a single source), which the account cap alone misses.
+        if ($this->rateLimiter->tooManyAttempts($limiterKey)
+            || $this->rateLimiter->tooManyAttempts($ipKey, self::IP_ATTEMPT_CAP, self::ATTEMPT_DECAY_SECONDS)) {
+            $seconds = max(
+                $this->rateLimiter->availableIn($limiterKey),
+                $this->rateLimiter->availableIn($ipKey, self::ATTEMPT_DECAY_SECONDS)
+            );
             $this->logAttempt($login, null, $ipAddress, $userAgent, false, 'rate_limited');
             throw new DomainException('คุณพยายามเข้าสู่ระบบเกินกำหนด กรุณาลองใหม่ในอีก ' . max(1, $seconds) . ' วินาที');
         }
@@ -44,6 +57,7 @@ class AuthService
         $user = $this->users->findByLogin($login);
         if (!$user || !password_verify($password, (string) $user['password_hash'])) {
             $this->rateLimiter->hit($limiterKey);
+            $this->rateLimiter->hit($ipKey, self::ATTEMPT_DECAY_SECONDS);
             $this->logAttempt(
                 $login,
                 $user ? (int) ($user['id'] ?? 0) : null,
@@ -57,6 +71,7 @@ class AuthService
 
         if (!(bool) $user['is_active']) {
             $this->rateLimiter->hit($limiterKey);
+            $this->rateLimiter->hit($ipKey, self::ATTEMPT_DECAY_SECONDS);
             $this->logAttempt($login, (int) ($user['id'] ?? 0), $ipAddress, $userAgent, false, 'account_disabled');
             // Generic message to prevent user enumeration via account-state probing.
             // Real reason is recorded in login_attempts for admin Security tab.
@@ -270,5 +285,12 @@ class AuthService
         $normalizedIp = $ipAddress !== '' ? $ipAddress : 'unknown';
 
         return 'login:' . sha1($normalizedLogin . '|' . $normalizedIp);
+    }
+
+    private function ipLimiterKey(string $ipAddress): string
+    {
+        $normalizedIp = $ipAddress !== '' ? $ipAddress : 'unknown';
+
+        return 'login-ip:' . sha1($normalizedIp);
     }
 }

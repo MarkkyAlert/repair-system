@@ -307,3 +307,55 @@ test('auth: login is blocked once the attempt cap is exceeded', function (): voi
         auth_cleanup(null, [$login]);
     }
 });
+
+// ── login: per-IP cap blunts password-spraying (many usernames, one source) ──
+
+test('auth: a saturated source IP blocks even an untried username (spraying blocked)', function (): void {
+    $ip = '203.0.113.30';
+    $ipKey = 'login-ip:' . sha1($ip); // must match AuthService::ipLimiterKey()
+    $freshLogin = 'sprayvictim_' . bin2hex(random_bytes(4)); // never tried → its per-account bucket is empty
+    $accountKey = 'login:' . sha1(strtolower($freshLogin) . '|' . $ip);
+    $limiter = auth_rate_limiter();
+
+    try {
+        // simulate 20 failed logins spread across many usernames from this one IP (the per-account cap of 5
+        // never fires because each username has its own bucket — only the per-IP cap catches the spray)
+        for ($i = 0; $i < 20; $i++) { // IP cap is 20
+            $limiter->hit($ipKey, 900);
+        }
+
+        // a brand-new username whose per-account bucket is untouched must still be blocked from this IP
+        $msg = auth_login_error($freshLogin, 'anything', $ip);
+        assert_contains_str('เกินกำหนด', $msg, 'a saturated source IP blocks even an untried username');
+    } finally {
+        $limiter->clear($ipKey);
+        $limiter->clear($accountKey);
+        auth_cleanup(null, [$freshLogin]);
+    }
+});
+
+test('auth: a saturated IP does not lock out a different IP (no global lockout)', function (): void {
+    $ipSaturated = '203.0.113.31';
+    $ipOther = '203.0.113.32';
+    $ipKeySaturated = 'login-ip:' . sha1($ipSaturated);
+    $ipKeyOther = 'login-ip:' . sha1($ipOther);
+    $login = 'otheripuser_' . bin2hex(random_bytes(4));
+    $accountKeyOther = 'login:' . sha1(strtolower($login) . '|' . $ipOther);
+    $limiter = auth_rate_limiter();
+
+    try {
+        for ($i = 0; $i < 20; $i++) {
+            $limiter->hit($ipKeySaturated, 900);
+        }
+
+        // same untried username, but from a DIFFERENT IP → must reach the credential check (generic message),
+        // proving one bad IP cannot lock the whole world out
+        $msg = auth_login_error($login, 'anything', $ipOther);
+        assert_same('ชื่อผู้ใช้ อีเมล หรือรหัสผ่านไม่ถูกต้อง', $msg, 'a different IP is unaffected by the saturated one');
+    } finally {
+        $limiter->clear($ipKeySaturated);
+        $limiter->clear($ipKeyOther);
+        $limiter->clear($accountKeyOther);
+        auth_cleanup(null, [$login]);
+    }
+});
