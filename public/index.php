@@ -8,6 +8,14 @@ use App\Repositories\SettingsRepository;
 
 [$container, $router] = require dirname(__DIR__) . '/bootstrap.php';
 
+// Fail fast on a leaky misconfiguration: APP_DEBUG=true under APP_ENV=production makes the handler below
+// rethrow and expose stack traces to clients. Refuse to serve rather than leak (local dev / CLI unaffected).
+if (is_unsafe_production_debug((string) config('app.env', 'production'), (bool) config('app.debug', false))) {
+    error_log('[config] refusing to serve: APP_DEBUG=true with APP_ENV=production would leak stack traces to clients — set APP_DEBUG=false');
+    http_response_code(500);
+    exit('Server misconfigured (debug enabled in production). See the server log.');
+}
+
 try {
     $request = Request::capture();
     $container->instance(Request::class, $request);

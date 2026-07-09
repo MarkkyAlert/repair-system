@@ -125,6 +125,16 @@ function log_uncaught_exception(\Throwable $exception): void
 }
 
 /**
+ * True when the app is configured to leak stack traces to clients: debug mode enabled under a production
+ * environment (the entry-point handler rethrows in debug, so a prod error would expose its trace). The web
+ * entry point refuses to serve in this state; local dev (APP_ENV=local) is unaffected.
+ */
+function is_unsafe_production_debug(string $appEnv, bool $appDebug): bool
+{
+    return $appEnv === 'production' && $appDebug === true;
+}
+
+/**
  * Log an exception caught in a best-effort side-effect path (notifications, cleanup, audit) that is
  * deliberately swallowed so it can't fail the main operation. Records the marker, caller-supplied context,
  * and the exception CLASS + message + file:line — enough to debug without a noisy full stack trace.
