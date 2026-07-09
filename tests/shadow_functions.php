@@ -24,6 +24,24 @@ namespace App\Services {
             return $override === null ? \is_file($filename) : (bool) $override;
         }
     }
+
+    // Companion shadow for move_uploaded_file(): under CLI the native call always fails (no real HTTP upload),
+    // which makes AttachmentService::storeValidated() untestable. Move the temp file with rename()/copy()
+    // instead so the store + partial-write-cleanup path can run against real files.
+    if (!function_exists('App\\Services\\move_uploaded_file')) {
+        function move_uploaded_file(string $from, string $to): bool
+        {
+            if (@\rename($from, $to)) {
+                return true;
+            }
+            if (\copy($from, $to)) { // cross-filesystem fallback
+                @\unlink($from);
+                return true;
+            }
+
+            return false;
+        }
+    }
 }
 
 namespace {
