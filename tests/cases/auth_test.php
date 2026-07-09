@@ -78,6 +78,23 @@ function auth_login_error(string $login, string $password, string $ip): string
     throw new RuntimeException("attemptLogin should have thrown for login=$login");
 }
 
+/** Seed a password_resets row. token is stored as sha256(rawToken) (AuthService hashes before lookup). */
+function auth_seed_reset(string $email, string $rawToken, string $expiresAt): void
+{
+    auth_pdo()->prepare('INSERT INTO password_resets (email, token, created_at, expires_at) VALUES (?, ?, NOW(), ?)')
+        ->execute([$email, hash('sha256', $rawToken), $expiresAt]);
+}
+
+function auth_delete_resets(string $email): void
+{
+    auth_pdo()->prepare('DELETE FROM password_resets WHERE email = ?')->execute([$email]);
+}
+
+function auth_password_hash(int $userId): string
+{
+    return (string) auth_pdo()->query('SELECT password_hash FROM users WHERE id = ' . $userId)->fetchColumn();
+}
+
 // ── password reset: pure validation (throws before touching the repo — no seed needed) ──
 
 test('auth: resetPassword throws when new password != confirmation', function (): void {
@@ -101,6 +118,74 @@ test('auth: resetPassword throws when new password is shorter than 8 chars', fun
         assert_same('รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร', $e->getMessage());
     }
     assert_true($threw, 'too-short password must throw');
+});
+
+// ── password reset: token CONSUMPTION (single-use / expiry / wrong token) — drives resetPasswordUsingToken ──
+
+test('auth(reset): a token works once — after a successful reset the same token is rejected (single-use)', function (): void {
+    $u = auth_seed_user();
+    $raw = bin2hex(random_bytes(16));
+    auth_seed_reset($u['email'], $raw, date('Y-m-d H:i:s', time() + 3600));
+    try {
+        // first use succeeds (returns without throwing) and actually changes the password
+        auth_service()->resetPassword($u['email'], $raw, 'BrandNewPass123', 'BrandNewPass123');
+        assert_true(password_verify('BrandNewPass123', auth_password_hash($u['id'])), 'the new password now verifies');
+
+        // second use of the SAME token → the row was deleted on success → 'missing'
+        $threw = false;
+        try {
+            auth_service()->resetPassword($u['email'], $raw, 'AnotherPass456', 'AnotherPass456');
+        } catch (DomainException $e) {
+            $threw = true;
+            assert_same('ไม่พบคำขอรีเซ็ตรหัสผ่าน', $e->getMessage());
+        }
+        assert_true($threw, 'the token cannot be reused (single-use)');
+        assert_true(password_verify('BrandNewPass123', auth_password_hash($u['id'])), 'the rejected replay did NOT change the password again');
+    } finally {
+        auth_delete_resets($u['email']);
+        auth_cleanup($u['id']);
+    }
+});
+
+test('auth(reset): an expired token is rejected and the password is unchanged', function (): void {
+    $u = auth_seed_user();
+    $raw = bin2hex(random_bytes(16));
+    $originalHash = auth_password_hash($u['id']);
+    auth_seed_reset($u['email'], $raw, date('Y-m-d H:i:s', time() - 3600)); // already expired
+    try {
+        $threw = false;
+        try {
+            auth_service()->resetPassword($u['email'], $raw, 'BrandNewPass123', 'BrandNewPass123');
+        } catch (DomainException $e) {
+            $threw = true;
+            assert_same('ลิงก์รีเซ็ตรหัสผ่านหมดอายุแล้ว', $e->getMessage());
+        }
+        assert_true($threw, 'an expired token must throw');
+        assert_same($originalHash, auth_password_hash($u['id']), 'the password_hash was NOT changed by an expired-token attempt');
+    } finally {
+        auth_delete_resets($u['email']);
+        auth_cleanup($u['id']);
+    }
+});
+
+test('auth(reset): a wrong token is rejected and the password is unchanged', function (): void {
+    $u = auth_seed_user();
+    $originalHash = auth_password_hash($u['id']);
+    auth_seed_reset($u['email'], bin2hex(random_bytes(16)), date('Y-m-d H:i:s', time() + 3600)); // valid row, different token
+    try {
+        $threw = false;
+        try {
+            auth_service()->resetPassword($u['email'], 'the-wrong-raw-token', 'BrandNewPass123', 'BrandNewPass123');
+        } catch (DomainException $e) {
+            $threw = true;
+            assert_same('โทเค็นรีเซ็ตรหัสผ่านไม่ถูกต้อง', $e->getMessage());
+        }
+        assert_true($threw, 'a non-matching token must throw');
+        assert_same($originalHash, auth_password_hash($u['id']), 'the password_hash was NOT changed by a wrong-token attempt');
+    } finally {
+        auth_delete_resets($u['email']);
+        auth_cleanup($u['id']);
+    }
 });
 
 // ── change password: needs a real user + correct current password to reach the new-password checks ──
