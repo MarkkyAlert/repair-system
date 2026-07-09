@@ -135,3 +135,61 @@ test('updateUser: rejects bad input, then updates real fields on the happy path'
         au_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$userId]);
     }
 });
+
+// ── last-admin invariant: the system must never be left with zero active admins ──
+// AdminRepository::updateUser locks the target row + the active-admin set FOR UPDATE and refuses to demote /
+// deactivate the final admin (compare-and-set under lock). Seed id 4 is the only active admin in the test DB.
+
+test('updateUser(last-admin): demoting the sole active admin is blocked and leaves the row intact', function (): void {
+    au_bind_request();
+    try {
+        $threw = false;
+        try {
+            au_service()->updateUser(4, au_admin(), [
+                'full_name' => 'ผู้ดูแลระบบ',
+                'email' => 'admin@example.com',
+                'role' => 'requester',
+                'is_active' => '1',
+            ]);
+        } catch (DomainException $e) {
+            $threw = true;
+            assert_same(
+                'ไม่สามารถปิดหรือเปลี่ยน role ของผู้ดูแลระบบคนสุดท้ายได้',
+                $e->getMessage(),
+                'demoting the last admin is rejected'
+            );
+        }
+        assert_true($threw, 'the last-admin demotion must throw');
+
+        $admin = au_pdo()->query('SELECT role, is_active FROM users WHERE id = 4')->fetch(PDO::FETCH_ASSOC);
+        assert_same('admin', (string) $admin['role'], 'the last admin keeps its role (no partial update)');
+        assert_same(1, (int) $admin['is_active'], 'the last admin stays active');
+    } finally {
+        // defensive: if the guard were disabled (power-proof) the UPDATE would land — always restore the seed admin
+        au_pdo()->exec("UPDATE users SET role = 'admin', is_active = 1 WHERE id = 4");
+    }
+});
+
+test('updateUser(last-admin): with a second active admin, demoting one is allowed', function (): void {
+    $suffix = bin2hex(random_bytes(4));
+    au_pdo()->prepare(
+        'INSERT INTO users (username, email, password_hash, full_name, role, is_active, created_at, updated_at)
+         VALUES (?, ?, "x", "Second Admin", "admin", 1, NOW(), NOW())'
+    )->execute(["admin2_$suffix", "admin2_$suffix@example.com"]);
+    $tempId = (int) au_pdo()->lastInsertId();
+    au_bind_request();
+
+    try {
+        // now there are two active admins → demoting the temp one is permitted (id 4 remains an admin)
+        au_service()->updateUser($tempId, au_admin(), [
+            'full_name' => 'Second Admin',
+            'email' => "admin2_$suffix@example.com",
+            'role' => 'requester',
+            'is_active' => '1',
+        ]);
+        $role = (string) au_pdo()->query("SELECT role FROM users WHERE id = $tempId")->fetchColumn();
+        assert_same('requester', $role, 'with two admins present, demoting one succeeds');
+    } finally {
+        au_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$tempId]);
+    }
+});
