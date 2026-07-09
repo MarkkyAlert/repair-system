@@ -86,22 +86,15 @@ test('csrf(no-leak): the rejection message does not expose the expected session 
 });
 
 test('csrf(token): csrf_token() is stable within a session and the token it issues validates', function (): void {
-    $original = $_SESSION['_csrf_token'] ?? null;
-    unset($_SESSION['_csrf_token']);
-    try {
+    // start from a session with no token so csrf_token() has to mint a fresh one; the helper restores after
+    csrf_with_session_token(null, function (): void {
         $t1 = csrf_token();
         $t2 = csrf_token();
         assert_same($t1, $t2, 'csrf_token() returns the same token for the life of the session');
         assert_true(strlen($t1) >= 32, 'the issued token carries real entropy (>= 32 hex chars)');
         Csrf::validate($t1); // the freshly issued token must pass its own validation
         assert_true(true, 'a token issued by csrf_token() validates');
-    } finally {
-        if ($original === null) {
-            unset($_SESSION['_csrf_token']);
-        } else {
-            $_SESSION['_csrf_token'] = $original;
-        }
-    }
+    });
 });
 
 test('csrf(helper): csrf_validate() reads $_POST[_csrf] — matching passes, mismatch throws', function (): void {
