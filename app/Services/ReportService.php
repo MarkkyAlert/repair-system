@@ -3313,8 +3313,10 @@ class ReportService
     {
         try {
             $this->reports->markExportJobFailed($jobId, $exception->getMessage());
-        } catch (\Throwable) {
-            // Preserve the original export error if failure logging also fails.
+        } catch (\Throwable $auditFailure) {
+            // The caller re-throws the original export error; just make sure the audit-write failure itself is
+            // not silent — a systematically-failing export_jobs write would otherwise leave no trace.
+            log_caught_exception('report.export.failure', $auditFailure, ['job' => $jobId]);
         }
     }
 
