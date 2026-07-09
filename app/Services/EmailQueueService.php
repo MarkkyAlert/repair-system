@@ -84,6 +84,10 @@ class EmailQueueService
             $recipient = (string) ($job['to_email'] ?? '');
 
             try {
+                // RISK MAP: delivery is at-least-once BY DESIGN (accepted tradeoff). send() then markSent() —
+                // a crash in between leaves the row 'processing', so it is reclaimed after the timeout and may
+                // be sent again. Exactly-once would require provider-side idempotency; a rare duplicate email
+                // is acceptable for this system and no data is corrupted.
                 $this->mailer->send($job);
                 $this->queue->markSent($emailId);
                 $sent++;
