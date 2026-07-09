@@ -99,6 +99,20 @@ test('workflow: separation of duties — manager cannot approve own request', fu
     }
 });
 
+test('workflow: separation of duties — an admin CAN approve their own request (SoD exemption)', function (): void {
+    // F7 (confirmed business rule): unlike a manager, an admin is exempt from the self-approval block — the
+    // deliberate fallback so an org with a single manager (who filed the request) is not deadlocked.
+    $id = wf_insert_ticket(['status' => 'pending_approval', 'approval_status' => 'pending', 'requester_id' => 4]);
+    try {
+        wf_service()->approveTicket($id, ['id' => 4, 'role' => 'admin'], ['note' => 'self-approve as admin']);
+        $t = wf_state($id);
+        assert_same('approved', $t['status'], 'admin self-approval succeeds (status → approved)');
+        assert_same('approved', $t['approval_status'], 'admin self-approval succeeds (approval_status → approved)');
+    } finally {
+        wf_cleanup($id);
+    }
+});
+
 test('workflow: rejectTicket pending_approval → rejected', function (): void {
     $id = wf_insert_ticket(['status' => 'pending_approval', 'approval_status' => 'pending', 'requester_id' => 1]);
     try {
