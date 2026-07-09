@@ -257,20 +257,8 @@ class AssetService
 
     private function sanitizeExportRow(array $values): array
     {
-        return array_map(fn (mixed $value): string => $this->sanitizeExportCell($value), $values);
-    }
-
-    // CSV/spreadsheet injection guard — prefix ' ถ้า cell ขึ้นต้นด้วย = + - @ (กันสูตรรันในโปรแกรม sheet)
-    private function sanitizeExportCell(mixed $value): string
-    {
-        $cell = (string) $value;
-        $trimmed = ltrim($cell);
-
-        if ($trimmed !== '' && in_array($trimmed[0], ['=', '+', '-', '@'], true)) {
-            return "'" . $cell;
-        }
-
-        return $cell;
+        // CSV/spreadsheet injection guard lives in the shared sanitize_export_cell() helper (single source of truth)
+        return array_map(static fn (mixed $value): string => sanitize_export_cell($value), $values);
     }
 
     public function getScanData(string $token): ?array

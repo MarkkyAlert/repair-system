@@ -3341,19 +3341,7 @@ class ReportService
 
     private function sanitizeExportRow(array $values): array
     {
-        return array_map(fn (mixed $value): string => $this->sanitizeExportCell($value), $values);
-    }
-
-    private function sanitizeExportCell(mixed $value): string
-    {
-        $cell = (string) $value;
-        $trimmed = ltrim($cell);
-
-        if ($trimmed !== '' && in_array($trimmed[0], ['=', '+', '-', '@'], true)) {
-            return "'" . $cell;
-        }
-
-        return $cell;
+        return array_map(static fn (mixed $value): string => sanitize_export_cell($value), $values);
     }
 
     /**

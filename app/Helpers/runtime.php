@@ -82,6 +82,23 @@ function e(mixed $value): string
 }
 
 /**
+ * Neutralise a CSV/spreadsheet formula-injection cell: prefix a single quote when the first non-whitespace
+ * character is = + - or @, so a spreadsheet renders the value as text instead of executing it as a formula.
+ * Shared by every export path (AssetService, ReportService) — the single source of truth for this guard.
+ */
+function sanitize_export_cell(mixed $value): string
+{
+    $cell = (string) $value;
+    $trimmed = ltrim($cell);
+
+    if ($trimmed !== '' && in_array($trimmed[0], ['=', '+', '-', '@'], true)) {
+        return "'" . $cell;
+    }
+
+    return $cell;
+}
+
+/**
  * True when the exception is a unique-constraint / duplicate-key violation (MySQL 23000 / 1062).
  * Shared by CSV import services to report duplicate rows consistently.
  */
