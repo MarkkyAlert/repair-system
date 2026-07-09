@@ -4,7 +4,7 @@
  * flash of the light theme. Shared by layouts/app.php and layouts/guest.php.
  */
 ?>
-<script>
+<script nonce="<?= e(csp_nonce()) ?>">
     (() => {
         const storedTheme = localStorage.getItem('theme');
         const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;

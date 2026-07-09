@@ -23,6 +23,16 @@ class View
             return;
         }
 
+        // Emit the Content-Security-Policy for the full HTML shell. The view above rendered into a buffer, so
+        // nothing has reached the client yet — the layout include below is the first output. csp_nonce() is
+        // cached per request, so the header and the inline theme-init <script nonce> carry the same value.
+        if (!headers_sent()) {
+            $cspHeader = config('security.csp_report_only', false)
+                ? 'Content-Security-Policy-Report-Only'
+                : 'Content-Security-Policy';
+            header($cspHeader . ': ' . content_security_policy(csp_nonce()));
+        }
+
         $layoutFile = self::resolve('layouts/' . $layout);
         include $layoutFile;
     }

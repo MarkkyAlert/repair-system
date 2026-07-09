@@ -73,4 +73,9 @@ return [
         'storage' => BASE_PATH . '/storage',
         'public' => BASE_PATH . '/public',
     ],
+    'security' => [
+        // Ship the Content-Security-Policy in Report-Only mode (observe violations, block nothing) when set.
+        // Default is enforcing. Flip via CSP_REPORT_ONLY=true if a deploy surfaces an unexpected violation.
+        'csp_report_only' => Env::bool('CSP_REPORT_ONLY', false),
+    ],
 ];
