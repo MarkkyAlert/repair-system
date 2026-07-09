@@ -28,6 +28,10 @@ try {
 
     $router->dispatch($request, $container);
 } catch (Throwable $exception) {
+    // Always log the uncaught exception (with trace) to the server log — otherwise an unexpected prod 500 is
+    // invisible to the team. In debug, also rethrow so it surfaces on screen; in prod, show a safe generic page.
+    log_uncaught_exception($exception);
+
     if ((bool) config('app.debug', false)) {
         throw $exception;
     }

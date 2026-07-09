@@ -96,6 +96,17 @@ function is_duplicate_key_error(\Throwable $exception): bool
     return $code === '23000' || str_contains($message, 'Duplicate entry') || str_contains($message, '1062');
 }
 
+/**
+ * Log an exception that escaped every controller-level try/catch and reached the entry-point handler.
+ * The full class, message, file:line and stack trace go to the server error log (destination set by php.ini —
+ * Apache error log / stderr in production) so an unexpected 500 is debuggable. It is never written to the HTTP
+ * response — that stays a generic 500 via Response::abort — so nothing sensitive leaks to the client.
+ */
+function log_uncaught_exception(\Throwable $exception): void
+{
+    error_log('[uncaught] ' . $exception);
+}
+
 /** Format-only validators (callers keep their own required/empty guards and error messages). */
 function is_valid_email(string $email): bool
 {
