@@ -26,6 +26,17 @@ class Router
         ];
     }
 
+    /**
+     * The registered route table, for introspection/tests (e.g. asserting every controller handler
+     * method exists). Read-only snapshot — mutating the result does not affect routing.
+     *
+     * @return array<int, array{method: string, path: string, handler: callable|array}>
+     */
+    public function routes(): array
+    {
+        return $this->routes;
+    }
+
     public function dispatch(Request $request, Container $container): void
     {
         foreach ($this->routes as $route) {

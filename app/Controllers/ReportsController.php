@@ -127,12 +127,12 @@ class ReportsController
         ]);
     }
 
-    public function assetReliabilityExportCsv(): void
+    public function exportAssetReliabilityCsv(): void
     {
         $this->downloadReport('exportAssetReliabilityCsv', 'asset-reliability.csv', 'text/csv; charset=UTF-8', '/reports/asset-reliability');
     }
 
-    public function assetReliabilityExportExcel(): void
+    public function exportAssetReliabilityExcel(): void
     {
         $this->downloadReport(
             'exportAssetReliabilityExcel',
@@ -142,7 +142,7 @@ class ReportsController
         );
     }
 
-    public function assetReliabilityExportPdf(): void
+    public function exportAssetReliabilityPdf(): void
     {
         $this->downloadReport('exportAssetReliabilityPdf', 'asset-reliability.pdf', 'application/pdf', '/reports/asset-reliability');
     }
@@ -171,12 +171,12 @@ class ReportsController
         ]);
     }
 
-    public function slaBreachExportCsv(): void
+    public function exportSlaBreachCsv(): void
     {
         $this->downloadReport('exportSlaBreachCsv', 'sla-breach.csv', 'text/csv; charset=UTF-8', '/reports/sla-breach');
     }
 
-    public function slaBreachExportExcel(): void
+    public function exportSlaBreachExcel(): void
     {
         $this->downloadReport(
             'exportSlaBreachExcel',
@@ -186,7 +186,7 @@ class ReportsController
         );
     }
 
-    public function slaBreachExportPdf(): void
+    public function exportSlaBreachPdf(): void
     {
         $this->downloadReport('exportSlaBreachPdf', 'sla-breach.pdf', 'application/pdf', '/reports/sla-breach');
     }
@@ -215,12 +215,12 @@ class ReportsController
         ]);
     }
 
-    public function technicianPerformanceExportCsv(): void
+    public function exportTechnicianPerformanceCsv(): void
     {
         $this->downloadReport('exportTechnicianPerformanceCsv', 'technician-performance.csv', 'text/csv; charset=UTF-8', '/reports/technician-performance');
     }
 
-    public function technicianPerformanceExportExcel(): void
+    public function exportTechnicianPerformanceExcel(): void
     {
         $this->downloadReport(
             'exportTechnicianPerformanceExcel',
@@ -230,7 +230,7 @@ class ReportsController
         );
     }
 
-    public function technicianPerformanceExportPdf(): void
+    public function exportTechnicianPerformancePdf(): void
     {
         $this->downloadReport('exportTechnicianPerformancePdf', 'technician-performance.pdf', 'application/pdf', '/reports/technician-performance');
     }
@@ -259,12 +259,12 @@ class ReportsController
         ]);
     }
 
-    public function problemHotspotExportCsv(): void
+    public function exportProblemHotspotCsv(): void
     {
         $this->downloadReport('exportProblemHotspotCsv', 'problem-hotspot.csv', 'text/csv; charset=UTF-8', '/reports/problem-hotspot');
     }
 
-    public function problemHotspotExportExcel(): void
+    public function exportProblemHotspotExcel(): void
     {
         $this->downloadReport(
             'exportProblemHotspotExcel',
@@ -274,7 +274,7 @@ class ReportsController
         );
     }
 
-    public function problemHotspotExportPdf(): void
+    public function exportProblemHotspotPdf(): void
     {
         $this->downloadReport('exportProblemHotspotPdf', 'problem-hotspot.pdf', 'application/pdf', '/reports/problem-hotspot');
     }
@@ -304,12 +304,12 @@ class ReportsController
         ]);
     }
 
-    public function trendExportCsv(): void
+    public function exportTrendCsv(): void
     {
         $this->downloadReport('exportTicketTrendCsv', 'ticket-trend.csv', 'text/csv; charset=UTF-8', '/reports/trend');
     }
 
-    public function trendExportExcel(): void
+    public function exportTrendExcel(): void
     {
         $this->downloadReport(
             'exportTicketTrendExcel',
@@ -319,7 +319,7 @@ class ReportsController
         );
     }
 
-    public function trendExportPdf(): void
+    public function exportTrendPdf(): void
     {
         $this->downloadReport('exportTicketTrendPdf', 'ticket-trend.pdf', 'application/pdf', '/reports/trend');
     }
@@ -347,12 +347,12 @@ class ReportsController
         ]);
     }
 
-    public function executiveSummaryExportCsv(): void
+    public function exportExecutiveSummaryCsv(): void
     {
         $this->downloadReport('exportExecutiveSummaryCsv', 'executive-summary.csv', 'text/csv; charset=UTF-8', '/reports/executive');
     }
 
-    public function executiveSummaryExportExcel(): void
+    public function exportExecutiveSummaryExcel(): void
     {
         $this->downloadReport(
             'exportExecutiveSummaryExcel',
@@ -362,7 +362,7 @@ class ReportsController
         );
     }
 
-    public function executiveSummaryExportPdf(): void
+    public function exportExecutiveSummaryPdf(): void
     {
         $this->downloadReport('exportExecutiveSummaryPdf', 'executive-summary.pdf', 'application/pdf', '/reports/executive');
     }
@@ -391,12 +391,12 @@ class ReportsController
         ]);
     }
 
-    public function backlogAgingExportCsv(): void
+    public function exportBacklogAgingCsv(): void
     {
         $this->downloadReport('exportBacklogAgingCsv', 'backlog-aging.csv', 'text/csv; charset=UTF-8', '/reports/backlog-aging');
     }
 
-    public function backlogAgingExportExcel(): void
+    public function exportBacklogAgingExcel(): void
     {
         $this->downloadReport(
             'exportBacklogAgingExcel',
@@ -406,7 +406,7 @@ class ReportsController
         );
     }
 
-    public function backlogAgingExportPdf(): void
+    public function exportBacklogAgingPdf(): void
     {
         $this->downloadReport('exportBacklogAgingPdf', 'backlog-aging.pdf', 'application/pdf', '/reports/backlog-aging');
     }
@@ -435,12 +435,12 @@ class ReportsController
         ]);
     }
 
-    public function reopenRateExportCsv(): void
+    public function exportReopenRateCsv(): void
     {
         $this->downloadReport('exportReopenRateCsv', 'reopen-rate.csv', 'text/csv; charset=UTF-8', '/reports/reopen-rate');
     }
 
-    public function reopenRateExportExcel(): void
+    public function exportReopenRateExcel(): void
     {
         $this->downloadReport(
             'exportReopenRateExcel',
@@ -450,7 +450,7 @@ class ReportsController
         );
     }
 
-    public function reopenRateExportPdf(): void
+    public function exportReopenRatePdf(): void
     {
         $this->downloadReport('exportReopenRatePdf', 'reopen-rate.pdf', 'application/pdf', '/reports/reopen-rate');
     }
@@ -481,12 +481,12 @@ class ReportsController
         ]);
     }
 
-    public function csatExportCsv(): void
+    public function exportCsatCsv(): void
     {
         $this->downloadReport('exportCsatCsv', 'csat.csv', 'text/csv; charset=UTF-8', '/reports/csat');
     }
 
-    public function csatExportExcel(): void
+    public function exportCsatExcel(): void
     {
         $this->downloadReport(
             'exportCsatExcel',
@@ -496,7 +496,7 @@ class ReportsController
         );
     }
 
-    public function csatExportPdf(): void
+    public function exportCsatPdf(): void
     {
         $this->downloadReport('exportCsatPdf', 'csat.pdf', 'application/pdf', '/reports/csat');
     }
