@@ -6,6 +6,7 @@ namespace App\Controllers;
 use App\Core\Response;
 use App\Services\GuestTicketService;
 use DomainException;
+use RuntimeException;
 
 /** หน้า public ให้ guest ติดตามสถานะคำขอด้วย request_no + เบอร์/อีเมล (ไม่ต้องล็อกอิน, layout guest). */
 class GuestStatusController
@@ -21,8 +22,6 @@ class GuestStatusController
 
     public function lookup(): void
     {
-        csrf_validate();
-
         $requestNo = trim((string) ($_POST['request_no'] ?? ''));
         $contact = trim((string) ($_POST['contact'] ?? ''));
         $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
@@ -30,19 +29,22 @@ class GuestStatusController
         $result = null;
         $error = null;
         try {
+            // csrf_validate() throws RuntimeException — keep it INSIDE the try (and catch RuntimeException)
+            // so a missing/expired token on this public guest form renders a friendly error, not a 500.
+            csrf_validate();
             $result = $this->guests->lookupGuestStatus($requestNo, $contact, $ip);
             if ($result === null) {
                 // error กลาง ๆ — ไม่บอกว่าเลขมีจริงไหม (กัน enumeration)
                 $error = 'ไม่พบข้อมูล — กรุณาตรวจสอบเลขอ้างอิงและเบอร์โทร/อีเมลที่แจ้งไว้อีกครั้ง';
             }
-        } catch (DomainException $exception) {
+        } catch (DomainException|RuntimeException $exception) {
             $error = $exception->getMessage();
         }
 
         $this->render($requestNo, $result, $error);
     }
 
-    private function render(string $ref, ?array $result, ?string $error): void
+    protected function render(string $ref, ?array $result, ?string $error): void
     {
         Response::view('guest/track', [
             'title' => 'ติดตามสถานะคำขอ',
