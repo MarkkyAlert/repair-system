@@ -21,7 +21,7 @@ class AdminController
     use HandlesFormSubmission;
 
     public function __construct(
-        private AdminService $admin,
+        private AdminService $adminService,
         private BroadcastService $broadcast,
         private SystemSettingsService $systemSettings,
         private ReferenceDataService $reference,
@@ -53,7 +53,7 @@ class AdminController
         require_role($viewer, ['admin'], 'หน้านี้สงวนสำหรับผู้ดูแลระบบเท่านั้น');
 
         try {
-            $data = $this->admin->getAdminPageData($viewer, request()?->query ?? []);
+            $data = $this->adminService->getAdminPageData($viewer, request()?->query ?? []);
         } catch (DomainException $exception) {
             flash('error', $exception->getMessage());
             Response::redirect('/dashboard');
@@ -115,14 +115,14 @@ class AdminController
     public function updateUser(string $userId): void
     {
         $this->adminUpdate(function (array $viewer) use ($userId): void {
-            $this->admin->updateUser((int) $userId, $viewer, $_POST);
+            $this->adminService->updateUser((int) $userId, $viewer, $_POST);
         });
     }
 
     public function createUser(): void
     {
         $this->adminUpdate(function (array $viewer): void {
-            $this->admin->createUser($viewer, $_POST);
+            $this->adminService->createUser($viewer, $_POST);
         }, 'สร้างบัญชีผู้ใช้งานเรียบร้อยแล้ว');
     }
 

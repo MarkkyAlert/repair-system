@@ -16,7 +16,7 @@ class GuestRequestController
     public function __construct(
         private GuestTicketService $guests,
         private TicketService $tickets,
-        private AdminRepository $adminRepo,
+        private AdminRepository $admin,
     ) {
     }
 
@@ -39,8 +39,8 @@ class GuestRequestController
             'totals' => $data['totals'],
             'pagination' => $data['pagination'],
             'selectedStatus' => $status,
-            'priorities' => $this->adminRepo->getPriorities(),
-            'categories' => $this->adminRepo->getTicketCategories(),
+            'priorities' => $this->admin->getPriorities(),
+            'categories' => $this->admin->getTicketCategories(),
             'queueMaxId' => $this->guests->getQueueMaxId(),
         ]);
     }
