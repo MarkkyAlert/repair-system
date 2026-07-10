@@ -70,6 +70,7 @@ $groups = [
 ];
 ?>
 <section class="stack-lg">
+    <h1 class="sr-only">คู่มืออ่านรายงาน</h1>
     <?= render_partial('partials/components/page-header', [
         'eyebrow' => 'เริ่มต้นใช้งาน',
         'title' => 'คู่มืออ่านรายงาน',

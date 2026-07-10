@@ -25,6 +25,7 @@ $chartCard = static function (array $chart, string $key, string $title) use ($ch
 };
 ?>
 <section class="stack-lg">
+    <h1 class="sr-only">แนวโน้มงานซ่อมตามเวลา</h1>
     <?= render_partial('partials/components/page-header', [
         'eyebrow' => 'ข้อมูลเพื่อการตัดสินใจ',
         'title' => 'แนวโน้มงานซ่อมตามเวลา',

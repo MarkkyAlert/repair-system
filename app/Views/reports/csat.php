@@ -4,6 +4,7 @@ $dimensionLabel = (string) ($filters['dimensionLabel'] ?? 'ช่าง');
 $distColors = [5 => '#10b981', 4 => '#84cc16', 3 => '#f59e0b', 2 => '#f97316', 1 => '#ef4444'];
 ?>
 <section class="stack-lg">
+    <h1 class="sr-only">ความพึงพอใจลูกค้า (CSAT)</h1>
     <?= render_partial('partials/components/page-header', [
         'eyebrow' => 'เสียงลูกค้า / ควบคุมคุณภาพบริการ',
         'title' => 'ความพึงพอใจลูกค้า (CSAT)',

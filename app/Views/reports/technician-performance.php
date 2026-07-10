@@ -2,6 +2,7 @@
 $filterState = $filters['selected'] ?? [];
 ?>
 <section class="stack-lg">
+    <h1 class="sr-only">ผลงานและภาระงานทีมช่าง</h1>
     <?= render_partial('partials/components/page-header', [
         'eyebrow' => 'ข้อมูลเพื่อการบริหารทีม',
         'title' => 'ผลงานและภาระงานทีมช่าง',

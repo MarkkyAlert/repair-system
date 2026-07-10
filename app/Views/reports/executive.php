@@ -3,6 +3,7 @@ $filterState = $filters['selected'] ?? [];
 $kpis = $kpis ?? [];
 ?>
 <section class="stack-lg">
+    <h1 class="sr-only">สรุปผู้บริหาร (เทียบงวด)</h1>
     <?= render_partial('partials/components/page-header', [
         'eyebrow' => 'สรุปสำหรับผู้บริหาร',
         'title' => 'สรุปผู้บริหาร (เทียบงวด)',

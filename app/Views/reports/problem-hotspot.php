@@ -3,6 +3,7 @@ $filterState = $filters['selected'] ?? [];
 $dimensionLabel = (string) ($filters['dimensionLabel'] ?? 'แผนก');
 ?>
 <section class="stack-lg">
+    <h1 class="sr-only">พื้นที่ปัญหา (แผนก / สถานที่)</h1>
     <?= render_partial('partials/components/page-header', [
         'eyebrow' => 'ข้อมูลเพื่อการตัดสินใจ',
         'title' => 'พื้นที่ปัญหา (แผนก / สถานที่)',

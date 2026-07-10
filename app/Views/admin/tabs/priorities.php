@@ -99,12 +99,12 @@
                                 <?= csrf_field() ?>
                                 <div class="content-grid">
                                     <div class="field-group">
-                                        <label class="field-label">รหัส (เปลี่ยนไม่ได้)</label>
-                                        <input class="input" type="text" value="<?= e((string) ($priority['code'] ?? '')) ?>" disabled>
+                                        <label class="field-label" for="priority_code_<?= $priorityId ?>">รหัส (เปลี่ยนไม่ได้)</label>
+                                        <input id="priority_code_<?= $priorityId ?>" class="input" type="text" value="<?= e((string) ($priority['code'] ?? '')) ?>" disabled>
                                     </div>
                                     <div class="field-group">
-                                        <label class="field-label">ระดับ (เปลี่ยนไม่ได้)</label>
-                                        <input class="input" type="text" value="<?= e((string) ($priority['level'] ?? '')) ?>" disabled>
+                                        <label class="field-label" for="priority_level_<?= $priorityId ?>">ระดับ (เปลี่ยนไม่ได้)</label>
+                                        <input id="priority_level_<?= $priorityId ?>" class="input" type="text" value="<?= e((string) ($priority['level'] ?? '')) ?>" disabled>
                                     </div>
                                 </div>
                                 <div class="content-grid">

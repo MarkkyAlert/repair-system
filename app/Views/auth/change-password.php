@@ -1,4 +1,5 @@
 <section class="stack-lg">
+    <h1 class="sr-only">เปลี่ยนรหัสผ่าน</h1>
     <?= render_partial('partials/components/page-header', [
         'eyebrow' => 'บัญชีผู้ใช้งาน',
         'title' => 'เปลี่ยนรหัสผ่าน',

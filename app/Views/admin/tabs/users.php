@@ -140,8 +140,8 @@
                                         <input id="phone_<?= $userId ?>" class="input" type="text" name="phone" value="<?= e((string) ($user['phone'] ?? '')) ?>">
                                     </div>
                                     <div class="field-group">
-                                        <label class="field-label">ชื่อผู้ใช้ (เปลี่ยนไม่ได้)</label>
-                                        <input class="input" type="text" value="<?= e((string) ($user['username'] ?? '')) ?>" disabled>
+                                        <label class="field-label" for="username_<?= $userId ?>">ชื่อผู้ใช้ (เปลี่ยนไม่ได้)</label>
+                                        <input id="username_<?= $userId ?>" class="input" type="text" value="<?= e((string) ($user['username'] ?? '')) ?>" disabled>
                                     </div>
                                 </div>
                                 <div class="content-grid">

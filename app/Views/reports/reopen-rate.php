@@ -3,6 +3,7 @@ $filterState = $filters['selected'] ?? [];
 $dimensionLabel = (string) ($filters['dimensionLabel'] ?? 'ช่าง');
 ?>
 <section class="stack-lg">
+    <h1 class="sr-only">งานเปิดซ้ำ / ปิดจบรอบเดียว (First-Time-Fix)</h1>
     <?= render_partial('partials/components/page-header', [
         'eyebrow' => 'ข้อมูลเพื่อการควบคุมคุณภาพ',
         'title' => 'งานเปิดซ้ำ / ปิดจบรอบเดียว (First-Time-Fix)',

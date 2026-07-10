@@ -5,6 +5,7 @@ $rowsMeta = $rowsMeta ?? ['displayed' => $rowCount, 'total' => $rowCount, 'limit
 $isCapped = !empty($rowsMeta['capped']);
 ?>
 <section class="stack-lg">
+    <h1 class="sr-only">รายงานและวิเคราะห์งานซ่อม</h1>
     <?= render_partial('partials/components/page-header', [
         'eyebrow' => 'ข้อมูลเพื่อการตัดสินใจ',
         'title' => 'รายงานและวิเคราะห์งานซ่อม',

@@ -481,7 +481,7 @@ if (!empty($workflow['canReview'])) {
                         <textarea id="closure_note" name="closure_note" class="input" rows="3" placeholder="เช่น ทดลองใช้งานแล้วใช้งานได้ตามปกติ"><?= e((string) ($workflow['defaults']['closure_note'] ?? '')) ?></textarea>
                     </div>
                     <div class="field-group">
-                        <label class="field-label">คะแนนความพึงพอใจ <span class="required">*</span></label>
+                        <p class="field-label">คะแนนความพึงพอใจ <span class="required">*</span></p>
                         <fieldset class="star-rating">
                             <legend class="sr-only">คะแนนความพึงพอใจ</legend>
                             <?php for ($i = 5; $i >= 1; $i--): ?>

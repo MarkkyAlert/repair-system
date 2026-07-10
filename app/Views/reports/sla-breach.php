@@ -3,6 +3,7 @@ $filterState = $filters['selected'] ?? [];
 $dimensionLabel = (string) ($filters['dimensionLabel'] ?? 'ระดับความสำคัญ');
 ?>
 <section class="stack-lg">
+    <h1 class="sr-only">วิเคราะห์ SLA เกินกำหนด</h1>
     <?= render_partial('partials/components/page-header', [
         'eyebrow' => 'ข้อมูลเพื่อการตัดสินใจ',
         'title' => 'วิเคราะห์ SLA เกินกำหนด',

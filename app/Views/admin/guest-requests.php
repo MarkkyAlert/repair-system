@@ -112,8 +112,8 @@ $tabUrl = static fn (string $status): string => url('/admin/guest-requests' . ($
                                     <?= csrf_field() ?>
                                     <div class="content-grid">
                                         <div class="field-group">
-                                            <label class="field-label">ความสำคัญ <span class="required">*</span></label>
-                                            <select name="priority_id" class="input" required>
+                                            <label class="field-label" for="guest_priority_<?= (int) $request['id'] ?>">ความสำคัญ <span class="required">*</span></label>
+                                            <select id="guest_priority_<?= (int) $request['id'] ?>" name="priority_id" class="input" required>
                                                 <option value="">เลือกความสำคัญ</option>
                                                 <?php foreach (($priorities ?? []) as $p): ?>
                                                     <option value="<?= e((string) $p['id']) ?>"><?= e((string) $p['name']) ?></option>
@@ -121,8 +121,8 @@ $tabUrl = static fn (string $status): string => url('/admin/guest-requests' . ($
                                             </select>
                                         </div>
                                         <div class="field-group">
-                                            <label class="field-label">หมวดหมู่ <span class="required">*</span></label>
-                                            <select name="ticket_category_id" class="input" required>
+                                            <label class="field-label" for="guest_category_<?= (int) $request['id'] ?>">หมวดหมู่ <span class="required">*</span></label>
+                                            <select id="guest_category_<?= (int) $request['id'] ?>" name="ticket_category_id" class="input" required>
                                                 <option value="">เลือกหมวดหมู่</option>
                                                 <?php foreach (($categories ?? []) as $c): ?>
                                                     <option value="<?= e((string) $c['id']) ?>"><?= e((string) $c['name']) ?></option>
@@ -139,8 +139,8 @@ $tabUrl = static fn (string $status): string => url('/admin/guest-requests' . ($
                                     <form method="post" action="<?= e(url('/admin/guest-requests/' . (int) $request['id'] . '/reject')) ?>" class="stack-md" data-confirm-submit="ยืนยันปฏิเสธคำขอนี้?">
                                         <?= csrf_field() ?>
                                         <div class="field-group">
-                                            <label class="field-label">เหตุผลการปฏิเสธ</label>
-                                            <input name="note" type="text" class="input" placeholder="เช่น spam, ทดสอบ, ไม่ใช่ปัญหาจริง">
+                                            <label class="field-label" for="guest_reject_note_<?= (int) $request['id'] ?>">เหตุผลการปฏิเสธ</label>
+                                            <input id="guest_reject_note_<?= (int) $request['id'] ?>" name="note" type="text" class="input" placeholder="เช่น spam, ทดสอบ, ไม่ใช่ปัญหาจริง">
                                         </div>
                                         <div class="button-row">
                                             <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ปฏิเสธ', 'variant' => 'danger', 'icon' => 'x', 'size' => 'sm']) ?>

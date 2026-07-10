@@ -4,6 +4,7 @@ $rowCount = count($rows ?? []);
 $rowsMeta = $rowsMeta ?? ['displayed' => $rowCount, 'limit' => 500, 'capped' => false];
 ?>
 <section class="stack-lg">
+    <h1 class="sr-only">รายงานสุขภาพทรัพย์สิน</h1>
     <?= render_partial('partials/components/page-header', [
         'eyebrow' => 'ข้อมูลเพื่อการตัดสินใจ',
         'title' => 'รายงานสุขภาพทรัพย์สิน',

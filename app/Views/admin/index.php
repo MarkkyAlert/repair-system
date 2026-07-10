@@ -1,4 +1,5 @@
 <section class="stack-lg">
+    <h1 class="sr-only">ตั้งค่าและดูแลระบบ</h1>
     <?= render_partial('partials/components/page-header', [
         'eyebrow' => 'จัดการระบบ',
         'title' => 'ตั้งค่าและดูแลระบบ',
