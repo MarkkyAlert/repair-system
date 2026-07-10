@@ -26,7 +26,7 @@ function eq_pdo(): PDO
 /** A worker with a mailer that always fails — to drive the retry / fail branches of processDueEmails. */
 function eq_failing_worker(): EmailQueueService
 {
-    $failingMailer = new class extends MailerService {
+    $failingMailer = new class () extends MailerService {
         public function send(array $message): void
         {
             throw new RuntimeException('EQ test: simulated send failure');

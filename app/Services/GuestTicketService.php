@@ -268,7 +268,9 @@ class GuestTicketService
             'created_at' => (string) ($row['created_at'] ?? ''),
             'status' => $status,
             'status_label' => guest_request_status_label_th($status),
-            'status_tone' => match ($status) { 'converted' => 'success', 'rejected' => 'danger', default => 'warning' },
+            'status_tone' => match ($status) {
+                'converted' => 'success', 'rejected' => 'danger', default => 'warning'
+            },
             'ticket_no' => $status === 'converted' ? (string) ($row['ticket_no'] ?? '') : null,
             'ticket_status_label' => $ticketStatus !== '' ? ticket_status_label_th($ticketStatus) : null,
             'ticket_status_tone' => $ticketStatus !== '' ? ticket_status_tone($ticketStatus) : null,

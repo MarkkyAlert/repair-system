@@ -59,7 +59,9 @@ jobs:
           extensions: mbstring, dom, xml, gd, zip, intl, pdo_mysql, fileinfo, iconv
           # phpcpd is unmaintained but pinned + installed by setup-php (no composer-dep pollution).
           # Swap for a maintained copy-paste detector if it ever stops resolving.
-          tools: composer, phpcpd
+          # php-cs-fixer is pinned to the version the .php-cs-fixer.dist.php ruleset was validated
+          # against, so a future release can't silently change what the style check enforces.
+          tools: composer, phpcpd, php-cs-fixer:3.95.12
           coverage: none
 
       # Cache vendor/ keyed on composer.lock so installs are fast on unchanged deps.
@@ -106,6 +108,12 @@ jobs:
       # substantial new duplicate block will. tests/ and vendor/ are intentionally out of scope.
       - name: Copy-paste detection (phpcpd)
         run: phpcpd app --min-lines=20 --min-tokens=150
+
+      # Code-style net: fail if any file drifts from .php-cs-fixer.dist.php (the project's de-facto
+      # style, not an imposed one — see that file's header). --dry-run makes it a check only; run
+      # `php-cs-fixer fix` locally to auto-apply. app/Views is excluded in the config (templates).
+      - name: Code style (php-cs-fixer)
+        run: php-cs-fixer fix --dry-run --diff
 
       # Final step: run the suite. run.php exits 1 on any failure, which fails the job.
       - name: Run test suite

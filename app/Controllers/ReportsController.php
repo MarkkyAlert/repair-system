@@ -80,7 +80,7 @@ class ReportsController
 
         try {
             $pack = $this->reports->generateSamplePack($viewer);
-        } catch (DomainException | RuntimeException $exception) {
+        } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
             Response::redirect('/reports/guide');
         }

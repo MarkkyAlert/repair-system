@@ -299,7 +299,7 @@ namespace {
         $row = ui_exec_row(['password' => '', 'auto_password' => true]);
 
         // real repos, but an AuthService whose createPasswordReset always fails (e.g. the mail queue is down)
-        $failingAuth = new class extends \App\Services\AuthService {
+        $failingAuth = new class () extends \App\Services\AuthService {
             public function __construct()
             {
             }

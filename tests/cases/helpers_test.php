@@ -38,7 +38,9 @@ test('ticket_status_options: includeAll prepends + Thai labels (no English fallb
     assert_same('', $opts[0]['value']);
     assert_same('ทุกสถานะ', $opts[0]['label']);
     $byValue = [];
-    foreach ($opts as $o) { $byValue[$o['value']] = $o['label']; }
+    foreach ($opts as $o) {
+        $byValue[$o['value']] = $o['label'];
+    }
     assert_same('รออนุมัติ', $byValue['pending_approval'], 'was English "Pending Approval" before the fix');
     assert_same('กำลังดำเนินการ', $byValue['in_progress']);
 });

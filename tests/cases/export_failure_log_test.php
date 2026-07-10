@@ -11,7 +11,7 @@ use App\Services\ReportService;
 // preserved by the caller (out of scope here).
 
 test('export(failure-log): a failing export-failure audit write is logged, not swallowed', function (): void {
-    $fakeReports = new class extends ReportRepository {
+    $fakeReports = new class () extends ReportRepository {
         public function __construct()
         {
             // skip the PDO dependency — only markExportJobFailed is exercised

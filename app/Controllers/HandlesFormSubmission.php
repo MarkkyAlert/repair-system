@@ -37,7 +37,7 @@ trait HandlesFormSubmission
             }
             $callback($viewer);
             flash('success', $successMessage);
-        } catch (DomainException | RuntimeException $exception) {
+        } catch (DomainException|RuntimeException $exception) {
             if ($oldInputOnError !== null) {
                 with_old_input($oldInputOnError);
             }
