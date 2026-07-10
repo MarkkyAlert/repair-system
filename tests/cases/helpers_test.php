@@ -114,3 +114,14 @@ test('assert_admin: lets admins through, throws the standard message for everyon
     }
     assert_same('เฉพาะผู้ดูแลระบบเท่านั้น', $missing, 'missing role rejected');
 });
+
+// ── is_manager_or_admin: the reports/dashboard gate (manager + admin only) ──
+// Pins the role→access split confirmed over HTTP: GET /reports returned 200 for manager/admin
+// but 302→dashboard for technician/requester.
+test('is_manager_or_admin: true for manager/admin only, false for everyone else', function (): void {
+    assert_true(is_manager_or_admin('manager'), 'manager allowed');
+    assert_true(is_manager_or_admin('admin'), 'admin allowed');
+    foreach (['technician', 'requester', 'guest', ''] as $role) {
+        assert_false(is_manager_or_admin($role), "role '$role' denied");
+    }
+});
