@@ -35,10 +35,10 @@ class UserImportController
     {
         AuthMiddleware::handle();
         $viewer = auth()->user() ?? [];
+        require_role($viewer, ['admin'], 'หน้านี้สงวนสำหรับผู้ดูแลระบบเท่านั้น');
 
         try {
             csrf_validate();
-            assert_admin($viewer);
 
             $rows = $this->userImporter->parseUploadedFile($_FILES['csv'] ?? []);
             $preview = $this->userImporter->validateRows($rows);
@@ -62,10 +62,10 @@ class UserImportController
     {
         AuthMiddleware::handle();
         $viewer = auth()->user() ?? [];
+        require_role($viewer, ['admin'], 'หน้านี้สงวนสำหรับผู้ดูแลระบบเท่านั้น');
 
         try {
             csrf_validate();
-            assert_admin($viewer);
 
             $validRows = Session::get('user_import_valid_rows', []);
             if (!is_array($validRows) || $validRows === []) {

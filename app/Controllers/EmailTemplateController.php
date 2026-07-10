@@ -73,11 +73,11 @@ class EmailTemplateController
     {
         AuthMiddleware::handle();
         $viewer = auth()->user() ?? [];
+        require_role($viewer, ['admin'], 'หน้านี้สงวนสำหรับผู้ดูแลระบบเท่านั้น');
         $userId = (int) ($viewer['id'] ?? 0);
 
         try {
             csrf_validate();
-            assert_admin($viewer);
             $this->templateService->saveOverrides($templateKey, $_POST, $userId);
             flash('success', 'บันทึกการตั้งค่า template เรียบร้อยแล้ว');
         } catch (DomainException|RuntimeException $exception) {
@@ -91,10 +91,10 @@ class EmailTemplateController
     {
         AuthMiddleware::handle();
         $viewer = auth()->user() ?? [];
+        require_role($viewer, ['admin'], 'หน้านี้สงวนสำหรับผู้ดูแลระบบเท่านั้น');
 
         try {
             csrf_validate();
-            assert_admin($viewer);
             $this->templateService->resetOverrides($templateKey);
             flash('success', 'คืนค่า template เป็นค่าเริ่มต้นเรียบร้อยแล้ว');
         } catch (DomainException|RuntimeException $exception) {
