@@ -126,3 +126,15 @@ test('a11y F2: primary-button gradient stops meet WCAG AA for white text (>= 4.5
     }
     assert_same([], $failing, 'primary-button gradient stops below WCAG AA 4.5:1 for white text: ' . implode(' | ', $failing));
 });
+
+test('a11y F1: confirm modal traps Tab focus within the open dialog (WCAG 2.4.3)', function (): void {
+    // app.js is the JS source (no build). The confirm-modal keydown handler must contain Tab-trap logic
+    // that keeps focus inside activeModal, so keyboard focus cannot walk out to the obscured background.
+    // Behaviour verified live (Tab wraps last->first, Shift+Tab first->last, escaped focus pulled back);
+    // re-checkable via the E2E keyboard test.
+    $js = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/js/app.js');
+    assert_true(
+        preg_match("/e\\.key === 'Tab'[\\s\\S]{0,400}activeModal\\.contains[\\s\\S]{0,200}\\.focus\\(\\)/", $js) === 1,
+        'app.js confirm-modal must trap Tab within the open modal (WCAG 2.4.3)'
+    );
+});

@@ -909,7 +909,18 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && activeModal) closeModal();
+      if (!activeModal) return;
+      if (e.key === 'Escape') { closeModal(); return; }
+      // Trap Tab within the open modal (WCAG 2.4.3). The background is not inert, so without this the
+      // keyboard would walk focus out to the obscured page behind the dialog.
+      if (e.key === 'Tab') {
+        var f = activeModal.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])');
+        if (!f.length) { e.preventDefault(); return; }
+        var first = f[0], last = f[f.length - 1], active = document.activeElement;
+        if (!activeModal.contains(active)) { e.preventDefault(); first.focus(); }
+        else if (e.shiftKey && active === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
+      }
     });
 
     triggers.forEach(function (trigger) {
