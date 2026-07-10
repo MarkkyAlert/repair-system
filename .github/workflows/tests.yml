@@ -57,7 +57,9 @@ jobs:
         with:
           php-version: "8.2"
           extensions: mbstring, dom, xml, gd, zip, intl, pdo_mysql, fileinfo, iconv
-          tools: composer
+          # phpcpd is unmaintained but pinned + installed by setup-php (no composer-dep pollution).
+          # Swap for a maintained copy-paste detector if it ever stops resolving.
+          tools: composer, phpcpd
           coverage: none
 
       # Cache vendor/ keyed on composer.lock so installs are fast on unchanged deps.
@@ -97,6 +99,13 @@ jobs:
       # --memory-limit=1G: the default 128M is not enough for a level-3 whole-project analysis.
       - name: PHPStan static analysis
         run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
+
+      # Copy-paste detection: fail on large duplicated blocks in app/ so new copy-paste can't creep back in.
+      # min-lines 20 sits above the accepted structural repetition (transaction try/catch/rollback ~6 lines,
+      # controller boilerplate, the per-report export outer skeleton) so those don't trip it — only a
+      # substantial new duplicate block will. tests/ and vendor/ are intentionally out of scope.
+      - name: Copy-paste detection (phpcpd)
+        run: phpcpd app --min-lines=20 --min-tokens=150
 
       # Final step: run the suite. run.php exits 1 on any failure, which fails the job.
       - name: Run test suite
