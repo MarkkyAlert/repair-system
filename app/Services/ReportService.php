@@ -470,29 +470,11 @@ class ReportService
         $fileName = 'asset-reliability-' . date('Ymd-His') . '.xlsx';
 
         try {
-            $spreadsheet = new Spreadsheet();
-            $sheet = $spreadsheet->getActiveSheet();
-            $sheet->setTitle('สุขภาพทรัพย์สิน');
-
-            $column = 'A';
-            foreach ($this->assetReportExportHeaders() as $header) {
-                $sheet->setCellValue($column . '1', $header);
-                $sheet->getColumnDimension($column)->setAutoSize(true);
-                $column++;
-            }
-
-            $rowNumber = 2;
-            foreach ($rows as $row) {
-                $sheet->fromArray($this->sanitizeExportRow($this->assetReportExportRow($row)), null, 'A' . $rowNumber);
-                $rowNumber++;
-            }
-
-            $writer = new Xlsx($spreadsheet);
-            ob_start();
-            $writer->save('php://output');
-            $content = (string) ob_get_clean();
-            $spreadsheet->disconnectWorksheets();
-            unset($spreadsheet);
+            $content = $this->buildXlsxExport(
+                'สุขภาพทรัพย์สิน',
+                $this->assetReportExportHeaders(),
+                array_map(fn ($row): array => $this->assetReportExportRow($row), $rows)
+            );
 
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
@@ -797,29 +779,11 @@ class ReportService
         $fileName = 'technician-performance-' . date('Ymd-His') . '.xlsx';
 
         try {
-            $spreadsheet = new Spreadsheet();
-            $sheet = $spreadsheet->getActiveSheet();
-            $sheet->setTitle('ผลงานทีมช่าง');
-
-            $column = 'A';
-            foreach ($this->technicianPerformanceExportHeaders() as $header) {
-                $sheet->setCellValue($column . '1', $header);
-                $sheet->getColumnDimension($column)->setAutoSize(true);
-                $column++;
-            }
-
-            $rowNumber = 2;
-            foreach ($rows as $row) {
-                $sheet->fromArray($this->sanitizeExportRow($this->technicianPerformanceExportRow($row)), null, 'A' . $rowNumber);
-                $rowNumber++;
-            }
-
-            $writer = new Xlsx($spreadsheet);
-            ob_start();
-            $writer->save('php://output');
-            $content = (string) ob_get_clean();
-            $spreadsheet->disconnectWorksheets();
-            unset($spreadsheet);
+            $content = $this->buildXlsxExport(
+                'ผลงานทีมช่าง',
+                $this->technicianPerformanceExportHeaders(),
+                array_map(fn ($row): array => $this->technicianPerformanceExportRow($row), $rows)
+            );
 
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
@@ -1099,29 +1063,11 @@ class ReportService
         $fileName = 'problem-hotspot-' . date('Ymd-His') . '.xlsx';
 
         try {
-            $spreadsheet = new Spreadsheet();
-            $sheet = $spreadsheet->getActiveSheet();
-            $sheet->setTitle('พื้นที่ปัญหา');
-
-            $column = 'A';
-            foreach ($this->hotspotExportHeaders($normalizedFilters['dimension']) as $header) {
-                $sheet->setCellValue($column . '1', $header);
-                $sheet->getColumnDimension($column)->setAutoSize(true);
-                $column++;
-            }
-
-            $rowNumber = 2;
-            foreach ($rows as $row) {
-                $sheet->fromArray($this->sanitizeExportRow($this->hotspotExportRow($row)), null, 'A' . $rowNumber);
-                $rowNumber++;
-            }
-
-            $writer = new Xlsx($spreadsheet);
-            ob_start();
-            $writer->save('php://output');
-            $content = (string) ob_get_clean();
-            $spreadsheet->disconnectWorksheets();
-            unset($spreadsheet);
+            $content = $this->buildXlsxExport(
+                'พื้นที่ปัญหา',
+                $this->hotspotExportHeaders($normalizedFilters['dimension']),
+                array_map(fn ($row): array => $this->hotspotExportRow($row), $rows)
+            );
 
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
@@ -1442,29 +1388,11 @@ class ReportService
         $fileName = 'ticket-trend-' . date('Ymd-His') . '.xlsx';
 
         try {
-            $spreadsheet = new Spreadsheet();
-            $sheet = $spreadsheet->getActiveSheet();
-            $sheet->setTitle('แนวโน้ม');
-
-            $column = 'A';
-            foreach ($this->trendExportHeaders() as $header) {
-                $sheet->setCellValue($column . '1', $header);
-                $sheet->getColumnDimension($column)->setAutoSize(true);
-                $column++;
-            }
-
-            $rowNumber = 2;
-            foreach ($periods as $period) {
-                $sheet->fromArray($this->sanitizeExportRow($this->trendExportRow($period)), null, 'A' . $rowNumber);
-                $rowNumber++;
-            }
-
-            $writer = new Xlsx($spreadsheet);
-            ob_start();
-            $writer->save('php://output');
-            $content = (string) ob_get_clean();
-            $spreadsheet->disconnectWorksheets();
-            unset($spreadsheet);
+            $content = $this->buildXlsxExport(
+                'แนวโน้ม',
+                $this->trendExportHeaders(),
+                array_map(fn ($period): array => $this->trendExportRow($period), $periods)
+            );
 
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
@@ -1737,29 +1665,11 @@ class ReportService
         $fileName = 'executive-summary-' . date('Ymd-His') . '.xlsx';
 
         try {
-            $spreadsheet = new Spreadsheet();
-            $sheet = $spreadsheet->getActiveSheet();
-            $sheet->setTitle('สรุปผู้บริหาร');
-
-            $column = 'A';
-            foreach ($this->execExportHeaders() as $header) {
-                $sheet->setCellValue($column . '1', $header);
-                $sheet->getColumnDimension($column)->setAutoSize(true);
-                $column++;
-            }
-
-            $rowNumber = 2;
-            foreach ($kpis as $kpi) {
-                $sheet->fromArray($this->sanitizeExportRow($this->execExportRow($kpi)), null, 'A' . $rowNumber);
-                $rowNumber++;
-            }
-
-            $writer = new Xlsx($spreadsheet);
-            ob_start();
-            $writer->save('php://output');
-            $content = (string) ob_get_clean();
-            $spreadsheet->disconnectWorksheets();
-            unset($spreadsheet);
+            $content = $this->buildXlsxExport(
+                'สรุปผู้บริหาร',
+                $this->execExportHeaders(),
+                array_map(fn ($kpi): array => $this->execExportRow($kpi), $kpis)
+            );
 
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
@@ -1974,29 +1884,11 @@ class ReportService
         $fileName = 'backlog-aging-' . date('Ymd-His') . '.xlsx';
 
         try {
-            $spreadsheet = new Spreadsheet();
-            $sheet = $spreadsheet->getActiveSheet();
-            $sheet->setTitle('งานค้างตามอายุ');
-
-            $column = 'A';
-            foreach ($this->backlogExportHeaders($normalizedFilters['dimension']) as $header) {
-                $sheet->setCellValue($column . '1', $header);
-                $sheet->getColumnDimension($column)->setAutoSize(true);
-                $column++;
-            }
-
-            $rowNumber = 2;
-            foreach ($rows as $row) {
-                $sheet->fromArray($this->sanitizeExportRow($this->backlogExportRow($row)), null, 'A' . $rowNumber);
-                $rowNumber++;
-            }
-
-            $writer = new Xlsx($spreadsheet);
-            ob_start();
-            $writer->save('php://output');
-            $content = (string) ob_get_clean();
-            $spreadsheet->disconnectWorksheets();
-            unset($spreadsheet);
+            $content = $this->buildXlsxExport(
+                'งานค้างตามอายุ',
+                $this->backlogExportHeaders($normalizedFilters['dimension']),
+                array_map(fn ($row): array => $this->backlogExportRow($row), $rows)
+            );
 
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
@@ -2211,29 +2103,11 @@ class ReportService
         $fileName = 'reopen-rate-' . date('Ymd-His') . '.xlsx';
 
         try {
-            $spreadsheet = new Spreadsheet();
-            $sheet = $spreadsheet->getActiveSheet();
-            $sheet->setTitle('งานเปิดซ้ำ');
-
-            $column = 'A';
-            foreach ($this->reopenExportHeaders($normalizedFilters['dimension']) as $header) {
-                $sheet->setCellValue($column . '1', $header);
-                $sheet->getColumnDimension($column)->setAutoSize(true);
-                $column++;
-            }
-
-            $rowNumber = 2;
-            foreach ($rows as $row) {
-                $sheet->fromArray($this->sanitizeExportRow($this->reopenExportRow($row)), null, 'A' . $rowNumber);
-                $rowNumber++;
-            }
-
-            $writer = new Xlsx($spreadsheet);
-            ob_start();
-            $writer->save('php://output');
-            $content = (string) ob_get_clean();
-            $spreadsheet->disconnectWorksheets();
-            unset($spreadsheet);
+            $content = $this->buildXlsxExport(
+                'งานเปิดซ้ำ',
+                $this->reopenExportHeaders($normalizedFilters['dimension']),
+                array_map(fn ($row): array => $this->reopenExportRow($row), $rows)
+            );
 
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
@@ -2953,29 +2827,11 @@ class ReportService
         $fileName = 'sla-breach-' . date('Ymd-His') . '.xlsx';
 
         try {
-            $spreadsheet = new Spreadsheet();
-            $sheet = $spreadsheet->getActiveSheet();
-            $sheet->setTitle('SLA เกินกำหนด');
-
-            $column = 'A';
-            foreach ($this->slaBreachExportHeaders($normalizedFilters['dimension']) as $header) {
-                $sheet->setCellValue($column . '1', $header);
-                $sheet->getColumnDimension($column)->setAutoSize(true);
-                $column++;
-            }
-
-            $rowNumber = 2;
-            foreach ($rows as $row) {
-                $sheet->fromArray($this->sanitizeExportRow($this->slaBreachExportRow($row)), null, 'A' . $rowNumber);
-                $rowNumber++;
-            }
-
-            $writer = new Xlsx($spreadsheet);
-            ob_start();
-            $writer->save('php://output');
-            $content = (string) ob_get_clean();
-            $spreadsheet->disconnectWorksheets();
-            unset($spreadsheet);
+            $content = $this->buildXlsxExport(
+                'SLA เกินกำหนด',
+                $this->slaBreachExportHeaders($normalizedFilters['dimension']),
+                array_map(fn ($row): array => $this->slaBreachExportRow($row), $rows)
+            );
 
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
@@ -3342,6 +3198,42 @@ class ReportService
     private function sanitizeExportRow(array $values): array
     {
         return array_map(static fn (mixed $value): string => sanitize_export_cell($value), $values);
+    }
+
+    /**
+     * Build an .xlsx export from already-mapped rows. Always runs each row through sanitizeExportRow, so no
+     * export path can forget the CSV/formula-injection guard. Shared by every *Excel export method.
+     *
+     * @param array<int, string>            $headers
+     * @param array<int, array<int, mixed>> $rows
+     */
+    private function buildXlsxExport(string $sheetTitle, array $headers, array $rows): string
+    {
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle($sheetTitle);
+
+        $column = 'A';
+        foreach ($headers as $header) {
+            $sheet->setCellValue($column . '1', $header);
+            $sheet->getColumnDimension($column)->setAutoSize(true);
+            $column++;
+        }
+
+        $rowNumber = 2;
+        foreach ($rows as $row) {
+            $sheet->fromArray($this->sanitizeExportRow($row), null, 'A' . $rowNumber);
+            $rowNumber++;
+        }
+
+        $writer = new Xlsx($spreadsheet);
+        ob_start();
+        $writer->save('php://output');
+        $content = (string) ob_get_clean();
+        $spreadsheet->disconnectWorksheets();
+        unset($spreadsheet);
+
+        return $content;
     }
 
     /**
