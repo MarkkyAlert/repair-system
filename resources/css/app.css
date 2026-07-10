@@ -2620,6 +2620,10 @@ select.input::-ms-expand { display: none; }
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1.1rem;
 }
+/* Grid items default to min-width:auto and can refuse to shrink below their content, overflowing the
+   track on narrow screens (the chart cards pushed the mobile viewport ~6px wide on /dashboard and
+   /reports/trend). Pair minmax(0,1fr) with min-width:0 on the items so they shrink to their track. */
+.dashboard-chart-grid > * { min-width: 0; }
 
 .chart-shell { position: relative; min-height: 300px; }
 .chart-shell .empty-state { min-height: 300px; justify-content: center; }
