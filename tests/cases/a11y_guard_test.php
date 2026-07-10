@@ -89,3 +89,14 @@ test('a11y F5: app layout has a skip link targeting <main id="main-content"> + s
     assert_true(str_contains($built, '.skip-link{'), 'public/assets/css/app.css missing the .skip-link rule (rebuild/hand-sync the CSS)');
     assert_true(preg_match('/\.skip-link:focus[^{]*\{[^}]*left:\s*0/', $built) === 1, 'built CSS missing .skip-link:focus { left:0 } (link never reveals on focus)');
 });
+
+test('a11y F4: app.js makes an overflowing .table-wrap keyboard-focusable', function (): void {
+    // A horizontally-overflowing scroll container must become keyboard-focusable so its clipped columns are
+    // reachable without a mouse (WCAG 2.1.1). app.js is the source (no JS build); the enhancement is gated on
+    // scrollWidth overflow. Behavioural coverage is the axe scrollable-region-focusable check in E2E.
+    $js = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/js/app.js');
+    assert_true(
+        preg_match('/\.table-wrap[\s\S]{0,500}scrollWidth[\s\S]{0,300}setAttribute\(\s*[\'"]tabindex/', $js) === 1,
+        'app.js must set tabindex on an overflowing .table-wrap (WCAG 2.1.1 keyboard scroll)'
+    );
+});

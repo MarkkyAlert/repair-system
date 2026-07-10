@@ -1263,4 +1263,34 @@ document.addEventListener('DOMContentLoaded', () => {
     window.setInterval(check, 30000);
     document.addEventListener('visibilitychange', function () { if (!document.hidden) check(); });
   })();
+
+  // ── Keyboard-scrollable table wrappers (WCAG 2.1.1) ──
+  // A .table-wrap whose table overflows horizontally must be reachable + scrollable by keyboard. Make it a
+  // focusable, labelled scroll region ONLY while it actually overflows, so it isn't a dead tab stop when the
+  // table fits (the same report table scrolls at 375px but fits on desktop).
+  (function () {
+    var wraps = document.querySelectorAll('.table-wrap');
+    if (!wraps.length) return;
+    var sync = function () {
+      wraps.forEach(function (w) {
+        if (w.scrollWidth > w.clientWidth + 1) {
+          w.setAttribute('tabindex', '0');
+          w.setAttribute('role', 'group');
+          if (!w.getAttribute('aria-label')) {
+            var head = w.closest('section, .panel-card');
+            head = head && head.querySelector('h2, h3, .panel-title, caption');
+            var name = (head && head.textContent.trim()) || 'ตารางข้อมูล';
+            w.setAttribute('aria-label', name + ' (เลื่อนแนวนอนได้)');
+          }
+        } else {
+          w.removeAttribute('tabindex');
+          w.removeAttribute('role');
+          w.removeAttribute('aria-label');
+        }
+      });
+    };
+    sync();
+    var resizeTimer;
+    window.addEventListener('resize', function () { clearTimeout(resizeTimer); resizeTimer = setTimeout(sync, 150); });
+  })();
 });
