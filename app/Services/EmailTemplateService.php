@@ -5,6 +5,7 @@ namespace App\Services;
 
 use App\Core\View;
 use App\Repositories\EmailTemplateRepository;
+use DomainException;
 
 class EmailTemplateService
 {
@@ -70,6 +71,44 @@ class EmailTemplateService
     public function refreshOverrides(): void
     {
         $this->overridesCache = null;
+    }
+
+    /**
+     * Persist an admin's edits to a template's overridable fields. Validates the template key against
+     * the registry (never trust an arbitrary key from the request) and writes each registered field,
+     * trimming its value. Invalidates the override cache so a later read in the same request is fresh.
+     *
+     * @param array<string, mixed> $input raw request input keyed by field
+     * @throws DomainException when the template key is not in the registry
+     */
+    public function saveOverrides(string $templateKey, array $input, int $editorId): void
+    {
+        $meta = self::TEMPLATE_REGISTRY[$templateKey] ?? null;
+        if ($meta === null) {
+            throw new DomainException('ไม่พบ template ที่ต้องการบันทึก');
+        }
+
+        foreach ($meta['fields'] as $fieldKey) {
+            $this->templates->upsertField($templateKey, $fieldKey, trim((string) ($input[$fieldKey] ?? '')), $editorId);
+        }
+
+        $this->refreshOverrides();
+    }
+
+    /**
+     * Reset a template back to its built-in defaults (drop all overrides). Validates the key against
+     * the registry and invalidates the override cache.
+     *
+     * @throws DomainException when the template key is not in the registry
+     */
+    public function resetOverrides(string $templateKey): void
+    {
+        if (!isset(self::TEMPLATE_REGISTRY[$templateKey])) {
+            throw new DomainException('ไม่พบ template ที่ต้องการรีเซ็ต');
+        }
+
+        $this->templates->resetTemplate($templateKey);
+        $this->refreshOverrides();
     }
 
     public function buildTicketEvent(array $context, array $recipient, string $eventType, string $title, string $message): array

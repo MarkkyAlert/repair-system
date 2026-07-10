@@ -12,8 +12,10 @@ use RuntimeException;
 
 class EmailTemplateController
 {
-    public function __construct(private EmailTemplateRepository $templates)
-    {
+    public function __construct(
+        private EmailTemplateRepository $templates,
+        private EmailTemplateService $templateService,
+    ) {
     }
 
     public function index(): void
@@ -75,19 +77,8 @@ class EmailTemplateController
 
         try {
             csrf_validate();
-            if ((string) ($viewer['role'] ?? 'guest') !== 'admin') {
-                throw new DomainException('เฉพาะผู้ดูแลระบบเท่านั้น');
-            }
-
-            $meta = EmailTemplateService::TEMPLATE_REGISTRY[$templateKey] ?? null;
-            if ($meta === null) {
-                throw new DomainException('ไม่พบ template ที่ต้องการบันทึก');
-            }
-
-            foreach ($meta['fields'] as $fieldKey) {
-                $value = trim((string) ($_POST[$fieldKey] ?? ''));
-                $this->templates->upsertField($templateKey, $fieldKey, $value, $userId);
-            }
+            assert_admin($viewer);
+            $this->templateService->saveOverrides($templateKey, $_POST, $userId);
             flash('success', 'บันทึกการตั้งค่า template เรียบร้อยแล้ว');
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
@@ -103,13 +94,8 @@ class EmailTemplateController
 
         try {
             csrf_validate();
-            if ((string) ($viewer['role'] ?? 'guest') !== 'admin') {
-                throw new DomainException('เฉพาะผู้ดูแลระบบเท่านั้น');
-            }
-            if (!isset(EmailTemplateService::TEMPLATE_REGISTRY[$templateKey])) {
-                throw new DomainException('ไม่พบ template ที่ต้องการรีเซ็ต');
-            }
-            $this->templates->resetTemplate($templateKey);
+            assert_admin($viewer);
+            $this->templateService->resetOverrides($templateKey);
             flash('success', 'คืนค่า template เป็นค่าเริ่มต้นเรียบร้อยแล้ว');
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
