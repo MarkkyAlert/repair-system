@@ -20,3 +20,9 @@ test('export-builder(xlsx): buildXlsxExport neutralises a formula cell (guard bu
         @unlink($tmp);
     }
 });
+
+test('export-builder(csv): buildCsvExport neutralises a formula cell (guard built into the shared builder)', function (): void {
+    $content = call_private(tvm_container()->get(ReportService::class), 'buildCsvExport', [['หัว'], [['=cmd()']]]);
+
+    assert_contains_str("'=cmd()", $content, 'the formula cell is neutralised with a leading quote in the CSV');
+});

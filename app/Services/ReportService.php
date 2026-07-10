@@ -440,18 +440,10 @@ class ReportService
         $fileName = 'asset-reliability-' . date('Ymd-His') . '.csv';
 
         try {
-            $stream = fopen('php://temp', 'w+b');
-            if ($stream === false) {
-                throw new RuntimeException('ไม่สามารถเตรียมไฟล์ CSV ได้');
-            }
-            fwrite($stream, "\xEF\xBB\xBF");
-            fputcsv($stream, $this->assetReportExportHeaders());
-            foreach ($rows as $row) {
-                fputcsv($stream, $this->sanitizeExportRow($this->assetReportExportRow($row)));
-            }
-            rewind($stream);
-            $content = (string) stream_get_contents($stream);
-            fclose($stream);
+            $content = $this->buildCsvExport(
+                $this->assetReportExportHeaders(),
+                array_map(fn ($row): array => $this->assetReportExportRow($row), $rows)
+            );
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
             return ['content' => $content, 'file_name' => $fileName, 'content_type' => 'text/csv; charset=UTF-8'];
@@ -749,18 +741,10 @@ class ReportService
         $fileName = 'technician-performance-' . date('Ymd-His') . '.csv';
 
         try {
-            $stream = fopen('php://temp', 'w+b');
-            if ($stream === false) {
-                throw new RuntimeException('ไม่สามารถเตรียมไฟล์ CSV ได้');
-            }
-            fwrite($stream, "\xEF\xBB\xBF");
-            fputcsv($stream, $this->technicianPerformanceExportHeaders());
-            foreach ($rows as $row) {
-                fputcsv($stream, $this->sanitizeExportRow($this->technicianPerformanceExportRow($row)));
-            }
-            rewind($stream);
-            $content = (string) stream_get_contents($stream);
-            fclose($stream);
+            $content = $this->buildCsvExport(
+                $this->technicianPerformanceExportHeaders(),
+                array_map(fn ($row): array => $this->technicianPerformanceExportRow($row), $rows)
+            );
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
             return ['content' => $content, 'file_name' => $fileName, 'content_type' => 'text/csv; charset=UTF-8'];
@@ -1033,18 +1017,10 @@ class ReportService
         $fileName = 'problem-hotspot-' . date('Ymd-His') . '.csv';
 
         try {
-            $stream = fopen('php://temp', 'w+b');
-            if ($stream === false) {
-                throw new RuntimeException('ไม่สามารถเตรียมไฟล์ CSV ได้');
-            }
-            fwrite($stream, "\xEF\xBB\xBF");
-            fputcsv($stream, $this->hotspotExportHeaders($normalizedFilters['dimension']));
-            foreach ($rows as $row) {
-                fputcsv($stream, $this->sanitizeExportRow($this->hotspotExportRow($row)));
-            }
-            rewind($stream);
-            $content = (string) stream_get_contents($stream);
-            fclose($stream);
+            $content = $this->buildCsvExport(
+                $this->hotspotExportHeaders($normalizedFilters['dimension']),
+                array_map(fn ($row): array => $this->hotspotExportRow($row), $rows)
+            );
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
             return ['content' => $content, 'file_name' => $fileName, 'content_type' => 'text/csv; charset=UTF-8'];
@@ -1358,18 +1334,10 @@ class ReportService
         $fileName = 'ticket-trend-' . date('Ymd-His') . '.csv';
 
         try {
-            $stream = fopen('php://temp', 'w+b');
-            if ($stream === false) {
-                throw new RuntimeException('ไม่สามารถเตรียมไฟล์ CSV ได้');
-            }
-            fwrite($stream, "\xEF\xBB\xBF");
-            fputcsv($stream, $this->trendExportHeaders());
-            foreach ($periods as $period) {
-                fputcsv($stream, $this->sanitizeExportRow($this->trendExportRow($period)));
-            }
-            rewind($stream);
-            $content = (string) stream_get_contents($stream);
-            fclose($stream);
+            $content = $this->buildCsvExport(
+                $this->trendExportHeaders(),
+                array_map(fn ($period): array => $this->trendExportRow($period), $periods)
+            );
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
             return ['content' => $content, 'file_name' => $fileName, 'content_type' => 'text/csv; charset=UTF-8'];
@@ -1635,18 +1603,10 @@ class ReportService
         $fileName = 'executive-summary-' . date('Ymd-His') . '.csv';
 
         try {
-            $stream = fopen('php://temp', 'w+b');
-            if ($stream === false) {
-                throw new RuntimeException('ไม่สามารถเตรียมไฟล์ CSV ได้');
-            }
-            fwrite($stream, "\xEF\xBB\xBF");
-            fputcsv($stream, $this->execExportHeaders());
-            foreach ($kpis as $kpi) {
-                fputcsv($stream, $this->sanitizeExportRow($this->execExportRow($kpi)));
-            }
-            rewind($stream);
-            $content = (string) stream_get_contents($stream);
-            fclose($stream);
+            $content = $this->buildCsvExport(
+                $this->execExportHeaders(),
+                array_map(fn ($kpi): array => $this->execExportRow($kpi), $kpis)
+            );
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
             return ['content' => $content, 'file_name' => $fileName, 'content_type' => 'text/csv; charset=UTF-8'];
@@ -1854,18 +1814,10 @@ class ReportService
         $fileName = 'backlog-aging-' . date('Ymd-His') . '.csv';
 
         try {
-            $stream = fopen('php://temp', 'w+b');
-            if ($stream === false) {
-                throw new RuntimeException('ไม่สามารถเตรียมไฟล์ CSV ได้');
-            }
-            fwrite($stream, "\xEF\xBB\xBF");
-            fputcsv($stream, $this->backlogExportHeaders($normalizedFilters['dimension']));
-            foreach ($rows as $row) {
-                fputcsv($stream, $this->sanitizeExportRow($this->backlogExportRow($row)));
-            }
-            rewind($stream);
-            $content = (string) stream_get_contents($stream);
-            fclose($stream);
+            $content = $this->buildCsvExport(
+                $this->backlogExportHeaders($normalizedFilters['dimension']),
+                array_map(fn ($row): array => $this->backlogExportRow($row), $rows)
+            );
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
             return ['content' => $content, 'file_name' => $fileName, 'content_type' => 'text/csv; charset=UTF-8'];
@@ -2073,18 +2025,10 @@ class ReportService
         $fileName = 'reopen-rate-' . date('Ymd-His') . '.csv';
 
         try {
-            $stream = fopen('php://temp', 'w+b');
-            if ($stream === false) {
-                throw new RuntimeException('ไม่สามารถเตรียมไฟล์ CSV ได้');
-            }
-            fwrite($stream, "\xEF\xBB\xBF");
-            fputcsv($stream, $this->reopenExportHeaders($normalizedFilters['dimension']));
-            foreach ($rows as $row) {
-                fputcsv($stream, $this->sanitizeExportRow($this->reopenExportRow($row)));
-            }
-            rewind($stream);
-            $content = (string) stream_get_contents($stream);
-            fclose($stream);
+            $content = $this->buildCsvExport(
+                $this->reopenExportHeaders($normalizedFilters['dimension']),
+                array_map(fn ($row): array => $this->reopenExportRow($row), $rows)
+            );
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
             return ['content' => $content, 'file_name' => $fileName, 'content_type' => 'text/csv; charset=UTF-8'];
@@ -2366,18 +2310,10 @@ class ReportService
         $fileName = 'csat-' . date('Ymd-His') . '.csv';
 
         try {
-            $stream = fopen('php://temp', 'w+b');
-            if ($stream === false) {
-                throw new RuntimeException('ไม่สามารถเตรียมไฟล์ CSV ได้');
-            }
-            fwrite($stream, "\xEF\xBB\xBF");
-            fputcsv($stream, $this->csatExportHeaders($normalizedFilters['dimension']));
-            foreach ($rows as $row) {
-                fputcsv($stream, $this->sanitizeExportRow($this->csatExportRow($row)));
-            }
-            rewind($stream);
-            $content = (string) stream_get_contents($stream);
-            fclose($stream);
+            $content = $this->buildCsvExport(
+                $this->csatExportHeaders($normalizedFilters['dimension']),
+                array_map(fn ($row): array => $this->csatExportRow($row), $rows)
+            );
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
             return ['content' => $content, 'file_name' => $fileName, 'content_type' => 'text/csv; charset=UTF-8'];
@@ -2797,18 +2733,10 @@ class ReportService
         $fileName = 'sla-breach-' . date('Ymd-His') . '.csv';
 
         try {
-            $stream = fopen('php://temp', 'w+b');
-            if ($stream === false) {
-                throw new RuntimeException('ไม่สามารถเตรียมไฟล์ CSV ได้');
-            }
-            fwrite($stream, "\xEF\xBB\xBF");
-            fputcsv($stream, $this->slaBreachExportHeaders($normalizedFilters['dimension']));
-            foreach ($rows as $row) {
-                fputcsv($stream, $this->sanitizeExportRow($this->slaBreachExportRow($row)));
-            }
-            rewind($stream);
-            $content = (string) stream_get_contents($stream);
-            fclose($stream);
+            $content = $this->buildCsvExport(
+                $this->slaBreachExportHeaders($normalizedFilters['dimension']),
+                array_map(fn ($row): array => $this->slaBreachExportRow($row), $rows)
+            );
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
             return ['content' => $content, 'file_name' => $fileName, 'content_type' => 'text/csv; charset=UTF-8'];
@@ -3092,23 +3020,15 @@ class ReportService
         $fileName = 'ticket-report-' . date('Ymd-His') . '.csv';
 
         try {
-            $stream = fopen('php://temp', 'w+b');
-            if ($stream === false) {
-                throw new RuntimeException('ไม่สามารถเตรียมไฟล์ CSV ได้');
-            }
-            fwrite($stream, "\xEF\xBB\xBF");
-            fputcsv($stream, ['เลขที่', 'หัวข้อ', 'ผู้แจ้ง', 'แผนก', 'หมวดหมู่', 'ช่างเทคนิค', 'ความสำคัญ', 'สถานะ', 'วันที่แจ้ง', 'วันที่แก้ไข', 'เวลาแก้ไข (ชม.)', 'เกิน SLA', 'สถานะ SLA', 'คะแนน', 'สถานที่']);
-            foreach ($rows as $row) {
-                fputcsv($stream, $this->sanitizeExportRow([
+            $content = $this->buildCsvExport(
+                ['เลขที่', 'หัวข้อ', 'ผู้แจ้ง', 'แผนก', 'หมวดหมู่', 'ช่างเทคนิค', 'ความสำคัญ', 'สถานะ', 'วันที่แจ้ง', 'วันที่แก้ไข', 'เวลาแก้ไข (ชม.)', 'เกิน SLA', 'สถานะ SLA', 'คะแนน', 'สถานที่'],
+                array_map(fn ($row): array => [
                     $row['ticket_no'], $row['title'], $row['requester_name'], $row['department_name'],
                     $row['category_name'], $row['technician_name'], $row['priority_label'], $row['status_label'],
                     $row['requested_at'], $row['resolved_at'], $row['resolution_hours_label'],
                     $row['sla_overdue_label'], $row['sla_label'], $row['rating_label'], $row['location_name'],
-                ]));
-            }
-            rewind($stream);
-            $content = (string) stream_get_contents($stream);
-            fclose($stream);
+                ], $rows)
+            );
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
             return ['content' => $content, 'file_name' => $fileName, 'content_type' => 'text/csv; charset=UTF-8'];
@@ -3232,6 +3152,32 @@ class ReportService
         $content = (string) ob_get_clean();
         $spreadsheet->disconnectWorksheets();
         unset($spreadsheet);
+
+        return $content;
+    }
+
+    /**
+     * Build a UTF-8 CSV export (with BOM) from already-mapped rows. Always runs each row through
+     * sanitizeExportRow, so no export path can forget the CSV/formula-injection guard. Shared by every *Csv
+     * export method.
+     *
+     * @param array<int, string>            $headers
+     * @param array<int, array<int, mixed>> $rows
+     */
+    private function buildCsvExport(array $headers, array $rows): string
+    {
+        $stream = fopen('php://temp', 'w+b');
+        if ($stream === false) {
+            throw new RuntimeException('ไม่สามารถเตรียมไฟล์ CSV ได้');
+        }
+        fwrite($stream, "\xEF\xBB\xBF");
+        fputcsv($stream, $headers);
+        foreach ($rows as $row) {
+            fputcsv($stream, $this->sanitizeExportRow($row));
+        }
+        rewind($stream);
+        $content = (string) stream_get_contents($stream);
+        fclose($stream);
 
         return $content;
     }
