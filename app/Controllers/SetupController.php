@@ -68,6 +68,10 @@ class SetupController
             // ห่อ write ทั้งชุด (app_name → admin → demo → setup_completed) ใน transaction เดียว
             // → first-run all-or-nothing; ถ้าพังกลางทาง rollback หมด retry ได้จาก state สะอาด.
             // (createUser/upsert plain INSERT, demoData->load เป็น transaction-aware → participate)
+            // NOTE (consistency): จัดการ transaction ในตัว controller ตรงนี้เป็น "ข้อยกเว้น bootstrap โดยตั้งใจ" —
+            // เป็น one-time first-run orchestration ที่ประสาน settings/admin/demo หลาย repo ให้ atomic ก่อนระบบ
+            // มี service สำหรับ flow นี้ ที่อื่นทั้งหมด transaction อยู่ใน service (ReferenceData/GuestTicket/…).
+            // อย่าใช้ pattern "beginTransaction ใน controller" นี้ซ้ำในโค้ดปกติ.
             $this->db->beginTransaction();
 
             // Step 1: app name
@@ -104,7 +108,7 @@ class SetupController
                     'is_active' => true,
                 ]);
             } else {
-                $adminUser = $this->findFirstAdmin();
+                $adminUser = $this->users->firstActiveAdmin();
                 $adminId = (int) ($adminUser['id'] ?? 0);
             }
 
@@ -156,10 +160,14 @@ class SetupController
         return (string) ($row['setting_value'] ?? '0') === '1';
     }
 
-    /** True if at least one active admin already exists (a seed/manual deploy already has one). */
+    /**
+     * True if at least one active admin already exists (a seed/manual deploy already has one). Static +
+     * PDO-arg because the setup gate (public/index.php) runs before the container wires controllers; the
+     * SQL itself lives in UserRepository so no query text sits in this controller.
+     */
     public static function hasActiveAdmin(PDO $db): bool
     {
-        return (int) $db->query("SELECT COUNT(*) FROM users WHERE role = 'admin' AND is_active = 1")->fetchColumn() > 0;
+        return (new UserRepository($db))->hasActiveAdmin();
     }
 
     /**
@@ -180,12 +188,5 @@ class SetupController
     private function adminExists(): bool
     {
         return self::hasActiveAdmin($this->db);
-    }
-
-    private function findFirstAdmin(): ?array
-    {
-        $stmt = app(\PDO::class)->query("SELECT id, username, email FROM users WHERE role = 'admin' AND is_active = 1 ORDER BY id ASC LIMIT 1");
-        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
-        return $row ?: null;
     }
 }

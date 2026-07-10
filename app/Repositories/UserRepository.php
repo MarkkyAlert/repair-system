@@ -198,6 +198,22 @@ class UserRepository
         return array_map('intval', array_column($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [], 'id'));
     }
 
+    /** True when at least one active admin exists — the first-run setup gate's "is this already provisioned?" check. */
+    public function hasActiveAdmin(): bool
+    {
+        return (int) $this->db->query("SELECT COUNT(*) FROM users WHERE role = 'admin' AND is_active = 1")->fetchColumn() > 0;
+    }
+
+    /** The earliest active admin as [id, username, email], or null when there is none. */
+    public function firstActiveAdmin(): ?array
+    {
+        $row = $this->db->query(
+            "SELECT id, username, email FROM users WHERE role = 'admin' AND is_active = 1 ORDER BY id ASC LIMIT 1"
+        )->fetch(PDO::FETCH_ASSOC);
+
+        return $row ?: null;
+    }
+
     public function findActiveUsersByIds(array $userIds): array
     {
         $userIds = array_values(array_unique(array_filter(array_map('intval', $userIds), static fn (int $id): bool => $id > 0)));
