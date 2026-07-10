@@ -193,3 +193,28 @@ test('guest convert: a claim/link failure AFTER the ticket is created rolls it b
         gc_cleanup($reqId, []);
     }
 });
+
+test('guest convert: missing priority/category is rejected in the service before any lock/DB work', function (): void {
+    // The required-input rule lives in convertToTicket (moved out of GuestRequestController) so it holds
+    // for every caller and short-circuits before acquireConvertLock — the request must stay 'new'.
+    $reqId = gc_insert_request();
+    try {
+        $admin = ['id' => 4, 'role' => 'admin'];
+        $before = gc_ticket_count();
+
+        foreach ([[0, 1], [1, 0], [0, 0], [-1, 5]] as [$priorityId, $categoryId]) {
+            $err = '';
+            try {
+                gc_service()->convertToTicket($reqId, $admin, $priorityId, $categoryId, gc_tickets());
+            } catch (DomainException $exception) {
+                $err = $exception->getMessage();
+            }
+            assert_same('กรุณาเลือกความสำคัญและหมวดหมู่', $err, "priority=$priorityId category=$categoryId rejected");
+        }
+
+        assert_same($before, gc_ticket_count(), 'no ticket created for invalid priority/category');
+        assert_same('new', gc_request_status($reqId), 'request stays new (nothing was locked or written)');
+    } finally {
+        gc_cleanup($reqId, []);
+    }
+});

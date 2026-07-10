@@ -139,6 +139,12 @@ class GuestTicketService
 
     public function convertToTicket(int $requestId, array $viewer, int $priorityId, int $categoryId, TicketService $tickets): int
     {
+        // Required conversion inputs — validated here (not the controller) so the rule holds for every
+        // caller of convertToTicket, and is checked before any lock/DB work is done.
+        if ($priorityId <= 0 || $categoryId <= 0) {
+            throw new DomainException('กรุณาเลือกความสำคัญและหมวดหมู่');
+        }
+
         // Serialize convert/reject บน request เดียวกันด้วย advisory lock — ตรวจ status='new' + สร้าง
         // ticket + link ทั้งหมดภายใต้ lock เดียว จึงไม่มีทางที่ concurrent convert 2 คน (หรือ convert
         // แข่ง reject) จะสร้าง ticket ที่ไม่ถูกผูกกับ request (orphan).

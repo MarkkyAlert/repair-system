@@ -8,7 +8,6 @@ use App\Middleware\AuthMiddleware;
 use App\Repositories\AdminRepository;
 use App\Services\GuestTicketService;
 use App\Services\TicketService;
-use DomainException;
 
 class GuestRequestController
 {
@@ -63,9 +62,6 @@ class GuestRequestController
         $this->handleUpdate(function (array $viewer) use ($requestId): void {
             $priorityId = (int) ($_POST['priority_id'] ?? 0);
             $categoryId = (int) ($_POST['ticket_category_id'] ?? 0);
-            if ($priorityId <= 0 || $categoryId <= 0) {
-                throw new DomainException('กรุณาเลือกความสำคัญและหมวดหมู่');
-            }
             $this->guests->convertToTicket((int) $requestId, $viewer, $priorityId, $categoryId, $this->tickets);
         }, 'แปลงเป็น Ticket เรียบร้อยแล้ว', '/admin/guest-requests', ['manager', 'admin'], 'หน้านี้สงวนสำหรับผู้จัดการหรือผู้ดูแลระบบเท่านั้น');
     }
