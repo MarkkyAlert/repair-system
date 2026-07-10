@@ -497,19 +497,7 @@ class ReportService
                 'filters' => $this->describeAssetReportFilters($normalizedFilters, $this->reports->getAssetReportReferenceData()),
             ]);
 
-            $options = new Options();
-            $dompdfTmp = sys_get_temp_dir();
-            if ($dompdfTmp === '' || !@is_writable($dompdfTmp)) {
-                $dompdfTmp = is_dir('/tmp') ? '/tmp' : BASE_PATH . '/storage/uploads';
-            }
-            $options->setTempDir($dompdfTmp);
-            $options->set('isRemoteEnabled', false);
-            $options->set('defaultFont', 'sarabun');
-            $dompdf = new Dompdf($options);
-            $dompdf->loadHtml($html, 'UTF-8');
-            $dompdf->setPaper('A4', 'landscape');
-            $dompdf->render();
-            $content = $dompdf->output();
+            $content = $this->renderPdf($html);
 
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
@@ -798,19 +786,7 @@ class ReportService
                 'filters' => $this->describeFilters($normalizedFilters, $this->reports->getFilterReferenceData()),
             ]);
 
-            $options = new Options();
-            $dompdfTmp = sys_get_temp_dir();
-            if ($dompdfTmp === '' || !@is_writable($dompdfTmp)) {
-                $dompdfTmp = is_dir('/tmp') ? '/tmp' : BASE_PATH . '/storage/uploads';
-            }
-            $options->setTempDir($dompdfTmp);
-            $options->set('isRemoteEnabled', false);
-            $options->set('defaultFont', 'sarabun');
-            $dompdf = new Dompdf($options);
-            $dompdf->loadHtml($html, 'UTF-8');
-            $dompdf->setPaper('A4', 'landscape');
-            $dompdf->render();
-            $content = $dompdf->output();
+            $content = $this->renderPdf($html);
 
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
@@ -1075,19 +1051,7 @@ class ReportService
                 'filters' => $this->describeFilters($normalizedFilters, $this->reports->getFilterReferenceData()),
             ]);
 
-            $options = new Options();
-            $dompdfTmp = sys_get_temp_dir();
-            if ($dompdfTmp === '' || !@is_writable($dompdfTmp)) {
-                $dompdfTmp = is_dir('/tmp') ? '/tmp' : BASE_PATH . '/storage/uploads';
-            }
-            $options->setTempDir($dompdfTmp);
-            $options->set('isRemoteEnabled', false);
-            $options->set('defaultFont', 'sarabun');
-            $dompdf = new Dompdf($options);
-            $dompdf->loadHtml($html, 'UTF-8');
-            $dompdf->setPaper('A4', 'landscape');
-            $dompdf->render();
-            $content = $dompdf->output();
+            $content = $this->renderPdf($html);
 
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
@@ -1396,19 +1360,7 @@ class ReportService
                 'filters' => $this->describeFilters($normalizedFilters, $this->reports->getFilterReferenceData()),
             ]);
 
-            $options = new Options();
-            $dompdfTmp = sys_get_temp_dir();
-            if ($dompdfTmp === '' || !@is_writable($dompdfTmp)) {
-                $dompdfTmp = is_dir('/tmp') ? '/tmp' : BASE_PATH . '/storage/uploads';
-            }
-            $options->setTempDir($dompdfTmp);
-            $options->set('isRemoteEnabled', false);
-            $options->set('defaultFont', 'sarabun');
-            $dompdf = new Dompdf($options);
-            $dompdf->loadHtml($html, 'UTF-8');
-            $dompdf->setPaper('A4', 'landscape');
-            $dompdf->render();
-            $content = $dompdf->output();
+            $content = $this->renderPdf($html);
 
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
@@ -1660,19 +1612,7 @@ class ReportService
                 'filters' => $this->describeFilters($normalizedFilters, $this->reports->getFilterReferenceData()),
             ]);
 
-            $options = new Options();
-            $dompdfTmp = sys_get_temp_dir();
-            if ($dompdfTmp === '' || !@is_writable($dompdfTmp)) {
-                $dompdfTmp = is_dir('/tmp') ? '/tmp' : BASE_PATH . '/storage/uploads';
-            }
-            $options->setTempDir($dompdfTmp);
-            $options->set('isRemoteEnabled', false);
-            $options->set('defaultFont', 'sarabun');
-            $dompdf = new Dompdf($options);
-            $dompdf->loadHtml($html, 'UTF-8');
-            $dompdf->setPaper('A4', 'landscape');
-            $dompdf->render();
-            $content = $dompdf->output();
+            $content = $this->renderPdf($html);
 
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
@@ -1872,19 +1812,7 @@ class ReportService
                 'filters' => $this->describeFilters($normalizedFilters, $this->reports->getFilterReferenceData()),
             ]);
 
-            $options = new Options();
-            $dompdfTmp = sys_get_temp_dir();
-            if ($dompdfTmp === '' || !@is_writable($dompdfTmp)) {
-                $dompdfTmp = is_dir('/tmp') ? '/tmp' : BASE_PATH . '/storage/uploads';
-            }
-            $options->setTempDir($dompdfTmp);
-            $options->set('isRemoteEnabled', false);
-            $options->set('defaultFont', 'sarabun');
-            $dompdf = new Dompdf($options);
-            $dompdf->loadHtml($html, 'UTF-8');
-            $dompdf->setPaper('A4', 'landscape');
-            $dompdf->render();
-            $content = $dompdf->output();
+            $content = $this->renderPdf($html);
 
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
@@ -2083,19 +2011,7 @@ class ReportService
                 'filters' => $this->describeFilters($normalizedFilters, $this->reports->getFilterReferenceData()),
             ]);
 
-            $options = new Options();
-            $dompdfTmp = sys_get_temp_dir();
-            if ($dompdfTmp === '' || !@is_writable($dompdfTmp)) {
-                $dompdfTmp = is_dir('/tmp') ? '/tmp' : BASE_PATH . '/storage/uploads';
-            }
-            $options->setTempDir($dompdfTmp);
-            $options->set('isRemoteEnabled', false);
-            $options->set('defaultFont', 'sarabun');
-            $dompdf = new Dompdf($options);
-            $dompdf->loadHtml($html, 'UTF-8');
-            $dompdf->setPaper('A4', 'landscape');
-            $dompdf->render();
-            $content = $dompdf->output();
+            $content = $this->renderPdf($html);
 
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
@@ -2400,19 +2316,7 @@ class ReportService
                 'filters' => $this->describeFilters($normalizedFilters, $this->reports->getFilterReferenceData()),
             ]);
 
-            $options = new Options();
-            $dompdfTmp = sys_get_temp_dir();
-            if ($dompdfTmp === '' || !@is_writable($dompdfTmp)) {
-                $dompdfTmp = is_dir('/tmp') ? '/tmp' : BASE_PATH . '/storage/uploads';
-            }
-            $options->setTempDir($dompdfTmp);
-            $options->set('isRemoteEnabled', false);
-            $options->set('defaultFont', 'sarabun');
-            $dompdf = new Dompdf($options);
-            $dompdf->loadHtml($html, 'UTF-8');
-            $dompdf->setPaper('A4', 'landscape');
-            $dompdf->render();
-            $content = $dompdf->output();
+            $content = $this->renderPdf($html);
 
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
@@ -2791,19 +2695,7 @@ class ReportService
                 'filters' => $this->describeSlaBreachFilters($normalizedFilters, $this->reports->getSlaBreachReferenceData()),
             ]);
 
-            $options = new Options();
-            $dompdfTmp = sys_get_temp_dir();
-            if ($dompdfTmp === '' || !@is_writable($dompdfTmp)) {
-                $dompdfTmp = is_dir('/tmp') ? '/tmp' : BASE_PATH . '/storage/uploads';
-            }
-            $options->setTempDir($dompdfTmp);
-            $options->set('isRemoteEnabled', false);
-            $options->set('defaultFont', 'sarabun');
-            $dompdf = new Dompdf($options);
-            $dompdf->loadHtml($html, 'UTF-8');
-            $dompdf->setPaper('A4', 'landscape');
-            $dompdf->render();
-            $content = $dompdf->output();
+            $content = $this->renderPdf($html);
 
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
@@ -2981,21 +2873,7 @@ class ReportService
                 'analytics' => $this->collectAnalytics($viewer, $normalizedFilters),
             ]);
 
-            $options = new Options();
-            // Writable, portable temp dir for Dompdf. sys_get_temp_dir() can be empty/non-writable under
-            // macOS Apache; /tmp is world-writable on Linux + macOS. Fall back to an app-writable dir last.
-            $dompdfTmp = sys_get_temp_dir();
-            if ($dompdfTmp === '' || !@is_writable($dompdfTmp)) {
-                $dompdfTmp = is_dir('/tmp') ? '/tmp' : BASE_PATH . '/storage/uploads';
-            }
-            $options->setTempDir($dompdfTmp);
-            $options->set('isRemoteEnabled', false);
-            $options->set('defaultFont', 'sarabun');
-            $dompdf = new Dompdf($options);
-            $dompdf->loadHtml($html, 'UTF-8');
-            $dompdf->setPaper('A4', 'landscape');
-            $dompdf->render();
-            $content = $dompdf->output();
+            $content = $this->renderPdf($html);
 
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
@@ -3180,6 +3058,30 @@ class ReportService
         fclose($stream);
 
         return $content;
+    }
+
+    /**
+     * Render an HTML string to a PDF binary via Dompdf with the shared report defaults: A4 landscape,
+     * Thai 'sarabun' font (so Thai text renders instead of tofu boxes), remote assets disabled, and a
+     * writable temp dir (falls back to /tmp then storage/uploads when the system temp dir is unusable).
+     * Single source of truth for every report PDF exporter — no export path can drift on font/paper/temp.
+     */
+    private function renderPdf(string $html): string
+    {
+        $options = new Options();
+        $dompdfTmp = sys_get_temp_dir();
+        if ($dompdfTmp === '' || !@is_writable($dompdfTmp)) {
+            $dompdfTmp = is_dir('/tmp') ? '/tmp' : BASE_PATH . '/storage/uploads';
+        }
+        $options->setTempDir($dompdfTmp);
+        $options->set('isRemoteEnabled', false);
+        $options->set('defaultFont', 'sarabun');
+        $dompdf = new Dompdf($options);
+        $dompdf->loadHtml($html, 'UTF-8');
+        $dompdf->setPaper('A4', 'landscape');
+        $dompdf->render();
+
+        return $dompdf->output();
     }
 
     /**
