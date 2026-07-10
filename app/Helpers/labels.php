@@ -144,6 +144,26 @@ if (!function_exists('ticket_terminal_statuses_sql')) {
     }
 }
 
+if (!function_exists('ticket_resolved_statuses')) {
+    /**
+     * Statuses that count as resolved/completed work ("ปิดงาน") in report aggregates — the successful-completion
+     * subset. Deliberately EXCLUDES 'rejected'/'cancelled' (terminal but not resolved), so it is NARROWER than
+     * ticket_terminal_statuses(). Do NOT merge the two — they answer different business questions.
+     */
+    function ticket_resolved_statuses(): array
+    {
+        return ['resolved', 'completed', 'closed'];
+    }
+}
+
+if (!function_exists('ticket_resolved_statuses_sql')) {
+    /** Resolved statuses as a quoted, comma-joined SQL list for `status IN (...)` fragments. */
+    function ticket_resolved_statuses_sql(): string
+    {
+        return "'" . implode("','", ticket_resolved_statuses()) . "'";
+    }
+}
+
 if (!function_exists('ticket_status_options')) {
     /**
      * Ticket-status filter dropdown options ([{value,label}]) with Thai labels from

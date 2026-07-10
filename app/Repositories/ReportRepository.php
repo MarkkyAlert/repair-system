@@ -47,11 +47,12 @@ class ReportRepository
         $this->applyReportFilters($conditions, $filters, $params);
         $whereClause = implode(' AND ', $conditions);
         $closedStatuses = ticket_terminal_statuses_sql();
+        $resolvedStatuses = ticket_resolved_statuses_sql();
 
         $stmt = $this->db->prepare(
             "SELECT
                 COUNT(*) AS total_tickets,
-                COALESCE(SUM(CASE WHEN t.status IN ('resolved', 'completed', 'closed') THEN 1 ELSE 0 END), 0) AS resolved_tickets,
+                COALESCE(SUM(CASE WHEN t.status IN ($resolvedStatuses) THEN 1 ELSE 0 END), 0) AS resolved_tickets,
                 COALESCE(COUNT(DISTINCT CASE
                     WHEN t.status NOT IN ($closedStatuses)
                         AND EXISTS (
@@ -469,13 +470,14 @@ class ReportRepository
         $this->applyReportFilters($conditions, $filters, $params);
         $whereClause = implode(' AND ', $conditions);
         $limit = max(1, min($limit, 200));
+        $resolvedStatuses = ticket_resolved_statuses_sql();
 
         $stmt = $this->db->prepare(
             "SELECT
                 u.id,
                 u.full_name,
                 COUNT(t.id) AS assigned,
-                SUM(CASE WHEN t.status IN ('resolved', 'completed', 'closed') THEN 1 ELSE 0 END) AS resolved,
+                SUM(CASE WHEN t.status IN ($resolvedStatuses) THEN 1 ELSE 0 END) AS resolved,
                 SUM(CASE WHEN t.status IN ('assigned', 'accepted', 'in_progress', 'on_hold') THEN 1 ELSE 0 END) AS open_count,
                 ROUND(AVG(CASE WHEN t.resolved_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at) ELSE NULL END), 1) AS mttr_minutes,
                 ROUND(COALESCE(AVG(tr.score), 0), 2) AS avg_rating,
@@ -508,13 +510,14 @@ class ReportRepository
         $this->applyReportFilters($conditions, $filters, $params);
         $whereClause = implode(' AND ', $conditions);
         $limit = max(1, min($limit, 500));
+        $resolvedStatuses = ticket_resolved_statuses_sql();
 
         $stmt = $this->db->prepare(
             "SELECT
                 u.id,
                 u.full_name,
                 COUNT(t.id) AS assigned,
-                SUM(CASE WHEN t.status IN ('resolved', 'completed', 'closed') THEN 1 ELSE 0 END) AS resolved,
+                SUM(CASE WHEN t.status IN ($resolvedStatuses) THEN 1 ELSE 0 END) AS resolved,
                 ROUND(AVG(CASE WHEN t.resolved_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at) ELSE NULL END), 1) AS mttr_minutes,
                 ROUND(AVG(CASE WHEN t.first_response_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.first_response_at) ELSE NULL END), 1) AS first_response_minutes,
                 SUM(CASE WHEN t.resolved_at IS NOT NULL AND t.resolution_due_at IS NOT NULL THEN 1 ELSE 0 END) AS sla_base,
