@@ -49,75 +49,75 @@
 
         <nav class="sidebar-nav">
             <p class="nav-section-label">ภาพรวม</p>
-            <a href="<?= e(url('/dashboard')) ?>" class="nav-link<?= is_path('/dashboard') ? ' is-active' : '' ?>" data-tooltip="แดชบอร์ด">
+            <a href="<?= e(url('/dashboard')) ?>" class="nav-link<?= $c = is_path('/dashboard') ? ' is-active' : '' ?>"<?= $c ? ' aria-current="page"' : '' ?> data-tooltip="แดชบอร์ด">
                 <?= lucide('layout-dashboard', 'nav-icon') ?>
                 <span class="nav-label">แดชบอร์ด</span>
             </a>
             <p class="nav-section-label">งานปฏิบัติการ</p>
-            <a href="<?= e(url('/tickets')) ?>" class="nav-link<?= $isTicketsPath && !is_path('/tickets/create') ? ' is-active' : '' ?>" data-tooltip="รายการแจ้งซ่อม">
+            <a href="<?= e(url('/tickets')) ?>" class="nav-link<?= $c = $isTicketsPath && !is_path('/tickets/create') ? ' is-active' : '' ?>"<?= $c ? ' aria-current="page"' : '' ?> data-tooltip="รายการแจ้งซ่อม">
                 <?= lucide('clipboard-list', 'nav-icon') ?>
                 <span class="nav-label">รายการแจ้งซ่อม</span>
             </a>
-            <a href="<?= e(url('/tickets/create')) ?>" class="nav-link nav-link-sub<?= is_path('/tickets/create') ? ' is-active' : '' ?>" data-tooltip="แจ้งซ่อมใหม่">
+            <a href="<?= e(url('/tickets/create')) ?>" class="nav-link nav-link-sub<?= $c = is_path('/tickets/create') ? ' is-active' : '' ?>"<?= $c ? ' aria-current="page"' : '' ?> data-tooltip="แจ้งซ่อมใหม่">
                 <?= lucide('plus-circle', 'nav-icon') ?>
                 <span class="nav-label">แจ้งซ่อมใหม่</span>
             </a>
             <?php if (is_manager_or_admin((string) ($viewer['role'] ?? 'guest'))): ?>
-                <a href="<?= e(url('/asset-registry')) ?>" class="nav-link<?= $isAssetsPath ? ' is-active' : '' ?>" data-tooltip="ทรัพย์สินและ QR">
+                <a href="<?= e(url('/asset-registry')) ?>" class="nav-link<?= $c = $isAssetsPath ? ' is-active' : '' ?>"<?= $c ? ' aria-current="page"' : '' ?> data-tooltip="ทรัพย์สินและ QR">
                     <?= lucide('qr-code', 'nav-icon') ?>
                     <span class="nav-label">ทรัพย์สินและ QR</span>
                 </a>
                 <p class="nav-section-label">ภาพรวม & ผู้บริหาร</p>
-                <a href="<?= e(url('/reports/guide')) ?>" class="nav-link nav-link-sub<?= is_path('/reports/guide') ? ' is-active' : '' ?>" data-tooltip="คู่มืออ่านรายงาน · เริ่มที่นี่">
+                <a href="<?= e(url('/reports/guide')) ?>" class="nav-link nav-link-sub<?= $c = is_path('/reports/guide') ? ' is-active' : '' ?>"<?= $c ? ' aria-current="page"' : '' ?> data-tooltip="คู่มืออ่านรายงาน · เริ่มที่นี่">
                     <?= lucide('file-text', 'nav-icon') ?>
                     <span class="nav-label">คู่มืออ่านรายงาน</span>
                 </a>
-                <a href="<?= e(url('/reports')) ?>" class="nav-link nav-link-sub<?= $isReportsPath && !is_path('/reports/guide') && !is_path('/reports/asset-reliability') && !is_path('/reports/sla-breach') && !is_path('/reports/technician-performance') && !is_path('/reports/problem-hotspot') && !is_path('/reports/trend') && !is_path('/reports/executive') && !is_path('/reports/backlog-aging') && !is_path('/reports/reopen-rate') && !is_path('/reports/csat') ? ' is-active' : '' ?>" data-tooltip="รายงานรวม">
+                <a href="<?= e(url('/reports')) ?>" class="nav-link nav-link-sub<?= $c = $isReportsPath && !is_path('/reports/guide') && !is_path('/reports/asset-reliability') && !is_path('/reports/sla-breach') && !is_path('/reports/technician-performance') && !is_path('/reports/problem-hotspot') && !is_path('/reports/trend') && !is_path('/reports/executive') && !is_path('/reports/backlog-aging') && !is_path('/reports/reopen-rate') && !is_path('/reports/csat') ? ' is-active' : '' ?>"<?= $c ? ' aria-current="page"' : '' ?> data-tooltip="รายงานรวม">
                     <?= lucide('bar-chart-3', 'nav-icon') ?>
                     <span class="nav-label">รายงานรวม</span>
                 </a>
-                <a href="<?= e(url('/reports/executive')) ?>" class="nav-link nav-link-sub<?= is_path('/reports/executive') ? ' is-active' : '' ?>" data-tooltip="สรุปผู้บริหาร">
+                <a href="<?= e(url('/reports/executive')) ?>" class="nav-link nav-link-sub<?= $c = is_path('/reports/executive') ? ' is-active' : '' ?>"<?= $c ? ' aria-current="page"' : '' ?> data-tooltip="สรุปผู้บริหาร">
                     <?= lucide('star', 'nav-icon') ?>
                     <span class="nav-label">สรุปผู้บริหาร</span>
                 </a>
-                <a href="<?= e(url('/reports/trend')) ?>" class="nav-link nav-link-sub<?= is_path('/reports/trend') ? ' is-active' : '' ?>" data-tooltip="แนวโน้มตามเวลา">
+                <a href="<?= e(url('/reports/trend')) ?>" class="nav-link nav-link-sub<?= $c = is_path('/reports/trend') ? ' is-active' : '' ?>"<?= $c ? ' aria-current="page"' : '' ?> data-tooltip="แนวโน้มตามเวลา">
                     <?= lucide('trending-up', 'nav-icon') ?>
                     <span class="nav-label">แนวโน้ม</span>
                 </a>
                 <p class="nav-section-label">วิเคราะห์ปัญหา</p>
-                <a href="<?= e(url('/reports/sla-breach')) ?>" class="nav-link nav-link-sub<?= is_path('/reports/sla-breach') ? ' is-active' : '' ?>" data-tooltip="วิเคราะห์ SLA เกินกำหนด">
+                <a href="<?= e(url('/reports/sla-breach')) ?>" class="nav-link nav-link-sub<?= $c = is_path('/reports/sla-breach') ? ' is-active' : '' ?>"<?= $c ? ' aria-current="page"' : '' ?> data-tooltip="วิเคราะห์ SLA เกินกำหนด">
                     <?= lucide('triangle-alert', 'nav-icon') ?>
                     <span class="nav-label">วิเคราะห์ SLA เกิน</span>
                 </a>
-                <a href="<?= e(url('/reports/problem-hotspot')) ?>" class="nav-link nav-link-sub<?= is_path('/reports/problem-hotspot') ? ' is-active' : '' ?>" data-tooltip="พื้นที่ปัญหา">
+                <a href="<?= e(url('/reports/problem-hotspot')) ?>" class="nav-link nav-link-sub<?= $c = is_path('/reports/problem-hotspot') ? ' is-active' : '' ?>"<?= $c ? ' aria-current="page"' : '' ?> data-tooltip="พื้นที่ปัญหา">
                     <?= lucide('map-pin', 'nav-icon') ?>
                     <span class="nav-label">พื้นที่ปัญหา</span>
                 </a>
-                <a href="<?= e(url('/reports/backlog-aging')) ?>" class="nav-link nav-link-sub<?= is_path('/reports/backlog-aging') ? ' is-active' : '' ?>" data-tooltip="งานค้างตามอายุ">
+                <a href="<?= e(url('/reports/backlog-aging')) ?>" class="nav-link nav-link-sub<?= $c = is_path('/reports/backlog-aging') ? ' is-active' : '' ?>"<?= $c ? ' aria-current="page"' : '' ?> data-tooltip="งานค้างตามอายุ">
                     <?= lucide('clock', 'nav-icon') ?>
                     <span class="nav-label">งานค้างตามอายุ</span>
                 </a>
                 <p class="nav-section-label">คุณภาพ & ทีม</p>
-                <a href="<?= e(url('/reports/technician-performance')) ?>" class="nav-link nav-link-sub<?= is_path('/reports/technician-performance') ? ' is-active' : '' ?>" data-tooltip="ผลงานทีมช่าง">
+                <a href="<?= e(url('/reports/technician-performance')) ?>" class="nav-link nav-link-sub<?= $c = is_path('/reports/technician-performance') ? ' is-active' : '' ?>"<?= $c ? ' aria-current="page"' : '' ?> data-tooltip="ผลงานทีมช่าง">
                     <?= lucide('users', 'nav-icon') ?>
                     <span class="nav-label">ผลงานทีมช่าง</span>
                 </a>
-                <a href="<?= e(url('/reports/reopen-rate')) ?>" class="nav-link nav-link-sub<?= is_path('/reports/reopen-rate') ? ' is-active' : '' ?>" data-tooltip="งานเปิดซ้ำ / First-Time-Fix">
+                <a href="<?= e(url('/reports/reopen-rate')) ?>" class="nav-link nav-link-sub<?= $c = is_path('/reports/reopen-rate') ? ' is-active' : '' ?>"<?= $c ? ' aria-current="page"' : '' ?> data-tooltip="งานเปิดซ้ำ / First-Time-Fix">
                     <?= lucide('refresh-cw', 'nav-icon') ?>
                     <span class="nav-label">งานเปิดซ้ำ</span>
                 </a>
-                <a href="<?= e(url('/reports/csat')) ?>" class="nav-link nav-link-sub<?= is_path('/reports/csat') ? ' is-active' : '' ?>" data-tooltip="ความพึงพอใจลูกค้า (CSAT)">
+                <a href="<?= e(url('/reports/csat')) ?>" class="nav-link nav-link-sub<?= $c = is_path('/reports/csat') ? ' is-active' : '' ?>"<?= $c ? ' aria-current="page"' : '' ?> data-tooltip="ความพึงพอใจลูกค้า (CSAT)">
                     <?= lucide('message-circle', 'nav-icon') ?>
                     <span class="nav-label">ความพึงพอใจ</span>
                 </a>
-                <a href="<?= e(url('/reports/asset-reliability')) ?>" class="nav-link nav-link-sub<?= is_path('/reports/asset-reliability') ? ' is-active' : '' ?>" data-tooltip="สุขภาพทรัพย์สิน">
+                <a href="<?= e(url('/reports/asset-reliability')) ?>" class="nav-link nav-link-sub<?= $c = is_path('/reports/asset-reliability') ? ' is-active' : '' ?>"<?= $c ? ' aria-current="page"' : '' ?> data-tooltip="สุขภาพทรัพย์สิน">
                     <?= lucide('activity', 'nav-icon') ?>
                     <span class="nav-label">สุขภาพทรัพย์สิน</span>
                 </a>
             <?php endif; ?>
             <?php if ((string) ($viewer['role'] ?? 'guest') === 'admin'): ?>
                 <p class="nav-section-label">ระบบ</p>
-                <a href="<?= e(url('/admin')) ?>" class="nav-link<?= $isAdminPath ? ' is-active' : '' ?>" data-tooltip="ตั้งค่าระบบ">
+                <a href="<?= e(url('/admin')) ?>" class="nav-link<?= $c = $isAdminPath ? ' is-active' : '' ?>"<?= $c ? ' aria-current="page"' : '' ?> data-tooltip="ตั้งค่าระบบ">
                     <?= lucide('settings', 'nav-icon') ?>
                     <span class="nav-label">ตั้งค่าระบบ</span>
                 </a>
