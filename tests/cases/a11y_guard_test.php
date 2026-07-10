@@ -100,3 +100,29 @@ test('a11y F4: app.js makes an overflowing .table-wrap keyboard-focusable', func
         'app.js must set tabindex on an overflowing .table-wrap (WCAG 2.1.1 keyboard scroll)'
     );
 });
+
+test('a11y F2: primary-button gradient stops meet WCAG AA for white text (>= 4.5:1)', function (): void {
+    // The .btn-primary label is white 13px/600 (normal text). Resolve each gradient stop token from the
+    // served build and assert white text clears 4.5:1 on it, so a future palette/gradient change that dims
+    // the primary CTA below AA fails the suite. (The min occurs at a stop here, so checking stops suffices.)
+    $css = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/css/app.css');
+    assert_true(preg_match('/\.btn-primary\{background:(.*?)\}/s', $css, $m) === 1, 'could not isolate the .btn-primary rule');
+    preg_match_all('/var\((--[a-z0-9-]+)\)/', $m[1], $tm);
+    $tokens = array_values(array_unique($tm[1]));
+    assert_true(count($tokens) >= 2, 'primary button should use gradient tokens (found: ' . implode(',', $tokens) . ')');
+
+    $lum = static function (int $r, int $g, int $b): float {
+        $f = static fn (float $c): float => ($c /= 255) <= 0.03928 ? $c / 12.92 : (($c + 0.055) / 1.055) ** 2.4;
+        return 0.2126 * $f($r) + 0.7152 * $f($g) + 0.0722 * $f($b);
+    };
+    $failing = [];
+    foreach ($tokens as $tok) {
+        assert_true(preg_match('/' . preg_quote($tok, '/') . ':#([0-9a-fA-F]{6})/', $css, $hm) === 1, "gradient token {$tok} has no hex value in :root");
+        $hex = strtolower($hm[1]);
+        $ratio = 1.05 / ($lum((int) hexdec(substr($hex, 0, 2)), (int) hexdec(substr($hex, 2, 2)), (int) hexdec(substr($hex, 4, 2))) + 0.05);
+        if ($ratio < 4.5) {
+            $failing[] = sprintf('%s #%s = %.2f:1', $tok, $hex, $ratio);
+        }
+    }
+    assert_same([], $failing, 'primary-button gradient stops below WCAG AA 4.5:1 for white text: ' . implode(' | ', $failing));
+});

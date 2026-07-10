@@ -22,6 +22,7 @@
   --violet-700: #6d28d9;
   --fuchsia-400: #e879f9;
   --fuchsia-500: #d946ef;
+  --fuchsia-600: #c026d3; /* AA-safe fuchsia for white text on the primary-button gradient (4.71:1) */
   --sky-500: #38bdf8;
 
   /* ink (deep navy-violet) */
@@ -938,7 +939,11 @@ body > * { position: relative; z-index: 1; }
 .btn-lg { min-height: 48px; padding: .8rem 1.2rem; font-size: .9rem; border-radius: 16px; }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--indigo-500), var(--violet-600) 70%, var(--fuchsia-500));
+  /* White label is 13px/600 (normal text → needs 4.5:1). The old indigo-500 (4.47) and fuchsia-500
+     (3.46) stops failed WCAG AA; indigo-600 / violet-600 / fuchsia-600 keep the same hue ramp with a
+     min of 4.71:1 across the whole gradient. Only .btn-primary changes — the shared brand tokens
+     (--indigo-500/--fuchsia-500, used on large hero text where 3:1 applies) are untouched. */
+  background: linear-gradient(135deg, var(--indigo-600), var(--violet-600) 70%, var(--fuchsia-600));
   background-size: 200% 200%;
   background-position: 0% 50%;
   color: #fff;
