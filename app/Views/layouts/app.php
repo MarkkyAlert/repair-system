@@ -17,6 +17,7 @@
     <?php endif; ?>
 </head>
 <body class="min-h-screen">
+<a href="#main-content" class="skip-link">ข้ามไปยังเนื้อหาหลัก</a>
 <?php $viewer = auth()->user(); ?>
 <?php $currentPath = request_path(); ?>
 <?php $isTicketsPath = $currentPath === '/tickets' || str_starts_with($currentPath, '/tickets/'); ?>
@@ -161,7 +162,7 @@
             </div>
         </header>
 
-        <main class="content-area">
+        <main class="content-area" id="main-content" tabindex="-1">
             <?php if ($successMessage || $errorMessage): ?>
                 <div class="toast-stack" aria-live="polite" aria-atomic="true">
                     <?php if ($successMessage): ?>

@@ -6005,6 +6005,27 @@ code.mono, .mono {
   border: 0;
 }
 
+/* Keyboard skip link — the first focusable element in <body>. Off-screen until focused, then pins to the
+   top-left so keyboard/SR users jump past the sidebar nav straight to <main id="main-content">. */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 200;
+  padding: .65rem 1.1rem;
+  background: var(--indigo-600, #4f46e5);
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: 0 0 10px 0;
+}
+.skip-link:focus,
+.skip-link:focus-visible {
+  left: 0;
+  outline: 3px solid #fff;
+  outline-offset: 2px;
+}
+
 /* Pagination, presets and image attachments */
 .pagination, .preset-bar {
   display: flex;

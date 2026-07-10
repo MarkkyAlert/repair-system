@@ -68,3 +68,24 @@ test('a11y #6: every <label class="field-label"> is associated with a control vi
     sort($unassociated);
     assert_same([], $unassociated, 'field-label without for= (radio groups should use <fieldset>/<legend>): ' . implode(' | ', $unassociated));
 });
+
+test('a11y F5: app layout has a skip link targeting <main id="main-content"> + styling ships in built CSS', function (): void {
+    $root = dirname(__DIR__, 2);
+    $layout = (string) file_get_contents($root . '/app/Views/layouts/app.php');
+
+    // A keyboard skip link must be a real anchor to the main landmark, and <main> must carry the matching id.
+    assert_true(
+        preg_match('/<a[^>]*\bhref="#main-content"[^>]*\bclass="skip-link"|<a[^>]*\bclass="skip-link"[^>]*\bhref="#main-content"/', $layout) === 1,
+        'app layout missing <a class="skip-link" href="#main-content">'
+    );
+    assert_true(
+        preg_match('/<main[^>]*\bid="main-content"/', $layout) === 1,
+        '<main> must carry id="main-content" as the skip-link target'
+    );
+
+    // The visually-hidden-until-focus styling must ship in the served build (CSS build is manual — a source
+    // edit without a hand-sync would leave the link permanently off-screen or always visible).
+    $built = (string) file_get_contents($root . '/public/assets/css/app.css');
+    assert_true(str_contains($built, '.skip-link{'), 'public/assets/css/app.css missing the .skip-link rule (rebuild/hand-sync the CSS)');
+    assert_true(preg_match('/\.skip-link:focus[^{]*\{[^}]*left:\s*0/', $built) === 1, 'built CSS missing .skip-link:focus { left:0 } (link never reveals on focus)');
+});
