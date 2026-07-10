@@ -6,16 +6,16 @@ namespace App\Services;
 use App\Core\View;
 use App\Repositories\ReportRepository;
 use DomainException;
-use Dompdf\Dompdf;
-use Dompdf\Options;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use RuntimeException;
 
 class ReportService
 {
-    public function __construct(private ReportRepository $reports)
-    {
+    public function __construct(
+        private ReportRepository $reports,
+        private ReportExporter $exporter,
+    ) {
     }
 
     public function getReportPageData(array $viewer, array $filters = []): array
@@ -440,7 +440,7 @@ class ReportService
         $fileName = 'asset-reliability-' . date('Ymd-His') . '.csv';
 
         try {
-            $content = $this->buildCsvExport(
+            $content = $this->exporter->buildCsvExport(
                 $this->assetReportExportHeaders(),
                 array_map(fn ($row): array => $this->assetReportExportRow($row), $rows)
             );
@@ -462,7 +462,7 @@ class ReportService
         $fileName = 'asset-reliability-' . date('Ymd-His') . '.xlsx';
 
         try {
-            $content = $this->buildXlsxExport(
+            $content = $this->exporter->buildXlsxExport(
                 'สุขภาพทรัพย์สิน',
                 $this->assetReportExportHeaders(),
                 array_map(fn ($row): array => $this->assetReportExportRow($row), $rows)
@@ -497,7 +497,7 @@ class ReportService
                 'filters' => $this->describeAssetReportFilters($normalizedFilters, $this->reports->getAssetReportReferenceData()),
             ]);
 
-            $content = $this->renderPdf($html);
+            $content = $this->exporter->renderPdf($html);
 
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
@@ -729,7 +729,7 @@ class ReportService
         $fileName = 'technician-performance-' . date('Ymd-His') . '.csv';
 
         try {
-            $content = $this->buildCsvExport(
+            $content = $this->exporter->buildCsvExport(
                 $this->technicianPerformanceExportHeaders(),
                 array_map(fn ($row): array => $this->technicianPerformanceExportRow($row), $rows)
             );
@@ -751,7 +751,7 @@ class ReportService
         $fileName = 'technician-performance-' . date('Ymd-His') . '.xlsx';
 
         try {
-            $content = $this->buildXlsxExport(
+            $content = $this->exporter->buildXlsxExport(
                 'ผลงานทีมช่าง',
                 $this->technicianPerformanceExportHeaders(),
                 array_map(fn ($row): array => $this->technicianPerformanceExportRow($row), $rows)
@@ -786,7 +786,7 @@ class ReportService
                 'filters' => $this->describeFilters($normalizedFilters, $this->reports->getFilterReferenceData()),
             ]);
 
-            $content = $this->renderPdf($html);
+            $content = $this->exporter->renderPdf($html);
 
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
@@ -993,7 +993,7 @@ class ReportService
         $fileName = 'problem-hotspot-' . date('Ymd-His') . '.csv';
 
         try {
-            $content = $this->buildCsvExport(
+            $content = $this->exporter->buildCsvExport(
                 $this->hotspotExportHeaders($normalizedFilters['dimension']),
                 array_map(fn ($row): array => $this->hotspotExportRow($row), $rows)
             );
@@ -1015,7 +1015,7 @@ class ReportService
         $fileName = 'problem-hotspot-' . date('Ymd-His') . '.xlsx';
 
         try {
-            $content = $this->buildXlsxExport(
+            $content = $this->exporter->buildXlsxExport(
                 'พื้นที่ปัญหา',
                 $this->hotspotExportHeaders($normalizedFilters['dimension']),
                 array_map(fn ($row): array => $this->hotspotExportRow($row), $rows)
@@ -1051,7 +1051,7 @@ class ReportService
                 'filters' => $this->describeFilters($normalizedFilters, $this->reports->getFilterReferenceData()),
             ]);
 
-            $content = $this->renderPdf($html);
+            $content = $this->exporter->renderPdf($html);
 
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
@@ -1298,7 +1298,7 @@ class ReportService
         $fileName = 'ticket-trend-' . date('Ymd-His') . '.csv';
 
         try {
-            $content = $this->buildCsvExport(
+            $content = $this->exporter->buildCsvExport(
                 $this->trendExportHeaders(),
                 array_map(fn ($period): array => $this->trendExportRow($period), $periods)
             );
@@ -1320,7 +1320,7 @@ class ReportService
         $fileName = 'ticket-trend-' . date('Ymd-His') . '.xlsx';
 
         try {
-            $content = $this->buildXlsxExport(
+            $content = $this->exporter->buildXlsxExport(
                 'แนวโน้ม',
                 $this->trendExportHeaders(),
                 array_map(fn ($period): array => $this->trendExportRow($period), $periods)
@@ -1360,7 +1360,7 @@ class ReportService
                 'filters' => $this->describeFilters($normalizedFilters, $this->reports->getFilterReferenceData()),
             ]);
 
-            $content = $this->renderPdf($html);
+            $content = $this->exporter->renderPdf($html);
 
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
@@ -1555,7 +1555,7 @@ class ReportService
         $fileName = 'executive-summary-' . date('Ymd-His') . '.csv';
 
         try {
-            $content = $this->buildCsvExport(
+            $content = $this->exporter->buildCsvExport(
                 $this->execExportHeaders(),
                 array_map(fn ($kpi): array => $this->execExportRow($kpi), $kpis)
             );
@@ -1577,7 +1577,7 @@ class ReportService
         $fileName = 'executive-summary-' . date('Ymd-His') . '.xlsx';
 
         try {
-            $content = $this->buildXlsxExport(
+            $content = $this->exporter->buildXlsxExport(
                 'สรุปผู้บริหาร',
                 $this->execExportHeaders(),
                 array_map(fn ($kpi): array => $this->execExportRow($kpi), $kpis)
@@ -1612,7 +1612,7 @@ class ReportService
                 'filters' => $this->describeFilters($normalizedFilters, $this->reports->getFilterReferenceData()),
             ]);
 
-            $content = $this->renderPdf($html);
+            $content = $this->exporter->renderPdf($html);
 
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
@@ -1754,7 +1754,7 @@ class ReportService
         $fileName = 'backlog-aging-' . date('Ymd-His') . '.csv';
 
         try {
-            $content = $this->buildCsvExport(
+            $content = $this->exporter->buildCsvExport(
                 $this->backlogExportHeaders($normalizedFilters['dimension']),
                 array_map(fn ($row): array => $this->backlogExportRow($row), $rows)
             );
@@ -1776,7 +1776,7 @@ class ReportService
         $fileName = 'backlog-aging-' . date('Ymd-His') . '.xlsx';
 
         try {
-            $content = $this->buildXlsxExport(
+            $content = $this->exporter->buildXlsxExport(
                 'งานค้างตามอายุ',
                 $this->backlogExportHeaders($normalizedFilters['dimension']),
                 array_map(fn ($row): array => $this->backlogExportRow($row), $rows)
@@ -1812,7 +1812,7 @@ class ReportService
                 'filters' => $this->describeFilters($normalizedFilters, $this->reports->getFilterReferenceData()),
             ]);
 
-            $content = $this->renderPdf($html);
+            $content = $this->exporter->renderPdf($html);
 
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
@@ -1953,7 +1953,7 @@ class ReportService
         $fileName = 'reopen-rate-' . date('Ymd-His') . '.csv';
 
         try {
-            $content = $this->buildCsvExport(
+            $content = $this->exporter->buildCsvExport(
                 $this->reopenExportHeaders($normalizedFilters['dimension']),
                 array_map(fn ($row): array => $this->reopenExportRow($row), $rows)
             );
@@ -1975,7 +1975,7 @@ class ReportService
         $fileName = 'reopen-rate-' . date('Ymd-His') . '.xlsx';
 
         try {
-            $content = $this->buildXlsxExport(
+            $content = $this->exporter->buildXlsxExport(
                 'งานเปิดซ้ำ',
                 $this->reopenExportHeaders($normalizedFilters['dimension']),
                 array_map(fn ($row): array => $this->reopenExportRow($row), $rows)
@@ -2011,7 +2011,7 @@ class ReportService
                 'filters' => $this->describeFilters($normalizedFilters, $this->reports->getFilterReferenceData()),
             ]);
 
-            $content = $this->renderPdf($html);
+            $content = $this->exporter->renderPdf($html);
 
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
@@ -2226,7 +2226,7 @@ class ReportService
         $fileName = 'csat-' . date('Ymd-His') . '.csv';
 
         try {
-            $content = $this->buildCsvExport(
+            $content = $this->exporter->buildCsvExport(
                 $this->csatExportHeaders($normalizedFilters['dimension']),
                 array_map(fn ($row): array => $this->csatExportRow($row), $rows)
             );
@@ -2263,12 +2263,12 @@ class ReportService
             }
             $rowNumber = 2;
             foreach ($rows as $row) {
-                $sheet->fromArray($this->sanitizeExportRow($this->csatExportRow($row)), null, 'A' . $rowNumber);
+                $sheet->fromArray($this->exporter->sanitizeExportRow($this->csatExportRow($row)), null, 'A' . $rowNumber);
                 $rowNumber++;
             }
 
             // Sheet 2 — feedback ดิบ (คะแนนแย่ก่อน) — ใช้ helper ร่วม (sanitize ในตัว)
-            $this->addExcelSheet(
+            $this->exporter->addExcelSheet(
                 $spreadsheet,
                 'ความคิดเห็น',
                 $this->csatFeedbackExportHeaders(),
@@ -2316,7 +2316,7 @@ class ReportService
                 'filters' => $this->describeFilters($normalizedFilters, $this->reports->getFilterReferenceData()),
             ]);
 
-            $content = $this->renderPdf($html);
+            $content = $this->exporter->renderPdf($html);
 
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
@@ -2637,7 +2637,7 @@ class ReportService
         $fileName = 'sla-breach-' . date('Ymd-His') . '.csv';
 
         try {
-            $content = $this->buildCsvExport(
+            $content = $this->exporter->buildCsvExport(
                 $this->slaBreachExportHeaders($normalizedFilters['dimension']),
                 array_map(fn ($row): array => $this->slaBreachExportRow($row), $rows)
             );
@@ -2659,7 +2659,7 @@ class ReportService
         $fileName = 'sla-breach-' . date('Ymd-His') . '.xlsx';
 
         try {
-            $content = $this->buildXlsxExport(
+            $content = $this->exporter->buildXlsxExport(
                 'SLA เกินกำหนด',
                 $this->slaBreachExportHeaders($normalizedFilters['dimension']),
                 array_map(fn ($row): array => $this->slaBreachExportRow($row), $rows)
@@ -2695,7 +2695,7 @@ class ReportService
                 'filters' => $this->describeSlaBreachFilters($normalizedFilters, $this->reports->getSlaBreachReferenceData()),
             ]);
 
-            $content = $this->renderPdf($html);
+            $content = $this->exporter->renderPdf($html);
 
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
@@ -2804,7 +2804,7 @@ class ReportService
 
             $rowNumber = 2;
             foreach ($rows as $row) {
-                $sheet->fromArray($this->sanitizeExportRow([
+                $sheet->fromArray($this->exporter->sanitizeExportRow([
                     $row['ticket_no'],
                     $row['title'],
                     $row['requester_name'],
@@ -2873,7 +2873,7 @@ class ReportService
                 'analytics' => $this->collectAnalytics($viewer, $normalizedFilters),
             ]);
 
-            $content = $this->renderPdf($html);
+            $content = $this->exporter->renderPdf($html);
 
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
@@ -2898,7 +2898,7 @@ class ReportService
         $fileName = 'ticket-report-' . date('Ymd-His') . '.csv';
 
         try {
-            $content = $this->buildCsvExport(
+            $content = $this->exporter->buildCsvExport(
                 ['เลขที่', 'หัวข้อ', 'ผู้แจ้ง', 'แผนก', 'หมวดหมู่', 'ช่างเทคนิค', 'ความสำคัญ', 'สถานะ', 'วันที่แจ้ง', 'วันที่แก้ไข', 'เวลาแก้ไข (ชม.)', 'เกิน SLA', 'สถานะ SLA', 'คะแนน', 'สถานที่'],
                 array_map(fn ($row): array => [
                     $row['ticket_no'], $row['title'], $row['requester_name'], $row['department_name'],
@@ -2931,45 +2931,28 @@ class ReportService
                 $p['resolution']['met'], $p['resolution']['breached'], $p['resolution']['pct_label'],
             ];
         }
-        $this->addExcelSheet($spreadsheet, 'SLA ตรงตามกำหนด', ['ระดับความสำคัญ', 'ตอบรับ ตรง', 'ตอบรับ เกิน', 'ตอบรับ %', 'แก้ไข ตรง', 'แก้ไข เกิน', 'แก้ไข %'], $slaRows);
+        $this->exporter->addExcelSheet($spreadsheet, 'SLA ตรงตามกำหนด', ['ระดับความสำคัญ', 'ตอบรับ ตรง', 'ตอบรับ เกิน', 'ตอบรับ %', 'แก้ไข ตรง', 'แก้ไข เกิน', 'แก้ไข %'], $slaRows);
 
-        $this->addExcelSheet(
+        $this->exporter->addExcelSheet(
             $spreadsheet,
             'ผลงานช่างเทคนิค',
             ['ช่าง', 'มอบหมาย', 'ปิดงาน', 'ค้าง', 'อัตราปิดงาน', 'เวลาซ่อมเฉลี่ย (ชม.)', 'คะแนนเฉลี่ย', 'ชม.แรงงาน'],
             array_map(static fn (array $t): array => [$t['full_name'], $t['assigned'], $t['resolved'], $t['open'], $t['completion_label'], $t['mttr_hours_label'], $t['avg_rating_label'], $t['labor_hours_label']], $analytics['technicianPerformance'] ?? [])
         );
 
-        $this->addExcelSheet(
+        $this->exporter->addExcelSheet(
             $spreadsheet,
             'ชั่วโมงแรงงาน',
             ['หมวดหมู่งาน', 'จำนวนงาน', 'งานที่บันทึกแรงงาน', 'รวมชั่วโมง', 'เฉลี่ย/งาน (ชม.)'],
             array_map(static fn (array $c): array => [$c['category_name'], $c['tickets'], $c['labored_tickets'], $c['labor_hours_label'], $c['avg_hours_label']], $analytics['laborEffort']['byCategory'] ?? [])
         );
 
-        $this->addExcelSheet(
+        $this->exporter->addExcelSheet(
             $spreadsheet,
             'ทรัพย์สินเสียบ่อย',
             ['รหัส', 'ชื่อ', 'หมวดหมู่', 'สถานที่', 'สถานะ', 'จำนวนครั้ง', 'ครั้งล่าสุด', 'เวลาซ่อมเฉลี่ย (ชม.)', 'ชม.แรงงาน'],
             array_map(static fn (array $a): array => [$a['asset_code'], $a['name'], $a['category_name'], $a['location_name'], $a['status_label'], $a['failure_count'], $a['last_failure'], $a['avg_resolution_hours_label'], $a['labor_hours_label']], $analytics['assetReliability'] ?? [])
         );
-    }
-
-    private function addExcelSheet(Spreadsheet $spreadsheet, string $title, array $headers, array $rows): void
-    {
-        $sheet = $spreadsheet->createSheet();
-        $sheet->setTitle($title);
-        $column = 'A';
-        foreach ($headers as $header) {
-            $sheet->setCellValue($column . '1', $header);
-            $sheet->getColumnDimension($column)->setAutoSize(true);
-            $column++;
-        }
-        $rowNumber = 2;
-        foreach ($rows as $row) {
-            $sheet->fromArray($this->sanitizeExportRow($row), null, 'A' . $rowNumber);
-            $rowNumber++;
-        }
     }
 
     private function recordExportFailure(int $jobId, \Throwable $exception): void
@@ -3000,97 +2983,6 @@ class ReportService
         }
 
         return $this->reports->createExportJob($requestedBy, $type, $format, $filters);
-    }
-
-    private function sanitizeExportRow(array $values): array
-    {
-        return array_map(static fn (mixed $value): string => sanitize_export_cell($value), $values);
-    }
-
-    /**
-     * Build an .xlsx export from already-mapped rows. Always runs each row through sanitizeExportRow, so no
-     * export path can forget the CSV/formula-injection guard. Shared by every *Excel export method.
-     *
-     * @param array<int, string>            $headers
-     * @param array<int, array<int, mixed>> $rows
-     */
-    private function buildXlsxExport(string $sheetTitle, array $headers, array $rows): string
-    {
-        $spreadsheet = new Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle($sheetTitle);
-
-        $column = 'A';
-        foreach ($headers as $header) {
-            $sheet->setCellValue($column . '1', $header);
-            $sheet->getColumnDimension($column)->setAutoSize(true);
-            $column++;
-        }
-
-        $rowNumber = 2;
-        foreach ($rows as $row) {
-            $sheet->fromArray($this->sanitizeExportRow($row), null, 'A' . $rowNumber);
-            $rowNumber++;
-        }
-
-        $writer = new Xlsx($spreadsheet);
-        ob_start();
-        $writer->save('php://output');
-        $content = (string) ob_get_clean();
-        $spreadsheet->disconnectWorksheets();
-        unset($spreadsheet);
-
-        return $content;
-    }
-
-    /**
-     * Build a UTF-8 CSV export (with BOM) from already-mapped rows. Always runs each row through
-     * sanitizeExportRow, so no export path can forget the CSV/formula-injection guard. Shared by every *Csv
-     * export method.
-     *
-     * @param array<int, string>            $headers
-     * @param array<int, array<int, mixed>> $rows
-     */
-    private function buildCsvExport(array $headers, array $rows): string
-    {
-        $stream = fopen('php://temp', 'w+b');
-        if ($stream === false) {
-            throw new RuntimeException('ไม่สามารถเตรียมไฟล์ CSV ได้');
-        }
-        fwrite($stream, "\xEF\xBB\xBF");
-        fputcsv($stream, $headers);
-        foreach ($rows as $row) {
-            fputcsv($stream, $this->sanitizeExportRow($row));
-        }
-        rewind($stream);
-        $content = (string) stream_get_contents($stream);
-        fclose($stream);
-
-        return $content;
-    }
-
-    /**
-     * Render an HTML string to a PDF binary via Dompdf with the shared report defaults: A4 landscape,
-     * Thai 'sarabun' font (so Thai text renders instead of tofu boxes), remote assets disabled, and a
-     * writable temp dir (falls back to /tmp then storage/uploads when the system temp dir is unusable).
-     * Single source of truth for every report PDF exporter — no export path can drift on font/paper/temp.
-     */
-    private function renderPdf(string $html): string
-    {
-        $options = new Options();
-        $dompdfTmp = sys_get_temp_dir();
-        if ($dompdfTmp === '' || !@is_writable($dompdfTmp)) {
-            $dompdfTmp = is_dir('/tmp') ? '/tmp' : BASE_PATH . '/storage/uploads';
-        }
-        $options->setTempDir($dompdfTmp);
-        $options->set('isRemoteEnabled', false);
-        $options->set('defaultFont', 'sarabun');
-        $dompdf = new Dompdf($options);
-        $dompdf->loadHtml($html, 'UTF-8');
-        $dompdf->setPaper('A4', 'landscape');
-        $dompdf->render();
-
-        return $dompdf->output();
     }
 
     /**

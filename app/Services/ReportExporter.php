@@ -1,0 +1,139 @@
+<?php
+declare(strict_types=1);
+
+namespace App\Services;
+
+use Dompdf\Dompdf;
+use Dompdf\Options;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use RuntimeException;
+
+/**
+ * Shared file-production layer for report exports: turns already-mapped rows into an .xlsx / .csv / .pdf
+ * binary. Stateless (no DB, no request state) so it is trivially unit-testable and reusable by any exporter.
+ *
+ * Every path runs each row through sanitizeExportRow(), so the CSV/formula-injection guard cannot be
+ * forgotten by an individual export method — feed rows in, get a safe file out. Job-tracking (the
+ * export_jobs audit) is a separate concern and stays with the caller.
+ */
+class ReportExporter
+{
+    /** Neutralise every cell in a row against CSV/spreadsheet formula injection (leading `'` on = + - @). */
+    public function sanitizeExportRow(array $values): array
+    {
+        return array_map(static fn (mixed $value): string => sanitize_export_cell($value), $values);
+    }
+
+    /**
+     * Build a single-sheet .xlsx from already-mapped rows. Always sanitises each row, so no *Excel export
+     * can forget the formula-injection guard.
+     *
+     * @param array<int, string>            $headers
+     * @param array<int, array<int, mixed>> $rows
+     */
+    public function buildXlsxExport(string $sheetTitle, array $headers, array $rows): string
+    {
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle($sheetTitle);
+
+        $colIndex = 1;
+        foreach ($headers as $header) {
+            $column = Coordinate::stringFromColumnIndex($colIndex);
+            $sheet->setCellValue($column . '1', $header);
+            $sheet->getColumnDimension($column)->setAutoSize(true);
+            $colIndex++;
+        }
+
+        $rowNumber = 2;
+        foreach ($rows as $row) {
+            $sheet->fromArray($this->sanitizeExportRow($row), null, 'A' . $rowNumber);
+            $rowNumber++;
+        }
+
+        $writer = new Xlsx($spreadsheet);
+        ob_start();
+        $writer->save('php://output');
+        $content = (string) ob_get_clean();
+        $spreadsheet->disconnectWorksheets();
+        unset($spreadsheet);
+
+        return $content;
+    }
+
+    /**
+     * Append an extra sanitised sheet to an existing Spreadsheet (for multi-sheet exports like CSAT /
+     * the ticket report). Callers that need a single sheet use buildXlsxExport instead.
+     *
+     * @param array<int, string>            $headers
+     * @param array<int, array<int, mixed>> $rows
+     */
+    public function addExcelSheet(Spreadsheet $spreadsheet, string $title, array $headers, array $rows): void
+    {
+        $sheet = $spreadsheet->createSheet();
+        $sheet->setTitle($title);
+        $colIndex = 1;
+        foreach ($headers as $header) {
+            $column = Coordinate::stringFromColumnIndex($colIndex);
+            $sheet->setCellValue($column . '1', $header);
+            $sheet->getColumnDimension($column)->setAutoSize(true);
+            $colIndex++;
+        }
+        $rowNumber = 2;
+        foreach ($rows as $row) {
+            $sheet->fromArray($this->sanitizeExportRow($row), null, 'A' . $rowNumber);
+            $rowNumber++;
+        }
+    }
+
+    /**
+     * Build a UTF-8 CSV (with BOM) from already-mapped rows. Always sanitises each row, so no *Csv export
+     * can forget the formula-injection guard.
+     *
+     * @param array<int, string>            $headers
+     * @param array<int, array<int, mixed>> $rows
+     */
+    public function buildCsvExport(array $headers, array $rows): string
+    {
+        $stream = fopen('php://temp', 'w+b');
+        if ($stream === false) {
+            throw new RuntimeException('ไม่สามารถเตรียมไฟล์ CSV ได้');
+        }
+        fwrite($stream, "\xEF\xBB\xBF");
+        fputcsv($stream, $headers);
+        foreach ($rows as $row) {
+            fputcsv($stream, $this->sanitizeExportRow($row));
+        }
+        rewind($stream);
+        $content = (string) stream_get_contents($stream);
+        fclose($stream);
+
+        return $content;
+    }
+
+    /**
+     * Render an HTML string to a PDF binary via Dompdf with the shared report defaults: A4 landscape,
+     * Thai 'sarabun' font (so Thai text renders instead of tofu boxes), remote assets disabled, and a
+     * writable temp dir (falls back to /tmp then storage/uploads when the system temp dir is unusable).
+     * Single source of truth for every report PDF exporter — no export path can drift on font/paper/temp.
+     */
+    public function renderPdf(string $html): string
+    {
+        $options = new Options();
+        $dompdfTmp = sys_get_temp_dir();
+        if ($dompdfTmp === '' || !@is_writable($dompdfTmp)) {
+            $dompdfTmp = is_dir('/tmp') ? '/tmp' : BASE_PATH . '/storage/uploads';
+        }
+        $options->setTempDir($dompdfTmp);
+        $options->set('isRemoteEnabled', false);
+        $options->set('defaultFont', 'sarabun');
+        $dompdf = new Dompdf($options);
+        $dompdf->loadHtml($html, 'UTF-8');
+        $dompdf->setPaper('A4', 'landscape');
+        $dompdf->render();
+
+        return $dompdf->output();
+    }
+}

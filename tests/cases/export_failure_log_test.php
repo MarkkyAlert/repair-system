@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 use App\Repositories\ReportRepository;
+use App\Services\ReportExporter;
 use App\Services\ReportService;
 
 // Locks the export-failure audit fallback: when an export fails, ReportService records it in export_jobs; if
@@ -23,7 +24,7 @@ test('export(failure-log): a failing export-failure audit write is logged, not s
         }
     };
 
-    $service = new ReportService($fakeReports);
+    $service = new ReportService($fakeReports, new ReportExporter());
 
     $tmp = tempnam(sys_get_temp_dir(), 'exportfail_') . '.log';
     $originalLog = (string) ini_get('error_log');
