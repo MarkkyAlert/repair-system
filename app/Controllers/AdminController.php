@@ -296,6 +296,7 @@ class AdminController
     {
         AuthMiddleware::handle();
         $viewer = auth()->user() ?? [];
+        require_role($viewer, ['admin'], 'หน้านี้สงวนสำหรับผู้ดูแลระบบเท่านั้น');
 
         try {
             csrf_validate();
