@@ -63,7 +63,7 @@ class UserImportService
             if ($username === '' || $email === '' || $fullName === '') {
                 $errors[] = 'username, email, full_name จำเป็นต้องมี';
             }
-            if ($username !== '' && !preg_match('/^[a-z0-9._-]{3,50}$/', $username)) {
+            if ($username !== '' && !is_valid_username($username)) {
                 $errors[] = 'username ต้องมี 3-50 ตัว และใช้ a-z, 0-9, ., -, _';
             }
             if ($email !== '' && !is_valid_email($email)) {

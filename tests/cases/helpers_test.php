@@ -78,3 +78,14 @@ test('paginate clamps page into range + computes offset', function (): void {
     assert_same(['page' => 3, 'offset' => 40, 'totalPages' => 3], paginate(99, 20, 50));
     assert_same(['page' => 1, 'offset' => 0, 'totalPages' => 1], paginate(0, 20, 0));
 });
+
+// ── is_valid_username: shared by admin create + CSV import (a-z 0-9 . - _, 3–50 chars) ──
+test('is_valid_username: accepts valid, rejects bad case/chars/length', function (): void {
+    assert_true(is_valid_username('somchai.01'), 'lowercase + digits + dot');
+    assert_true(is_valid_username('a_b-c'), 'underscore + dash, 5 chars');
+    assert_false(is_valid_username('ab'), 'too short (< 3)');
+    assert_false(is_valid_username(str_repeat('a', 51)), 'too long (> 50)');
+    assert_false(is_valid_username('Somchai'), 'uppercase not allowed');
+    assert_false(is_valid_username('has space'), 'space not allowed');
+    assert_false(is_valid_username('bad@name'), '@ not allowed');
+});

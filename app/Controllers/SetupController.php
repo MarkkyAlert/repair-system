@@ -83,7 +83,7 @@ class SetupController
                 if ($username === '' || $email === '' || $fullName === '' || $password === '') {
                     throw new DomainException('กรุณากรอกข้อมูลผู้ดูแลระบบให้ครบถ้วน');
                 }
-                if (!preg_match('/^[a-z0-9._-]{3,50}$/', $username)) {
+                if (!is_valid_username($username)) {
                     throw new DomainException('ชื่อผู้ใช้ต้องมี 3-50 ตัว (a-z, 0-9, จุด, ขีดกลาง, ขีดล่าง)');
                 }
                 if (!is_valid_email($email)) {

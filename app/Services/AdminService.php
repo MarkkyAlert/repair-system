@@ -113,7 +113,7 @@ class AdminService
             throw new DomainException('กรุณากรอกชื่อผู้ใช้ ชื่อ อีเมล และรหัสผ่านให้ครบถ้วน');
         }
 
-        if (!preg_match('/^[a-z0-9._-]{3,50}$/', $username)) {
+        if (!is_valid_username($username)) {
             throw new DomainException('ชื่อผู้ใช้ต้องมี 3-50 ตัวอักษร และใช้ได้เฉพาะ a-z, 0-9, จุด, ขีดกลาง และขีดล่าง');
         }
 

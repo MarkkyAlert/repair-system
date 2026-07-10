@@ -166,6 +166,12 @@ function is_valid_email(string $email): bool
     return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
 }
 
+/** Username format: 3–50 chars of a-z, 0-9, dot, dash, underscore. Shared by admin create + CSV import. */
+function is_valid_username(string $username): bool
+{
+    return preg_match('/^[a-z0-9._-]{3,50}$/', $username) === 1;
+}
+
 function valid_phone_format(string $phone): bool
 {
     return preg_match('/^[0-9+\-() .]{4,30}$/', $phone) === 1;
