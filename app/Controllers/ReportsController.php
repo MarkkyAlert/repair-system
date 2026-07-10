@@ -90,62 +90,17 @@ class ReportsController
 
     public function exportExcel(): void
     {
-        AuthMiddleware::handle();
-
-        $viewer = auth()->user() ?? [];
-
-        try {
-            csrf_validate();
-            $export = $this->reports->exportExcel($viewer, $_POST);
-            Response::download(
-                (string) ($export['content'] ?? ''),
-                (string) ($export['file_name'] ?? 'report.xlsx'),
-                (string) ($export['content_type'] ?? 'application/octet-stream')
-            );
-        } catch (DomainException|RuntimeException $exception) {
-            flash('error', $exception->getMessage());
-            Response::redirect('/reports');
-        }
+        $this->downloadReport('exportExcel', 'report.xlsx', 'application/octet-stream', '/reports');
     }
 
     public function exportPdf(): void
     {
-        AuthMiddleware::handle();
-
-        $viewer = auth()->user() ?? [];
-
-        try {
-            csrf_validate();
-            $export = $this->reports->exportPdf($viewer, $_POST);
-            Response::download(
-                (string) ($export['content'] ?? ''),
-                (string) ($export['file_name'] ?? 'report.pdf'),
-                (string) ($export['content_type'] ?? 'application/pdf')
-            );
-        } catch (DomainException|RuntimeException $exception) {
-            flash('error', $exception->getMessage());
-            Response::redirect('/reports');
-        }
+        $this->downloadReport('exportPdf', 'report.pdf', 'application/pdf', '/reports');
     }
 
     public function exportCsv(): void
     {
-        AuthMiddleware::handle();
-
-        $viewer = auth()->user() ?? [];
-
-        try {
-            csrf_validate();
-            $export = $this->reports->exportCsv($viewer, $_POST);
-            Response::download(
-                (string) ($export['content'] ?? ''),
-                (string) ($export['file_name'] ?? 'report.csv'),
-                (string) ($export['content_type'] ?? 'text/csv; charset=UTF-8')
-            );
-        } catch (DomainException|RuntimeException $exception) {
-            flash('error', $exception->getMessage());
-            Response::redirect('/reports');
-        }
+        $this->downloadReport('exportCsv', 'report.csv', 'text/csv; charset=UTF-8', '/reports');
     }
 
     public function assetReliability(): void
@@ -547,7 +502,7 @@ class ReportsController
     }
 
     /** ตัวช่วยรวม flow export ของรายงานย่อย (csrf + download + redirect กลับหน้าเดิมเมื่อ error). */
-    private function downloadReport(string $serviceMethod, string $fallbackName, string $fallbackType, string $redirectPath): void
+    protected function downloadReport(string $serviceMethod, string $fallbackName, string $fallbackType, string $redirectPath): void
     {
         AuthMiddleware::handle();
 
