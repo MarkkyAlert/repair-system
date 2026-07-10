@@ -38,9 +38,7 @@ class UserImportController
 
         try {
             csrf_validate();
-            if ((string) ($viewer['role'] ?? 'guest') !== 'admin') {
-                throw new DomainException('เฉพาะผู้ดูแลระบบเท่านั้น');
-            }
+            assert_admin($viewer);
 
             $rows = $this->userImporter->parseUploadedFile($_FILES['csv'] ?? []);
             $preview = $this->userImporter->validateRows($rows);
@@ -67,9 +65,7 @@ class UserImportController
 
         try {
             csrf_validate();
-            if ((string) ($viewer['role'] ?? 'guest') !== 'admin') {
-                throw new DomainException('เฉพาะผู้ดูแลระบบเท่านั้น');
-            }
+            assert_admin($viewer);
 
             $validRows = Session::get('user_import_valid_rows', []);
             if (!is_array($validRows) || $validRows === []) {

@@ -91,3 +91,26 @@ test('is_valid_username: accepts valid, rejects bad case/chars/length', function
     assert_false(is_valid_username('has space'), 'space not allowed');
     assert_false(is_valid_username('bad@name'), '@ not allowed');
 });
+
+// ── assert_admin: the shared admin-only guard (service/controller counterpart to require_role) ──
+test('assert_admin: lets admins through, throws the standard message for everyone else', function (): void {
+    assert_admin(['role' => 'admin']); // must NOT throw (reaching the next line proves it)
+
+    foreach (['manager', 'technician', 'requester', 'guest', ''] as $role) {
+        $err = '';
+        try {
+            assert_admin(['role' => $role]);
+        } catch (DomainException $exception) {
+            $err = $exception->getMessage();
+        }
+        assert_same('เฉพาะผู้ดูแลระบบเท่านั้น', $err, "role '$role' rejected");
+    }
+
+    $missing = '';
+    try {
+        assert_admin([]); // no role key → treated as guest → rejected
+    } catch (DomainException $exception) {
+        $missing = $exception->getMessage();
+    }
+    assert_same('เฉพาะผู้ดูแลระบบเท่านั้น', $missing, 'missing role rejected');
+});
