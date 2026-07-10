@@ -1,5 +1,6 @@
 <?php $hasPrintableAssets = !empty($assets); ?>
 <section class="stack-lg">
+    <h1 class="sr-only">พิมพ์แผ่น QR ทรัพย์สิน</h1>
     <section class="panel-card no-print">
         <div class="panel-head">
             <h2 class="panel-title">พิมพ์แผ่น QR ทรัพย์สิน</h2>

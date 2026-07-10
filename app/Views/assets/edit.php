@@ -1,4 +1,5 @@
 <section class="stack-lg">
+    <h1 class="sr-only">แก้ไขทรัพย์สิน</h1>
     <?php $assetCodeLabel = (string) ($form['defaults']['asset_code'] ?? ('#' . (int) $assetId)); ?>
     <?= render_partial('partials/components/breadcrumb', [
         'items' => [

@@ -1,4 +1,5 @@
 <section class="stack-lg">
+    <h1 class="sr-only">เพิ่มทรัพย์สินใหม่</h1>
     <section class="panel-card">
         <div class="panel-head">
             <h2 class="panel-title">เพิ่มทรัพย์สินใหม่</h2>
