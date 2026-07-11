@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+use App\Core\View;
 use App\Repositories\EmailTemplateRepository;
 use App\Services\EmailTemplateService;
 
@@ -71,4 +72,29 @@ test('EmailTemplateService: unknown template key is rejected on both save and re
         $resetErr = $exception->getMessage();
     }
     assert_same('ไม่พบ template ที่ต้องการรีเซ็ต', $resetErr, 'reset rejects unknown key');
+});
+
+// The HTML email header kicker is driven by the app_tagline setting (template-review S1). Both HTML
+// templates share the same block: EmailTemplateService passes $appTagline, the template escapes it and
+// hides the element entirely when empty. Rendered directly (no setting() cache) so a value shows escaped
+// and an empty value hides — guards against the kicker being hard-coded back or losing its e()/empty guard.
+test('email HTML kicker renders app_tagline (escaped) and hides when empty', function (): void {
+    $templates = ['emails/html/notification', 'emails/html/password-reset'];
+    foreach ($templates as $tpl) {
+        $shown = View::capture($tpl, ['appTagline' => 'ทดสอบ & แบรนด์']);
+        assert_true(
+            str_contains($shown, '<div class="kicker">ทดสอบ &amp; แบรนด์</div>'),
+            "$tpl: kicker shows the app_tagline, HTML-escaped"
+        );
+        assert_false(
+            str_contains($shown, 'ทดสอบ & แบรนด์<'),
+            "$tpl: the raw (unescaped) tagline must not reach the output"
+        );
+
+        $hidden = View::capture($tpl, ['appTagline' => '']);
+        assert_false(
+            str_contains($hidden, '<div class="kicker">'),
+            "$tpl: an empty app_tagline hides the kicker element entirely"
+        );
+    }
 });

@@ -321,7 +321,7 @@ SELECT * FROM notifications ORDER BY id DESC LIMIT 1;
    - **Departments**: เปลี่ยนชื่อ/รหัส/เปิด-ปิดใช้งาน
    - **Ticket Categories**: เพิ่ม/แก้/ปิดใช้งานหมวด, ตั้งค่า SLA ของหมวด (ถ้ามี)
    - **Asset Categories**: เช่นเดียวกัน
-   - **System Settings**: แก้ค่า `app_name`, `ticket_prefix`, `business_hours` แล้วกดบันทึก
+   - **System Settings**: แก้ค่า `app_name`, `app_tagline` (คำโปรยใต้ชื่อระบบ — เว้นว่างได้เพื่อซ่อน), `ticket_prefix`, `business_hours` แล้วกดบันทึก
 3. หลังแก้ไข ลองออกจาก admin → เข้าหน้า ticket ใหม่ ดูว่า prefix/หมวดหมู่เปลี่ยนตามไหม
 4. **ทดสอบสิทธิ์**: login เป็น `requester` (หรือ `technician`/`manager`) แล้วเข้า `/admin` ตรง ๆ → ระบบตอบ **หน้า 403 "คุณไม่มีสิทธิ์เข้าถึงหน้านี้"** (require_role gate ที่ controller — ไม่ใช่ redirect)
 
