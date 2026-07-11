@@ -32,6 +32,13 @@
                 </div>
                 <div class="content-grid">
                     <div class="field-group">
+                        <label class="field-label" for="system_app_tagline">คำโปรยใต้ชื่อระบบ</label>
+                        <input id="system_app_tagline" class="input" type="text" name="app_tagline" maxlength="120" value="<?= e((string) ($systemForm['app_tagline'] ?? 'Maintenance Operations')) ?>">
+                        <p class="field-hint">ข้อความบรรทัดเล็กใต้ชื่อระบบบนแถบเมนูและหัวอีเมล — เว้นว่างได้ถ้าไม่ต้องการแสดง</p>
+                    </div>
+                </div>
+                <div class="content-grid">
+                    <div class="field-group">
                         <label class="field-label" for="system_ticket_prefix">คำนำหน้า Ticket <span class="required">*</span></label>
                         <input id="system_ticket_prefix" class="input" type="text" name="ticket_prefix" required minlength="2" maxlength="12" pattern="[A-Za-z0-9_-]{2,12}" value="<?= e((string) ($systemForm['ticket_prefix'] ?? 'MT')) ?>">
                         <p class="field-hint">ใช้ A-Z, 0-9, ขีดกลาง หรือขีดล่าง เช่น MT</p>

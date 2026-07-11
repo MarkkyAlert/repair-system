@@ -43,7 +43,10 @@
             <?php endif; ?>
             <div class="brand-copy">
                 <p class="brand-title"><?= e($appName) ?></p>
-                <p class="brand-subtitle">Maintenance Operations</p>
+                <?php $brandSubtitle = trim((string) setting('app_tagline', 'Maintenance Operations')); ?>
+                <?php if ($brandSubtitle !== ''): ?>
+                    <p class="brand-subtitle"><?= e($brandSubtitle) ?></p>
+                <?php endif; ?>
             </div>
             <button type="button" class="sidebar-collapse-button" data-sidebar-collapse aria-label="ย่อเมนูด้านข้าง" aria-controls="app-sidebar" aria-expanded="true"><?= lucide('chevrons-left', 'h-5 w-5') ?></button>
         </div>

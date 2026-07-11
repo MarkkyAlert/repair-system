@@ -22,6 +22,7 @@ class SystemSettingsService
     private const PROTECTED_SETTING_KEYS = [
         'app_logo_path',     // /admin/settings/logo
         'app_name',          // /admin/system-settings
+        'app_tagline',       // /admin/system-settings
         'default_timezone',  // /admin/system-settings
         'ticket_prefix',     // /admin/system-settings
         'business_hours',    // /admin/system-settings
@@ -100,6 +101,7 @@ class SystemSettingsService
         assert_admin($viewer);
 
         $appName = trim((string) ($input['app_name'] ?? ''));
+        $appTagline = trim((string) ($input['app_tagline'] ?? ''));
         $timezone = trim((string) ($input['default_timezone'] ?? ''));
         $ticketPrefix = strtoupper(trim((string) ($input['ticket_prefix'] ?? '')));
         $businessStart = trim((string) ($input['business_start'] ?? ''));
@@ -108,6 +110,11 @@ class SystemSettingsService
 
         if ($appName === '') {
             throw new DomainException('กรุณากรอกชื่อระบบ');
+        }
+
+        // คำโปรยใต้ชื่อระบบเป็นตัวเลือก (เว้นว่างได้เพื่อซ่อน) แต่จำกัดความยาวกันข้อความล้น UI
+        if (mb_strlen($appTagline) > 120) {
+            throw new DomainException('คำโปรยใต้ชื่อระบบต้องยาวไม่เกิน 120 ตัวอักษร');
         }
 
         if ($timezone === '' || !in_array($timezone, timezone_identifiers_list(), true)) {
@@ -129,6 +136,7 @@ class SystemSettingsService
         try {
             $this->db->beginTransaction();
             $this->settings->upsert('app_name', $appName, 'string', true, $updatedBy);
+            $this->settings->upsert('app_tagline', $appTagline, 'string', true, $updatedBy);
             $this->settings->upsert('default_timezone', $timezone, 'string', false, $updatedBy);
             $this->settings->upsert('ticket_prefix', $ticketPrefix, 'string', false, $updatedBy);
             $this->settings->upsert('business_hours', json_encode([
@@ -145,6 +153,7 @@ class SystemSettingsService
 
         $this->audit->record($viewer, 'system_settings.updated', 'system_setting', null, [
             'app_name' => $appName,
+            'app_tagline' => $appTagline,
             'default_timezone' => $timezone,
             'ticket_prefix' => $ticketPrefix,
             'business_hours' => [

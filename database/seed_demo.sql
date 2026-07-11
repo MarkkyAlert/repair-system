@@ -204,7 +204,8 @@ INSERT INTO system_settings (id, setting_key, setting_value, value_type, is_publ
     (2, 'default_timezone', 'Asia/Bangkok', 'string', 0, 4, NOW(), NOW()),
     (3, 'ticket_prefix', 'MT', 'string', 0, 4, NOW(), NOW()),
     (4, 'business_hours', '{"start":"08:30","end":"17:30"}', 'json', 0, 4, NOW(), NOW()),
-    (5, 'setup_completed', '1', 'bool', 0, 4, NOW(), NOW());
+    (5, 'setup_completed', '1', 'bool', 0, 4, NOW(), NOW()),
+    (6, 'app_tagline', 'Maintenance Operations', 'string', 1, 4, NOW(), NOW());
 
 INSERT INTO audit_logs (id, user_id, action, entity_type, entity_id, ip_address, user_agent, context, created_at) VALUES
     (1, 4, 'seed_imported', 'system', 1, '127.0.0.1', 'mysql-client', '{"source":"database/seed_demo.sql"}', NOW());

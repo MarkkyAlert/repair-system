@@ -267,6 +267,7 @@ class AdminService
 
         return [
             'app_name' => $values['app_name'] ?? (string) config('app.name', 'Repair System'),
+            'app_tagline' => $values['app_tagline'] ?? 'Maintenance Operations',
             'default_timezone' => $values['default_timezone'] ?? (string) config('app.timezone', 'Asia/Bangkok'),
             'ticket_prefix' => $values['ticket_prefix'] ?? 'MT',
             'business_start' => (string) ($businessHours['start'] ?? '08:30'),

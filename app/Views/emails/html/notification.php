@@ -23,7 +23,10 @@
         <?php if (!empty($logoUrl)): ?>
             <div style="margin-bottom:12px;"><img src="<?= e((string) $logoUrl) ?>" alt="<?= e($appName ?? 'Repair System') ?>" style="max-height:48px;max-width:200px;display:block;background:#ffffff;padding:6px 10px;border-radius:8px;"></div>
         <?php endif; ?>
-        <div class="kicker">Maintenance Operations</div>
+        <?php $kicker = trim((string) ($appTagline ?? 'Maintenance Operations')); ?>
+        <?php if ($kicker !== ''): ?>
+            <div class="kicker"><?= e($kicker) ?></div>
+        <?php endif; ?>
         <h1><?= e($appName ?? 'Repair System') ?></h1>
     </div>
     <div class="content">

@@ -179,7 +179,7 @@ namespace {
         }
     });
 
-    // ── updateSystemSettings (core system form; 5 reject branches + happy) ──
+    // ── updateSystemSettings (core system form; 6 reject branches + happy) ──
 
     /** A fully-valid updateSystemSettings input; override one key to exercise a single failing branch. */
     function ss_valid_system_input(array $overrides = []): array
@@ -206,12 +206,15 @@ namespace {
     }
 
     test('updateSystemSettings: every validation branch rejects before writing anything', function (): void {
-        // snapshot the four keys this method writes; a reject must leave all of them untouched
-        $keys = ['app_name', 'default_timezone', 'ticket_prefix', 'business_hours'];
+        // snapshot the keys this method writes; a reject must leave all of them untouched
+        $keys = ['app_name', 'app_tagline', 'default_timezone', 'ticket_prefix', 'business_hours'];
         $snapshot = ss_snapshot($keys);
         try {
             ss_reject_system(['app_name' => ''], 'กรุณากรอกชื่อระบบ', 'empty app_name');
             ss_reject_system(['app_name' => '   '], 'กรุณากรอกชื่อระบบ', 'whitespace-only app_name');
+
+            // app_tagline is optional (empty allowed) but capped at 120 chars
+            ss_reject_system(['app_tagline' => str_repeat('ก', 121)], 'คำโปรยใต้ชื่อระบบต้องยาวไม่เกิน 120 ตัวอักษร', 'app_tagline over 120 chars');
 
             ss_reject_system(['default_timezone' => ''], 'Timezone ไม่ถูกต้อง', 'empty timezone');
             ss_reject_system(['default_timezone' => 'Mars/Phobos'], 'Timezone ไม่ถูกต้อง', 'non-existent timezone');
@@ -236,14 +239,16 @@ namespace {
         }
     });
 
-    test('updateSystemSettings: valid input persists app_name / timezone / prefix / business_hours', function (): void {
-        $keys = ['app_name', 'default_timezone', 'ticket_prefix', 'business_hours'];
+    test('updateSystemSettings: valid input persists app_name / tagline / timezone / prefix / business_hours', function (): void {
+        $keys = ['app_name', 'app_tagline', 'default_timezone', 'ticket_prefix', 'business_hours'];
         $snapshot = ss_snapshot($keys);
         $newName = 'QA System ' . bin2hex(random_bytes(3));
+        $newTagline = 'ศูนย์ซ่อมบำรุง QA ' . bin2hex(random_bytes(3));
         try {
             ss_bind_request();
             ss_service()->updateSystemSettings(ss_admin(), [
                 'app_name' => $newName,
+                'app_tagline' => $newTagline,
                 'default_timezone' => 'Asia/Tokyo',
                 'ticket_prefix' => 'qa', // lower-case: the service upper-cases it before validating/storing
                 'business_start' => '09:15',
@@ -251,6 +256,8 @@ namespace {
             ]);
 
             assert_same($newName, ss_get('app_name')['setting_value'] ?? null, 'app_name written');
+            assert_same($newTagline, ss_get('app_tagline')['setting_value'] ?? null, 'app_tagline written');
+            assert_same(1, (int) (ss_get('app_tagline')['is_public'] ?? 0), 'app_tagline is public (shown in UI/emails)');
             assert_same('Asia/Tokyo', ss_get('default_timezone')['setting_value'] ?? null, 'timezone written');
             assert_same('QA', ss_get('ticket_prefix')['setting_value'] ?? null, 'ticket_prefix upper-cased then written');
 
