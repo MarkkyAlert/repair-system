@@ -279,6 +279,7 @@ test('csat export: exported breakdown cells equal the on-screen values (parity â
     [$locId, ] = csat_location($rid);
     $ids = [];
     $tmp = tempnam(sys_get_temp_dir(), 'csatpar_') . '.xlsx';
+    $baselineJobId = (int) csat_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM export_jobs')->fetchColumn();
 
     try {
         $ids[] = csat_rate("CSATPAR-$rid-1", $deptId, $locId, 3, 4);
@@ -304,6 +305,7 @@ test('csat export: exported breakdown cells equal the on-screen values (parity â
         assert_same((int) $row['rating_count'], (int) $exported[2], 'export count cell == page rating_count');
     } finally {
         @unlink($tmp);
+        csat_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
         foreach ($ids as $id) {
             csat_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
         }
