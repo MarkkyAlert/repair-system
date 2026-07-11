@@ -201,6 +201,39 @@ test('executive: export xlsx (1 sheet + header) / pdf %PDF- / csv header', funct
     }
 });
 
+// Finding C: getSummary's COUNT(*) over `tickets LEFT JOIN ticket_ratings` is correct ONLY because
+// ticket_ratings is 1:1 (UNIQUE(ticket_id)). Lock that invariant: a rated ticket must count once, not
+// twice — so a future JOIN change (or a dropped unique key) that fans the totals out is caught here.
+test('summary: a rated ticket counts once — the ticket_ratings JOIN never inflates totals (Finding C)', function (): void {
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $rid = bin2hex(random_bytes(4));
+    $ids = [];
+
+    try {
+        foreach ([0, 1] as $i) {
+            exs_pdo()->prepare(
+                "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at, resolved_at)
+                 VALUES (?, 'x', 'x', 1, 1, 1, 1, 'resolved', '2020-07-10 09:00:00', '2020-07-10 10:00:00')"
+            )->execute(["EXC-$rid-$i"]);
+            $ids[] = (int) exs_pdo()->lastInsertId();
+        }
+        // rate ONE of the two tickets — the LEFT JOIN must not turn it into a second counted row
+        exs_pdo()->prepare(
+            "INSERT INTO ticket_ratings (ticket_id, requester_id, technician_id, score, feedback, created_at, updated_at)
+             VALUES (?, 1, 4, 5, '', '2020-07-10 11:00:00', '2020-07-10 11:00:00')"
+        )->execute([$ids[0]]);
+
+        $page = exs_service()->getExecutiveSummaryPage($admin, ['preset' => 'custom', 'from_date' => '2020-07-01', 'to_date' => '2020-07-31']);
+        assert_same('2', $page['kpis'][0]['value_label'], 'แจ้งซ่อมทั้งหมด = 2 (the rated ticket is not double-counted by the ratings JOIN)');
+        assert_same('2', $page['kpis'][1]['value_label'], 'ปิดงาน = 2 (resolved count not inflated by the ratings JOIN)');
+    } finally {
+        foreach ($ids as $id) {
+            exs_pdo()->prepare('DELETE FROM ticket_ratings WHERE ticket_id = ?')->execute([$id]);
+            exs_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
+        }
+    }
+});
+
 // Finding A: when the CURRENT period has no data, a rate/avg KPI must not fabricate a value or a delta
 // against the previous period. Counts (0 is a real value) stay honest; completion/MTTR/rating show "-"
 // value, "—" delta, and a neutral tone — so an empty period never reads as "0% completion (crashed)" or
