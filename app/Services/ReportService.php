@@ -1093,8 +1093,10 @@ class ReportService
             $ratingCount = (int) ($r['rating_count'] ?? 0);
             $ratingSum = (float) ($r['rating_sum'] ?? 0);
 
+            // presence from the base (resolved/rating count), not the aggregated value — a genuine 0.0
+            // (sub-minute MTTR, all-breached SLA) is real data, distinct from null "no base" (F2/F5)
             $slaPct = $slaBase > 0 ? round($slaOnTime / $slaBase * 100, 1) : null;
-            $mttrHours = $mttrMinutes > 0 ? round($mttrMinutes / 60, 1) : null;
+            $mttrHours = $resolvedCount > 0 ? round($mttrMinutes / 60, 1) : null;
             $csat = $ratingCount > 0 ? round($ratingSum / $ratingCount, 2) : null;
 
             $periods[] = [
@@ -1149,7 +1151,10 @@ class ReportService
         $sla = array_map(static fn (array $p) => $p['sla_pct'], $periods);
         $mttr = array_map(static fn (array $p) => $p['mttr_hours'], $periods);
         $csat = array_map(static fn (array $p) => $p['csat'], $periods);
-        $hasData = static fn (array $data): bool => array_sum(array_map(static fn ($v): float => (float) ($v ?? 0), $data)) > 0;
+        // volume (counts): 0 across the window = no activity → empty state. rate/avg series: a point is data
+        // when it is non-null (a real 0% SLA / 0.0h MTTR must stay charted, not be hidden by sum==0) — F2/F5.
+        $hasVolume = static fn (array $data): bool => array_sum(array_map(static fn ($v): float => (float) ($v ?? 0), $data)) > 0;
+        $hasSeries = static fn (array $data): bool => array_filter($data, static fn ($v): bool => $v !== null) !== [];
 
         return [
             'trendVolume' => [
@@ -1159,11 +1164,11 @@ class ReportService
                     ['label' => 'แจ้งซ่อม', 'data' => $created],
                     ['label' => 'ปิดงาน', 'data' => $resolved],
                 ],
-                'has_data' => $hasData($created) || $hasData($resolved),
+                'has_data' => $hasVolume($created) || $hasVolume($resolved),
             ],
-            'trendSla' => ['label' => 'SLA ตรงเวลา %', 'labels' => $labels, 'data' => $sla, 'has_data' => $hasData($sla)],
-            'trendMttr' => ['label' => 'เวลาซ่อมเฉลี่ย (ชม.)', 'labels' => $labels, 'data' => $mttr, 'has_data' => $hasData($mttr)],
-            'trendCsat' => ['label' => 'คะแนนเฉลี่ย', 'labels' => $labels, 'data' => $csat, 'has_data' => $hasData($csat)],
+            'trendSla' => ['label' => 'SLA ตรงเวลา %', 'labels' => $labels, 'data' => $sla, 'has_data' => $hasSeries($sla)],
+            'trendMttr' => ['label' => 'เวลาซ่อมเฉลี่ย (ชม.)', 'labels' => $labels, 'data' => $mttr, 'has_data' => $hasSeries($mttr)],
+            'trendCsat' => ['label' => 'คะแนนเฉลี่ย', 'labels' => $labels, 'data' => $csat, 'has_data' => $hasSeries($csat)],
         ];
     }
 
@@ -1418,8 +1423,9 @@ class ReportService
             // period-scoped breach count (ticket ที่แจ้งในงวดแล้ว breach) — ไม่ใช่ overdue_tickets ที่เป็น
             // snapshot "ค้างเกินตอนนี้" (งวดก่อนปิดไปหมด → baseline ≈ 0 ทำให้เทียบงวดเพี้ยน)
             $this->execKpiCard('เกิน SLA', (int) ($thisSum['breached_tickets'] ?? 0), (int) ($prevSum['breached_tickets'] ?? 0), 'down_good', 0, '', (string) (int) ($thisSum['breached_tickets'] ?? 0)),
-            // MTTR/คะแนน เป็น avg → base = มีงานปิด/มีรีวิวในงวดไหม (avg=0 ⟺ ไม่มี) ไม่งั้นเดลต้าจะหลอกว่าดีขึ้น/แย่ลง
-            $this->execKpiCard('เวลาซ่อมเฉลี่ย (ชม.)', $tMttr, $pMttr, 'down_good', 1, '', $tMttr > 0 ? number_format($tMttr, 1) : '-', $tMttr > 0, $pMttr > 0),
+            // MTTR/คะแนน เป็น avg → presence = มีงานปิด/มีรีวิวจริงไหม (base count) ไม่ใช่ค่า avg>0 —
+            // งานปิด <1 นาที (MTTR 0.0) ยังต้องนับว่ามีข้อมูล ไม่งั้นเดลต้าหาย/โชว์ '-' ทั้งที่มีงาน (F5)
+            $this->execKpiCard('เวลาซ่อมเฉลี่ย (ชม.)', $tMttr, $pMttr, 'down_good', 1, '', $tResolved > 0 ? number_format($tMttr, 1) : '-', $tResolved > 0, $pResolved > 0),
             $this->execKpiCard('คะแนนเฉลี่ย', $tRating, $pRating, 'up_good', 1, '', $tRating > 0 ? number_format($tRating, 1) : '-', $tRating > 0, $pRating > 0),
         ];
 

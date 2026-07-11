@@ -69,6 +69,40 @@ test('ticket trend: created by requested_at, resolved/SLA/CSAT by resolved_at (c
     }
 });
 
+test('ticket trend: a real 0% SLA and a sub-minute MTTR are chart data, not hidden (Finding F2/F5)', function (): void {
+    // Data presence must come from the base/null, not from the aggregated value. A period where SLA is a
+    // genuine 0% (all breached) or MTTR rounds to 0.0h (resolved within a minute) is REAL data — it must
+    // stay on the chart, not vanish because sum/avg == 0.
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $rid = bin2hex(random_bytes(4));
+    $ticketId = 0;
+
+    try {
+        // requested + resolved 2020-05-10: resolution due 10:00:10, resolved 10:00:30 → SLA BREACHED (0%);
+        // resolved 30s after request → MTTR = 0 minutes → 0.0h.
+        ttr_pdo()->prepare(
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at, resolved_at, resolution_due_at)
+             VALUES (?, 'x', 'x', 1, 1, 1, 1, 'resolved', '2020-05-10 10:00:00', '2020-05-10 10:00:30', '2020-05-10 10:00:10')"
+        )->execute(["TTRZ-$rid"]);
+        $ticketId = (int) ttr_pdo()->lastInsertId();
+
+        $page = ttr_service()->getTicketTrendReportPage($admin, [
+            'granularity' => 'month', 'from_date' => '2020-05-01', 'to_date' => '2020-05-31',
+        ]);
+        $may = ttr_period($page, '2020-05');
+
+        assert_true($may !== null, 'the resolved month appears');
+        assert_same(0.0, $may['sla_pct'], 'SLA base=1, on-time=0 → a real 0.0%, not null');
+        assert_same(0.0, $may['mttr_hours'], 'sub-minute resolution → 0.0h, not null (F5: presence from the resolved base, not the value)');
+        assert_true($page['charts']['trendSla']['has_data'], 'a real 0% SLA period is charted, not hidden as "no data" (F2)');
+        assert_true($page['charts']['trendMttr']['has_data'], 'a real 0.0h MTTR period is charted (F5)');
+    } finally {
+        if ($ticketId > 0) {
+            ttr_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+        }
+    }
+});
+
 test('ticket trend: granularity controls bucket keys (day / week)', function (): void {
     $admin = ['id' => 4, 'role' => 'admin'];
 

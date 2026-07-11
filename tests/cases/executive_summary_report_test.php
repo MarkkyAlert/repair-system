@@ -319,3 +319,34 @@ test('executive: an empty current period does not fabricate a 0%/delta/tone (Fin
         }
     }
 });
+
+// Finding F5: MTTR presence is the resolved-count base, not the avg value. A period with resolved work
+// that averages 0.0h (sub-minute resolution) is real data → the KPI must show "0.0", not "-".
+test('executive: a period with sub-minute resolutions shows MTTR 0.0, not "-" (Finding F5)', function (): void {
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $rid = bin2hex(random_bytes(4));
+    $id = 0;
+
+    try {
+        // resolved 30s after request → avg_resolution_minutes = 0 → MTTR 0.0h, but there IS resolved work
+        exs_pdo()->prepare(
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at, resolved_at)
+             VALUES (?, 'x', 'x', 1, 1, 1, 1, 'resolved', '2020-05-15 10:00:00', '2020-05-15 10:00:30')"
+        )->execute(["EXF5-$rid"]);
+        $id = (int) exs_pdo()->lastInsertId();
+
+        $page = exs_service()->getExecutiveSummaryPage($admin, ['preset' => 'custom', 'from_date' => '2020-05-01', 'to_date' => '2020-05-31']);
+        $mttr = null;
+        foreach ($page['kpis'] as $k) {
+            if ($k['label'] === 'เวลาซ่อมเฉลี่ย (ชม.)') {
+                $mttr = $k;
+            }
+        }
+        assert_true($mttr !== null, 'MTTR KPI present');
+        assert_same('0.0', $mttr['value_label'], 'sub-minute MTTR shows 0.0, not "-" (there is resolved work)');
+    } finally {
+        if ($id > 0) {
+            exs_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
+        }
+    }
+});
