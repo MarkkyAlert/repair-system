@@ -78,6 +78,37 @@ test('backlog aging: age buckets 0-3/3-7/7-30/>30 + open-only + oldest', functio
     }
 });
 
+// The first test uses mid-bucket ages (1/5/15/40), so an off-by-one in the bucket SQL (< 3 vs <= 3, etc.)
+// would pass unnoticed. This pins the exact edges: SQL is <3 / 3..6 / 7..29 / >=30, so a ticket aged
+// exactly 3, 7 or 30 days must land in the HIGHER bucket. Ages are whole days back, so DATEDIFF = ageDays.
+test('backlog aging: bucket boundaries land on the correct side at exactly 3 / 7 / 30 days', function (): void {
+    $rid = bin2hex(random_bytes(4));
+    [$locId, $locName] = bla_location($rid);
+    $ids = [];
+
+    try {
+        $ids[] = bla_ticket("BLB-$rid-2", $locId, 2);    // 0-3
+        $ids[] = bla_ticket("BLB-$rid-3", $locId, 3);    // 3-7 (edge: 3 is NOT 0-3)
+        $ids[] = bla_ticket("BLB-$rid-6", $locId, 6);    // 3-7
+        $ids[] = bla_ticket("BLB-$rid-7", $locId, 7);    // 7-30 (edge: 7 is NOT 3-7)
+        $ids[] = bla_ticket("BLB-$rid-29", $locId, 29);  // 7-30
+        $ids[] = bla_ticket("BLB-$rid-30", $locId, 30);  // >30 (edge: 30 is NOT 7-30)
+
+        $row = bla_row('location', $locName);
+        assert_true($row !== null, 'location appears');
+        assert_same(1, $row['bucket_0_3'], '0-3 holds only the 2-day ticket (3 days crosses out)');
+        assert_same(2, $row['bucket_3_7'], '3-7 holds 3 and 6 days (3 is the inclusive lower edge; 7 is not)');
+        assert_same(2, $row['bucket_7_30'], '7-30 holds 7 and 29 days (7 inclusive; 30 is not)');
+        assert_same(1, $row['bucket_30_plus'], '>30 holds only 30 days (inclusive lower edge)');
+        assert_same(6, $row['total'], 'each of the 6 edge tickets is counted once');
+    } finally {
+        foreach ($ids as $id) {
+            bla_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
+        }
+        bla_pdo()->prepare('DELETE FROM locations WHERE id = ?')->execute([$locId]);
+    }
+});
+
 test('backlog aging: dimension labels — status→Thai, null technician/department bucketed', function (): void {
     $rid = bin2hex(random_bytes(4));
     [$locId] = bla_location($rid);

@@ -201,6 +201,39 @@ test('executive: export xlsx (1 sheet + header) / pdf %PDF- / csv header', funct
     }
 });
 
+// Date-window boundary: the report filter is requested_at >= from(00:00:00) AND <= to(23:59:59), i.e.
+// inclusive both ends. A ticket exactly on either edge is counted; one a second outside is not — so two
+// adjacent windows never double-count or drop an edge ticket.
+test('summary: date-window filter includes both edges and excludes just-outside (boundary)', function (): void {
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $rid = bin2hex(random_bytes(4));
+    $ids = [];
+
+    try {
+        // window = 2020-09-01 .. 2020-09-30
+        $moments = [
+            '2020-09-01 00:00:00' => true,   // from edge → in
+            '2020-09-30 23:59:59' => true,   // to edge → in
+            '2020-08-31 23:59:59' => false,  // 1s before from → out
+            '2020-10-01 00:00:00' => false,  // 1s after to → out
+        ];
+        foreach (array_keys($moments) as $i => $when) {
+            exs_pdo()->prepare(
+                "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at)
+                 VALUES (?, 'x', 'x', 1, 1, 1, 1, 'submitted', ?)"
+            )->execute(["EXW-$rid-$i", $when]);
+            $ids[] = (int) exs_pdo()->lastInsertId();
+        }
+
+        $summary = exs_service()->getReportPageData($admin, ['from_date' => '2020-09-01', 'to_date' => '2020-09-30'])['summary'];
+        assert_same(2, $summary['total'], 'only the two edge tickets fall in the window (both edges inclusive, just-outside excluded)');
+    } finally {
+        foreach ($ids as $id) {
+            exs_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
+        }
+    }
+});
+
 // Finding C: getSummary's COUNT(*) over `tickets LEFT JOIN ticket_ratings` is correct ONLY because
 // ticket_ratings is 1:1 (UNIQUE(ticket_id)). Lock that invariant: a rated ticket must count once, not
 // twice — so a future JOIN change (or a dropped unique key) that fans the totals out is caught here.
