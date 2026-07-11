@@ -3,6 +3,8 @@
 เอกสารนี้อธิบายว่า **ระบบนี้คืออะไร**, **ผู้ใช้แต่ละบทบาท (role) ทำอะไรได้บ้าง**, และ **วิธีทดสอบ flow หลัก ทีละขั้นแบบมือใหม่ก็ทำตามได้** ตั้งแต่ติดตั้งจนปิดงานจบลูป
 
 > เป้าหมาย: อ่านจบไฟล์เดียวแล้วเปิดเครื่องทดสอบระบบได้เอง พร้อมรู้ว่าแต่ละหน้าทำอะไรและคาดหวังผลแบบไหน
+>
+> _ตรวจทานกับ source แล้ว 2026-07-10: บัญชีทดสอบ/endpoints/scripts/routes/คอลัมน์ ตรงกับโค้ด · แก้ตาราง status ให้ครบ 12 ค่า (ของเดิมมี 7), เพิ่มสถานะ `accepted` ใน Flow 5, ระบุ 403 ใน Flow 9._
 
 ---
 
@@ -42,15 +44,24 @@
 
 ### สถานะของ Ticket (เพื่อให้เข้าใจเวลาทดสอบ)
 
+คอลัมน์ `tickets.status` เป็น ENUM **12 ค่า** (ตาม `database/schema.sql`, ค่า default = `submitted`) เรียงตาม lifecycle ปกติ + สถานะพิเศษ:
+
 | status | ความหมาย |
 |---|---|
-| `pending_approval` | สร้างแล้ว รออนุมัติจาก manager |
+| `submitted` | เพิ่งสร้าง (ค่าเริ่มต้นใน DB) ก่อนเข้าสู่ขั้นอนุมัติ |
+| `pending_approval` | รออนุมัติจาก manager |
 | `approved` | manager อนุมัติแล้ว ยังไม่มอบหมายช่าง |
 | `rejected` | manager ปฏิเสธ ปิดเคสไม่ดำเนินการต่อ |
 | `assigned` | มอบหมายช่างแล้ว รอช่างรับงาน |
+| `accepted` | ช่างกด **รับงาน** แล้ว แต่ยังไม่เริ่มลงมือ |
 | `in_progress` | ช่างเริ่มลงมือซ่อมแล้ว |
+| `on_hold` | พักงานชั่วคราว (รออะไหล่/ข้อมูลเพิ่ม) |
 | `resolved` | ช่างสรุปผลซ่อมเสร็จ รอผู้แจ้งยืนยัน |
 | `completed` | ผู้แจ้งยืนยันปิดงานและให้คะแนน |
+| `cancelled` | ยกเลิกงาน |
+| `closed` | ปิดงานสมบูรณ์ (สถานะปิดปลายทาง — นับรวมกับ resolved/completed เป็น "ปิดงาน") |
+
+> หมายเหตุ: ระบบยังมีคอลัมน์แยกต่างหาก `tickets.approval_status` = ENUM(`not_required`, `pending`, `approved`, `rejected`) ที่ track สถานะการอนุมัติควบคู่กับ `status` — เวลาตรวจ DB ให้ดู 2 คอลัมน์นี้คู่กัน (เช่น รออนุมัติจริง = `status='pending_approval' AND approval_status='pending'`)
 
 ---
 
@@ -210,7 +221,7 @@ SELECT * FROM notifications ORDER BY id DESC LIMIT 1;
 
 ### Flow 5: ช่าง (Technician) รับงาน → เริ่มงาน → สรุปงาน
 
-**เป้าหมาย**: ครอบคลุม transition `assigned → in_progress → resolved`
+**เป้าหมาย**: ครอบคลุม transition `assigned → accepted → in_progress → resolved`
 
 1. Login เป็น `technician` / `tech12345`
 2. หน้า `/dashboard` หรือ `/tickets` จะกรองงานที่ได้รับมอบหมายให้อัตโนมัติ
@@ -219,7 +230,7 @@ SELECT * FROM notifications ORDER BY id DESC LIMIT 1;
 **5.1 รับงาน (accept)**
 - กดปุ่ม **รับงาน**
 - ตัวเลือก: ใส่ accept note เช่น "กำลังเดินทางไปที่หน้างาน"
-- ระบบบันทึก `work_orders.accepted_at`
+- สถานะ ticket เปลี่ยนเป็น `accepted`, ระบบบันทึก `work_orders.accepted_at` (POST `/tickets/{id}/accept`)
 
 **5.2 เริ่มลงมือ (start)**
 - กดปุ่ม **เริ่มงาน**
@@ -311,7 +322,7 @@ SELECT * FROM notifications ORDER BY id DESC LIMIT 1;
    - **Asset Categories**: เช่นเดียวกัน
    - **System Settings**: แก้ค่า `app_name`, `ticket_prefix`, `business_hours` แล้วกดบันทึก
 3. หลังแก้ไข ลองออกจาก admin → เข้าหน้า ticket ใหม่ ดูว่า prefix/หมวดหมู่เปลี่ยนตามไหม
-4. **ทดสอบสิทธิ์**: login เป็น `requester` แล้วเข้า `/admin` ตรง ๆ → ระบบ redirect/แสดง error เพราะไม่ใช่ admin
+4. **ทดสอบสิทธิ์**: login เป็น `requester` (หรือ `technician`/`manager`) แล้วเข้า `/admin` ตรง ๆ → ระบบตอบ **หน้า 403 "คุณไม่มีสิทธิ์เข้าถึงหน้านี้"** (require_role gate ที่ controller — ไม่ใช่ redirect)
 
 **คาดหวัง**: ✅ บันทึกค่า settings ใน `system_settings`, ✅ role อื่นเข้า `/admin` ไม่ได้
 
@@ -426,7 +437,7 @@ SELECT * FROM notifications ORDER BY id DESC LIMIT 1;
 | `GET /tickets` | รายการ ticket (filter ตาม role อัตโนมัติ) |
 | `GET /tickets/create` | ฟอร์มสร้างใหม่ |
 | `GET /tickets/{id}` | รายละเอียด ticket + action ปุ่มตามสถานะ |
-| `POST /tickets/{id}/approve` `…/reject` `…/assign` `…/accept` `…/start` `…/resolve` `…/complete` | endpoints ของ lifecycle |
+| `POST /tickets/{id}/approve` `…/reject` `…/assign` `…/accept` `…/start` `…/resolve` `…/complete` `…/cancel` `…/reopen` `…/duplicate` | endpoints ของ lifecycle (ครบตาม `config/routes.php`) |
 | `GET /asset-registry` `…/create` `…/{id}/edit` | จัดการทรัพย์สิน |
 | `GET /scan/{token}` | สแกน QR เข้าหน้า asset |
 | `GET /admin` | Admin panel (admin only) |

@@ -1,17 +1,20 @@
 /vendor/
 /.env
-/.phpunit.result.cache
 /.php-cs-fixer.cache
 /storage/*.log
-/storage/framework/cache/data/*
-/storage/framework/sessions/*
-/storage/framework/views/*
 /storage/uploads/*
 !/storage/uploads/.gitkeep
 /storage/logs/*
 !/storage/logs/.gitkeep
 /storage/mail-logs/*
+/storage/qr-cache/*
+!/storage/qr-cache/.gitkeep
 .DS_Store
+
+# Internal / build artifacts — not shipped with the template
+/handoff.md
+/.claude/
+/tools/tailwindcss
 
 # E2E (Playwright)
 /e2e/node_modules/

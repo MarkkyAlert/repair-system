@@ -1,6 +1,6 @@
 {
-  "name": "acme/repair-system",
-  "description": "Internal repair and maintenance request system template for Thai organizations",
+  "name": "your-org/repair-system",
+  "description": "Repair & maintenance request management system — deployable template",
   "type": "project",
   "require": {
     "php": "^8.1",
