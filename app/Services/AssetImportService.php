@@ -28,7 +28,12 @@ class AssetImportService
 
     public function parseUploadedFile(array $file): array
     {
-        return $this->parseCsvUpload($file, self::CSV_COLUMNS, 2 * 1024 * 1024, 500);
+        return $this->parseCsvUpload(
+            $file,
+            self::CSV_COLUMNS,
+            (int) config('uploads.import_asset_max_bytes', 2 * 1024 * 1024),
+            (int) config('uploads.import_asset_max_rows', 500)
+        );
     }
 
     public function validateRows(array $rows): array

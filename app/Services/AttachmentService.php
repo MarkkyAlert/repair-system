@@ -11,8 +11,6 @@ use Throwable;
 
 class AttachmentService
 {
-    private const MAX_FILES = 3;
-    private const MAX_SIZE = 5242880;
     private const MIME_EXTENSIONS = [
         'image/jpeg' => 'jpg',
         'image/png' => 'png',
@@ -34,17 +32,19 @@ class AttachmentService
     public function validateUploads(array $files): array
     {
         $normalized = $this->normalizeFiles($files);
-        if (count($normalized) > self::MAX_FILES) {
-            throw new DomainException('แนบรูปได้สูงสุด 3 รูปต่อครั้ง');
+        $maxFiles = (int) config('uploads.attachment_max_files', 3);
+        if (count($normalized) > $maxFiles) {
+            throw new DomainException('แนบรูปได้สูงสุด ' . $maxFiles . ' รูปต่อครั้ง');
         }
 
+        $maxBytes = (int) config('uploads.attachment_max_bytes', 5242880);
         $finfo = new \finfo(FILEINFO_MIME_TYPE);
         foreach ($normalized as &$file) {
             if ((int) $file['error'] !== UPLOAD_ERR_OK || !is_uploaded_file((string) $file['tmp_name'])) {
                 throw new DomainException('ไม่สามารถอ่านไฟล์แนบได้ กรุณาลองใหม่');
             }
-            if ((int) $file['size'] > self::MAX_SIZE) {
-                throw new DomainException('รูปแนบแต่ละไฟล์ต้องมีขนาดไม่เกิน 5MB');
+            if ((int) $file['size'] > $maxBytes) {
+                throw new DomainException('รูปแนบแต่ละไฟล์ต้องมีขนาดไม่เกิน ' . (int) ($maxBytes / 1048576) . 'MB');
             }
             $mime = (string) $finfo->file((string) $file['tmp_name']);
             if (!isset(self::MIME_EXTENSIONS[$mime])) {

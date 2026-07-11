@@ -68,6 +68,16 @@ return [
         'same_site' => 'Strict',
         'idle_timeout_minutes' => (int) Env::get('SESSION_IDLE_TIMEOUT_MINUTES', 60),
     ],
+    'uploads' => [
+        // Ticket attachment limits (per submission). Buyers commonly raise these for their environment.
+        'attachment_max_files' => (int) Env::get('UPLOAD_ATTACHMENT_MAX_FILES', 3),
+        'attachment_max_bytes' => (int) Env::get('UPLOAD_ATTACHMENT_MAX_BYTES', 5 * 1024 * 1024),
+        // CSV import limits (asset registry + user import).
+        'import_asset_max_bytes' => (int) Env::get('UPLOAD_IMPORT_ASSET_MAX_BYTES', 2 * 1024 * 1024),
+        'import_asset_max_rows' => (int) Env::get('UPLOAD_IMPORT_ASSET_MAX_ROWS', 500),
+        'import_user_max_bytes' => (int) Env::get('UPLOAD_IMPORT_USER_MAX_BYTES', 1 * 1024 * 1024),
+        'import_user_max_rows' => (int) Env::get('UPLOAD_IMPORT_USER_MAX_ROWS', 200),
+    ],
     'paths' => [
         'views' => BASE_PATH . '/app/Views',
         'storage' => BASE_PATH . '/storage',

@@ -25,7 +25,12 @@ class UserImportService
 
     public function parseUploadedFile(array $file): array
     {
-        return $this->parseCsvUpload($file, self::CSV_COLUMNS, 1 * 1024 * 1024, 200);
+        return $this->parseCsvUpload(
+            $file,
+            self::CSV_COLUMNS,
+            (int) config('uploads.import_user_max_bytes', 1 * 1024 * 1024),
+            (int) config('uploads.import_user_max_rows', 200)
+        );
     }
 
     public function validateRows(array $rows): array
