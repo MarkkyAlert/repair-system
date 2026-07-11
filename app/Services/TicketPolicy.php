@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Support\Role;
+
 /**
  * Pure ticket permission/transition predicates (ticket + viewer arrays → bool), shared by the
  * detail-display flow (TicketService) and the mutation flow (TicketWorkflowService). No DB, no state
@@ -12,15 +14,15 @@ class TicketPolicy
 {
     public function canManageWorkflow(array $ticket, array $viewer): bool
     {
-        $role = (string) ($viewer['role'] ?? 'guest');
+        $role = (string) ($viewer['role'] ?? Role::GUEST);
         $viewerId = (int) ($viewer['id'] ?? 0);
         $managerId = (int) ($ticket['assigned_manager_id'] ?? 0);
 
-        if ($role === 'admin') {
+        if ($role === Role::ADMIN) {
             return true;
         }
 
-        return $role === 'manager' && $viewerId > 0 && ($managerId === 0 || $managerId === $viewerId);
+        return $role === Role::MANAGER && $viewerId > 0 && ($managerId === 0 || $managerId === $viewerId);
     }
 
     public function canReviewTicket(array $ticket, array $viewer): bool
@@ -42,7 +44,7 @@ class TicketPolicy
 
     public function canTechnicianWork(array $ticket, array $viewer): bool
     {
-        return (string) ($viewer['role'] ?? 'guest') === 'technician'
+        return (string) ($viewer['role'] ?? Role::GUEST) === Role::TECHNICIAN
             && (int) ($viewer['id'] ?? 0) > 0
             && (int) ($ticket['assigned_technician_id'] ?? 0) === (int) ($viewer['id'] ?? 0);
     }

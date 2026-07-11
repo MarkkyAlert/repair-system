@@ -26,7 +26,7 @@ function csrf_validate(): void
  */
 function require_role(array $viewer, array $roles, string $message): void
 {
-    if (!in_array((string) ($viewer['role'] ?? 'guest'), $roles, true)) {
+    if (!in_array((string) ($viewer['role'] ?? \App\Support\Role::GUEST), $roles, true)) {
         Response::abort(403, $message);
     }
 }
@@ -38,7 +38,7 @@ function require_role(array $viewer, array $roles, string $message): void
  */
 function assert_admin(array $viewer): void
 {
-    if ((string) ($viewer['role'] ?? 'guest') !== 'admin') {
+    if ((string) ($viewer['role'] ?? \App\Support\Role::GUEST) !== \App\Support\Role::ADMIN) {
         throw new DomainException('เฉพาะผู้ดูแลระบบเท่านั้น');
     }
 }
@@ -46,7 +46,7 @@ function assert_admin(array $viewer): void
 /** True when the role has elevated (management) rights — manager or admin. Predicate for conditional checks. */
 function is_manager_or_admin(string $role): bool
 {
-    return in_array($role, ['manager', 'admin'], true);
+    return in_array($role, [\App\Support\Role::MANAGER, \App\Support\Role::ADMIN], true);
 }
 
 function flash(string $key, mixed $value): void

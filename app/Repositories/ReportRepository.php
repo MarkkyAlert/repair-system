@@ -1034,20 +1034,20 @@ class ReportRepository
 
     private function visibilityClause(array $viewer, array &$params): string
     {
-        $role = (string) ($viewer['role'] ?? 'guest');
+        $role = (string) ($viewer['role'] ?? \App\Support\Role::GUEST);
         $userId = (int) ($viewer['id'] ?? 0);
 
-        if ($role === 'requester') {
+        if ($role === \App\Support\Role::REQUESTER) {
             $params['requester_id'] = $userId;
             return 't.requester_id = :requester_id';
         }
 
-        if ($role === 'technician') {
+        if ($role === \App\Support\Role::TECHNICIAN) {
             $params['technician_id'] = $userId;
             return 't.assigned_technician_id = :technician_id';
         }
 
-        if ($role === 'manager' || $role === 'admin') {
+        if ($role === \App\Support\Role::MANAGER || $role === \App\Support\Role::ADMIN) {
             return '1 = 1';
         }
 

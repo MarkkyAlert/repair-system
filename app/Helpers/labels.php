@@ -44,7 +44,7 @@ if (!function_exists('valid_roles')) {
     /** The four assignable account roles (mirrors the users.role ENUM). Single source for role validation/iteration. */
     function valid_roles(): array
     {
-        return ['requester', 'manager', 'technician', 'admin'];
+        return \App\Support\Role::assignable();
     }
 }
 
