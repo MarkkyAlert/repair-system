@@ -88,14 +88,16 @@ jobs:
           done
           echo "MySQL did not become ready in time"; exit 1
 
-      # Mirror tests/setup_test_db.sh: (re)create the DB, then import schema + seed into it.
-      # schema.sql/seed.sql contain no CREATE DATABASE/USE, so the DB is chosen on the CLI.
+      # Mirror tests/setup_test_db.sh: (re)create the DB, then import schema + reference + demo seed.
+      # The .sql files contain no CREATE DATABASE/USE, so the DB is chosen on the CLI. Order matters:
+      # seed_reference.sql (master data) before seed_demo.sql (demo rows that FK to it).
       - name: Create test database + import schema and seed
         run: |
           mysql -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USERNAME" -p"$DB_PASSWORD" \
             -e "DROP DATABASE IF EXISTS \`$TEST_DB_NAME\`; CREATE DATABASE \`$TEST_DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
           mysql -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USERNAME" -p"$DB_PASSWORD" "$TEST_DB_NAME" < database/schema.sql
-          mysql -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USERNAME" -p"$DB_PASSWORD" "$TEST_DB_NAME" < database/seed.sql
+          mysql -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USERNAME" -p"$DB_PASSWORD" "$TEST_DB_NAME" < database/seed_reference.sql
+          mysql -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USERNAME" -p"$DB_PASSWORD" "$TEST_DB_NAME" < database/seed_demo.sql
 
       # Static analysis first (no MySQL needed) so type issues fail the job fast, before the DB-backed suite.
       # --memory-limit=1G: the default 128M is not enough for a level-3 whole-project analysis.

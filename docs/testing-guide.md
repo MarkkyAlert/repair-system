@@ -88,11 +88,12 @@
    - สร้าง database ชื่อ `repair_system` (charset `utf8mb4`)
    - Import ไฟล์ตามลำดับ:
      1. `database/schema.sql` (สร้างตาราง)
-     2. `database/seed.sql` (ใส่ข้อมูลตัวอย่าง: users, assets, ticket ตัวอย่าง 3 ใบ ฯลฯ)
+     2. `database/seed_reference.sql` (master data: แผนก/สถานที่/ความสำคัญ/หมวดหมู่)
+     3. `database/seed_demo.sql` (ข้อมูล DEMO: users, assets, ticket ตัวอย่าง 3 ใบ ฯลฯ)
 
-   > ⚠️ **`seed.sql` เป็นข้อมูล DEMO สำหรับทดสอบบนเครื่อง local เท่านั้น** — ทุกบัญชีใช้รหัสผ่านที่เปิดเผยในเอกสารนี้
+   > ⚠️ **`seed_demo.sql` เป็นข้อมูล DEMO สำหรับทดสอบบนเครื่อง local เท่านั้น** — ทุกบัญชีใช้รหัสผ่านที่เปิดเผยในเอกสารนี้
    >
-   > **ใช้งานจริง (production):** import แค่ `database/schema.sql` แล้วสร้าง admin เองผ่าน `/setup` wizard — **อย่า import `seed.sql`**
+   > **ใช้งานจริง (production):** import `database/schema.sql` + `database/seed_reference.sql` แล้วสร้าง admin เองผ่าน `/setup` wizard — **อย่า import `seed_demo.sql`**
    > ถ้าเผลอ import demo seed ขึ้นเครื่องจริงแล้ว ให้เปลี่ยนรหัสผ่านทุกบัญชีทันทีก่อนเปิดใช้งาน
 
 4. **ติดตั้ง dependencies (PHP)**
@@ -109,7 +110,7 @@
 
 6. เปิดเบราว์เซอร์ที่ `http://localhost/maintenance/` ระบบจะ redirect ไปหน้า login
 
-### 3.3 บัญชีทดสอบ (จาก `database/seed.sql`)
+### 3.3 บัญชีทดสอบ (จาก `database/seed_demo.sql`)
 
 | Role | Username | Email | Password |
 |---|---|---|---|
@@ -118,7 +119,7 @@
 | Technician | `technician` | `technician@example.com` | `tech12345` |
 | Admin | `admin` | `admin@example.com` | `admin12345` |
 
-> 🔒 **รหัสผ่านด้านบนเป็น demo ที่เปิดเผยในเอกสาร** — สำหรับทดสอบบน local เท่านั้น **ห้ามนำ demo seed นี้ขึ้น production**; ถ้าจำเป็นต้องใช้ ให้เปลี่ยนรหัสทุกบัญชีก่อนเปิดใช้จริง (ดูคำเตือนใน `database/seed.sql` และขั้นตอน production ด้านบน)
+> 🔒 **รหัสผ่านด้านบนเป็น demo ที่เปิดเผยในเอกสาร** — สำหรับทดสอบบน local เท่านั้น **ห้ามนำ demo seed นี้ขึ้น production**; ถ้าจำเป็นต้องใช้ ให้เปลี่ยนรหัสทุกบัญชีก่อนเปิดใช้จริง (ดูคำเตือนใน `database/seed_demo.sql` และขั้นตอน production ด้านบน)
 
 > เคล็ดลับ: เปิด 4 หน้าต่างเบราว์เซอร์ (หรือใช้ Incognito/โปรไฟล์ต่างกัน) ล็อกอิน 4 บัญชีพร้อมกัน จะทดสอบ flow ระหว่าง role ได้ลื่นมาก
 
@@ -418,7 +419,7 @@ SELECT * FROM notifications ORDER BY id DESC LIMIT 1;
 | อาการ | สาเหตุ / วิธีแก้ |
 |---|---|
 | เปิด `http://localhost/maintenance/` แล้ว 404 | ตรวจ `.htaccess` + เปิด `AllowOverride All` ใน Apache config, รีสตาร์ต Apache |
-| Login ไม่ได้ ("ข้อผิดพลาดของระบบ") | ตรวจ `.env` ว่า `DB_*` ถูก, ตรวจว่า import `schema.sql` + `seed.sql` ครบ |
+| Login ไม่ได้ ("ข้อผิดพลาดของระบบ") | ตรวจ `.env` ว่า `DB_*` ถูก, ตรวจว่า import `schema.sql` + `seed_reference.sql` + `seed_demo.sql` ครบ |
 | CSS ไม่ขึ้น/หน้าเว็บเปลือย | รัน `./build-css.sh` ก่อน |
 | `composer: command not found` | ใช้ `/Applications/XAMPP/xamppfiles/bin/php composer install` หรือดาวน์โหลด composer.phar |
 | QR ไม่ขึ้น | ตรวจว่า `composer install` แล้วและมี `endroid/qr-code`, ตรวจ permission `public/uploads` |

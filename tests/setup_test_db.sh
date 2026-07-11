@@ -11,6 +11,7 @@ DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 "$MYSQL" -u"$USER" -e "DROP DATABASE IF EXISTS \`$DB\`; CREATE DATABASE \`$DB\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 "$MYSQL" -u"$USER" "$DB" < "$DIR/database/schema.sql"
-"$MYSQL" -u"$USER" "$DB" < "$DIR/database/seed.sql"
+"$MYSQL" -u"$USER" "$DB" < "$DIR/database/seed_reference.sql"
+"$MYSQL" -u"$USER" "$DB" < "$DIR/database/seed_demo.sql"
 
-echo "Test DB '$DB' ready (schema + seed loaded)."
+echo "Test DB '$DB' ready (schema + reference + demo seed loaded)."
