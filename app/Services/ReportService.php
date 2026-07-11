@@ -1410,12 +1410,14 @@ class ReportService
         $kpis = [
             $this->execKpiCard('แจ้งซ่อมทั้งหมด', $tTotal, $pTotal, 'neutral', 0, '', (string) $tTotal),
             $this->execKpiCard('ปิดงาน', $tResolved, $pResolved, 'neutral', 0, '', (string) $tResolved),
-            $this->execKpiCard('อัตราปิดงาน', $tComp, $pComp, 'up_good', 1, '%', number_format($tComp, 1) . '%'),
+            // completion เป็น rate → base = จำนวนงานทั้งงวด (0% ตอนมีงานคือค่าจริง; ตอนไม่มีงานคือ "ไม่มีข้อมูล")
+            $this->execKpiCard('อัตราปิดงาน', $tComp, $pComp, 'up_good', 1, '%', number_format($tComp, 1) . '%', $tTotal > 0, $pTotal > 0),
             // period-scoped breach count (ticket ที่แจ้งในงวดแล้ว breach) — ไม่ใช่ overdue_tickets ที่เป็น
             // snapshot "ค้างเกินตอนนี้" (งวดก่อนปิดไปหมด → baseline ≈ 0 ทำให้เทียบงวดเพี้ยน)
             $this->execKpiCard('เกิน SLA', (int) ($thisSum['breached_tickets'] ?? 0), (int) ($prevSum['breached_tickets'] ?? 0), 'down_good', 0, '', (string) (int) ($thisSum['breached_tickets'] ?? 0)),
-            $this->execKpiCard('เวลาซ่อมเฉลี่ย (ชม.)', $tMttr, $pMttr, 'down_good', 1, '', $tMttr > 0 ? number_format($tMttr, 1) : '-'),
-            $this->execKpiCard('คะแนนเฉลี่ย', $tRating, $pRating, 'up_good', 1, '', $tRating > 0 ? number_format($tRating, 1) : '-'),
+            // MTTR/คะแนน เป็น avg → base = มีงานปิด/มีรีวิวในงวดไหม (avg=0 ⟺ ไม่มี) ไม่งั้นเดลต้าจะหลอกว่าดีขึ้น/แย่ลง
+            $this->execKpiCard('เวลาซ่อมเฉลี่ย (ชม.)', $tMttr, $pMttr, 'down_good', 1, '', $tMttr > 0 ? number_format($tMttr, 1) : '-', $tMttr > 0, $pMttr > 0),
+            $this->execKpiCard('คะแนนเฉลี่ย', $tRating, $pRating, 'up_good', 1, '', $tRating > 0 ? number_format($tRating, 1) : '-', $tRating > 0, $pRating > 0),
         ];
 
         $filterData = $this->buildFilterData($normalizedFilters, $reference);
@@ -1514,8 +1516,21 @@ class ReportService
     /**
      * การ์ด KPI 1 ตัว: value งวดนี้ + delta/pct เทียบงวดก่อน + tone ตามทิศที่ "ดี" (up_good/down_good/neutral).
      */
-    private function execKpiCard(string $label, float $thisVal, float $prevVal, string $goodDir, int $decimals, string $unit, string $valueLabel): array
+    private function execKpiCard(string $label, float $thisVal, float $prevVal, string $goodDir, int $decimals, string $unit, string $valueLabel, bool $thisHasData = true, bool $prevHasData = true): array
     {
+        $prevLabel = number_format($prevVal, $decimals) . $unit;
+
+        // งวดปัจจุบันไม่มี base (rate/avg ที่ตัวหารเป็น 0) → ห้ามปั้นค่า 0% หรือเดลต้าหลอก (template-review F/Finding A).
+        // ต่างจาก count ที่ 0 คือค่าจริง — ตัว count ส่ง hasData=true เสมอ.
+        if (!$thisHasData) {
+            return ['label' => $label, 'value_label' => '-', 'prev_value_label' => $prevLabel, 'delta_label' => '—', 'pct_label' => '—', 'tone' => 'default'];
+        }
+
+        // งวดก่อนไม่มี base → เทียบไม่ได้: โชว์ค่างวดนี้ แต่ไม่ปั้นเดลต้า/ทิศ (เลียนแบบ trendMetricCard).
+        if (!$prevHasData) {
+            return ['label' => $label, 'value_label' => $valueLabel, 'prev_value_label' => $prevLabel, 'delta_label' => '—', 'pct_label' => '—', 'tone' => 'default'];
+        }
+
         $delta = round($thisVal - $prevVal, $decimals);
         $pct = $prevVal != 0.0 ? round(($thisVal - $prevVal) / abs($prevVal) * 100, 1) : null;
         $arrow = $delta > 0 ? '↑' : ($delta < 0 ? '↓' : '→');
@@ -1524,7 +1539,6 @@ class ReportService
             'down_good' => $delta < 0 ? 'success' : ($delta > 0 ? 'danger' : 'default'),
             default => 'default',
         };
-        $prevLabel = number_format($prevVal, $decimals) . $unit;
 
         return [
             'label' => $label,

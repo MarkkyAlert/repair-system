@@ -200,3 +200,56 @@ test('executive: export xlsx (1 sheet + header) / pdf %PDF- / csv header', funct
         exs_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
     }
 });
+
+// Finding A: when the CURRENT period has no data, a rate/avg KPI must not fabricate a value or a delta
+// against the previous period. Counts (0 is a real value) stay honest; completion/MTTR/rating show "-"
+// value, "—" delta, and a neutral tone — so an empty period never reads as "0% completion (crashed)" or
+// "MTTR improved". Data: resolved+rated tickets in the PREVIOUS window only; the current window is empty.
+test('executive: an empty current period does not fabricate a 0%/delta/tone (Finding A)', function (): void {
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $rid = bin2hex(random_bytes(4));
+    $ids = [];
+
+    try {
+        // this = [2020-06-10 .. 2020-06-20] (empty); prev = equal-length window ending 2020-06-09 → put data there
+        foreach (['2020-06-01 09:00:00', '2020-06-03 09:00:00'] as $i => $when) {
+            exs_pdo()->prepare(
+                "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at, resolved_at)
+                 VALUES (?, 'x', 'x', 1, 1, 1, 1, 'resolved', ?, ?)"
+            )->execute(["EXEA-$rid-$i", $when, date('Y-m-d H:i:s', (int) strtotime($when) + 3600)]);
+            $tid = (int) exs_pdo()->lastInsertId();
+            $ids[] = $tid;
+            exs_pdo()->prepare(
+                "INSERT INTO ticket_ratings (ticket_id, requester_id, technician_id, score, feedback, created_at, updated_at)
+                 VALUES (?, 1, 4, 5, '', ?, ?)"
+            )->execute([$tid, $when, $when]);
+        }
+
+        $page = exs_service()->getExecutiveSummaryPage($admin, ['preset' => 'custom', 'from_date' => '2020-06-10', 'to_date' => '2020-06-20']);
+        $kpi = [];
+        foreach ($page['kpis'] as $k) {
+            $kpi[$k['label']] = $k;
+        }
+
+        // counts: 0 is a real value → shown honestly, not dashed
+        assert_same('0', $kpi['แจ้งซ่อมทั้งหมด']['value_label'], 'empty period: total shows an honest 0');
+
+        // completion RATE has no base (0 tickets) → "-", no delta, neutral tone (not "0.0% ↓ crashed")
+        assert_same('-', $kpi['อัตราปิดงาน']['value_label'], 'empty period: completion shows - not 0.0%');
+        assert_same('—', $kpi['อัตราปิดงาน']['delta_label'], 'empty period: completion delta is suppressed');
+        assert_same('default', $kpi['อัตราปิดงาน']['tone'], 'empty period: completion tone is neutral (no false red)');
+
+        // MTTR avg: no resolved work this period → must not read as a green "improvement"
+        assert_same('—', $kpi['เวลาซ่อมเฉลี่ย (ชม.)']['delta_label'], 'empty period: MTTR delta suppressed (no false improvement)');
+        assert_same('default', $kpi['เวลาซ่อมเฉลี่ย (ชม.)']['tone'], 'empty period: MTTR tone neutral');
+
+        // rating avg: no ratings this period → no false red drop
+        assert_same('—', $kpi['คะแนนเฉลี่ย']['delta_label'], 'empty period: rating delta suppressed');
+        assert_same('default', $kpi['คะแนนเฉลี่ย']['tone'], 'empty period: rating tone neutral');
+    } finally {
+        foreach ($ids as $id) {
+            exs_pdo()->prepare('DELETE FROM ticket_ratings WHERE ticket_id = ?')->execute([$id]);
+            exs_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
+        }
+    }
+});
