@@ -269,3 +269,45 @@ test('csat: export csv/pdf = breakdown, excel = 2 sheets (breakdown + feedback)'
         csat_cleanup($ids, [$locId], $deptId);
     }
 });
+
+test('csat export: exported breakdown cells equal the on-screen values (parity — Finding G2)', function (): void {
+    // Locks that the export carries the SAME numbers as the page (not a separately-recomputed value).
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $rid = bin2hex(random_bytes(4));
+    $deptId = csat_department($rid);
+    $deptName = "CSAT Dept $rid";
+    [$locId, ] = csat_location($rid);
+    $ids = [];
+    $tmp = tempnam(sys_get_temp_dir(), 'csatpar_') . '.xlsx';
+
+    try {
+        $ids[] = csat_rate("CSATPAR-$rid-1", $deptId, $locId, 3, 4);
+        $ids[] = csat_rate("CSATPAR-$rid-2", $deptId, $locId, 3, 5);
+
+        // on-screen values for this department's row
+        $row = csat_row('department', $deptId, $deptName);
+        assert_true($row !== null, 'department row present on the page');
+        assert_same('4.50', $row['avg_label'], 'page avg = (4+5)/2 = 4.50');
+        assert_same(2, (int) $row['rating_count'], 'page rating_count = 2');
+
+        // export the SAME view and read the row back (breakdown sheet: col A=label, B=avg, C=count)
+        file_put_contents($tmp, (string) csat_service()->exportCsatExcel($admin, ['dimension' => 'department', 'department_id' => $deptId])['content']);
+        $sheet = IOFactory::createReader('Xlsx')->load($tmp)->getSheetByName('ความพึงพอใจ');
+        $exported = null;
+        foreach ($sheet->toArray() as $line) {
+            if ((string) ($line[0] ?? '') === $deptName) {
+                $exported = $line;
+            }
+        }
+        assert_true($exported !== null, 'department row present in the export');
+        assert_same((float) $row['avg_label'], (float) $exported[1], 'export avg cell == page avg');
+        assert_same((int) $row['rating_count'], (int) $exported[2], 'export count cell == page rating_count');
+    } finally {
+        @unlink($tmp);
+        foreach ($ids as $id) {
+            csat_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
+        }
+        csat_pdo()->prepare('DELETE FROM locations WHERE id = ?')->execute([$locId]);
+        csat_pdo()->prepare('DELETE FROM departments WHERE id = ?')->execute([$deptId]);
+    }
+});
