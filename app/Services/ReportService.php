@@ -568,7 +568,7 @@ class ReportService
             'completion_tone' => $completionPct === null
                 ? 'default'
                 : ($completionPct >= 80 ? 'success' : ($completionPct >= 60 ? 'warning' : 'danger')),
-            'mttr_hours_label' => $mttrMinutes > 0 ? number_format(round($mttrMinutes / 60, 1), 1) : '-',
+            'mttr_hours_label' => $resolved > 0 ? number_format(round($mttrMinutes / 60, 1), 1) : '-',
             'avg_rating_label' => $ratingCount > 0 ? number_format($avgRating, 1) : '-',
             'avg_rating_tone' => $ratingCount === 0
                 ? 'default'
@@ -2768,7 +2768,7 @@ class ReportService
             },
             'failure_count' => (int) ($row['failure_count'] ?? 0),
             'last_failure' => $this->formatDateTime($row['last_failure_at'] ?? null),
-            'avg_resolution_hours_label' => $avgMinutes > 0 ? number_format(round($avgMinutes / 60, 1), 1) : '-',
+            'avg_resolution_hours_label' => (int) ($row['resolved_count'] ?? 0) > 0 ? number_format(round($avgMinutes / 60, 1), 1) : '-',
             'labor_hours_label' => (int) ($row['labor_minutes'] ?? 0) > 0 ? number_format(round((int) $row['labor_minutes'] / 60, 1), 1) : '-',
             'detail_url' => '/asset-registry/' . (int) ($row['id'] ?? 0),
         ];

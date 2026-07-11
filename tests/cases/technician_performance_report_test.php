@@ -145,6 +145,60 @@ test('technician performance: a same-minute resolution shows MTTR/first-response
     }
 });
 
+test('reports overview: same-minute resolution shows 0.0 in the technician + asset mini-tables (F5-rem overview)', function (): void {
+    // The /reports overview mini-tables must use the same base-count presence as the dedicated reports.
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $rid = bin2hex(random_bytes(4));
+    [$techId, $fullName] = tpr_tech($rid);
+    $locId = 0;
+    $assetId = 0;
+    $ticketId = 0;
+    $base = date('Y-m-d H:i'); // current-minute anchor → in-window + TIMESTAMPDIFF(MINUTE)=0
+
+    try {
+        tpr_pdo()->prepare("INSERT INTO locations (code, name) VALUES (?, ?)")->execute(["OVL-$rid", "OV Loc $rid"]);
+        $locId = (int) tpr_pdo()->lastInsertId();
+        tpr_pdo()->prepare("INSERT INTO assets (asset_code, name, asset_category_id, location_id, status) VALUES (?, 'OV Asset', 1, ?, 'active')")->execute(["OVA-$rid", $locId]);
+        $assetId = (int) tpr_pdo()->lastInsertId();
+        tpr_pdo()->prepare(
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, assigned_technician_id, asset_id, status, requested_at, resolved_at)
+             VALUES (?, 'x', 'x', 1, ?, 1, 1, ?, ?, 'resolved', ?, ?)"
+        )->execute(["OVT-$rid", $locId, $techId, $assetId, "$base:00", "$base:30"]);
+        $ticketId = (int) tpr_pdo()->lastInsertId();
+
+        $page = tpr_service()->getReportPageData($admin, []);
+
+        $tech = null;
+        foreach ($page['technicianPerformance'] as $t) {
+            if ($t['full_name'] === $fullName) {
+                $tech = $t;
+            }
+        }
+        assert_true($tech !== null, 'fresh technician appears in the overview mini');
+        assert_same('0.0', $tech['mttr_hours_label'], 'technician mini MTTR 0.0 (same-minute), not "-"');
+
+        $asset = null;
+        foreach ($page['assetReliability'] as $a) {
+            if ($a['asset_code'] === "OVA-$rid") {
+                $asset = $a;
+            }
+        }
+        assert_true($asset !== null, 'fresh asset appears in the overview mini');
+        assert_same('0.0', $asset['avg_resolution_hours_label'], 'asset mini avg 0.0 (same-minute), not "-"');
+    } finally {
+        if ($ticketId > 0) {
+            tpr_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+        }
+        if ($assetId > 0) {
+            tpr_pdo()->prepare('DELETE FROM assets WHERE id = ?')->execute([$assetId]);
+        }
+        if ($locId > 0) {
+            tpr_pdo()->prepare('DELETE FROM locations WHERE id = ?')->execute([$locId]);
+        }
+        tpr_cleanup($techId);
+    }
+});
+
 test('technician performance: live workload is a NOW snapshot, ignores date filter + excludes terminal', function (): void {
     $rid = bin2hex(random_bytes(4));
     [$techId, $fullName] = tpr_tech($rid);

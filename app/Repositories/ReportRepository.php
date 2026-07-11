@@ -194,6 +194,7 @@ class ReportRepository
                     WHEN t.resolved_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at)
                     ELSE NULL
                 END), 0), 1) AS avg_resolution_minutes,
+                SUM(CASE WHEN t.resolved_at IS NOT NULL THEN 1 ELSE 0 END) AS resolved_count,
                 COALESCE(SUM(wo.labor_minutes), 0) AS labor_minutes
              FROM tickets t
              INNER JOIN assets a ON a.id = t.asset_id
