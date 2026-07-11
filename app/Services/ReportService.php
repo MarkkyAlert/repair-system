@@ -665,8 +665,10 @@ class ReportService
             'avg_rating_tone' => $ratingCount === 0
                 ? 'default'
                 : ($avgRating >= 4 ? 'success' : ($avgRating >= 3 ? 'warning' : 'danger')),
+            // sample size ต่อ avg/rate — ให้รายงานประเมินคนบอก base ได้ (กัน "5.0 จาก 1 รีวิว" ดูเท่า "5.0 จาก 40")
+            'rating_count' => $ratingCount,
             'labor_hours_label' => $laborMinutes > 0 ? number_format(round($laborMinutes / 60, 1), 1) : '-',
-            // raw counts (ซ่อน) สำหรับ summary team SLA
+            // raw counts (ใช้ทั้ง summary team SLA + แสดง base ต่อแถว)
             'sla_base' => $slaBase,
             'sla_on_time' => $slaOnTime,
         ];
@@ -707,16 +709,17 @@ class ReportService
     {
         return [
             'ช่าง', 'งานค้างปัจจุบัน', 'สัดส่วนโหลด', 'ค้างเก่าสุด', 'รับ', 'ปิดงาน', 'อัตราปิดงาน',
-            'SLA ตรงเวลา', 'เวลาตอบรับ (ชม.)', 'เวลาซ่อมเฉลี่ย (ชม.)', 'คะแนน', 'ชม.แรงงาน',
+            'SLA ตรงเวลา', 'งาน SLA', 'เวลาตอบรับ (ชม.)', 'เวลาซ่อมเฉลี่ย (ชม.)', 'คะแนน', 'จำนวนรีวิว', 'ชม.แรงงาน',
         ];
     }
 
     private function technicianPerformanceExportRow(array $row): array
     {
+        // 'งาน SLA' และ 'จำนวนรีวิว' = base ของอัตรา/คะแนน — ให้ export บอก sample size เหมือนหน้าจอ (Finding B)
         return [
             $row['full_name'], $row['open_now'], $row['workload_share_label'], $row['oldest_open_age_label'],
-            $row['assigned'], $row['resolved'], $row['completion_label'], $row['sla_on_time_label'],
-            $row['first_response_hours_label'], $row['mttr_hours_label'], $row['avg_rating_label'], $row['labor_hours_label'],
+            $row['assigned'], $row['resolved'], $row['completion_label'], $row['sla_on_time_label'], $row['sla_base'],
+            $row['first_response_hours_label'], $row['mttr_hours_label'], $row['avg_rating_label'], $row['rating_count'], $row['labor_hours_label'],
         ];
     }
 

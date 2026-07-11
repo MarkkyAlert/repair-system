@@ -87,6 +87,42 @@ test('technician performance: period first-response avg + per-tech SLA on-time r
     }
 });
 
+test('technician performance: avg rating & SLA rate carry their sample size (Finding B)', function (): void {
+    // A technician with a SINGLE 5-star rating must not look identical, on a people-evaluation report,
+    // to one with 40 ratings averaging 5.0. The row must carry the base counts behind the averages/rates
+    // (rating_count, sla_base) so the report can show how many data points each number rests on.
+    $rid = bin2hex(random_bytes(4));
+    [$techId, $fullName] = tpr_tech($rid);
+
+    try {
+        $now = time();
+        // one resolved, on-time ticket with a single 5-star rating for this technician
+        tpr_pdo()->prepare(
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, assigned_technician_id, status, requested_at, resolved_at, resolution_due_at)
+             VALUES (?, 'x', 'x', 1, 1, 1, 1, ?, 'resolved', ?, ?, ?)"
+        )->execute([
+            "TPRR-$rid", $techId,
+            date('Y-m-d H:i:s', $now - 3600), date('Y-m-d H:i:s', $now - 1800), date('Y-m-d H:i:s', $now),
+        ]);
+        $tid = (int) tpr_pdo()->lastInsertId();
+        tpr_pdo()->prepare(
+            "INSERT INTO ticket_ratings (ticket_id, requester_id, technician_id, score, feedback, created_at, updated_at)
+             VALUES (?, 1, ?, 5, '', ?, ?)"
+        )->execute([$tid, $techId, date('Y-m-d H:i:s', $now - 1800), date('Y-m-d H:i:s', $now - 1800)]);
+
+        $row = tpr_row($fullName);
+        assert_true($row !== null, 'technician appears');
+        assert_same('5.0', $row['avg_rating_label'], 'avg rating label = 5.0');
+        assert_same('100.0%', $row['sla_on_time_label'], 'SLA on-time = 1 of 1 = 100%');
+        // Finding B: the sample size behind each average/rate must be exposed on the row
+        assert_same(1, $row['rating_count'] ?? null, 'row exposes rating_count = 1 (the single rating behind 5.0)');
+        assert_same(1, $row['sla_base'] ?? null, 'row exposes sla_base = 1 (the single SLA-concluded ticket behind the rate)');
+    } finally {
+        tpr_pdo()->prepare('DELETE FROM ticket_ratings WHERE technician_id = ?')->execute([$techId]);
+        tpr_cleanup($techId);
+    }
+});
+
 test('technician performance: live workload is a NOW snapshot, ignores date filter + excludes terminal', function (): void {
     $rid = bin2hex(random_bytes(4));
     [$techId, $fullName] = tpr_tech($rid);

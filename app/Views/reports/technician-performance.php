@@ -182,10 +182,10 @@ $filterState = $filters['selected'] ?? [];
                             <td><?= e((string) $tech['assigned']) ?></td>
                             <td><?= e((string) $tech['resolved']) ?></td>
                             <td><span class="badge badge-<?= e((string) $tech['completion_tone']) ?>"><?= e((string) $tech['completion_label']) ?></span></td>
-                            <td><span class="badge badge-<?= e((string) $tech['sla_on_time_tone']) ?>"><?= e((string) $tech['sla_on_time_label']) ?></span></td>
+                            <td><span class="badge badge-<?= e((string) $tech['sla_on_time_tone']) ?>"><?= e((string) $tech['sla_on_time_label']) ?></span><?php if ((int) ($tech['sla_base'] ?? 0) > 0): ?> <small title="จำนวนงานที่นับ SLA (ฐานของอัตรานี้)">(<?= e((string) $tech['sla_base']) ?>)</small><?php endif; ?></td>
                             <td><?= e((string) $tech['first_response_hours_label']) ?></td>
                             <td><?= e((string) $tech['mttr_hours_label']) ?></td>
-                            <td><span class="badge badge-<?= e((string) $tech['avg_rating_tone']) ?>"><?= e((string) $tech['avg_rating_label']) ?></span></td>
+                            <td><span class="badge badge-<?= e((string) $tech['avg_rating_tone']) ?>"><?= e((string) $tech['avg_rating_label']) ?></span><?php if ((int) ($tech['rating_count'] ?? 0) > 0): ?> <small title="จำนวนรีวิว (ฐานของคะแนนเฉลี่ย)">(<?= e((string) $tech['rating_count']) ?>)</small><?php endif; ?></td>
                             <td><?= e((string) $tech['labor_hours_label']) ?></td>
                         </tr>
                     <?php endforeach; ?>
