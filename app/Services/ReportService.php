@@ -1574,12 +1574,13 @@ class ReportService
 
     private function execExportHeaders(): array
     {
-        return ['KPI', 'งวดนี้', 'งวดก่อน', 'เปลี่ยนแปลง', '%เปลี่ยน'];
+        return ['KPI', 'งวดนี้', 'งวดก่อน', 'เปลี่ยนแปลง', '%เปลี่ยน', 'ฐานตัวอย่าง'];
     }
 
     private function execExportRow(array $kpi): array
     {
-        return [$kpi['label'], $kpi['value_label'], $kpi['prev_value_label'], $kpi['delta_label'], $kpi['pct_label']];
+        // 'ฐานตัวอย่าง' = sample_label (เช่น "จาก N รีวิว") ให้ export ตรงกับจอ/PDF (F4) ; KPI อื่นเว้นว่าง
+        return [$kpi['label'], $kpi['value_label'], $kpi['prev_value_label'], $kpi['delta_label'], $kpi['pct_label'], (string) ($kpi['sample_label'] ?? '')];
     }
 
     public function exportExecutiveSummaryCsv(array $viewer, array $filters = []): array

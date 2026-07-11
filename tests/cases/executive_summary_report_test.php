@@ -201,6 +201,58 @@ test('executive: export xlsx (1 sheet + header) / pdf %PDF- / csv header', funct
     }
 });
 
+test('executive export: CSV/XLSX carry the rating sample count, matching screen/PDF (Finding F4-rem)', function (): void {
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $rid = bin2hex(random_bytes(4));
+    $ids = [];
+    $tmp = tempnam(sys_get_temp_dir(), 'exsf4_') . '.xlsx';
+    $baselineJobId = (int) exs_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM export_jobs')->fetchColumn();
+
+    try {
+        foreach ([0, 1] as $i) {
+            exs_pdo()->prepare(
+                "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at, resolved_at)
+                 VALUES (?, 'x', 'x', 1, 1, 1, 1, 'resolved', '2020-05-15 09:00:00', '2020-05-15 12:00:00')"
+            )->execute(["EXF4X-$rid-$i"]);
+            $tid = (int) exs_pdo()->lastInsertId();
+            $ids[] = $tid;
+            exs_pdo()->prepare('INSERT INTO ticket_ratings (ticket_id, requester_id, score) VALUES (?, 1, 5)')->execute([$tid]);
+        }
+        $filters = ['preset' => 'custom', 'from_date' => '2020-05-01', 'to_date' => '2020-05-31'];
+
+        // screen already shows the review count (Finding F4)
+        $rating = null;
+        foreach (exs_service()->getExecutiveSummaryPage($admin, $filters)['kpis'] as $k) {
+            if ($k['label'] === 'คะแนนเฉลี่ย') {
+                $rating = $k;
+            }
+        }
+        assert_same('จาก 2 รีวิว', $rating['sample_label'] ?? null, 'screen rating KPI shows the review count');
+
+        // XLSX: the rating KPI row must carry the SAME sample text (export = screen)
+        file_put_contents($tmp, (string) exs_service()->exportExecutiveSummaryExcel($admin, $filters)['content']);
+        $sheet = IOFactory::createReader('Xlsx')->load($tmp)->getActiveSheet();
+        $ratingRow = null;
+        foreach ($sheet->toArray() as $line) {
+            if ((string) ($line[0] ?? '') === 'คะแนนเฉลี่ย') {
+                $ratingRow = array_map('strval', $line);
+            }
+        }
+        assert_true($ratingRow !== null, 'rating KPI row present in the export');
+        assert_true(in_array('จาก 2 รีวิว', $ratingRow, true), 'XLSX rating row carries the review count');
+
+        $csv = (string) exs_service()->exportExecutiveSummaryCsv($admin, $filters)['content'];
+        assert_true(str_contains($csv, 'จาก 2 รีวิว'), 'CSV carries the review count');
+    } finally {
+        @unlink($tmp);
+        foreach ($ids as $id) {
+            exs_pdo()->prepare('DELETE FROM ticket_ratings WHERE ticket_id = ?')->execute([$id]);
+            exs_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
+        }
+        exs_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
+    }
+});
+
 // Date-window boundary: the report filter is requested_at >= from(00:00:00) AND <= to(23:59:59), i.e.
 // inclusive both ends. A ticket exactly on either edge is counted; one a second outside is not — so two
 // adjacent windows never double-count or drop an edge ticket.
