@@ -207,4 +207,4 @@ INSERT INTO system_settings (id, setting_key, setting_value, value_type, is_publ
     (5, 'setup_completed', '1', 'bool', 0, 4, NOW(), NOW());
 
 INSERT INTO audit_logs (id, user_id, action, entity_type, entity_id, ip_address, user_agent, context, created_at) VALUES
-    (1, 4, 'seed_imported', 'system', 1, '127.0.0.1', 'mysql-client', '{"source":"database/seed.sql"}', NOW());
+    (1, 4, 'seed_imported', 'system', 1, '127.0.0.1', 'mysql-client', '{"source":"database/seed_demo.sql"}', NOW());
