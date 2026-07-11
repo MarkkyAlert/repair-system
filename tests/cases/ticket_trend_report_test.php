@@ -103,6 +103,37 @@ test('ticket trend: a real 0% SLA and a sub-minute MTTR are chart data, not hidd
     }
 });
 
+test('ticket trend: periods carry the SLA and rating base counts (Finding F4)', function (): void {
+    // A period's "SLA 100%" / "CSAT 4.0" must expose how many concluded tickets / ratings it rests on,
+    // or a period with 1 sample looks as trustworthy as one with 100.
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $rid = bin2hex(random_bytes(4));
+    $ticketId = 0;
+
+    try {
+        // resolved 2020-07-11 ON TIME (due 2020-07-15) → SLA concluded (base 1) ; rated 4
+        ttr_pdo()->prepare(
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at, resolved_at, resolution_due_at)
+             VALUES (?, 'x', 'x', 1, 1, 1, 1, 'resolved', '2020-07-10 09:00:00', '2020-07-11 09:00:00', '2020-07-15 09:00:00')"
+        )->execute(["TTRB-$rid"]);
+        $ticketId = (int) ttr_pdo()->lastInsertId();
+        ttr_pdo()->prepare('INSERT INTO ticket_ratings (ticket_id, requester_id, score) VALUES (?, 1, 4)')->execute([$ticketId]);
+
+        $page = ttr_service()->getTicketTrendReportPage($admin, [
+            'granularity' => 'month', 'from_date' => '2020-07-01', 'to_date' => '2020-07-31',
+        ]);
+        $jul = ttr_period($page, '2020-07');
+
+        assert_true($jul !== null, 'the resolved month appears');
+        assert_same(1, $jul['sla_base'] ?? null, 'period exposes sla_base (concluded tickets behind the SLA %)');
+        assert_same(1, $jul['rating_count'] ?? null, 'period exposes rating_count (reviews behind the CSAT)');
+    } finally {
+        if ($ticketId > 0) {
+            ttr_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+        }
+    }
+});
+
 test('ticket trend: granularity controls bucket keys (day / week)', function (): void {
     $admin = ['id' => 4, 'role' => 'admin'];
 

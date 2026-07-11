@@ -84,9 +84,9 @@
             <td class="num"><?= e((string) ($period['created'] ?? 0)) ?></td>
             <td class="num"><?= e((string) ($period['resolved'] ?? 0)) ?></td>
             <td class="num"><?= e((string) ($period['net'] ?? 0)) ?></td>
-            <td class="num"><?= e((string) ($period['sla_pct_label'] ?? '-')) ?></td>
+            <td class="num"><?= e((string) ($period['sla_pct_label'] ?? '-')) ?><?php if ((int) ($period['sla_base'] ?? 0) > 0): ?> <small>(<?= e((string) $period['sla_base']) ?>)</small><?php endif; ?></td>
             <td class="num"><?= e((string) ($period['mttr_hours_label'] ?? '-')) ?></td>
-            <td class="num"><?= e((string) ($period['csat_label'] ?? '-')) ?></td>
+            <td class="num"><?= e((string) ($period['csat_label'] ?? '-')) ?><?php if ((int) ($period['rating_count'] ?? 0) > 0): ?> <small>(<?= e((string) $period['rating_count']) ?>)</small><?php endif; ?></td>
         </tr>
     <?php endforeach; ?>
     </tbody>

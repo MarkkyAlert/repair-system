@@ -48,7 +48,7 @@
         <div class="kpi-item <?= e((string) ($kpi['tone'] ?? 'default')) ?>">
             <div class="kpi-title"><?= e((string) ($kpi['label'] ?? '-')) ?></div>
             <div class="kpi-value"><?= e((string) ($kpi['value_label'] ?? '-')) ?></div>
-            <div class="kpi-delta"><?= e((string) ($kpi['delta_label'] ?? '—')) ?> (<?= e((string) ($kpi['pct_label'] ?? '—')) ?>) · งวดก่อน <?= e((string) ($kpi['prev_value_label'] ?? '-')) ?></div>
+            <div class="kpi-delta"><?= e((string) ($kpi['delta_label'] ?? '—')) ?> (<?= e((string) ($kpi['pct_label'] ?? '—')) ?>) · งวดก่อน <?= e((string) ($kpi['prev_value_label'] ?? '-')) ?><?php if (!empty($kpi['sample_label'])): ?> · <?= e((string) $kpi['sample_label']) ?><?php endif; ?></div>
         </div>
     <?php endforeach; ?>
 </div>

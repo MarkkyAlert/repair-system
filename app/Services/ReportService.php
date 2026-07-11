@@ -1107,10 +1107,12 @@ class ReportService
                 'net' => $c - $resolvedCount,
                 'sla_pct' => $slaPct,
                 'sla_pct_label' => $slaPct === null ? '-' : number_format($slaPct, 1) . '%',
+                'sla_base' => $slaBase,
                 'mttr_hours' => $mttrHours,
                 'mttr_hours_label' => $mttrHours === null ? '-' : number_format($mttrHours, 1),
                 'csat' => $csat,
                 'csat_label' => $csat === null ? '-' : number_format($csat, 2),
+                'rating_count' => $ratingCount,
             ];
         }
 
@@ -1286,14 +1288,15 @@ class ReportService
 
     private function trendExportHeaders(): array
     {
-        return ['ช่วงเวลา', 'แจ้งซ่อม', 'ปิดงาน', 'สุทธิ', 'SLA ตรงเวลา', 'เวลาซ่อมเฉลี่ย (ชม.)', 'คะแนนเฉลี่ย'];
+        return ['ช่วงเวลา', 'แจ้งซ่อม', 'ปิดงาน', 'สุทธิ', 'SLA ตรงเวลา', 'งาน SLA', 'เวลาซ่อมเฉลี่ย (ชม.)', 'คะแนนเฉลี่ย', 'จำนวนรีวิว'];
     }
 
     private function trendExportRow(array $period): array
     {
+        // 'งาน SLA' / 'จำนวนรีวิว' = base ของ % และคะแนน — export บอก sample size เหมือนหน้าจอ (F4)
         return [
             $period['label'], $period['created'], $period['resolved'], $period['net'],
-            $period['sla_pct_label'], $period['mttr_hours_label'], $period['csat_label'],
+            $period['sla_pct_label'], $period['sla_base'], $period['mttr_hours_label'], $period['csat_label'], $period['rating_count'],
         ];
     }
 
@@ -1414,6 +1417,7 @@ class ReportService
         $pMttr = round(((float) ($prevSum['avg_resolution_minutes'] ?? 0)) / 60, 1);
         $tRating = (float) ($thisSum['avg_rating'] ?? 0);
         $pRating = (float) ($prevSum['avg_rating'] ?? 0);
+        $tRatingCount = (int) ($thisSum['rating_count'] ?? 0);
 
         $kpis = [
             $this->execKpiCard('แจ้งซ่อมทั้งหมด', $tTotal, $pTotal, 'neutral', 0, '', (string) $tTotal),
@@ -1426,7 +1430,7 @@ class ReportService
             // MTTR/คะแนน เป็น avg → presence = มีงานปิด/มีรีวิวจริงไหม (base count) ไม่ใช่ค่า avg>0 —
             // งานปิด <1 นาที (MTTR 0.0) ยังต้องนับว่ามีข้อมูล ไม่งั้นเดลต้าหาย/โชว์ '-' ทั้งที่มีงาน (F5)
             $this->execKpiCard('เวลาซ่อมเฉลี่ย (ชม.)', $tMttr, $pMttr, 'down_good', 1, '', $tResolved > 0 ? number_format($tMttr, 1) : '-', $tResolved > 0, $pResolved > 0),
-            $this->execKpiCard('คะแนนเฉลี่ย', $tRating, $pRating, 'up_good', 1, '', $tRating > 0 ? number_format($tRating, 1) : '-', $tRating > 0, $pRating > 0),
+            $this->execKpiCard('คะแนนเฉลี่ย', $tRating, $pRating, 'up_good', 1, '', $tRating > 0 ? number_format($tRating, 1) : '-', $tRating > 0, $pRating > 0, $tRatingCount > 0 ? 'จาก ' . number_format($tRatingCount) . ' รีวิว' : null),
         ];
 
         $filterData = $this->buildFilterData($normalizedFilters, $reference);
@@ -1525,19 +1529,19 @@ class ReportService
     /**
      * การ์ด KPI 1 ตัว: value งวดนี้ + delta/pct เทียบงวดก่อน + tone ตามทิศที่ "ดี" (up_good/down_good/neutral).
      */
-    private function execKpiCard(string $label, float $thisVal, float $prevVal, string $goodDir, int $decimals, string $unit, string $valueLabel, bool $thisHasData = true, bool $prevHasData = true): array
+    private function execKpiCard(string $label, float $thisVal, float $prevVal, string $goodDir, int $decimals, string $unit, string $valueLabel, bool $thisHasData = true, bool $prevHasData = true, ?string $sampleLabel = null): array
     {
         $prevLabel = number_format($prevVal, $decimals) . $unit;
 
         // งวดปัจจุบันไม่มี base (rate/avg ที่ตัวหารเป็น 0) → ห้ามปั้นค่า 0% หรือเดลต้าหลอก (template-review F/Finding A).
-        // ต่างจาก count ที่ 0 คือค่าจริง — ตัว count ส่ง hasData=true เสมอ.
+        // ต่างจาก count ที่ 0 คือค่าจริง — ตัว count ส่ง hasData=true เสมอ. sample_label = ฐานที่ค่าตั้งอยู่ (F4).
         if (!$thisHasData) {
-            return ['label' => $label, 'value_label' => '-', 'prev_value_label' => $prevLabel, 'delta_label' => '—', 'pct_label' => '—', 'tone' => 'default'];
+            return ['label' => $label, 'value_label' => '-', 'prev_value_label' => $prevLabel, 'delta_label' => '—', 'pct_label' => '—', 'tone' => 'default', 'sample_label' => $sampleLabel];
         }
 
         // งวดก่อนไม่มี base → เทียบไม่ได้: โชว์ค่างวดนี้ แต่ไม่ปั้นเดลต้า/ทิศ (เลียนแบบ trendMetricCard).
         if (!$prevHasData) {
-            return ['label' => $label, 'value_label' => $valueLabel, 'prev_value_label' => $prevLabel, 'delta_label' => '—', 'pct_label' => '—', 'tone' => 'default'];
+            return ['label' => $label, 'value_label' => $valueLabel, 'prev_value_label' => $prevLabel, 'delta_label' => '—', 'pct_label' => '—', 'tone' => 'default', 'sample_label' => $sampleLabel];
         }
 
         $delta = round($thisVal - $prevVal, $decimals);
@@ -1556,6 +1560,7 @@ class ReportService
             'delta_label' => $delta === 0.0 ? 'เท่าเดิม' : $arrow . ' ' . ($delta > 0 ? '+' : '') . number_format($delta, $decimals) . $unit,
             'pct_label' => $pct === null ? '—' : ($pct > 0 ? '+' : '') . number_format($pct, 1) . '%',
             'tone' => $tone,
+            'sample_label' => $sampleLabel,
         ];
     }
 

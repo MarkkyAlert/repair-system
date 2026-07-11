@@ -208,9 +208,9 @@ $chartCard = static function (array $chart, string $key, string $title) use ($ch
                             <td><?= e((string) $period['created']) ?></td>
                             <td><?= e((string) $period['resolved']) ?></td>
                             <td><?= e((string) $period['net']) ?></td>
-                            <td><?= e((string) $period['sla_pct_label']) ?></td>
+                            <td><?= e((string) $period['sla_pct_label']) ?><?php if ((int) ($period['sla_base'] ?? 0) > 0): ?> <small title="จำนวนงานที่นับ SLA (ฐานของ %)">(<?= e((string) $period['sla_base']) ?>)</small><?php endif; ?></td>
                             <td><?= e((string) $period['mttr_hours_label']) ?></td>
-                            <td><?= e((string) $period['csat_label']) ?></td>
+                            <td><?= e((string) $period['csat_label']) ?><?php if ((int) ($period['rating_count'] ?? 0) > 0): ?> <small title="จำนวนรีวิว (ฐานของคะแนน)">(<?= e((string) $period['rating_count']) ?>)</small><?php endif; ?></td>
                         </tr>
                     <?php endforeach; ?>
                     </tbody>

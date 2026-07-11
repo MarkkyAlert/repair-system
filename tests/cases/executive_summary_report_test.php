@@ -350,3 +350,39 @@ test('executive: a period with sub-minute resolutions shows MTTR 0.0, not "-" (F
         }
     }
 });
+
+// Finding F4: the executive rating KPI ("คะแนนเฉลี่ย 5.0") must expose how many reviews it averages,
+// so a 5.0 from 2 reviews is not read as strongly as a 5.0 from 200.
+test('executive: the rating KPI exposes its review count (Finding F4)', function (): void {
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $rid = bin2hex(random_bytes(4));
+    $ids = [];
+
+    try {
+        foreach ([0, 1] as $i) {
+            exs_pdo()->prepare(
+                "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at, resolved_at)
+                 VALUES (?, 'x', 'x', 1, 1, 1, 1, 'resolved', '2020-05-15 09:00:00', '2020-05-15 12:00:00')"
+            )->execute(["EXF4-$rid-$i"]);
+            $tid = (int) exs_pdo()->lastInsertId();
+            $ids[] = $tid;
+            exs_pdo()->prepare('INSERT INTO ticket_ratings (ticket_id, requester_id, score) VALUES (?, 1, 5)')->execute([$tid]);
+        }
+
+        $page = exs_service()->getExecutiveSummaryPage($admin, ['preset' => 'custom', 'from_date' => '2020-05-01', 'to_date' => '2020-05-31']);
+        $rating = null;
+        foreach ($page['kpis'] as $k) {
+            if ($k['label'] === 'คะแนนเฉลี่ย') {
+                $rating = $k;
+            }
+        }
+        assert_true($rating !== null, 'rating KPI present');
+        assert_same('5.0', $rating['value_label'], 'avg rating = 5.0');
+        assert_same('จาก 2 รีวิว', $rating['sample_label'] ?? null, 'rating KPI exposes the review count (2) it rests on');
+    } finally {
+        foreach ($ids as $id) {
+            exs_pdo()->prepare('DELETE FROM ticket_ratings WHERE ticket_id = ?')->execute([$id]);
+            exs_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
+        }
+    }
+});

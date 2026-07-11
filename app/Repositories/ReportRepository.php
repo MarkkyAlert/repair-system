@@ -84,7 +84,8 @@ class ReportRepository
                     WHEN t.resolved_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at)
                     ELSE NULL
                 END), 0), 1) AS avg_resolution_minutes,
-                ROUND(COALESCE(AVG(tr.score), 0), 1) AS avg_rating
+                ROUND(COALESCE(AVG(tr.score), 0), 1) AS avg_rating,
+                COUNT(tr.score) AS rating_count
              FROM tickets t
              LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id
              WHERE $whereClause"

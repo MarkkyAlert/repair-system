@@ -74,7 +74,7 @@ $kpis = $kpis ?? [];
             <?= render_partial('partials/components/card', [
                 'title' => (string) ($kpi['label'] ?? '-'),
                 'value' => (string) ($kpi['value_label'] ?? '-'),
-                'meta' => (string) ($kpi['delta_label'] ?? '—') . ' (' . (string) ($kpi['pct_label'] ?? '—') . ') · งวดก่อน ' . (string) ($kpi['prev_value_label'] ?? '-'),
+                'meta' => (string) ($kpi['delta_label'] ?? '—') . ' (' . (string) ($kpi['pct_label'] ?? '—') . ') · งวดก่อน ' . (string) ($kpi['prev_value_label'] ?? '-') . (!empty($kpi['sample_label']) ? ' · ' . (string) $kpi['sample_label'] : ''),
                 'tone' => (string) ($kpi['tone'] ?? 'default'),
             ]) ?>
         <?php endforeach; ?>
