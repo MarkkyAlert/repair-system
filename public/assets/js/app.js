@@ -37,6 +37,12 @@ document.addEventListener('DOMContentLoaded', () => {
     syncThemeToggle();
   };
 
+  // The sidebar is an off-canvas modal drawer only at <=1024px; on desktop it's a static rail.
+  const isSidebarDrawer = () => window.matchMedia('(max-width: 1024px)').matches;
+  const sidebarDrawerFocusables = () => (sidebar
+    ? [...sidebar.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),[tabindex]:not([tabindex="-1"])')].filter((el) => el.offsetWidth > 0 || el.offsetHeight > 0)
+    : []);
+
   const setSidebarOpen = (isOpen) => {
     if (!sidebar) {
       return;
@@ -54,6 +60,20 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         sidebarOverlay.setAttribute('hidden', 'hidden');
       }
+    }
+
+    // Focus management for the modal drawer (mobile/tablet): move focus into the nav on open so keyboard/SR
+    // users land inside it, and return focus to the toggle on close if it was inside (WCAG 2.4.3).
+    if (!isSidebarDrawer()) {
+      return;
+    }
+    if (isOpen) {
+      const focusables = sidebarDrawerFocusables();
+      if (focusables.length) {
+        focusables[0].focus();
+      }
+    } else if (sidebar.contains(document.activeElement) && sidebarToggle) {
+      sidebarToggle.focus();
     }
   };
 
@@ -110,8 +130,30 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   document.addEventListener('keydown', (event) => {
+    const drawerOpen = sidebar && sidebar.classList.contains('is-open') && isSidebarDrawer();
     if (event.key === 'Escape') {
       setSidebarOpen(false);
+      return;
+    }
+    // Trap Tab inside the open drawer so keyboard focus can't wander to the obscured page behind it.
+    if (event.key === 'Tab' && drawerOpen) {
+      const focusables = sidebarDrawerFocusables();
+      if (!focusables.length) {
+        return;
+      }
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement;
+      if (!sidebar.contains(active)) {
+        event.preventDefault();
+        first.focus();
+      } else if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
     }
   });
 

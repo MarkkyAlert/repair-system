@@ -63,3 +63,27 @@ test.describe('keyboard: confirm-modal focus trap (F1)', () => {
     await expect(modal).toBeHidden();
   });
 });
+
+test.describe('keyboard: mobile sidebar drawer focus trap (F1b)', () => {
+  test.use({ storageState: adminState, viewport: { width: 375, height: 812 } });
+
+  test('opening the drawer moves + traps focus, Esc returns it to the toggle', async ({ page }) => {
+    await page.goto('/dashboard');
+    const toggle = page.locator('[data-sidebar-toggle]');
+    const sidebar = page.locator('#app-sidebar');
+
+    await toggle.click();
+    await expect(sidebar).toHaveClass(/is-open/);
+    // Focus moves into the nav on open, and Tab stays trapped inside the drawer.
+    expect(await sidebar.evaluate((s) => s.contains(document.activeElement))).toBe(true);
+    for (let i = 0; i < 8; i++) {
+      await page.keyboard.press('Tab');
+      expect(await sidebar.evaluate((s) => s.contains(document.activeElement))).toBe(true);
+    }
+
+    // Esc closes the drawer and returns focus to the toggle.
+    await page.keyboard.press('Escape');
+    await expect(sidebar).not.toHaveClass(/is-open/);
+    expect(await toggle.evaluate((t) => t === document.activeElement)).toBe(true);
+  });
+});

@@ -138,3 +138,16 @@ test('a11y F1: confirm modal traps Tab focus within the open dialog (WCAG 2.4.3)
         'app.js confirm-modal must trap Tab within the open modal (WCAG 2.4.3)'
     );
 });
+
+test('a11y F1b: mobile sidebar drawer moves focus in and traps Tab (WCAG 2.4.3)', function (): void {
+    // The off-canvas nav drawer (<=1024px) is modal (overlay over content). Opening it must move focus into
+    // the nav and trap Tab so keyboard/SR users don't land on / escape to the obscured page behind it.
+    // Behaviour verified live (focus enters on open, Tab stays trapped, escaped focus pulled back, Esc closes
+    // + returns focus to the toggle); re-checkable via the E2E mobile keyboard test.
+    $js = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/js/app.js');
+    assert_true(str_contains($js, 'sidebarDrawerFocusables'), 'app.js missing the sidebar-drawer focus helpers');
+    assert_true(
+        preg_match("/event\\.key === 'Tab' && drawerOpen[\\s\\S]{0,400}sidebar\\.contains[\\s\\S]{0,200}\\.focus\\(\\)/", $js) === 1,
+        'app.js must trap Tab inside the open sidebar drawer (WCAG 2.4.3)'
+    );
+});
