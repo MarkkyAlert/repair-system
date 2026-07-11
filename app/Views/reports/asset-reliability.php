@@ -162,9 +162,12 @@ $rowsMeta = $rowsMeta ?? ['displayed' => $rowCount, 'limit' => 500, 'capped' => 
             <div>
                 <h2 class="panel-title">ทรัพย์สินเรียงตามความเสี่ยง</h2>
                 <p class="field-hint">คะแนนสุขภาพประเมินจากความถี่เสีย · อายุ · ประกัน · MTBF · เวลาซ่อม · สถานะ — "ควรเปลี่ยน" ถูกจัดขึ้นบนสุด</p>
+                <?php if (!empty($rowsMeta['capped'])): ?>
+                    <p class="field-hint">แสดง <?= e((string) ($rowsMeta['displayed'] ?? count($rows))) ?> รายการแรก (เสี่ยงสุด) จากทั้งหมด <?= e((string) ($rowsMeta['total'] ?? '-')) ?> — การ์ดสรุปด้านบนคำนวณจากทรัพย์สินทั้งหมด</p>
+                <?php endif; ?>
             </div>
             <?php if (!empty($rows)): ?>
-                <span class="badge badge-default"><?= e((string) count($rows)) ?> รายการ</span>
+                <span class="badge badge-default"><?= !empty($rowsMeta['capped']) ? e((string) ($rowsMeta['displayed'] ?? count($rows)) . ' / ' . (string) ($rowsMeta['total'] ?? '')) : e((string) count($rows)) ?> รายการ</span>
             <?php endif; ?>
         </div>
 

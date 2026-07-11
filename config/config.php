@@ -91,4 +91,8 @@ return [
         // Default is enforcing. Flip via CSP_REPORT_ONLY=true if a deploy surfaces an unexpected violation.
         'csp_report_only' => Env::bool('CSP_REPORT_ONLY', false),
     ],
+    'reports' => [
+        // แถวสูงสุดที่ตารางรายงานสุขภาพทรัพย์สินแสดง — การ์ดสรุปคำนวณจากทรัพย์สินทั้งหมดเสมอ (ไม่ติดเพดานนี้)
+        'asset_display_limit' => max(1, (int) Env::get('REPORT_ASSET_DISPLAY_LIMIT', 500)),
+    ],
 ];

@@ -31,6 +31,53 @@ function arr_find_row(string $assetCode): ?array
     return null;
 }
 
+test('asset reliability: summary counts ALL matching assets, not just the displayed page (Finding F1)', function (): void {
+    // The summary cards must reflect every matching asset, even when the table shows only the first N.
+    // Isolate with a fresh location + a low display limit so 3 assets exceed it without inserting 500+.
+    $container = tvm_container();
+    $config = $container->get('config');
+    $rid = bin2hex(random_bytes(4));
+    arr_pdo()->prepare("INSERT INTO locations (code, name) VALUES (?, ?)")->execute(["ARRF1L-$rid", "ARR F1 Loc $rid"]);
+    $locId = (int) arr_pdo()->lastInsertId();
+    $assetIds = [];
+    $ticketIds = [];
+
+    $capped = $config;
+    $capped['reports']['asset_display_limit'] = 2;
+    $container->instance('config', $capped);
+
+    try {
+        foreach ([0, 1, 2] as $i) {
+            arr_pdo()->prepare(
+                "INSERT INTO assets (asset_code, name, asset_category_id, location_id, status) VALUES (?, 'ARR F1', 1, ?, 'active')"
+            )->execute(["ARRF1-$rid-$i", $locId]);
+            $aid = (int) arr_pdo()->lastInsertId();
+            $assetIds[] = $aid;
+            arr_pdo()->prepare(
+                "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, asset_id, status, requested_at)
+                 VALUES (?, 'x', 'x', 1, ?, 1, 1, ?, 'submitted', NOW())"
+            )->execute(["ARRF1T-$rid-$i", $locId, $aid]);
+            $ticketIds[] = (int) arr_pdo()->lastInsertId();
+        }
+
+        $page = arr_service()->getAssetReliabilityReportPage(['id' => 4, 'role' => 'admin'], ['location_id' => $locId]);
+
+        assert_same(3, (int) $page['summary']['assets'], 'summary counts all 3 matching assets, not the capped display');
+        assert_same(2, count($page['rows']), 'the table is capped at the display limit (2)');
+        assert_same(3, (int) ($page['rowsMeta']['total'] ?? 0), 'rowsMeta.total is the true count');
+        assert_true((bool) ($page['rowsMeta']['capped'] ?? false), 'rowsMeta.capped is true when there are more than the display limit');
+    } finally {
+        $container->instance('config', $config);
+        foreach ($ticketIds as $id) {
+            arr_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
+        }
+        foreach ($assetIds as $id) {
+            arr_pdo()->prepare('DELETE FROM assets WHERE id = ?')->execute([$id]);
+        }
+        arr_pdo()->prepare('DELETE FROM locations WHERE id = ?')->execute([$locId]);
+    }
+});
+
 test('asset reliability: heuristic health scoring — high-risk asset = ควรเปลี่ยน, fresh asset = ปกติ', function (): void {
     $rid = bin2hex(random_bytes(4));
     $badAsset = 0;

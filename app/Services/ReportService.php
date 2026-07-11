@@ -80,7 +80,8 @@ class ReportService
     // ===== Asset Reliability Report (หน้าแยกเต็มตัว /reports/asset-reliability) =====
 
     // แสดงทุก asset ที่มีประวัติแจ้งซ่อมในช่วงกรอง (ไม่จำกัด 20 อันดับแบบ panel ท้าย /reports)
-    private const ASSET_REPORT_LIMIT = 500;
+    private const ASSET_REPORT_LIMIT = 500;             // ค่าเริ่มต้นจำนวนแถวที่ตารางแสดง (buyer ปรับผ่าน config/env ได้)
+    private const ASSET_SUMMARY_MAX_ROWS = 100000;      // = repo MAX_ROWS — สรุป/จัดอันดับสุขภาพประเมินทรัพย์สินทุกตัวที่เข้าเงื่อนไข
 
     // เกณฑ์ให้คะแนนสุขภาพ (heuristic, ปรับได้) — รวมคะแนนแล้วจัด bucket ควรเปลี่ยน/เฝ้าระวัง/ปกติ
     private const HEALTH_FAILURE_HIGH = 5;   // เสีย ≥ ครั้งนี้ = +2
@@ -98,16 +99,23 @@ class ReportService
 
         $normalizedFilters = $this->normalizeAssetReportFilters($filters);
         $reference = $this->reports->getAssetReportReferenceData();
-        $rows = $this->collectAssetReportRows($viewer, $normalizedFilters, self::ASSET_REPORT_LIMIT);
+
+        // Score EVERY matching asset → the summary cards and the worst-health ranking are computed over all
+        // of them; the table then shows only the top N (buyer-tunable). Previously the summary was built from
+        // the capped rows, so it undercounted the fleet size / downtime / labor once past the cap (F1).
+        $displayLimit = max(1, (int) config('reports.asset_display_limit', self::ASSET_REPORT_LIMIT));
+        $allRows = $this->collectAssetReportRows($viewer, $normalizedFilters, self::ASSET_SUMMARY_MAX_ROWS);
+        $displayRows = array_slice($allRows, 0, $displayLimit);
 
         return [
             'filters' => $this->buildAssetReportFilterData($normalizedFilters, $reference),
-            'summary' => $this->buildAssetReportSummary($rows),
-            'rows' => $rows,
+            'summary' => $this->buildAssetReportSummary($allRows),
+            'rows' => $displayRows,
             'rowsMeta' => [
-                'displayed' => count($rows),
-                'limit' => self::ASSET_REPORT_LIMIT,
-                'capped' => count($rows) >= self::ASSET_REPORT_LIMIT,
+                'displayed' => count($displayRows),
+                'total' => count($allRows),
+                'limit' => $displayLimit,
+                'capped' => count($allRows) > $displayLimit,
             ],
         ];
     }
