@@ -129,7 +129,7 @@
         </nav>
         <div class="sidebar-footer">
             <span class="system-status-dot"></span>
-            <div class="brand-copy"><strong>ระบบพร้อมใช้งาน</strong><span>Asia/Bangkok</span></div>
+            <div class="brand-copy"><strong>ระบบพร้อมใช้งาน</strong><span><?= e(setting('default_timezone', config('app.timezone', 'Asia/Bangkok'))) ?></span></div>
         </div>
     </aside>
     <button type="button" class="sidebar-overlay" data-sidebar-overlay hidden aria-label="Close navigation"></button>
