@@ -78,6 +78,38 @@ test('asset reliability: summary counts ALL matching assets, not just the displa
     }
 });
 
+test('asset reliability: a same-minute resolution shows avg 0.0, not "-" (Finding F5-rem)', function (): void {
+    // avg-resolution presence must come from the resolved-ticket COUNT, not the average value:
+    // a fault fixed within the same clock-minute has a real 0.0h, not "no data".
+    $rid = bin2hex(random_bytes(4));
+    $assetId = 0;
+    $ticketId = 0;
+
+    try {
+        arr_pdo()->prepare(
+            "INSERT INTO assets (asset_code, name, asset_category_id, location_id, status) VALUES (?, 'ARR F5', 1, 1, 'active')"
+        )->execute(["ARRF5-$rid"]);
+        $assetId = (int) arr_pdo()->lastInsertId();
+        arr_pdo()->prepare(
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, asset_id, status, requested_at, resolved_at)
+             VALUES (?, 'x', 'x', 1, 1, 1, 1, ?, 'resolved', '2020-05-10 10:00:00', '2020-05-10 10:00:45')"
+        )->execute(["ARRF5T-$rid", $assetId]);
+        $ticketId = (int) arr_pdo()->lastInsertId();
+
+        $row = arr_find_row("ARRF5-$rid");
+        assert_true($row !== null, 'asset appears');
+        assert_same(1, $row['failure_count'], 'failure_count = 1');
+        assert_same('0.0', $row['avg_resolution_hours_label'], 'avg resolution 0.0h (same-minute resolve), not "-"');
+    } finally {
+        if ($ticketId > 0) {
+            arr_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+        }
+        if ($assetId > 0) {
+            arr_pdo()->prepare('DELETE FROM assets WHERE id = ?')->execute([$assetId]);
+        }
+    }
+});
+
 test('asset reliability: heuristic health scoring — high-risk asset = ควรเปลี่ยน, fresh asset = ปกติ', function (): void {
     $rid = bin2hex(random_bytes(4));
     $badAsset = 0;

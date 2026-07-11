@@ -54,6 +54,32 @@ function phs_row(string $dimension, string $label): ?array
     return null;
 }
 
+test('problem hotspot: a same-minute resolution shows avg 0.0, not "-" (Finding F5-rem)', function (): void {
+    // avg-resolution presence must come from the resolved COUNT, not the average value.
+    $rid = bin2hex(random_bytes(4));
+    [$locId, $locName] = phs_location($rid);
+    $ticketId = 0;
+    $base = date('Y-m-d H:i'); // anchor both timestamps to the current minute → TIMESTAMPDIFF(MINUTE)=0, and in-window
+
+    try {
+        phs_pdo()->prepare(
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at, resolved_at)
+             VALUES (?, 'x', 'x', 1, ?, 1, 1, 'resolved', ?, ?)"
+        )->execute(["PHSZ-$rid", $locId, "$base:00", "$base:30"]);
+        $ticketId = (int) phs_pdo()->lastInsertId();
+
+        $row = phs_row('location', $locName);
+        assert_true($row !== null, 'location appears');
+        assert_same(1, $row['ticket_count'], 'ticket_count = 1');
+        assert_same('0.0', $row['avg_resolution_hours_label'], 'avg resolution 0.0h (same-minute resolve), not "-"');
+    } finally {
+        if ($ticketId > 0) {
+            phs_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+        }
+        phs_pdo()->prepare('DELETE FROM locations WHERE id = ?')->execute([$locId]);
+    }
+});
+
 test('problem hotspot: overdue counted at ticket-level, no fan-out, met ticket excluded', function (): void {
     $rid = bin2hex(random_bytes(4));
     [$locId] = phs_location($rid);

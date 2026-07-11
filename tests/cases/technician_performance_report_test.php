@@ -123,6 +123,28 @@ test('technician performance: avg rating & SLA rate carry their sample size (Fin
     }
 });
 
+test('technician performance: a same-minute resolution shows MTTR/first-response 0.0, not "-" (Finding F5-rem)', function (): void {
+    // MTTR/first-response presence must come from the resolved / responded COUNT, not the average value:
+    // a ticket answered and resolved within the same clock-minute has a real 0.0h, not "no data".
+    $rid = bin2hex(random_bytes(4));
+    [$techId, $fullName] = tpr_tech($rid);
+
+    try {
+        tpr_pdo()->prepare(
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, assigned_technician_id, status, requested_at, first_response_at, resolved_at, resolution_due_at)
+             VALUES (?, 'x', 'x', 1, 1, 1, 1, ?, 'resolved', '2020-05-10 10:00:00', '2020-05-10 10:00:30', '2020-05-10 10:00:45', '2020-05-11 10:00:00')"
+        )->execute(["TPRZ-$rid", $techId]);
+
+        $row = tpr_row($fullName, ['from_date' => '2020-05-01', 'to_date' => '2020-05-31']);
+        assert_true($row !== null, 'technician appears');
+        assert_same(1, $row['resolved'], 'resolved = 1');
+        assert_same('0.0', $row['mttr_hours_label'], 'MTTR 0.0h (resolved in the same minute), not "-"');
+        assert_same('0.0', $row['first_response_hours_label'], 'first response 0.0h, not "-"');
+    } finally {
+        tpr_cleanup($techId);
+    }
+});
+
 test('technician performance: live workload is a NOW snapshot, ignores date filter + excludes terminal', function (): void {
     $rid = bin2hex(random_bytes(4));
     [$techId, $fullName] = tpr_tech($rid);

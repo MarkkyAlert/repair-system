@@ -241,6 +241,7 @@ class ReportRepository
                     WHEN t.resolved_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at)
                     ELSE NULL
                 END), 0), 1) AS avg_resolution_minutes,
+                SUM(CASE WHEN t.resolved_at IS NOT NULL THEN 1 ELSE 0 END) AS resolved_count,
                 COALESCE(SUM(CASE
                     WHEN t.resolved_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at)
                     ELSE 0
@@ -522,6 +523,7 @@ class ReportRepository
                 SUM(CASE WHEN t.status IN ($resolvedStatuses) THEN 1 ELSE 0 END) AS resolved,
                 ROUND(AVG(CASE WHEN t.resolved_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at) ELSE NULL END), 1) AS mttr_minutes,
                 ROUND(AVG(CASE WHEN t.first_response_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.first_response_at) ELSE NULL END), 1) AS first_response_minutes,
+                SUM(CASE WHEN t.first_response_at IS NOT NULL THEN 1 ELSE 0 END) AS first_response_count,
                 SUM(CASE WHEN t.resolved_at IS NOT NULL AND t.resolution_due_at IS NOT NULL THEN 1 ELSE 0 END) AS sla_base,
                 SUM(CASE WHEN t.resolved_at IS NOT NULL AND t.resolution_due_at IS NOT NULL AND t.resolved_at <= t.resolution_due_at THEN 1 ELSE 0 END) AS sla_on_time,
                 ROUND(COALESCE(AVG(tr.score), 0), 2) AS avg_rating,
@@ -603,6 +605,7 @@ class ReportRepository
                         )
                     THEN 1 ELSE 0
                 END) AS overdue_count,
+                SUM(CASE WHEN t.resolved_at IS NOT NULL THEN 1 ELSE 0 END) AS resolved_count,
                 ROUND(AVG(CASE WHEN t.resolved_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at) ELSE NULL END), 1) AS avg_resolution_minutes,
                 COALESCE(SUM(wo.labor_minutes), 0) AS labor_minutes
              FROM tickets t

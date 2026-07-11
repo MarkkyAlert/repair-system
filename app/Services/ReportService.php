@@ -195,7 +195,7 @@ class ReportService
             'failure_count' => $failureCount,
             'last_failure' => $this->formatDateTime($row['last_failure_at'] ?? null),
             'mtbf_days_label' => $mtbfDays !== null ? number_format(round($mtbfDays, 0), 0) . ' วัน' : '-',
-            'avg_resolution_hours_label' => $avgMinutes > 0 ? number_format($avgHours, 1) : '-',
+            'avg_resolution_hours_label' => (int) ($row['resolved_count'] ?? 0) > 0 ? number_format($avgHours, 1) : '-',
             'downtime_minutes' => $downtimeMinutes,
             'downtime_hours_label' => $downtimeMinutes > 0 ? number_format(round($downtimeMinutes / 60, 1), 1) : '-',
             'labor_minutes' => $laborMinutes,
@@ -667,8 +667,8 @@ class ReportService
             'sla_on_time_tone' => $slaRate === null
                 ? 'default'
                 : ($slaRate >= 90 ? 'success' : ($slaRate >= 75 ? 'warning' : 'danger')),
-            'first_response_hours_label' => $firstRespMinutes > 0 ? number_format(round($firstRespMinutes / 60, 1), 1) : '-',
-            'mttr_hours_label' => $mttrMinutes > 0 ? number_format(round($mttrMinutes / 60, 1), 1) : '-',
+            'first_response_hours_label' => (int) ($period['first_response_count'] ?? 0) > 0 ? number_format(round($firstRespMinutes / 60, 1), 1) : '-',
+            'mttr_hours_label' => $resolved > 0 ? number_format(round($mttrMinutes / 60, 1), 1) : '-',
             'avg_rating_label' => $ratingCount > 0 ? number_format($avgRating, 1) : '-',
             'avg_rating_tone' => $ratingCount === 0
                 ? 'default'
@@ -881,7 +881,7 @@ class ReportService
             'overdue_count' => $overdueCount,
             'overdue_rate_label' => number_format($overdueRate, 1) . '%',
             'overdue_tone' => $this->breachTone($overdueRate),
-            'avg_resolution_hours_label' => $avgMinutes > 0 ? number_format($avgHours, 1) : '-',
+            'avg_resolution_hours_label' => (int) ($row['resolved_count'] ?? 0) > 0 ? number_format($avgHours, 1) : '-',
             'labor_minutes' => $laborMinutes,
             'labor_hours_label' => $laborMinutes > 0 ? number_format(round($laborMinutes / 60, 1), 1) : '-',
             'hotspot_score' => $hotspot['score'],
