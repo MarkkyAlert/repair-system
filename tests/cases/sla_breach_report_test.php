@@ -94,6 +94,45 @@ test('sla breach: counting + response/resolution pivot per dimension value', fun
     }
 });
 
+test('sla breach: two same-named locations (different id) stay separate rows (Finding F3)', function (): void {
+    // The schema allows duplicate location/category names. The report groups by dim.id in SQL but pivots
+    // by dimension_label in the service, so two distinct places with the same name were merged into one
+    // row — hiding which of them is the real bottleneck. They must appear as two rows.
+    $rid = bin2hex(random_bytes(4));
+    $dupName = "SLAB Dup $rid";
+    slab_pdo()->prepare("INSERT INTO locations (code, name) VALUES (?, ?)")->execute(["SLABDA-$rid", $dupName]);
+    $locA = (int) slab_pdo()->lastInsertId();
+    slab_pdo()->prepare("INSERT INTO locations (code, name) VALUES (?, ?)")->execute(["SLABDB-$rid", $dupName]);
+    $locB = (int) slab_pdo()->lastInsertId();
+    $tids = [];
+
+    try {
+        // location A: resolution BREACHED ; location B: resolution MET — different outcomes, same name
+        foreach ([[$locA, 'breached', 'breached_at'], [$locB, 'met', 'achieved_at']] as [$loc, $status, $col]) {
+            slab_pdo()->prepare(
+                "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at)
+                 VALUES (?, 'x', 'x', 1, ?, 1, 1, 'in_progress', NOW())"
+            )->execute(["SLABD-$rid-$loc", $loc]);
+            $tid = (int) slab_pdo()->lastInsertId();
+            $tids[] = $tid;
+            slab_pdo()->prepare("INSERT INTO ticket_sla_tracks (ticket_id, metric_type, target_at, $col, status) VALUES (?, 'resolution', ?, ?, ?)")
+                ->execute([$tid, date('Y-m-d H:i:s', time() - 3600), date('Y-m-d H:i:s'), $status]);
+        }
+
+        $page = slab_service()->getSlaBreachReportPage(['id' => 4, 'role' => 'admin'], ['dimension' => 'location']);
+        $dupRows = array_values(array_filter($page['rows'], static fn (array $r): bool => $r['label'] === $dupName));
+
+        assert_same(2, count($dupRows), 'two same-named locations must be TWO rows, not merged by label');
+        assert_same(1, (int) array_sum(array_map(static fn (array $r): int => (int) $r['total_breached'], $dupRows)), 'exactly one location breached');
+        assert_same(1, (int) array_sum(array_map(static fn (array $r): int => (int) $r['total_met'], $dupRows)), 'the other location met');
+    } finally {
+        foreach ($tids as $tid) {
+            slab_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$tid]);
+        }
+        slab_pdo()->prepare('DELETE FROM locations WHERE id IN (?, ?)')->execute([$locA, $locB]);
+    }
+});
+
 test('sla breach: pending past-due counts as breach, pending not-yet-due excluded', function (): void {
     $rid = bin2hex(random_bytes(4));
     [$catId, $locId, $deptId] = slab_dims($rid);

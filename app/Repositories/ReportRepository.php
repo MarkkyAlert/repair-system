@@ -377,6 +377,7 @@ class ReportRepository
 
         $stmt = $this->db->prepare(
             "SELECT
+                dim.id AS dimension_id,
                 {$map['label']} AS dimension_label,
                 ts.metric_type,
                 SUM(CASE WHEN ts.status = 'met' THEN 1 ELSE 0 END) AS met,

@@ -2445,12 +2445,14 @@ class ReportService
             if (!in_array($metric, ['response', 'resolution'], true)) {
                 continue;
             }
-            $label = (string) ($row['dimension_label'] ?? '-');
-            if (!isset($byDim[$label])) {
-                $byDim[$label] = ['label' => $label, 'response' => ['met' => 0, 'breached' => 0], 'resolution' => ['met' => 0, 'breached' => 0]];
+            // pivot by dimension_id, not label — two entities with the same name (schema allows duplicate
+            // location/category names) must stay distinct rows (template-review F3). null id → '' bucket.
+            $key = (string) ($row['dimension_id'] ?? '');
+            if (!isset($byDim[$key])) {
+                $byDim[$key] = ['label' => (string) ($row['dimension_label'] ?? '-'), 'response' => ['met' => 0, 'breached' => 0], 'resolution' => ['met' => 0, 'breached' => 0]];
             }
-            $byDim[$label][$metric]['met'] += (int) ($row['met'] ?? 0);
-            $byDim[$label][$metric]['breached'] += (int) ($row['breached'] ?? 0);
+            $byDim[$key][$metric]['met'] += (int) ($row['met'] ?? 0);
+            $byDim[$key][$metric]['breached'] += (int) ($row['breached'] ?? 0);
         }
 
         $result = array_map(function (array $d): array {
