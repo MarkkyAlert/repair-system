@@ -197,7 +197,10 @@ class AdminService
             'port' => (string) config('mail.port', 1025),
             'encryption' => (string) config('mail.encryption', ''),
             'from_address' => (string) config('mail.from_address', 'noreply@example.com'),
-            'from_name' => (string) config('mail.from_name', setting('app_name', config('app.name', 'Repair System'))),
+            'from_name' => MailerService::resolveFromName(
+                (string) config('mail.from_name', ''),
+                (string) setting('app_name', config('app.name', 'Repair System'))
+            ),
             'reply_to_address' => (string) config('mail.reply_to_address', ''),
             'log_path' => (string) config('mail.log_path', storage_path('mail-logs')),
             'is_log_driver' => $driver === 'log',

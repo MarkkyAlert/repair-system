@@ -8,6 +8,18 @@ use RuntimeException;
 
 class MailerService
 {
+    /**
+     * ชื่อผู้ส่งอีเมล: ถ้าตั้ง MAIL_FROM_NAME ไว้ (ไม่ว่าง) ใช้ค่านั้น — ให้ ops override ได้ เช่นเพื่อจัด DMARC/ชื่อเฉพาะ;
+     * ถ้าเว้นว่าง ให้ตามชื่อระบบที่แอดมินตั้งใน Admin (setting app_name) — template-review F2. เป็น single source
+     * ที่ทั้ง send() และหน้า diagnostics ของแอดมินใช้ร่วมกัน กันชื่อผู้ส่งเพี้ยนจากค่า template หลัง rebrand.
+     */
+    public static function resolveFromName(string $configuredFromName, string $appName): string
+    {
+        $configured = trim($configuredFromName);
+
+        return $configured !== '' ? $configured : trim($appName);
+    }
+
     public function send(array $message): void
     {
         $driver = strtolower((string) config('mail.driver', 'log'));
@@ -39,7 +51,10 @@ class MailerService
         }
 
         $fromAddress = (string) config('mail.from_address', 'noreply@example.com');
-        $fromName = (string) config('mail.from_name', setting('app_name', config('app.name', 'Repair System')));
+        $fromName = self::resolveFromName(
+            (string) config('mail.from_name', ''),
+            (string) setting('app_name', config('app.name', 'Repair System'))
+        );
         $mailer->setFrom($fromAddress, $fromName);
 
         $replyToAddress = trim((string) config('mail.reply_to_address', ''));

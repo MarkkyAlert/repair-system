@@ -51,7 +51,8 @@ return [
         'password' => Env::get('MAIL_PASSWORD', ''),
         'encryption' => Env::get('MAIL_ENCRYPTION', ''),
         'from_address' => Env::get('MAIL_FROM_ADDRESS', 'noreply@example.com'),
-        'from_name' => Env::get('MAIL_FROM_NAME', (string) Env::get('APP_NAME', 'Repair System')),
+        // ว่าง = ให้ MailerService::resolveFromName() fallback ไปชื่อระบบใน Admin (setting app_name); ตั้งค่าเพื่อ override
+        'from_name' => Env::get('MAIL_FROM_NAME', ''),
         'reply_to_address' => Env::get('MAIL_REPLY_TO_ADDRESS', ''),
         'reply_to_name' => Env::get('MAIL_REPLY_TO_NAME', ''),
         'queue_batch_size' => (int) Env::get('MAIL_QUEUE_BATCH_SIZE', 10),
