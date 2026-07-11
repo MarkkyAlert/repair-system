@@ -33,6 +33,8 @@ return [
         'url' => $appUrl,
         'base_path' => $basePath,
         'timezone' => Env::get('APP_TIMEZONE', 'Asia/Bangkok'),
+        // ปิดเป็นค่าเริ่มต้น — กัน admin เผลอโหลดข้อมูลตัวอย่างลง production; เปิดเฉพาะรอบทดลอง/เดโม
+        'allow_demo_data' => Env::bool('ALLOW_DEMO_DATA', false),
     ],
     'db' => [
         'host' => Env::get('DB_HOST', '127.0.0.1'),

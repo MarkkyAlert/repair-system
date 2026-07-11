@@ -112,10 +112,11 @@ class SetupController
                 $adminId = (int) ($adminUser['id'] ?? 0);
             }
 
-            // Step 3: load demo data (optional)
+            // Step 3: load demo data (optional). Gated on ALLOW_DEMO_DATA so a disabled install skips it
+            // cleanly here instead of letting load() throw mid-transaction and roll back the whole setup.
             $loadDemo = truthy_input($_POST['load_demo'] ?? '0');
             $demoSummary = null;
-            if ($loadDemo) {
+            if ($loadDemo && config('app.allow_demo_data', false)) {
                 $demoSummary = $this->demoData->load($adminId);
             }
 

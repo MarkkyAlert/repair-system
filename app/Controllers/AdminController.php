@@ -82,7 +82,7 @@ class AdminController
             'emailPreviews' => $data['emailPreviews'],
             'loginAttempts' => $data['loginAttempts'],
             'loginAttemptStats' => $data['loginAttemptStats'],
-            'canLoadDemo' => $this->reads->countAllTickets() === 0,
+            'canLoadDemo' => config('app.allow_demo_data', false) && $this->reads->countAllTickets() === 0,
             'backup' => $this->backup->getStatus(),
         ]);
     }

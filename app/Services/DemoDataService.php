@@ -9,6 +9,7 @@ use App\Repositories\TicketReadRepository;
 use App\Repositories\TicketRepository;
 use DomainException;
 use PDO;
+use RuntimeException;
 use Throwable;
 
 class DemoDataService
@@ -29,6 +30,12 @@ class DemoDataService
      */
     public function load(int $createdByUserId = 0): array
     {
+        // ด่านแรก: environment gate — production (ค่าเริ่มต้น) โหลด demo ไม่ได้เด็ดขาด แม้ระบบยังว่าง.
+        // คุมทั้ง Setup และ /admin/demo-data/load จากจุดเดียว (template-review F1).
+        if (!config('app.allow_demo_data', false)) {
+            throw new RuntimeException('การโหลดข้อมูลตัวอย่างถูกปิดใช้งานบนระบบนี้ — ตั้ง ALLOW_DEMO_DATA=true ใน .env เฉพาะรอบทดลอง/เดโม (อย่าเปิดบน production)');
+        }
+
         if ($this->reads->countAllTickets() > 0) {
             throw new DomainException('ไม่สามารถโหลดข้อมูลตัวอย่าง — มี ticket อยู่ในระบบแล้ว');
         }
