@@ -109,6 +109,34 @@ test('backlog aging: bucket boundaries land on the correct side at exactly 3 / 7
     }
 });
 
+test('backlog aging: a future requested_at yields age 0, not a negative age (Finding G1)', function (): void {
+    // A ticket with a future requested_at (clock skew / bad import) must not produce a negative age —
+    // DATEDIFF would go below 0. Age is clamped to 0: the ticket sits in the youngest bucket and never
+    // reports a negative "oldest".
+    $rid = bin2hex(random_bytes(4));
+    [$locId, $locName] = bla_location($rid);
+    $ticketId = 0;
+
+    try {
+        bla_pdo()->prepare(
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, requester_department_id, location_id, ticket_category_id, priority_id, assigned_technician_id, status, requested_at)
+             VALUES (?, 'x', 'x', 1, 4, ?, 1, 1, 3, 'in_progress', ?)"
+        )->execute(["BLF-$rid", $locId, date('Y-m-d H:i:s', (int) strtotime('+10 days'))]);
+        $ticketId = (int) bla_pdo()->lastInsertId();
+
+        $row = bla_row('location', $locName);
+        assert_true($row !== null, 'location appears');
+        assert_same(1, $row['total'], 'the future ticket is counted');
+        assert_same(1, $row['bucket_0_3'], 'a not-yet-aged ticket sits in the youngest bucket');
+        assert_same(0, (int) $row['oldest_days'], 'age is clamped to 0 — never negative');
+    } finally {
+        if ($ticketId > 0) {
+            bla_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+        }
+        bla_pdo()->prepare('DELETE FROM locations WHERE id = ?')->execute([$locId]);
+    }
+});
+
 test('backlog aging: dimension labels — status→Thai, null technician/department bucketed', function (): void {
     $rid = bin2hex(random_bytes(4));
     [$locId] = bla_location($rid);

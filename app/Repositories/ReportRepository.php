@@ -726,7 +726,8 @@ class ReportRepository
     {
         $map = self::BACKLOG_DIMENSIONS[$dimension] ?? self::BACKLOG_DIMENSIONS['priority'];
         $terminal = ticket_terminal_statuses_sql();
-        $age = 'DATEDIFF(NOW(), t.requested_at)';
+        // clamp to 0 so a future requested_at (clock skew / bad import) never yields a negative age/oldest
+        $age = 'GREATEST(DATEDIFF(NOW(), t.requested_at), 0)';
 
         $params = [];
         $conditions = [$this->visibilityClause($viewer, $params), "t.status NOT IN ($terminal)"];
