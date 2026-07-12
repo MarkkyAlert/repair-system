@@ -63,6 +63,7 @@
     </div>
 </div>
 
+<?php if ((int) ($summary['rating_count'] ?? 0) > 0): // ไม่มีรีวิว → ไม่แสดง distribution (ตรงกับหน้าจอ; กัน 0.0%×5 ที่ทำให้เข้าใจผิด)?>
 <p class="section-title">การกระจายคะแนน</p>
 <table class="dist-table stack">
     <thead>
@@ -82,6 +83,7 @@
     <?php endforeach; ?>
     </tbody>
 </table>
+<?php endif; ?>
 
 <p class="section-title">ความพึงพอใจแยกตาม<?= e((string) ($dimensionLabel ?? 'ช่าง')) ?> (คะแนนน้อยสุดก่อน)</p>
 <table class="report-table">

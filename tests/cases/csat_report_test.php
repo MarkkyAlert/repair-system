@@ -270,6 +270,45 @@ test('csat: XLSX breakdown %satisfied/%dissatisfied are numeric so they pivot/su
     }
 });
 
+test('csat: empty range shows no score distribution — no misleading 0.0% buckets (round-2 #5)', function (): void {
+    // With zero ratings, buildCsatDistribution used to emit 5 buckets at "0.0%" and the PDF rendered them,
+    // so a future/empty window looked like a real "everyone rated 0%" distribution. The screen already
+    // hid it (rating_count > 0 guard); the PDF did not. Base=0 → no distribution at all. (BI-review round-2 #5.)
+    $svc = csat_service();
+    $admin = ['id' => 4, 'role' => 'admin'];
+
+    // service: base 0 → empty distribution (not 5× "0.0%")
+    assert_same([], call_private($svc, 'buildCsatDistribution', [$admin, [], 0]), 'no ratings → empty distribution');
+
+    // PDF artifact: a far-future window has no ratings → the distribution section must not render
+    $baselineJobId = (int) csat_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM export_jobs')->fetchColumn();
+    try {
+        $future = date('Y-m-d', strtotime('+2 years'));
+        $pdf = (string) $svc->exportCsatPdf($admin, ['from_date' => $future, 'to_date' => $future])['content'];
+        assert_same('%PDF-', substr($pdf, 0, 5), 'a valid PDF is produced for an empty range');
+        $text = (new \Smalot\PdfParser\Parser())->parseContent($pdf)->getText();
+        assert_true(mb_strpos($text, 'การกระจายคะแนน') === false, 'empty CSAT PDF hides the score-distribution section (no 0.0%×5)');
+    } finally {
+        csat_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
+    }
+
+    // inverse: a window WITH ratings still shows the distribution — the guard must not over-hide
+    $rid = bin2hex(random_bytes(4));
+    $deptId = csat_department($rid);
+    [$locId] = csat_location($rid);
+    $ids = [];
+    $base2 = (int) csat_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM export_jobs')->fetchColumn();
+    try {
+        $ids[] = csat_rate("CSATD-$rid", $deptId, $locId, 3, 5);
+        $pdf2 = (string) $svc->exportCsatPdf($admin, ['department_id' => $deptId])['content'];
+        $text2 = (new \Smalot\PdfParser\Parser())->parseContent($pdf2)->getText();
+        assert_true(mb_strpos($text2, 'การกระจายคะแนน') !== false, 'a rated CSAT PDF still renders the distribution (guard did not over-hide)');
+    } finally {
+        csat_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$base2]);
+        csat_cleanup($ids, [$locId], $deptId);
+    }
+});
+
 test('csat: export csv/pdf = breakdown, excel = 2 sheets (breakdown + feedback)', function (): void {
     $rid = bin2hex(random_bytes(4));
     $deptId = csat_department($rid);

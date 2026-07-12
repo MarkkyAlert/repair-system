@@ -2171,6 +2171,12 @@ class ReportService
     /** กระจายคะแนน 5→1 พร้อม % (เทียบ total รีวิวทั้งหมด) — เติม bucket ที่ไม่มีเป็น 0. */
     private function buildCsatDistribution(array $viewer, array $normalizedFilters, int $total): array
     {
+        // ไม่มีรีวิวเลย (base=0) → ไม่มี "การกระจายคะแนน" จริง — คืน [] แทน 5 bucket ที่โชว์ 0.0% ทั้งหมด
+        // (มิฉะนั้น PDF/หน้าจอช่วงว่างจะดูเหมือนมี distribution จริง). สอดคล้อง empty≠zero. (BI-review round-2 #5)
+        if ($total <= 0) {
+            return [];
+        }
+
         $counts = [];
         foreach ($this->reports->getRatingDistribution($viewer, $normalizedFilters) as $row) {
             $counts[(int) ($row['score'] ?? 0)] = (int) ($row['rating_count'] ?? 0);
