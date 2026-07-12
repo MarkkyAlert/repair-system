@@ -82,3 +82,26 @@ test('report guide: /reports/guide still prints the same cutoff tokens (drift lo
     // and the low-data caveat that stops "5.0 จาก 1 รีวิว" being read as a real result
     assert_contains_str('ข้อมูลน้อย', $guide, 'guide warns about drawing conclusions from tiny samples');
 });
+
+test('report guide: glossary defines the non-obvious metrics — formula + direction (round-2 #7)', function (): void {
+    $guide = (string) file_get_contents(BASE_PATH . '/app/Views/reports/guide.php');
+
+    // a manager can read a number correctly only if the guide says what it MEANS. These metrics are easy to
+    // misread, so the glossary must name and define each (not just list the report that shows it).
+    $terms = [
+        'อภิธานศัพท์',                 // the glossary section itself
+        'MTBF',                        // mean time between failures
+        'First-Time-Fix',              // FTF / ปิดจบรอบเดียว
+        'สัดส่วนโหลด',                 // workload share
+        'เวลาตอบรับ',                  // first response
+        'เวลาซ่อมเฉลี่ย',              // MTTR
+        'คะแนนสุขภาพทรัพย์สิน',        // asset-health score
+    ];
+    foreach ($terms as $term) {
+        assert_contains_str($term, $guide, "glossary must define \"{$term}\"");
+    }
+
+    // definition anchors so each entry is a real definition (formula / base / direction), not just the term
+    assert_contains_str('จำนวนครั้ง', $guide, 'MTBF entry shows the per-interval formula');
+    assert_contains_str('ไม่ขึ้นกับช่วงวันที่', $guide, 'workload share is defined as a live snapshot');
+});
