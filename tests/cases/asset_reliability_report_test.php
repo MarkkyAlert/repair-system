@@ -243,6 +243,24 @@ test('asset reliability: CSV export cells reconcile with the on-screen row (scre
         assert_same((string) $screen['failure_count'], $exportRow[7], 'CSV จำนวนครั้ง = screen failure_count');
         assert_same($screen['downtime_hours_label'], $exportRow[11], 'CSV Downtime = screen downtime_hours_label (2.0)');
         assert_same($screen['labor_hours_label'], $exportRow[12], 'CSV ชม.แรงงาน = screen labor_hours_label (1.0)');
+
+        // XLSX parity — health label as text, failure count + downtime/labor hours numeric = screen
+        $xlsxTmp = tempnam(sys_get_temp_dir(), 'arpx_') . '.xlsx';
+        file_put_contents($xlsxTmp, (string) arr_service()->exportAssetReliabilityExcel($admin, [])['content']);
+        $sheet = IOFactory::createReader('Xlsx')->load($xlsxTmp)->getActiveSheet();
+        @unlink($xlsxTmp);
+        $xlsxRow = null;
+        foreach ($sheet->toArray(null, true, false) as $r) { // formatData=false → raw values
+            if (($r[0] ?? null) === "ARP-$rid") {
+                $xlsxRow = $r;
+                break;
+            }
+        }
+        assert_true($xlsxRow !== null, 'the same asset appears as an XLSX row');
+        assert_same($screen['health_label'], (string) $xlsxRow[5], 'XLSX สุขภาพ label = screen');
+        assert_same((int) $screen['failure_count'], (int) $xlsxRow[7], 'XLSX จำนวนครั้ง numeric = screen');
+        assert_same((float) $screen['downtime_hours_label'], (float) $xlsxRow[11], 'XLSX Downtime numeric = screen (2.0)');
+        assert_same((float) $screen['labor_hours_label'], (float) $xlsxRow[12], 'XLSX ชม.แรงงาน numeric = screen (1.0)');
     } finally {
         arr_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
         if ($ticketId > 0) {

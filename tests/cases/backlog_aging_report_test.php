@@ -116,6 +116,26 @@ test('backlog aging: CSV export cells reconcile with the on-screen row (screen�
         assert_same((string) $screen['bucket_30_plus'], $exportRow[4], 'CSV >30 วัน = screen');
         assert_same((string) $screen['total'], $exportRow[5], 'CSV รวม = screen total');
         assert_same((string) $screen['oldest_days'], $exportRow[6], 'CSV เก่าสุด (วัน) = screen oldest_days (40)');
+
+        // XLSX parity — every age-bucket count + total + oldest is numeric and equal to the screen
+        $xlsxTmp = tempnam(sys_get_temp_dir(), 'blax_') . '.xlsx';
+        file_put_contents($xlsxTmp, (string) bla_service()->exportBacklogAgingExcel($admin, ['dimension' => 'location'])['content']);
+        $sheet = IOFactory::createReader('Xlsx')->load($xlsxTmp)->getActiveSheet();
+        @unlink($xlsxTmp);
+        $xlsxRow = null;
+        foreach ($sheet->toArray(null, true, false) as $r) { // formatData=false → raw numeric values
+            if (($r[0] ?? null) === $locName) {
+                $xlsxRow = $r;
+                break;
+            }
+        }
+        assert_true($xlsxRow !== null, 'the same location appears as an XLSX row');
+        assert_same((int) $screen['bucket_0_3'], (int) $xlsxRow[1], 'XLSX 0-3 วัน numeric = screen');
+        assert_same((int) $screen['bucket_3_7'], (int) $xlsxRow[2], 'XLSX 3-7 วัน numeric = screen');
+        assert_same((int) $screen['bucket_7_30'], (int) $xlsxRow[3], 'XLSX 7-30 วัน numeric = screen');
+        assert_same((int) $screen['bucket_30_plus'], (int) $xlsxRow[4], 'XLSX >30 วัน numeric = screen');
+        assert_same((int) $screen['total'], (int) $xlsxRow[5], 'XLSX รวม numeric = screen');
+        assert_same((int) $screen['oldest_days'], (int) $xlsxRow[6], 'XLSX เก่าสุด numeric = screen');
     } finally {
         bla_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
         foreach ($ids as $id) {

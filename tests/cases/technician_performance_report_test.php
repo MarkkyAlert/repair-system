@@ -204,6 +204,25 @@ test('technician performance: CSV export cells reconcile with the on-screen row 
         assert_same((string) $screen['sla_base'], $exportRow[8], 'CSV งาน SLA = screen sla_base (sample behind the rate)');
         assert_same($screen['avg_rating_label'], $exportRow[11], 'CSV คะแนน = screen avg_rating_label (5.0)');
         assert_same((string) $screen['rating_count'], $exportRow[12], 'CSV จำนวนรีวิว = screen rating_count');
+
+        // XLSX parity — % columns as real numbers (screen_pct/100), rating/counts numeric
+        $xlsxTmp = tempnam(sys_get_temp_dir(), 'tprx_') . '.xlsx';
+        file_put_contents($xlsxTmp, (string) tpr_service()->exportTechnicianPerformanceExcel($admin, [])['content']);
+        $sheet = IOFactory::createReader('Xlsx')->load($xlsxTmp)->getActiveSheet();
+        @unlink($xlsxTmp);
+        $xlsxRow = null;
+        foreach ($sheet->toArray(null, true, false) as $r) { // formatData=false → raw values (1.0, not "100.0%")
+            if (($r[0] ?? null) === $fullName) {
+                $xlsxRow = $r;
+                break;
+            }
+        }
+        assert_true($xlsxRow !== null, 'the same technician appears as an XLSX row');
+        assert_same((int) $screen['resolved'], (int) $xlsxRow[5], 'XLSX ปิดงาน numeric = screen');
+        assert_same((float) rtrim($screen['completion_label'], '%') / 100, (float) $xlsxRow[6], 'XLSX อัตราปิดงาน = screen completion as a real number');
+        assert_same((float) rtrim($screen['sla_on_time_label'], '%') / 100, (float) $xlsxRow[7], 'XLSX SLA ตรงเวลา = screen rate as a real number');
+        assert_same((float) $screen['avg_rating_label'], (float) $xlsxRow[11], 'XLSX คะแนน numeric = screen avg_rating');
+        assert_same((int) $screen['rating_count'], (int) $xlsxRow[12], 'XLSX จำนวนรีวิว numeric = screen');
     } finally {
         tpr_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
         tpr_pdo()->prepare('DELETE FROM ticket_ratings WHERE technician_id = ?')->execute([$techId]);

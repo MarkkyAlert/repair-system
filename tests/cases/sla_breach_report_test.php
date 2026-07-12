@@ -136,6 +136,26 @@ test('sla breach: CSV export cells reconcile with the on-screen row, no format/r
         assert_same((string) $screen['total_breached'], $exportRow[3], 'CSV เกินรวม = screen total_breached');
         assert_same((string) $screen['total_met'], $exportRow[4], 'CSV ทันกำหนด = screen total_met');
         assert_same($screen['breach_rate_label'], $exportRow[5], 'CSV %เกิน = screen breach_rate_label ("50.0%", not re-rounded/reformatted)');
+
+        // the XLSX carries the same values — counts numeric, %เกิน a real number (screen_pct/100) so it pivots
+        $xlsxTmp = tempnam(sys_get_temp_dir(), 'slabx_') . '.xlsx';
+        file_put_contents($xlsxTmp, (string) slab_service()->exportSlaBreachExcel($admin, ['dimension' => 'category'])['content']);
+        $sheet = IOFactory::createReader('Xlsx')->load($xlsxTmp)->getActiveSheet();
+        @unlink($xlsxTmp);
+        $xlsxRow = null;
+        $rowNum = 0;
+        foreach ($sheet->toArray(null, true, false) as $i => $r) { // formatData=false → raw cell values (0.5, not "50.0%")
+            if (($r[0] ?? null) === "SLAB Cat $rid") {
+                $xlsxRow = $r;
+                $rowNum = $i + 1;
+                break;
+            }
+        }
+        assert_true($xlsxRow !== null, 'the same category appears as an XLSX row');
+        assert_same((int) $screen['total_breached'], (int) $xlsxRow[3], 'XLSX เกินรวม numeric = screen');
+        assert_same((int) $screen['total_met'], (int) $xlsxRow[4], 'XLSX ทันกำหนด numeric = screen');
+        assert_same((float) rtrim($screen['breach_rate_label'], '%') / 100, (float) $xlsxRow[5], 'XLSX %เกิน = screen breach rate as a real number (0.5)');
+        assert_same('0.0%', $sheet->getStyle('F' . $rowNum)->getNumberFormat()->getFormatCode(), 'XLSX %เกิน displays as a percentage');
     } finally {
         slab_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
         slab_cleanup($ticketId, $catId, $locId, $deptId);

@@ -158,6 +158,24 @@ test('problem hotspot: CSV export cells reconcile with the on-screen row (screen
         assert_same((string) $screen['overdue_count'], $exportRow[5], 'CSV เกิน SLA = screen overdue_count');
         assert_same($screen['overdue_rate_label'], $exportRow[6], 'CSV %เกิน SLA = screen overdue_rate_label (50.0%)');
         assert_same($screen['labor_hours_label'], $exportRow[8], 'CSV ชม.แรงงาน = screen labor_hours_label (1.0)');
+
+        // XLSX parity — %เกิน SLA as a real number (screen_pct/100), counts numeric, score label as text
+        $xlsxTmp = tempnam(sys_get_temp_dir(), 'phsx_') . '.xlsx';
+        file_put_contents($xlsxTmp, (string) phs_service()->exportProblemHotspotExcel($admin, ['dimension' => 'location'])['content']);
+        $sheet = IOFactory::createReader('Xlsx')->load($xlsxTmp)->getActiveSheet();
+        @unlink($xlsxTmp);
+        $xlsxRow = null;
+        foreach ($sheet->toArray(null, true, false) as $r) { // formatData=false → raw values
+            if (($r[0] ?? null) === "PHS Loc $rid") {
+                $xlsxRow = $r;
+                break;
+            }
+        }
+        assert_true($xlsxRow !== null, 'the same location appears as an XLSX row');
+        assert_same($screen['hotspot_label'], (string) $xlsxRow[1], 'XLSX คะแนนพื้นที่ label = screen');
+        assert_same((int) $screen['ticket_count'], (int) $xlsxRow[3], 'XLSX แจ้งซ่อม numeric = screen');
+        assert_same((int) $screen['overdue_count'], (int) $xlsxRow[5], 'XLSX เกิน SLA numeric = screen');
+        assert_same((float) rtrim($screen['overdue_rate_label'], '%') / 100, (float) $xlsxRow[6], 'XLSX %เกิน SLA = screen rate as a real number (0.5)');
     } finally {
         phs_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
         foreach ($ids as $id) {
