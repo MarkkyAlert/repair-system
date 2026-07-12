@@ -153,6 +153,49 @@ test('backlog aging: bucket boundaries land on the correct side at exactly 3 / 7
     }
 });
 
+test('backlog aging: a real open ticket aged 0 days shows "0 วัน", not "-"; empty scope shows "-" (round-2 #6)', function (): void {
+    // oldest_label gated on oldest_days > 0, so a genuine open ticket created today (age 0) showed "-" —
+    // reading as "no backlog" when there IS one. Presence must be total > 0: real 0-day backlog → "0 วัน",
+    // truly empty scope → "-". (BI-review round-2 #6.)
+    $rid = bin2hex(random_bytes(4));
+    [$locId, $locName] = bla_location($rid);
+    bla_pdo()->prepare('INSERT INTO departments (code, name) VALUES (?, ?)')->execute(["BLAD-$rid", "BLA Dept $rid"]);
+    $deptId = (int) bla_pdo()->lastInsertId();
+    bla_pdo()->prepare('INSERT INTO departments (code, name) VALUES (?, ?)')->execute(["BLAE-$rid", "BLA Empty $rid"]);
+    $emptyDept = (int) bla_pdo()->lastInsertId();
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $ids = [];
+
+    try {
+        $ids[] = bla_ticket("BLZ-$rid", $locId, 0, 'in_progress', 3, $deptId); // created today → age 0, still open
+
+        $page = bla_service()->getBacklogAgingReportPage($admin, ['dimension' => 'location', 'department_id' => $deptId]);
+        $row = null;
+        foreach ($page['rows'] as $r) {
+            if ($r['label'] === $locName) {
+                $row = $r;
+                break;
+            }
+        }
+        assert_true($row !== null, 'the fresh backlog location appears');
+        assert_same(1, $row['total'], 'one open ticket');
+        assert_same(0, (int) $row['oldest_days'], 'aged 0 days');
+        assert_same('0 วัน', $row['oldest_label'], 'a real 0-day-old backlog row shows "0 วัน", not "-"');
+        assert_same('0 วัน', $page['summary']['oldest_label'], 'summary with 0-day backlog shows "0 วัน", not "-"');
+
+        // truly empty scope (a department with no open tickets) → "-", NOT "0 วัน"
+        $empty = bla_service()->getBacklogAgingReportPage($admin, ['dimension' => 'location', 'department_id' => $emptyDept])['summary'];
+        assert_same(0, $empty['total'], 'no backlog in the empty scope');
+        assert_same('-', $empty['oldest_label'], 'no backlog → "-" (not "0 วัน")');
+    } finally {
+        foreach ($ids as $id) {
+            bla_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
+        }
+        bla_pdo()->prepare('DELETE FROM locations WHERE id = ?')->execute([$locId]);
+        bla_pdo()->prepare('DELETE FROM departments WHERE id IN (?, ?)')->execute([$deptId, $emptyDept]);
+    }
+});
+
 test('backlog aging: a future requested_at yields age 0, not a negative age (Finding G1)', function (): void {
     // A ticket with a future requested_at (clock skew / bad import) must not produce a negative age —
     // DATEDIFF would go below 0. Age is clamped to 0: the ticket sits in the youngest bucket and never

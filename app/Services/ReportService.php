@@ -1716,7 +1716,9 @@ class ReportService
             'bucket_30_plus' => $b30,
             'total' => (int) ($row['total'] ?? 0),
             'oldest_days' => $oldest,
-            'oldest_label' => $oldest > 0 ? $oldest . ' วัน' : '-',
+            // presence = has backlog (total > 0), NOT oldest > 0 — a real open ticket created today is
+            // aged 0 days and must read "0 วัน", not "-" (which means "no backlog"). (round-2 #6)
+            'oldest_label' => (int) ($row['total'] ?? 0) > 0 ? $oldest . ' วัน' : '-',
             'warn_tone' => $b730 > 0 ? 'warning' : 'default',
             'over30_tone' => $b30 > 0 ? 'danger' : 'default',
         ];
@@ -1728,14 +1730,16 @@ class ReportService
         foreach ($rows as $row) {
             $oldest = max($oldest, (int) $row['oldest_days']);
         }
+        $total = (int) array_sum(array_column($rows, 'total'));
 
         return [
-            'total' => (int) array_sum(array_column($rows, 'total')),
+            'total' => $total,
             'bucket_0_3' => (int) array_sum(array_column($rows, 'bucket_0_3')),
             'bucket_3_7' => (int) array_sum(array_column($rows, 'bucket_3_7')),
             'bucket_7_30' => (int) array_sum(array_column($rows, 'bucket_7_30')),
             'bucket_30_plus' => (int) array_sum(array_column($rows, 'bucket_30_plus')),
-            'oldest_label' => $oldest > 0 ? $oldest . ' วัน' : '-',
+            // presence = has backlog (total > 0), so a today-only backlog reads "0 วัน", empty reads "-"
+            'oldest_label' => $total > 0 ? $oldest . ' วัน' : '-',
         ];
     }
 
