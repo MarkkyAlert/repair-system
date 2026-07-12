@@ -138,6 +138,44 @@ test('updateUser: rejects bad input, then updates real fields on the happy path'
     }
 });
 
+test('updateUser: demoting/deactivating a user with open work is blocked (round M2)', function (): void {
+    au_bind_request();
+    $suffix = bin2hex(random_bytes(4));
+    // a technician with an open (in_progress) assigned ticket
+    au_pdo()->prepare('INSERT INTO users (username, email, password_hash, full_name, role, is_active, created_at, updated_at) VALUES (?, ?, "x", "Tech Open", "technician", 1, NOW(), NOW())')
+        ->execute(["mtech_$suffix", "mtech_$suffix@example.com"]);
+    $techId = (int) au_pdo()->lastInsertId();
+    au_pdo()->prepare("INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, assigned_technician_id, status, approval_status, requested_at) VALUES (?, 'x', 'x', 1, 1, 1, 1, ?, 'in_progress', 'approved', NOW())")
+        ->execute(["MTECH-$suffix", $techId]);
+    $techTicket = (int) au_pdo()->lastInsertId();
+    // a requester with an open ticket
+    au_pdo()->prepare('INSERT INTO users (username, email, password_hash, full_name, role, is_active, created_at, updated_at) VALUES (?, ?, "x", "Req Open", "requester", 1, NOW(), NOW())')
+        ->execute(["mreq_$suffix", "mreq_$suffix@example.com"]);
+    $reqId = (int) au_pdo()->lastInsertId();
+    au_pdo()->prepare("INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, approval_status, requested_at) VALUES (?, 'x', 'x', ?, 1, 1, 1, 'in_progress', 'approved', NOW())")
+        ->execute(["MREQ-$suffix", $reqId]);
+    $reqTicket = (int) au_pdo()->lastInsertId();
+
+    $blocked = static function (int $userId, array $input, string $ctx): void {
+        $threw = false;
+        try {
+            au_service()->updateUser($userId, au_admin(), $input);
+        } catch (DomainException) {
+            $threw = true;
+        }
+        assert_true($threw, "$ctx — must be blocked while work is open");
+    };
+
+    try {
+        $blocked($techId, ['full_name' => 'Tech Open', 'email' => "mtech_$suffix@example.com", 'role' => 'requester', 'is_active' => '1'], 'demote technician with open work');
+        $blocked($techId, ['full_name' => 'Tech Open', 'email' => "mtech_$suffix@example.com", 'role' => 'technician', 'is_active' => '0'], 'deactivate technician with open work');
+        $blocked($reqId, ['full_name' => 'Req Open', 'email' => "mreq_$suffix@example.com", 'role' => 'requester', 'is_active' => '0'], 'deactivate requester with open ticket');
+    } finally {
+        au_pdo()->prepare('DELETE FROM tickets WHERE id IN (?, ?)')->execute([$techTicket, $reqTicket]);
+        au_pdo()->prepare('DELETE FROM users WHERE id IN (?, ?)')->execute([$techId, $reqId]);
+    }
+});
+
 // ── last-admin invariant: the system must never be left with zero active admins ──
 // AdminRepository::updateUser locks the target row + the active-admin set FOR UPDATE and refuses to demote /
 // deactivate the final admin (compare-and-set under lock). Seed id 4 is the only active admin in the test DB.

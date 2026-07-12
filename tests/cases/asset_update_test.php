@@ -59,6 +59,40 @@ function aupd_service(): \App\Services\AssetService
     return tvm_container()->get(\App\Services\AssetService::class);
 }
 
+test('asset(validation): a duplicate asset_code and a warranty-before-purchase date are rejected (round M1)', function (): void {
+    // Code correctness already there (AssetRepository maps the UNIQUE violation to a friendly message;
+    // validateAssetInput rejects warranty < purchase) — this locks both branches with a regression test.
+    [$id, $base] = aupd_seed();
+    $admin = ['id' => 1, 'role' => 'admin'];
+
+    try {
+        // duplicate asset_code (same as the seeded asset)
+        $dup = false;
+        try {
+            aupd_service()->createAsset($admin, $base);
+        } catch (DomainException $e) {
+            $dup = str_contains($e->getMessage(), 'มีอยู่ในระบบแล้ว');
+        }
+        assert_true($dup, 'a duplicate asset_code is rejected with a friendly message');
+
+        // warranty expiry before purchase date
+        $badDates = false;
+        try {
+            aupd_service()->createAsset($admin, array_merge($base, [
+                'asset_code' => 'AUPDD-' . strtoupper(bin2hex(random_bytes(3))),
+                'purchase_date' => '2024-06-01',
+                'warranty_expires_at' => '2024-01-01',
+            ]));
+        } catch (DomainException) {
+            $badDates = true;
+        }
+        assert_true($badDates, 'warranty expiry before purchase date is rejected');
+    } finally {
+        aupd_pdo()->prepare("DELETE FROM assets WHERE asset_code LIKE 'AUPDD-%'")->execute();
+        aupd_pdo()->prepare('DELETE FROM assets WHERE id = ?')->execute([$id]);
+    }
+});
+
 test('asset(permission): requester/technician cannot create, update or regenerate assets — manager/admin only', function (): void {
     // The controller (store/update/regenerateQr) has AuthMiddleware + CSRF but NO role gate — AssetService::
     // assertManageable (is_manager_or_admin) is the only line of defense. Lock it so dropping that guard is

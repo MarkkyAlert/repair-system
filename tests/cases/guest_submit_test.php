@@ -68,6 +68,30 @@ function gsub_cleanup(string $name, string $ip): void
 
 // ── honeypot ──
 
+test('guestSubmit(idempotency): a replayed form_token cannot create two guest requests (round M3)', function (): void {
+    // submission_token (= form_token) is UNIQUE, so a double-submit/replay past the session/one-time-token check
+    // hits the DB constraint → a friendly "already submitted", not a second row. RATE_LIMIT_MAX=3, so both reach
+    // the create step (the second is rejected at the constraint, not the rate limiter).
+    $name = 'GSUB Dup ' . bin2hex(random_bytes(3));
+    $ip = '203.0.113.' . random_int(2, 254);
+    $token = gsub_active_token();
+    $input = gsub_valid_input($name, ['form_token' => bin2hex(random_bytes(32))]);
+
+    try {
+        gsub_service()->submitGuestRequest($token, $input, $ip);
+        $threw = false;
+        try {
+            gsub_service()->submitGuestRequest($token, $input, $ip); // same form_token → replay
+        } catch (DomainException $e) {
+            $threw = str_contains($e->getMessage(), 'ถูกส่งไปแล้ว');
+        }
+        assert_true($threw, 'a replayed form_token is rejected as already-submitted');
+        assert_same(1, gsub_count_by_name($name), 'exactly one guest request row exists — no double');
+    } finally {
+        gsub_cleanup($name, $ip);
+    }
+});
+
 test('guestSubmit(honeypot): a filled honeypot field is silently rejected — no request row is created', function (): void {
     $name = 'GS hp ' . bin2hex(random_bytes(3));
     $ip = '198.51.100.' . random_int(1, 254);
