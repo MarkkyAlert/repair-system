@@ -560,6 +560,9 @@ class ReportService
         // summary card's avg_resolution does — otherwise pre-truncating minutes tips the 1-decimal
         // hours across a boundary (68.5min→69 gave 1.2h vs the summary's correct 1.1h).
         $mttrMinutes = (float) ($row['mttr_minutes'] ?? 0);
+        // MTTR presence = tickets with a real resolved_at, NOT the status-resolved count — a resolved-status
+        // ticket with a NULL resolved_at has no close time to average and must show '-' not 0.0 (F1).
+        $resolutionBase = (int) ($row['resolution_base'] ?? 0);
         $laborMinutes = (int) ($row['labor_minutes'] ?? 0);
         $completionPct = $assigned > 0 ? round($resolved / $assigned * 100, 1) : null;
 
@@ -570,7 +573,7 @@ class ReportService
             'open' => (int) ($row['open_count'] ?? 0),
             'completion_label' => $completionPct === null ? '-' : number_format($completionPct, 1) . '%',
             'completion_tone' => $this->completionTone($completionPct),
-            'mttr_hours_label' => $resolved > 0 ? number_format(round($mttrMinutes / 60, 1), 1) : '-',
+            'mttr_hours_label' => $resolutionBase > 0 ? number_format(round($mttrMinutes / 60, 1), 1) : '-',
             'avg_rating_label' => $ratingCount > 0 ? number_format($avgRating, 1) : '-',
             'avg_rating_tone' => $ratingCount === 0 ? 'default' : $this->csatTone($avgRating),
             'labor_hours_label' => $laborMinutes > 0 ? number_format(round($laborMinutes / 60, 1), 1) : '-',
@@ -631,6 +634,8 @@ class ReportService
         $ratingCount = (int) ($period['rating_count'] ?? 0);
         $avgRating = (float) ($period['avg_rating'] ?? 0);
         $mttrMinutes = (float) ($period['mttr_minutes'] ?? 0);
+        // MTTR presence = tickets with a real resolved_at, not the status-resolved count (F1)
+        $resolutionBase = (int) ($period['resolution_base'] ?? 0);
         $firstRespMinutes = (float) ($period['first_response_minutes'] ?? 0);
         $laborMinutes = (int) ($period['labor_minutes'] ?? 0);
         $slaBase = (int) ($period['sla_base'] ?? 0);
@@ -664,7 +669,7 @@ class ReportService
             'sla_on_time_label' => $slaRate === null ? '-' : number_format($slaRate, 1) . '%',
             'sla_on_time_tone' => $this->slaComplianceTone($slaRate),
             'first_response_hours_label' => (int) ($period['first_response_count'] ?? 0) > 0 ? number_format(round($firstRespMinutes / 60, 1), 1) : '-',
-            'mttr_hours_label' => $resolved > 0 ? number_format(round($mttrMinutes / 60, 1), 1) : '-',
+            'mttr_hours_label' => $resolutionBase > 0 ? number_format(round($mttrMinutes / 60, 1), 1) : '-',
             'avg_rating_label' => $ratingCount > 0 ? number_format($avgRating, 1) : '-',
             'avg_rating_tone' => $ratingCount === 0 ? 'default' : $this->csatTone($avgRating),
             // sample size ต่อ avg/rate — ให้รายงานประเมินคนบอก base ได้ (กัน "5.0 จาก 1 รีวิว" ดูเท่า "5.0 จาก 40")
@@ -1446,6 +1451,10 @@ class ReportService
         $pComp = $pTotal > 0 ? round($pResolved / $pTotal * 100, 1) : 0.0;
         $tMttr = round(((float) ($thisSum['avg_resolution_minutes'] ?? 0)) / 60, 1);
         $pMttr = round(((float) ($prevSum['avg_resolution_minutes'] ?? 0)) / 60, 1);
+        // MTTR presence = tickets with a real resolved_at (resolution_base), NOT the status-resolved count —
+        // a resolved-status ticket with a NULL resolved_at contributes nothing to the average (F1).
+        $tMttrBase = (int) ($thisSum['resolution_base'] ?? 0);
+        $pMttrBase = (int) ($prevSum['resolution_base'] ?? 0);
         $tRating = (float) ($thisSum['avg_rating'] ?? 0);
         $pRating = (float) ($prevSum['avg_rating'] ?? 0);
         $tRatingCount = (int) ($thisSum['rating_count'] ?? 0);
@@ -1460,7 +1469,7 @@ class ReportService
             $this->execKpiCard('เกิน SLA', (int) ($thisSum['breached_tickets'] ?? 0), (int) ($prevSum['breached_tickets'] ?? 0), 'down_good', 0, '', (string) (int) ($thisSum['breached_tickets'] ?? 0)),
             // MTTR/คะแนน เป็น avg → presence = มีงานปิด/มีรีวิวจริงไหม (base count) ไม่ใช่ค่า avg>0 —
             // งานปิด <1 นาที (MTTR 0.0) ยังต้องนับว่ามีข้อมูล ไม่งั้นเดลต้าหาย/โชว์ '-' ทั้งที่มีงาน (F5)
-            $this->execKpiCard('เวลาซ่อมเฉลี่ย (ชม.)', $tMttr, $pMttr, 'down_good', 1, '', $tResolved > 0 ? number_format($tMttr, 1) : '-', $tResolved > 0, $pResolved > 0),
+            $this->execKpiCard('เวลาซ่อมเฉลี่ย (ชม.)', $tMttr, $pMttr, 'down_good', 1, '', $tMttrBase > 0 ? number_format($tMttr, 1) : '-', $tMttrBase > 0, $pMttrBase > 0),
             $this->execKpiCard('คะแนนเฉลี่ย', $tRating, $pRating, 'up_good', 1, '', $tRating > 0 ? number_format($tRating, 1) : '-', $tRating > 0, $pRating > 0, $tRatingCount > 0 ? 'จาก ' . number_format($tRatingCount) . ' รีวิว' : null),
         ];
 

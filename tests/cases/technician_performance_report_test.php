@@ -230,6 +230,51 @@ test('technician performance: CSV export cells reconcile with the on-screen row 
     }
 });
 
+test('technician performance: resolved status but NULL resolved_at → MTTR "-", same-minute stays 0.0 (round-4 F1)', function (): void {
+    // Edge: status='resolved' with resolved_at=NULL (schema allows it). There is no close time to average,
+    // so MTTR must read '-' — but completion still counts the status-resolved ticket. Gate MTTR on the
+    // resolved_at base, not the status count, in BOTH technician views (report + overview mini). (round-4 F1.)
+    $rid = bin2hex(random_bytes(4));
+    [$nullTech, $nullName] = tpr_tech($rid);
+    [$fastTech, $fastName] = tpr_tech($rid . 'F');
+    $admin = ['id' => 4, 'role' => 'admin'];
+    tpr_pdo()->prepare('INSERT INTO departments (code, name) VALUES (?, ?)')->execute(["TPRFD-$rid", "TPRF Dept $rid"]);
+    $deptId = (int) tpr_pdo()->lastInsertId();
+
+    try {
+        // resolved status, NO resolved_at
+        tpr_pdo()->prepare(
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, requester_department_id, location_id, ticket_category_id, priority_id, assigned_technician_id, status, requested_at)
+             VALUES (?, 'x', 'x', 1, ?, 1, 1, 1, ?, 'resolved', NOW())"
+        )->execute(["TPRF-$rid", $deptId, $nullTech]);
+        // genuine same-minute resolution (resolved_at = requested_at)
+        $now = date('Y-m-d H:i:s');
+        tpr_pdo()->prepare(
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, requester_department_id, location_id, ticket_category_id, priority_id, assigned_technician_id, status, requested_at, resolved_at)
+             VALUES (?, 'x', 'x', 1, ?, 1, 1, 1, ?, 'resolved', ?, ?)"
+        )->execute(["TPRG-$rid", $deptId, $fastTech, $now, $now]);
+
+        // dedicated technician report (mapTechnicianPerformanceRow)
+        $nullRow = tpr_row($nullName);
+        assert_true($nullRow !== null, 'null-timestamp technician appears');
+        assert_same(1, $nullRow['resolved'], 'completion still counts the status-resolved ticket (=1)');
+        assert_same('-', $nullRow['mttr_hours_label'], 'no resolved_at → MTTR "-", not a fake 0.0');
+        assert_same('0.0', tpr_row($fastName)['mttr_hours_label'], 'a real same-minute resolve still shows 0.0');
+
+        // overview mini-table (mapTechnicianRow) — scoped to the fresh dept so only our two techs appear
+        $mini = [];
+        foreach (tpr_service()->getReportPageData($admin, ['department_id' => $deptId])['technicianPerformance'] as $t) {
+            $mini[$t['full_name']] = $t;
+        }
+        assert_same('-', $mini[$nullName]['mttr_hours_label'] ?? null, 'overview mini: NULL resolved_at → "-"');
+        assert_same('0.0', $mini[$fastName]['mttr_hours_label'] ?? null, 'overview mini: same-minute → 0.0');
+    } finally {
+        tpr_cleanup($nullTech);
+        tpr_cleanup($fastTech);
+        tpr_pdo()->prepare('DELETE FROM departments WHERE id = ?')->execute([$deptId]);
+    }
+});
+
 test('technician performance: a same-minute resolution shows MTTR/first-response 0.0, not "-" (Finding F5-rem)', function (): void {
     // MTTR/first-response presence must come from the resolved / responded COUNT, not the average value:
     // a ticket answered and resolved within the same clock-minute has a real 0.0h, not "no data".

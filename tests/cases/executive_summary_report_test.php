@@ -201,6 +201,34 @@ test('executive: export xlsx (1 sheet + header) / pdf %PDF- / csv header', funct
     }
 });
 
+test('executive: a resolved-status ticket with NULL resolved_at → MTTR KPI "-", not 0.0 (round-4 F1)', function (): void {
+    // Edge: status='resolved' with resolved_at=NULL. The MTTR average has no close time to include, so the
+    // KPI must read '-'. Presence is gated on the resolved_at base, not the status-resolved count (which
+    // still feeds the completion KPI). (round-4 F1.)
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $rid = bin2hex(random_bytes(4));
+    $ids = [];
+
+    try {
+        exs_pdo()->prepare(
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at)
+             VALUES (?, 'x', 'x', 1, 1, 1, 1, 'resolved', '2020-11-15 09:00:00')"
+        )->execute(["EXF1-$rid"]);
+        $ids[] = (int) exs_pdo()->lastInsertId();
+
+        $kpis = [];
+        foreach (exs_service()->getExecutiveSummaryPage($admin, ['preset' => 'custom', 'from_date' => '2020-11-01', 'to_date' => '2020-11-30'])['kpis'] as $k) {
+            $kpis[$k['label']] = $k;
+        }
+        assert_same('-', $kpis['เวลาซ่อมเฉลี่ย (ชม.)']['value_label'], 'MTTR KPI "-" — no resolved_at to average, not a fake 0.0');
+        assert_true((int) $kpis['ปิดงาน']['value_label'] >= 1, 'completion KPI still counts the status-resolved ticket');
+    } finally {
+        foreach ($ids as $id) {
+            exs_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
+        }
+    }
+});
+
 test('executive export: CSV/XLSX carry the rating sample count, matching screen/PDF (Finding F4-rem)', function (): void {
     $admin = ['id' => 4, 'role' => 'admin'];
     $rid = bin2hex(random_bytes(4));
