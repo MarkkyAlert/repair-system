@@ -123,6 +123,8 @@ test('updateUser: rejects bad input, then updates real fields on the happy path'
         $reject(['full_name' => '', 'email' => 'a@b.com'], 'กรุณากรอกชื่อและอีเมลผู้ใช้งานให้ครบถ้วน', 'missing name');
         $reject(['full_name' => 'X', 'email' => 'bad-email'], 'รูปแบบอีเมลผู้ใช้งานไม่ถูกต้อง', 'invalid email');
         $reject(['full_name' => 'X', 'email' => 'a@b.com', 'role' => 'root'], 'Role ผู้ใช้งานไม่ถูกต้อง', 'invalid role');
+        // invalid department must throw a friendly DomainException (not reach the FK → PDOException/500). round F2
+        $reject(['full_name' => 'X', 'email' => 'a@b.com', 'role' => 'requester', 'department_id' => 999999999], 'Department ที่เลือกไม่ถูกต้อง', 'invalid department');
 
         // happy path — values actually change
         au_bind_request();

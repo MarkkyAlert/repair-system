@@ -85,12 +85,19 @@ class AdminService
             throw new DomainException('Role ผู้ใช้งานไม่ถูกต้อง');
         }
 
+        // Same guard as createUser — otherwise an invalid department_id reaches the FK and surfaces as a
+        // PDOException/500 (the form wrapper only catches Domain/Runtime), not a friendly message. (round F2)
+        $departmentId = (int) ($input['department_id'] ?? 0);
+        if ($departmentId > 0 && !$this->admin->departmentExists($departmentId)) {
+            throw new DomainException('Department ที่เลือกไม่ถูกต้อง');
+        }
+
         $payload = [
             'full_name' => $fullName,
             'email' => $email,
             'phone' => trim((string) ($input['phone'] ?? '')),
             'role' => $role,
-            'department_id' => (int) ($input['department_id'] ?? 0) > 0 ? (int) $input['department_id'] : null,
+            'department_id' => $departmentId > 0 ? $departmentId : null,
             'is_active' => truthy_input($input['is_active'] ?? '0'),
         ];
         $this->admin->updateUser($userId, $payload);
