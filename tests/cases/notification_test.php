@@ -81,6 +81,33 @@ function nt_cleanup(array $ticketIds, array $userIds): void
 
 // ── filterRecipientIds (cross-cutting) ──
 
+test('notify(IDOR): a user cannot mark ANOTHER user\'s notification as read', function (): void {
+    // markAsRead scopes UPDATE … WHERE user_id = :viewer AND notification_id, and the viewer id comes from the
+    // authenticated session (requireViewerId) — so passing someone else's notification id is a no-op. Lock it:
+    // drop the user_id scope and user B silently marks user A's notification read.
+    $userA = nt_seed_user('requester');
+    $userB = nt_seed_user('requester');
+    nt_pdo()->prepare("INSERT INTO notifications (type, title, message, related_type, related_id, created_at) VALUES ('test', 'x', 'x', 'ticket', 0, NOW())")->execute();
+    $notifId = (int) nt_pdo()->lastInsertId();
+    nt_pdo()->prepare('INSERT INTO notification_recipients (notification_id, user_id, is_read, read_at, created_at) VALUES (?, ?, 0, NULL, NOW())')->execute([$notifId, $userA]);
+
+    try {
+        // user B tries to mark A's notification read → must be a no-op for A's row
+        nt_service()->markAsRead($notifId, ['id' => $userB, 'role' => 'requester']);
+        $row = nt_pdo()->query("SELECT is_read, read_at FROM notification_recipients WHERE notification_id = $notifId AND user_id = $userA")->fetch();
+        assert_same(0, (int) $row['is_read'], "A's notification stays unread — B cannot mark it");
+        assert_true($row['read_at'] === null, "A's read_at is untouched");
+
+        // sanity: the real owner CAN mark their own
+        nt_service()->markAsRead($notifId, ['id' => $userA, 'role' => 'requester']);
+        assert_same(1, (int) nt_pdo()->query("SELECT is_read FROM notification_recipients WHERE notification_id = $notifId AND user_id = $userA")->fetchColumn(), 'the owner can mark their own notification read');
+    } finally {
+        nt_pdo()->prepare('DELETE FROM notification_recipients WHERE notification_id = ?')->execute([$notifId]);
+        nt_pdo()->prepare('DELETE FROM notifications WHERE id = ?')->execute([$notifId]);
+        nt_cleanup([], [$userA, $userB]);
+    }
+});
+
 test('notify(filterRecipientIds): the actor is never notified of their own action', function (): void {
     $requester = nt_seed_user('requester');
     $manager = nt_seed_user('manager');

@@ -54,6 +54,46 @@ function aupd_seed(): array
     return [$id, $base];
 }
 
+function aupd_service(): \App\Services\AssetService
+{
+    return tvm_container()->get(\App\Services\AssetService::class);
+}
+
+test('asset(permission): requester/technician cannot create, update or regenerate assets — manager/admin only', function (): void {
+    // The controller (store/update/regenerateQr) has AuthMiddleware + CSRF but NO role gate — AssetService::
+    // assertManageable (is_manager_or_admin) is the only line of defense. Lock it so dropping that guard is
+    // caught: a non-manager passing VALID input must still be rejected before any DB mutation.
+    [$id, $base] = aupd_seed();
+    $createInput = array_merge($base, ['asset_code' => 'AUPDP-' . strtoupper(bin2hex(random_bytes(3)))]);
+
+    try {
+        foreach (['requester', 'technician'] as $role) {
+            $viewer = ['id' => 1, 'role' => $role];
+            $blocked = 0;
+            try {
+                aupd_service()->createAsset($viewer, $createInput);
+            } catch (DomainException) {
+                $blocked++;
+            }
+            try {
+                aupd_service()->updateAsset($id, $viewer, $base);
+            } catch (DomainException) {
+                $blocked++;
+            }
+            try {
+                aupd_service()->regenerateQrToken($id, $viewer);
+            } catch (DomainException) {
+                $blocked++;
+            }
+            assert_same(3, $blocked, "$role must be blocked from all three asset-manage actions");
+        }
+        assert_same('Original Name', (string) aupd_pdo()->query("SELECT name FROM assets WHERE id = $id")->fetchColumn(), 'the guard fired before any mutation');
+    } finally {
+        aupd_pdo()->prepare("DELETE FROM assets WHERE asset_code LIKE 'AUPDP-%'")->execute();
+        aupd_pdo()->prepare('DELETE FROM assets WHERE id = ?')->execute([$id]);
+    }
+});
+
 test('assetUpdate(optimistic-lock): a fresh update succeeds; a stale one is rejected and does not overwrite', function (): void {
     [$id, $base] = aupd_seed();
 
