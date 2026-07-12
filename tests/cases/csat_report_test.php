@@ -236,6 +236,43 @@ test('csat: excel feedback sheet returns more than the 100-row on-screen cap', f
     }
 });
 
+test('csat: date window is inclusive of the whole to_date (23:59:59), exclusive of the next day (round-3 gap B)', function (): void {
+    // CSAT filters on tr.created_at with from_datetime/to_datetime, so the window must cover the FULL to_date
+    // (…23:59:59), not stop at its midnight. Locks that both edges are inclusive and the next day is out.
+    $rid = bin2hex(random_bytes(4));
+    $deptId = csat_department($rid);
+    [$locId, $locName] = csat_location($rid);
+    $day = '2021-06-15';
+    $ids = [];
+
+    try {
+        $rate_at = function (string $suffix, string $createdAt) use ($rid, $deptId, $locId, &$ids): void {
+            csat_pdo()->prepare(
+                "INSERT INTO tickets (ticket_no, title, description, requester_id, requester_department_id, location_id, ticket_category_id, priority_id, status, requested_at)
+                 VALUES (?, 'x', 'x', 1, ?, ?, 1, 1, 'resolved', ?)"
+            )->execute(["CSATB-$rid-$suffix", $deptId, $locId, $createdAt]);
+            $tid = (int) csat_pdo()->lastInsertId();
+            csat_pdo()->prepare('INSERT INTO ticket_ratings (ticket_id, requester_id, score, created_at) VALUES (?, 1, 5, ?)')->execute([$tid, $createdAt]);
+            $ids[] = $tid;
+        };
+        $rate_at('start', "$day 00:00:00");      // exactly at from → in
+        $rate_at('end', "$day 23:59:59");        // exactly at to (end of day) → in
+        $rate_at('next', '2021-06-16 00:00:00'); // first instant of the next day → out
+
+        $row = null;
+        foreach (csat_page('location', $deptId, ['from_date' => $day, 'to_date' => $day])['rows'] as $r) {
+            if ($r['label'] === $locName) {
+                $row = $r;
+                break;
+            }
+        }
+        assert_true($row !== null, 'the location is in-window');
+        assert_same(2, $row['rating_count'], 'the 00:00:00 and 23:59:59 ratings are in-window; the next-day 00:00:00 is excluded');
+    } finally {
+        csat_cleanup($ids, [$locId], $deptId);
+    }
+});
+
 test('csat: XLSX breakdown %satisfied/%dissatisfied are numeric so they pivot/sum, not text (Finding #4 — #2 gap)', function (): void {
     // exportCsatExcel built Sheet 1 by hand with fromArray(), bypassing the shared numeric writer, so the
     // CSAT percentage columns landed as text — a manager couldn't pivot/chart %พอใจ. Route it through the
