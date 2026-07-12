@@ -66,6 +66,54 @@ function rr_row(string $dimension, string $label, array $extra = []): ?array
     return null;
 }
 
+test('reopen: XLSX export cells reconcile with the screen — %reopen/%FTF numeric, counts numeric (round-5)', function (): void {
+    // screen↔XLSX parity for the reopen report: the two percentage columns become real numbers (screen_pct/100)
+    // via the shared writer, and the counts stay numeric — same values a manager reads on the page.
+    $rid = bin2hex(random_bytes(4));
+    [$locId, $locName] = rr_location($rid);
+    $ids = [];
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $baselineJobId = (int) rr_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM export_jobs')->fetchColumn();
+
+    try {
+        // 2 closed, 1 reopened → reopen 50%, FTF 50%
+        $ids[] = $a = rr_ticket("RRX-$rid-a", $locId);
+        rr_log($a, 'ticket_resolved');
+        rr_log($a, 'ticket_reopened');
+        $ids[] = $b = rr_ticket("RRX-$rid-b", $locId);
+        rr_log($b, 'ticket_resolved');
+
+        $screen = rr_row('location', $locName);
+        assert_true($screen !== null, 'location on screen');
+        assert_same('50.0%', $screen['reopen_rate_label'], 'screen reopen = 1/2 = 50%');
+
+        $tmp = tempnam(sys_get_temp_dir(), 'rrx_') . '.xlsx';
+        file_put_contents($tmp, (string) rr_service()->exportReopenRateExcel($admin, ['dimension' => 'location'])['content']);
+        $sheet = IOFactory::createReader('Xlsx')->load($tmp)->getActiveSheet();
+        @unlink($tmp);
+        $xlsxRow = null;
+        foreach ($sheet->toArray(null, true, false) as $r) { // formatData=false → raw values (0.5, not "50.0%")
+            if (($r[0] ?? null) === $locName) {
+                $xlsxRow = $r;
+                break;
+            }
+        }
+        assert_true($xlsxRow !== null, 'location appears as an XLSX row');
+        // headers: dim, งานที่ปิด, เปิดซ้ำ, %เปิดซ้ำ, %ปิดจบรอบเดียว
+        assert_same((int) $screen['resolved'], (int) $xlsxRow[1], 'XLSX งานที่ปิด numeric = screen');
+        assert_same((int) $screen['reopened'], (int) $xlsxRow[2], 'XLSX เปิดซ้ำ numeric = screen');
+        assert_same((float) rtrim($screen['reopen_rate_label'], '%') / 100, (float) $xlsxRow[3], 'XLSX %เปิดซ้ำ = screen rate as a real number (0.5)');
+        assert_same((float) rtrim($screen['ftf_label'], '%') / 100, (float) $xlsxRow[4], 'XLSX %ปิดจบรอบเดียว = screen FTF as a real number (0.5)');
+    } finally {
+        rr_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
+        foreach ($ids as $id) {
+            rr_pdo()->prepare('DELETE FROM ticket_activity_logs WHERE ticket_id = ?')->execute([$id]);
+            rr_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
+        }
+        rr_pdo()->prepare('DELETE FROM locations WHERE id = ?')->execute([$locId]);
+    }
+});
+
 test('reopen: multi-resolve — any reopen WITHIN the window counts for it, even before its re-resolve (chosen semantics, round-5)', function (): void {
     // Business decision (kept): a period counts every ticket_reopened WITHIN it — we do NOT require the reopen
     // to be after that period's own resolve (closure-event semantics). So May-resolve → Jun-reopen →

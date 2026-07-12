@@ -116,6 +116,52 @@ test('ticket trend: created by requested_at, resolved/SLA/CSAT by resolved_at (c
     }
 });
 
+test('ticket trend: XLSX export cells reconcile with the screen period — SLA% numeric, counts numeric (round-5)', function (): void {
+    // screen↔XLSX parity for the trend report: the SLA% column becomes a real number (screen_pct/100) via the
+    // shared writer, counts + base stay numeric — the same values the on-screen period row shows.
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $rid = bin2hex(random_bytes(4));
+    $ticketId = 0;
+    $baselineJobId = (int) ttr_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM export_jobs')->fetchColumn();
+
+    try {
+        // created + resolved on-time in 2020-05 (resolved 10:00, due 12:00) → SLA 100%
+        ttr_pdo()->prepare(
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at, resolved_at, resolution_due_at)
+             VALUES (?, 'x', 'x', 1, 1, 1, 1, 'resolved', '2020-05-10 09:00:00', '2020-05-10 10:00:00', '2020-05-10 12:00:00')"
+        )->execute(["TTRX-$rid"]);
+        $ticketId = (int) ttr_pdo()->lastInsertId();
+
+        $filters = ['granularity' => 'month', 'from_date' => '2020-05-01', 'to_date' => '2020-05-31'];
+        $screen = ttr_period(ttr_service()->getTicketTrendReportPage($admin, $filters), '2020-05');
+        assert_true($screen !== null, 'the May period appears on screen');
+        assert_same('100.0%', $screen['sla_pct_label'], 'May SLA on-time = 100%');
+
+        $tmp = tempnam(sys_get_temp_dir(), 'ttrx_') . '.xlsx';
+        file_put_contents($tmp, (string) ttr_service()->exportTicketTrendExcel($admin, $filters)['content']);
+        $sheet = IOFactory::createReader('Xlsx')->load($tmp)->getActiveSheet();
+        @unlink($tmp);
+        $xlsxRow = null;
+        foreach ($sheet->toArray(null, true, false) as $r) { // formatData=false → raw values (1.0, not "100.0%")
+            if (($r[0] ?? null) === $screen['label']) {
+                $xlsxRow = $r;
+                break;
+            }
+        }
+        assert_true($xlsxRow !== null, 'the May period appears as an XLSX row');
+        // headers: ช่วงเวลา, แจ้งซ่อม, ปิดงาน, สุทธิ, SLA ตรงเวลา, งาน SLA, เวลาซ่อมเฉลี่ย, คะแนนเฉลี่ย, จำนวนรีวิว
+        assert_same((int) $screen['created'], (int) $xlsxRow[1], 'XLSX แจ้งซ่อม numeric = screen created');
+        assert_same((int) $screen['resolved'], (int) $xlsxRow[2], 'XLSX ปิดงาน numeric = screen resolved');
+        assert_same((float) rtrim($screen['sla_pct_label'], '%') / 100, (float) $xlsxRow[4], 'XLSX SLA ตรงเวลา = screen SLA as a real number (1.0)');
+        assert_same((int) $screen['sla_base'], (int) $xlsxRow[5], 'XLSX งาน SLA base numeric = screen');
+    } finally {
+        ttr_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
+        if ($ticketId > 0) {
+            ttr_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+        }
+    }
+});
+
 test('ticket trend: a real 0% SLA and a sub-minute MTTR are chart data, not hidden (Finding F2/F5)', function (): void {
     // Data presence must come from the base/null, not from the aggregated value. A period where SLA is a
     // genuine 0% (all breached) or MTTR rounds to 0.0h (resolved within a minute) is REAL data — it must
