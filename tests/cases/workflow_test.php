@@ -259,6 +259,24 @@ test('workflow(neg): cancelTicket rejects a ticket in a terminal state', functio
     }
 });
 
+test('workflow(neg): a requester cannot cancel once work has started — assigned/accepted/in_progress (business-confirmed rule)', function (): void {
+    // Product-owner-confirmed: cancel is allowed ONLY in pending_approval/approved. Once a technician is
+    // assigned and working, the requester can no longer yank the ticket. Locks that boundary so a later policy
+    // change that re-allows late cancellation is caught (the existing neg test only covered a terminal state).
+    foreach (['assigned', 'accepted', 'in_progress'] as $status) {
+        $id = wf_insert_ticket(['status' => $status, 'approval_status' => 'approved', 'requester_id' => 1, 'assigned_technician_id' => 3]);
+        try {
+            wf_reject(
+                fn () => wf_service()->cancelTicket($id, ['id' => 1, 'role' => 'requester'], ['cancel_note' => 'เปลี่ยนใจ']),
+                $id,
+                "cancel $status"
+            );
+        } finally {
+            wf_cleanup($id);
+        }
+    }
+});
+
 // ── happy path for the three transitions not yet covered ──
 
 test('workflow: completeResolvedTicket resolved → completed + rating stored', function (): void {
