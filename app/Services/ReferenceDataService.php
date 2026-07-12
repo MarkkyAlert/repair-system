@@ -243,8 +243,9 @@ class ReferenceDataService
 
     private function encodeSlaPayload(array $input): string
     {
-        $responseHours = max(0, (float) ($input['response_hours'] ?? 0));
-        $resolutionHours = max(0, (float) ($input['resolution_hours'] ?? 0));
+        // strict_float so a non-numeric "abc" is rejected, not silently coerced to a 0-minute SLA (round F1)
+        $responseHours = max(0, strict_float($input['response_hours'] ?? null, 'เวลาตอบรับ (SLA) '));
+        $resolutionHours = max(0, strict_float($input['resolution_hours'] ?? null, 'เวลาแก้ไข (SLA) '));
 
         return json_encode([
             'response_minutes' => (int) round($responseHours * 60),

@@ -53,6 +53,20 @@ function tc_valid_input(array $ref, array $overrides = []): array
     ], $overrides);
 }
 
+test('ticketCreate: a malformed numeric reference ("1junk") is rejected, not coerced to its prefix (round F1)', function (): void {
+    // (int)"1junk" === 1, which would silently pass as priority/category/location #1. strict_int rejects it.
+    $ref = tc_ref();
+    foreach (['priority_id', 'ticket_category_id', 'location_id', 'asset_id'] as $field) {
+        $threw = false;
+        try {
+            tc_service()->createTicket(tc_requester(), tc_valid_input($ref, [$field => '1junk']));
+        } catch (DomainException) {
+            $threw = true;
+        }
+        assert_true($threw, "$field = '1junk' must be rejected as a non-integer, not coerced to 1");
+    }
+});
+
 /** Assert createTicket($valid + overrides) throws exactly $message. Rejects throw before any insert. */
 function tc_reject(array $ref, array $overrides, string $message, string $ctx): void
 {

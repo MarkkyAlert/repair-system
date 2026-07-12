@@ -55,6 +55,25 @@ function rd_valid_priority(array $overrides = []): array
     ], $overrides);
 }
 
+test('reference data: a non-numeric SLA hours on a ticket category is rejected, not stored as a 0-minute SLA (round F1)', function (): void {
+    // (float)"abc" === 0.0 would silently create a category with a 0-minute SLA (always overdue). strict_float rejects it.
+    rd_bind_request();
+    $threw = false;
+    try {
+        rd_service()->createTicketCategory(rd_admin(), [
+            'code' => 'RDF1' . strtoupper(bin2hex(random_bytes(3))),
+            'name' => 'RD F1 Category',
+            'response_hours' => 'abc',
+            'resolution_hours' => '8',
+            'sort_order' => 5,
+            'is_active' => '1',
+        ]);
+    } catch (DomainException) {
+        $threw = true;
+    }
+    assert_true($threw, 'a non-numeric response_hours must be rejected, not stored as a 0-minute SLA');
+});
+
 // ── shared validation (code + name) — one entity is enough (buildMasterPayload is shared) ──
 
 test('reference data: shared code+name validation (via department)', function (): void {

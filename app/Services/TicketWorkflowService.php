@@ -101,7 +101,7 @@ class TicketWorkflowService
             throw new DomainException('รายการนี้ยังไม่พร้อมสำหรับการมอบหมายช่าง');
         }
 
-        $technicianId = (int) ($input['technician_id'] ?? 0);
+        $technicianId = strict_int($input['technician_id'] ?? null, 'ช่างเทคนิค'); // round F1: reject "3junk"
         if ($technicianId <= 0) {
             throw new DomainException('กรุณาเลือกช่างเทคนิคที่ต้องการมอบหมาย');
         }
@@ -166,7 +166,7 @@ class TicketWorkflowService
 
         $diagnosisSummary = trim((string) ($input['diagnosis_summary'] ?? ''));
         $resolutionSummary = trim((string) ($input['resolution_summary'] ?? ''));
-        $laborMinutes = (int) ($input['labor_minutes'] ?? 0);
+        $laborMinutes = strict_int($input['labor_minutes'] ?? null, 'จำนวนเวลาที่ใช้'); // round F1: reject "12junk"
 
         if ($diagnosisSummary === '' || $resolutionSummary === '') {
             throw new DomainException('กรุณากรอกผลการวิเคราะห์และวิธีแก้ไขให้ครบถ้วน');
@@ -197,7 +197,7 @@ class TicketWorkflowService
         }
 
         $closureNote = trim((string) ($input['closure_note'] ?? ''));
-        $score = (int) ($input['score'] ?? 0);
+        $score = strict_int($input['score'] ?? null, 'คะแนนความพึงพอใจ'); // round F1: reject "5junk"
         $feedback = trim((string) ($input['feedback'] ?? ''));
 
         if ($score < 1 || $score > 5) {

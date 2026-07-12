@@ -414,10 +414,11 @@ class TicketService
 
         $title = trim((string) ($input['title'] ?? ''));
         $description = trim((string) ($input['description'] ?? ''));
-        $priorityId = (int) ($input['priority_id'] ?? 0);
-        $categoryId = (int) ($input['ticket_category_id'] ?? 0);
-        $locationId = (int) ($input['location_id'] ?? 0);
-        $assetId = (int) ($input['asset_id'] ?? 0);
+        // strict_int so a malformed "1junk" is rejected up front, not silently coerced to its numeric prefix (round F1)
+        $priorityId = strict_int($input['priority_id'] ?? null, 'Priority ');
+        $categoryId = strict_int($input['ticket_category_id'] ?? null, 'Category ');
+        $locationId = strict_int($input['location_id'] ?? null, 'Location ');
+        $assetId = strict_int($input['asset_id'] ?? null, 'Asset ');
         $impactLevel = strtolower(trim((string) ($input['impact_level'] ?? 'medium')));
         $urgencyLevel = strtolower(trim((string) ($input['urgency_level'] ?? 'medium')));
         $submissionToken = $this->submissionToken((string) ($input['submission_token'] ?? ''), false);

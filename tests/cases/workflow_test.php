@@ -259,6 +259,30 @@ test('workflow(neg): cancelTicket rejects a ticket in a terminal state', functio
     }
 });
 
+test('workflow(neg): malformed numeric input (technician/labor/score "Njunk") is rejected without mutation (round F1)', function (): void {
+    // (int)"3junk" === 3 etc. would silently pass. strict_int rejects it before any DB change.
+    $a = wf_insert_ticket(['status' => 'approved', 'approval_status' => 'approved']);
+    try {
+        wf_reject(fn () => wf_service()->assignTechnician($a, ['id' => 1, 'role' => 'manager'], ['technician_id' => '3junk']), $a, 'assign technician 3junk');
+    } finally {
+        wf_cleanup($a);
+    }
+
+    $r = wf_insert_ticket(['status' => 'in_progress', 'approval_status' => 'approved', 'assigned_technician_id' => 3]);
+    try {
+        wf_reject(fn () => wf_service()->resolveAssignedWork($r, ['id' => 3, 'role' => 'technician'], ['diagnosis_summary' => 'd', 'resolution_summary' => 'r', 'labor_minutes' => '12junk']), $r, 'resolve labor 12junk');
+    } finally {
+        wf_cleanup($r);
+    }
+
+    $c = wf_insert_ticket(['status' => 'resolved', 'approval_status' => 'approved', 'requester_id' => 1, 'assigned_technician_id' => 3]);
+    try {
+        wf_reject(fn () => wf_service()->completeResolvedTicket($c, ['id' => 1, 'role' => 'requester'], ['score' => '5junk', 'closure_note' => 'x']), $c, 'complete score 5junk');
+    } finally {
+        wf_cleanup($c);
+    }
+});
+
 test('workflow(neg): a requester cannot cancel once work has started — assigned/accepted/in_progress (business-confirmed rule)', function (): void {
     // Product-owner-confirmed: cancel is allowed ONLY in pending_approval/approved. Once a technician is
     // assigned and working, the requester can no longer yank the ticket. Locks that boundary so a later policy

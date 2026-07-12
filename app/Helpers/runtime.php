@@ -253,3 +253,41 @@ function auth(): AuthManager
 {
     return app(AuthManager::class);
 }
+
+/**
+ * Parse a form field that must be a whole number. Empty/missing → $default; a non-integer string like
+ * "12junk" throws (PHP's (int) cast silently keeps the "12" prefix). Services own input validation, so this
+ * throws DomainException for the caller to surface as a friendly message. (round F1 — strict numeric input)
+ */
+function strict_int(mixed $raw, string $label, int $default = 0): int
+{
+    if ($raw === null) {
+        return $default;
+    }
+    $value = trim((string) $raw);
+    if ($value === '') {
+        return $default;
+    }
+    if (preg_match('/^-?\d+$/', $value) !== 1) {
+        throw new \DomainException($label . 'ต้องเป็นตัวเลขจำนวนเต็ม');
+    }
+
+    return (int) $value;
+}
+
+/** Like strict_int but for a decimal ("abc" throws instead of (float) silently giving 0.0). */
+function strict_float(mixed $raw, string $label, float $default = 0.0): float
+{
+    if ($raw === null) {
+        return $default;
+    }
+    $value = trim((string) $raw);
+    if ($value === '') {
+        return $default;
+    }
+    if (!is_numeric($value)) {
+        throw new \DomainException($label . 'ต้องเป็นตัวเลข');
+    }
+
+    return (float) $value;
+}

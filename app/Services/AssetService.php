@@ -375,10 +375,11 @@ class AssetService
         $assetCode = strtoupper(trim((string) ($input['asset_code'] ?? '')));
         $name = trim((string) ($input['name'] ?? ''));
         $serialNumber = trim((string) ($input['serial_number'] ?? ''));
-        $categoryId = (int) ($input['asset_category_id'] ?? 0);
-        $departmentId = (int) ($input['department_id'] ?? 0);
-        $locationId = (int) ($input['location_id'] ?? 0);
-        $custodianUserId = (int) ($input['custodian_user_id'] ?? 0);
+        // strict_int so a malformed "1junk" reference is rejected, not coerced to its prefix (round F1)
+        $categoryId = strict_int($input['asset_category_id'] ?? null, 'หมวดหมู่ Asset ');
+        $departmentId = strict_int($input['department_id'] ?? null, 'แผนก ');
+        $locationId = strict_int($input['location_id'] ?? null, 'สถานที่ ');
+        $custodianUserId = strict_int($input['custodian_user_id'] ?? null, 'ผู้ดูแล ');
         $brand = trim((string) ($input['brand'] ?? ''));
         $model = trim((string) ($input['model'] ?? ''));
         $vendor = trim((string) ($input['vendor'] ?? ''));
