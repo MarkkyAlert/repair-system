@@ -51,6 +51,42 @@ function tpr_cleanup(int $techId): void
     }
 }
 
+test('technician performance: more than 200 technicians are all counted, none dropped by a LIMIT (round-2 #2)', function (): void {
+    // getTechnicianPeriodStats had LIMIT 200 with no ORDER BY, so with >200 technicians some were dropped
+    // arbitrarily — they showed assigned/resolved 0 on a people-evaluation report and the team total was
+    // undercounted. The result is one row per technician (bounded), so the limit is removed. (round-2 #2.)
+    $rid = bin2hex(random_bytes(4));
+    $repo = tvm_container()->get(\App\Repositories\ReportRepository::class);
+    $admin = ['id' => 4, 'role' => 'admin'];
+    tpr_pdo()->prepare('INSERT INTO departments (code, name) VALUES (?, ?)')->execute(["TPRB-$rid", "TPRB Dept $rid"]);
+    $deptId = (int) tpr_pdo()->lastInsertId();
+    $count = 201;
+
+    try {
+        $userStmt = tpr_pdo()->prepare(
+            "INSERT INTO users (username, email, password_hash, full_name, role, is_active) VALUES (?, ?, 'x', ?, 'technician', 1)"
+        );
+        $ticketStmt = tpr_pdo()->prepare(
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, requester_department_id, location_id, ticket_category_id, priority_id, assigned_technician_id, status, requested_at, resolved_at)
+             VALUES (?, 'x', 'x', 1, ?, 1, 1, 1, ?, 'resolved', NOW(), NOW())"
+        );
+        for ($i = 0; $i < $count; $i++) {
+            $userStmt->execute(["tprb_{$rid}_{$i}", "tprb_{$rid}_{$i}@example.com", "TPRB Tech $rid $i"]);
+            $techId = (int) tpr_pdo()->lastInsertId();
+            $ticketStmt->execute(["TPRBT-{$rid}-{$i}", $deptId, $techId]);
+        }
+
+        // scope to the fresh department so period stats = exactly our 201 technicians (one resolved each)
+        $stats = $repo->getTechnicianPeriodStats($admin, ['department_id' => $deptId]);
+        assert_same($count, count($stats), 'all 201 technicians-with-tickets are returned (not capped at 200)');
+        assert_same($count, (int) array_sum(array_column($stats, 'resolved')), 'team resolved total = 201, not silently capped at 200');
+    } finally {
+        tpr_pdo()->prepare('DELETE FROM tickets WHERE requester_department_id = ?')->execute([$deptId]);
+        tpr_pdo()->prepare('DELETE FROM users WHERE username LIKE ?')->execute(["tprb_{$rid}_%"]);
+        tpr_pdo()->prepare('DELETE FROM departments WHERE id = ?')->execute([$deptId]);
+    }
+});
+
 test('technician performance: period first-response avg + per-tech SLA on-time rate', function (): void {
     $rid = bin2hex(random_bytes(4));
     [$techId, $fullName] = tpr_tech($rid);

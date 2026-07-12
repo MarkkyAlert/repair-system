@@ -511,13 +511,12 @@ class ReportRepository
      * ratings/work_orders 1:1). date-filtered ตาม applyReportFilters. คง getTechnicianPerformance เดิม
      * (panel /reports ใช้อยู่) ไม่แตะ.
      */
-    public function getTechnicianPeriodStats(array $viewer, array $filters, int $limit = 200): array
+    public function getTechnicianPeriodStats(array $viewer, array $filters): array
     {
         $params = [];
         $conditions = [$this->visibilityClause($viewer, $params)];
         $this->applyReportFilters($conditions, $filters, $params);
         $whereClause = implode(' AND ', $conditions);
-        $limit = max(1, min($limit, 500));
         $resolvedStatuses = ticket_resolved_statuses_sql();
 
         $stmt = $this->db->prepare(
@@ -539,8 +538,10 @@ class ReportRepository
              LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id
              LEFT JOIN work_orders wo ON wo.ticket_id = t.id
              WHERE u.role = 'technician' AND $whereClause
-             GROUP BY u.id, u.full_name
-             LIMIT " . $limit
+             GROUP BY u.id, u.full_name"
+            // no LIMIT: GROUP BY u.id yields exactly one row per technician (bounded by the technician count),
+            // matching the unbounded getTechnicianLiveWorkload base. A LIMIT here silently dropped technicians
+            // on a people-evaluation report and undercounted team totals when there were >200 of them.
         );
         $stmt->execute($params);
 
