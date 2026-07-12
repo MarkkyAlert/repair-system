@@ -2874,8 +2874,6 @@ class ReportService
 
         try {
             $spreadsheet = new Spreadsheet();
-            $sheet = $spreadsheet->getActiveSheet();
-            $sheet->setTitle('รายงาน Ticket');
 
             $headers = [
                 'เลขที่',
@@ -2895,16 +2893,13 @@ class ReportService
                 'สถานที่',
             ];
 
-            $column = 'A';
-            foreach ($headers as $header) {
-                $sheet->setCellValue($column . '1', $header);
-                $sheet->getColumnDimension($column)->setAutoSize(true);
-                $column++;
-            }
-
-            $rowNumber = 2;
-            foreach ($rows as $row) {
-                $sheet->fromArray($this->exporter->sanitizeExportRow([
+            // route the main sheet through the shared writer so numeric cells (e.g. "เวลาแก้ไข" > 999h with a
+            // thousands comma) are real numbers, not text — same path as the CSAT/analytics sheets (round-9)
+            $this->exporter->fillSheet(
+                $spreadsheet->getActiveSheet(),
+                'รายงาน Ticket',
+                $headers,
+                array_map(fn (array $row): array => [
                     $row['ticket_no'],
                     $row['title'],
                     $row['requester_name'],
@@ -2920,9 +2915,8 @@ class ReportService
                     $row['sla_label'],
                     $row['rating_label'],
                     $row['location_name'],
-                ]), null, 'A' . $rowNumber);
-                $rowNumber++;
-            }
+                ], $rows)
+            );
 
             $this->appendAnalyticsSheets($spreadsheet, $this->collectAnalytics($viewer, $normalizedFilters));
             $spreadsheet->setActiveSheetIndex(0);
