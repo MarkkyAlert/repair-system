@@ -530,8 +530,8 @@ class ReportRepository
                 SUM(CASE WHEN t.resolved_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN 1 ELSE 0 END) AS resolution_base, -- base for MTTR (has a real close time); status='resolved' with NULL resolved_at must not read as 0.0
                 ROUND(AVG(CASE WHEN t.first_response_at IS NOT NULL AND t.first_response_at >= t.requested_at THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.first_response_at) ELSE NULL END), 1) AS first_response_minutes,
                 SUM(CASE WHEN t.first_response_at IS NOT NULL AND t.first_response_at >= t.requested_at THEN 1 ELSE 0 END) AS first_response_count,
-                SUM(CASE WHEN t.resolved_at IS NOT NULL AND t.resolution_due_at IS NOT NULL THEN 1 ELSE 0 END) AS sla_base,
-                SUM(CASE WHEN t.resolved_at IS NOT NULL AND t.resolution_due_at IS NOT NULL AND t.resolved_at <= t.resolution_due_at THEN 1 ELSE 0 END) AS sla_on_time,
+                SUM(CASE WHEN t.resolved_at IS NOT NULL AND t.resolution_due_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN 1 ELSE 0 END) AS sla_base,
+                SUM(CASE WHEN t.resolved_at IS NOT NULL AND t.resolution_due_at IS NOT NULL AND t.resolved_at >= t.requested_at AND t.resolved_at <= t.resolution_due_at THEN 1 ELSE 0 END) AS sla_on_time,
                 ROUND(COALESCE(AVG(tr.score), 0), 2) AS avg_rating,
                 COUNT(tr.score) AS rating_count,
                 COALESCE(SUM(wo.labor_minutes), 0) AS labor_minutes

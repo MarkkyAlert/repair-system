@@ -94,6 +94,96 @@ test('reports: a backwards resolved_at/first_response_at → all duration metric
     }
 });
 
+test('reports: a backwards resolved_at is not a false SLA pass — technician + generic label (round-7 F1-residual)', function (): void {
+    // A backwards resolved_at (09:00, before the 10:00 request) is <= the 11:00 due, so it would falsely read
+    // as SLA on-time. It must NOT count: technician SLA base excludes it (label '-'), and the generic per-ticket
+    // sla_label must not say "อยู่ใน SLA" for an achievement that predates the request.
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $rid = bin2hex(random_bytes(4));
+    dbt_pdo()->prepare('INSERT INTO departments (code, name) VALUES (?, ?)')->execute(["DBTS-$rid", "DBTS Dept $rid"]);
+    $deptId = (int) dbt_pdo()->lastInsertId();
+    dbt_pdo()->prepare("INSERT INTO users (username, email, password_hash, full_name, role, is_active) VALUES (?, ?, 'x', ?, 'technician', 1)")
+        ->execute(["dbts_$rid", "dbts_$rid@example.com", "DBTS Tech $rid"]);
+    $techId = (int) dbt_pdo()->lastInsertId();
+
+    try {
+        // requested 10:00 · resolved 09:00 (before request) · first response 08:00 · both due times AFTER request
+        dbt_pdo()->prepare(
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, requester_department_id, location_id, ticket_category_id, priority_id, assigned_technician_id, status, requested_at, resolved_at, resolution_due_at, first_response_at, response_due_at)
+             VALUES (?, 'x', 'x', 1, ?, 1, 1, 1, ?, 'resolved', '2020-07-15 10:00:00', '2020-07-15 09:00:00', '2020-07-15 11:00:00', '2020-07-15 08:00:00', '2020-07-15 10:30:00')"
+        )->execute(["DBTS-$rid", $deptId, $techId]);
+
+        // technician SLA: the impossible resolve must not count as a concluded, on-time SLA
+        $tech = null;
+        foreach (dbt_service()->getTechnicianPerformanceReportPage($admin, ['department_id' => $deptId])['rows'] as $r) {
+            if ($r['full_name'] === "DBTS Tech $rid") {
+                $tech = $r;
+                break;
+            }
+        }
+        assert_true($tech !== null, 'technician appears');
+        assert_same(0, $tech['sla_base'], 'sla_base excludes the backwards resolve (not a valid SLA conclusion)');
+        assert_same('-', $tech['sla_on_time_label'], 'technician SLA = "-", not a false 100%');
+
+        // generic overview per-ticket SLA label must not read a false "อยู่ใน SLA"
+        $row = null;
+        foreach (dbt_service()->getReportPageData($admin, ['department_id' => $deptId])['rows'] as $r) {
+            if (($r['ticket_no'] ?? null) === "DBTS-$rid") {
+                $row = $r;
+                break;
+            }
+        }
+        assert_true($row !== null, 'the ticket appears in the overview rows');
+        assert_true(($row['sla_label'] ?? '') !== 'อยู่ใน SLA', 'a pre-request achievement is not a false "within SLA"');
+    } finally {
+        dbt_pdo()->prepare('DELETE FROM tickets WHERE requester_department_id = ?')->execute([$deptId]);
+        dbt_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$techId]);
+        dbt_pdo()->prepare('DELETE FROM departments WHERE id = ?')->execute([$deptId]);
+    }
+});
+
+test('reports: a valid on-time resolution still counts as SLA 100% / "อยู่ใน SLA" (round-7 guard not over-broad)', function (): void {
+    // requested 09:00 · resolved 10:00 (after request, before the 12:00 due) · response on-time → still a pass.
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $rid = bin2hex(random_bytes(4));
+    dbt_pdo()->prepare('INSERT INTO departments (code, name) VALUES (?, ?)')->execute(["DBTW-$rid", "DBTW Dept $rid"]);
+    $deptId = (int) dbt_pdo()->lastInsertId();
+    dbt_pdo()->prepare("INSERT INTO users (username, email, password_hash, full_name, role, is_active) VALUES (?, ?, 'x', ?, 'technician', 1)")
+        ->execute(["dbtw_$rid", "dbtw_$rid@example.com", "DBTW Tech $rid"]);
+    $techId = (int) dbt_pdo()->lastInsertId();
+
+    try {
+        dbt_pdo()->prepare(
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, requester_department_id, location_id, ticket_category_id, priority_id, assigned_technician_id, status, requested_at, resolved_at, resolution_due_at, first_response_at, response_due_at)
+             VALUES (?, 'x', 'x', 1, ?, 1, 1, 1, ?, 'resolved', '2020-07-15 09:00:00', '2020-07-15 10:00:00', '2020-07-15 12:00:00', '2020-07-15 09:15:00', '2020-07-15 09:30:00')"
+        )->execute(["DBTW-$rid", $deptId, $techId]);
+
+        $tech = null;
+        foreach (dbt_service()->getTechnicianPerformanceReportPage($admin, ['department_id' => $deptId])['rows'] as $r) {
+            if ($r['full_name'] === "DBTW Tech $rid") {
+                $tech = $r;
+                break;
+            }
+        }
+        assert_true($tech !== null, 'technician appears');
+        assert_same(1, $tech['sla_base'], 'valid resolve counts in the SLA base');
+        assert_same('100.0%', $tech['sla_on_time_label'], 'valid on-time resolve → 100%');
+
+        $row = null;
+        foreach (dbt_service()->getReportPageData($admin, ['department_id' => $deptId])['rows'] as $r) {
+            if (($r['ticket_no'] ?? null) === "DBTW-$rid") {
+                $row = $r;
+                break;
+            }
+        }
+        assert_same('อยู่ใน SLA', $row['sla_label'] ?? '', 'a genuinely on-time ticket still reads "within SLA"');
+    } finally {
+        dbt_pdo()->prepare('DELETE FROM tickets WHERE requester_department_id = ?')->execute([$deptId]);
+        dbt_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$techId]);
+        dbt_pdo()->prepare('DELETE FROM departments WHERE id = ?')->execute([$deptId]);
+    }
+});
+
 test('reports: a valid same-minute resolution still reads 0.0, not "-" (round-6 F1 guard is not over-broad)', function (): void {
     // the >= requested_at guard must keep valid rows: resolved_at == requested_at (0 minutes) is still a real,
     // in-window resolution → 0.0, not excluded.

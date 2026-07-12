@@ -3277,8 +3277,9 @@ class ReportService
             ];
         }
 
-        $response = $this->buildSlaMetricState($ticket['response_due_at'] ?? null, $ticket['first_response_at'] ?? null);
-        $resolution = $this->buildSlaMetricState($ticket['resolution_due_at'] ?? null, $ticket['resolved_at'] ?? null);
+        $requestedAt = $ticket['requested_at'] ?? null;
+        $response = $this->buildSlaMetricState($ticket['response_due_at'] ?? null, $ticket['first_response_at'] ?? null, $requestedAt);
+        $resolution = $this->buildSlaMetricState($ticket['resolution_due_at'] ?? null, $ticket['resolved_at'] ?? null, $requestedAt);
         $isOverdue = ($response['status'] ?? '') === 'breached' || ($resolution['status'] ?? '') === 'breached' || (bool) ($ticket['is_overdue'] ?? false);
 
         if (($resolution['status'] ?? '') === 'breached') {
@@ -3301,18 +3302,26 @@ class ReportService
         ];
     }
 
-    private function buildSlaMetricState(mixed $targetAt, mixed $achievedAt): array
+    private function buildSlaMetricState(mixed $targetAt, mixed $achievedAt, mixed $requestedAt = null): array
     {
         $target = is_string($targetAt) ? trim($targetAt) : '';
         $achieved = is_string($achievedAt) ? trim($achievedAt) : '';
+        $requested = is_string($requestedAt) ? trim($requestedAt) : '';
         $targetTimestamp = $target !== '' ? strtotime($target) : false;
         $achievedTimestamp = $achieved !== '' ? strtotime($achieved) : false;
+        $requestedTimestamp = $requested !== '' ? strtotime($requested) : false;
 
         if ($targetTimestamp === false) {
             return ['status' => 'unavailable'];
         }
 
         if ($achievedTimestamp !== false) {
+            // an achievement BEFORE the ticket was requested is impossible data (bad seed/import) — it cannot
+            // be judged met/breached, so treat SLA as unavailable rather than a false "met". (F1-residual)
+            if ($requestedTimestamp !== false && $achievedTimestamp < $requestedTimestamp) {
+                return ['status' => 'unavailable'];
+            }
+
             return ['status' => $achievedTimestamp > $targetTimestamp ? 'breached' : 'met'];
         }
 
