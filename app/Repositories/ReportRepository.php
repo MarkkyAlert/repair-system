@@ -81,12 +81,12 @@ class ReportRepository
                     ELSE 0
                 END), 0) AS breached_tickets,
                 ROUND(COALESCE(AVG(CASE
-                    WHEN t.resolved_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at)
+                    WHEN t.resolved_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at)
                     ELSE NULL
                 END), 0), 1) AS avg_resolution_minutes,
                 -- base for the MTTR average: how many tickets actually have a resolved_at. 0 → no data ('-');
                 -- >0 with a 0-minute average → a real same-minute resolution ('0.0'), not 'no data'.
-                SUM(CASE WHEN t.resolved_at IS NOT NULL THEN 1 ELSE 0 END) AS resolution_base,
+                SUM(CASE WHEN t.resolved_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN 1 ELSE 0 END) AS resolution_base,
                 ROUND(COALESCE(AVG(tr.score), 0), 1) AS avg_rating,
                 COUNT(tr.score) AS rating_count
              FROM tickets t
@@ -138,7 +138,7 @@ class ReportRepository
                 technician.full_name AS technician_name,
                 tr.score AS rating_score,
                 CASE
-                    WHEN t.resolved_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at)
+                    WHEN t.resolved_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at)
                     ELSE NULL
                 END AS resolution_minutes,
                 CASE
@@ -195,10 +195,10 @@ class ReportRepository
                 COUNT(*) AS failure_count,
                 MAX(t.requested_at) AS last_failure_at,
                 ROUND(COALESCE(AVG(CASE
-                    WHEN t.resolved_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at)
+                    WHEN t.resolved_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at)
                     ELSE NULL
                 END), 0), 1) AS avg_resolution_minutes,
-                SUM(CASE WHEN t.resolved_at IS NOT NULL THEN 1 ELSE 0 END) AS resolved_count,
+                SUM(CASE WHEN t.resolved_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN 1 ELSE 0 END) AS resolved_count,
                 COALESCE(SUM(wo.labor_minutes), 0) AS labor_minutes
              FROM tickets t
              INNER JOIN assets a ON a.id = t.asset_id
@@ -243,12 +243,12 @@ class ReportRepository
                 MAX(t.requested_at) AS last_failure_at,
                 MIN(t.requested_at) AS first_failure_at,
                 ROUND(COALESCE(AVG(CASE
-                    WHEN t.resolved_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at)
+                    WHEN t.resolved_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at)
                     ELSE NULL
                 END), 0), 1) AS avg_resolution_minutes,
-                SUM(CASE WHEN t.resolved_at IS NOT NULL THEN 1 ELSE 0 END) AS resolved_count,
+                SUM(CASE WHEN t.resolved_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN 1 ELSE 0 END) AS resolved_count,
                 COALESCE(SUM(CASE
-                    WHEN t.resolved_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at)
+                    WHEN t.resolved_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at)
                     ELSE 0
                 END), 0) AS downtime_minutes,
                 COALESCE(SUM(wo.labor_minutes), 0) AS labor_minutes
@@ -487,8 +487,8 @@ class ReportRepository
                 COUNT(t.id) AS assigned,
                 SUM(CASE WHEN t.status IN ($resolvedStatuses) THEN 1 ELSE 0 END) AS resolved,
                 SUM(CASE WHEN t.status IN ('assigned', 'accepted', 'in_progress', 'on_hold') THEN 1 ELSE 0 END) AS open_count,
-                ROUND(AVG(CASE WHEN t.resolved_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at) ELSE NULL END), 1) AS mttr_minutes,
-                SUM(CASE WHEN t.resolved_at IS NOT NULL THEN 1 ELSE 0 END) AS resolution_base, -- base for MTTR (has a real close time); status='resolved' with NULL resolved_at must not read as 0.0
+                ROUND(AVG(CASE WHEN t.resolved_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at) ELSE NULL END), 1) AS mttr_minutes,
+                SUM(CASE WHEN t.resolved_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN 1 ELSE 0 END) AS resolution_base, -- base for MTTR (has a real close time); status='resolved' with NULL resolved_at must not read as 0.0
                 ROUND(COALESCE(AVG(tr.score), 0), 2) AS avg_rating,
                 COUNT(tr.score) AS rating_count,
                 COALESCE(SUM(wo.labor_minutes), 0) AS labor_minutes
@@ -526,10 +526,10 @@ class ReportRepository
                 u.full_name,
                 COUNT(t.id) AS assigned,
                 SUM(CASE WHEN t.status IN ($resolvedStatuses) THEN 1 ELSE 0 END) AS resolved,
-                ROUND(AVG(CASE WHEN t.resolved_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at) ELSE NULL END), 1) AS mttr_minutes,
-                SUM(CASE WHEN t.resolved_at IS NOT NULL THEN 1 ELSE 0 END) AS resolution_base, -- base for MTTR (has a real close time); status='resolved' with NULL resolved_at must not read as 0.0
-                ROUND(AVG(CASE WHEN t.first_response_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.first_response_at) ELSE NULL END), 1) AS first_response_minutes,
-                SUM(CASE WHEN t.first_response_at IS NOT NULL THEN 1 ELSE 0 END) AS first_response_count,
+                ROUND(AVG(CASE WHEN t.resolved_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at) ELSE NULL END), 1) AS mttr_minutes,
+                SUM(CASE WHEN t.resolved_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN 1 ELSE 0 END) AS resolution_base, -- base for MTTR (has a real close time); status='resolved' with NULL resolved_at must not read as 0.0
+                ROUND(AVG(CASE WHEN t.first_response_at IS NOT NULL AND t.first_response_at >= t.requested_at THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.first_response_at) ELSE NULL END), 1) AS first_response_minutes,
+                SUM(CASE WHEN t.first_response_at IS NOT NULL AND t.first_response_at >= t.requested_at THEN 1 ELSE 0 END) AS first_response_count,
                 SUM(CASE WHEN t.resolved_at IS NOT NULL AND t.resolution_due_at IS NOT NULL THEN 1 ELSE 0 END) AS sla_base,
                 SUM(CASE WHEN t.resolved_at IS NOT NULL AND t.resolution_due_at IS NOT NULL AND t.resolved_at <= t.resolution_due_at THEN 1 ELSE 0 END) AS sla_on_time,
                 ROUND(COALESCE(AVG(tr.score), 0), 2) AS avg_rating,
@@ -613,8 +613,8 @@ class ReportRepository
                         )
                     THEN 1 ELSE 0
                 END) AS overdue_count,
-                SUM(CASE WHEN t.resolved_at IS NOT NULL THEN 1 ELSE 0 END) AS resolved_count,
-                ROUND(AVG(CASE WHEN t.resolved_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at) ELSE NULL END), 1) AS avg_resolution_minutes,
+                SUM(CASE WHEN t.resolved_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN 1 ELSE 0 END) AS resolved_count,
+                ROUND(AVG(CASE WHEN t.resolved_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at) ELSE NULL END), 1) AS avg_resolution_minutes,
                 COALESCE(SUM(wo.labor_minutes), 0) AS labor_minutes
              FROM tickets t
              LEFT JOIN work_orders wo ON wo.ticket_id = t.id
@@ -687,7 +687,9 @@ class ReportRepository
         $to = is_string($filters['to_datetime'] ?? null) ? trim((string) $filters['to_datetime']) : '';
 
         $params = [];
-        $conditions = [$this->visibilityClause($viewer, $params), 't.resolved_at IS NOT NULL'];
+        // exclude backwards timestamps (resolved_at < requested_at, bad seed/import data) so the trend MTTR
+        // is never negative (F1); the resolved bucket + SLA are over valid rows only.
+        $conditions = [$this->visibilityClause($viewer, $params), 't.resolved_at IS NOT NULL', 't.resolved_at >= t.requested_at'];
         $this->applyTrendDimensionFilters($conditions, $filters, $params);
         if ($from !== '') {
             $conditions[] = 't.resolved_at >= :trend_from';
