@@ -123,6 +123,58 @@ test('technician performance: avg rating & SLA rate carry their sample size (Fin
     }
 });
 
+test('technician performance: CSV export cells reconcile with the on-screen row (screen↔export parity)', function (): void {
+    // People-evaluation report: the % / คะแนน / sample-size a manager reads on screen must be byte-identical
+    // in the CSV they hand to HR. Screen (mapTechnicianPerformanceRow) and export (technicianPerformanceExportRow)
+    // format separately — pin them together. (BI-review #4: screen↔export reconciliation.)
+    $rid = bin2hex(random_bytes(4));
+    [$techId, $fullName] = tpr_tech($rid);
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $baselineJobId = (int) tpr_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM export_jobs')->fetchColumn();
+
+    try {
+        $now = time();
+        tpr_pdo()->prepare(
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, assigned_technician_id, status, requested_at, resolved_at, resolution_due_at)
+             VALUES (?, 'x', 'x', 1, 1, 1, 1, ?, 'resolved', ?, ?, ?)"
+        )->execute([
+            "TPRP-$rid", $techId,
+            date('Y-m-d H:i:s', $now - 3600), date('Y-m-d H:i:s', $now - 1800), date('Y-m-d H:i:s', $now),
+        ]);
+        $tid = (int) tpr_pdo()->lastInsertId();
+        tpr_pdo()->prepare(
+            "INSERT INTO ticket_ratings (ticket_id, requester_id, technician_id, score, feedback, created_at, updated_at)
+             VALUES (?, 1, ?, 5, '', ?, ?)"
+        )->execute([$tid, $techId, date('Y-m-d H:i:s', $now - 1800), date('Y-m-d H:i:s', $now - 1800)]);
+
+        $screen = tpr_row($fullName);
+        assert_true($screen !== null, 'technician appears on screen');
+
+        $csv = (string) tpr_service()->exportTechnicianPerformanceCsv($admin, [])['content'];
+        $exportRow = null;
+        foreach (explode("\n", trim(substr($csv, 3))) as $line) { // substr(3) strips the BOM
+            $cells = str_getcsv($line);
+            if (($cells[0] ?? null) === $fullName) {
+                $exportRow = $cells;
+                break;
+            }
+        }
+        assert_true($exportRow !== null, 'the same technician appears as a CSV row');
+
+        // cell-by-cell vs the export header order (…, ปิดงาน, อัตราปิดงาน, SLA ตรงเวลา, งาน SLA, …, คะแนน, จำนวนรีวิว, …)
+        assert_same((string) $screen['resolved'], $exportRow[5], 'CSV ปิดงาน = screen resolved');
+        assert_same($screen['completion_label'], $exportRow[6], 'CSV อัตราปิดงาน = screen completion_label');
+        assert_same($screen['sla_on_time_label'], $exportRow[7], 'CSV SLA ตรงเวลา = screen sla_on_time_label (100.0%)');
+        assert_same((string) $screen['sla_base'], $exportRow[8], 'CSV งาน SLA = screen sla_base (sample behind the rate)');
+        assert_same($screen['avg_rating_label'], $exportRow[11], 'CSV คะแนน = screen avg_rating_label (5.0)');
+        assert_same((string) $screen['rating_count'], $exportRow[12], 'CSV จำนวนรีวิว = screen rating_count');
+    } finally {
+        tpr_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
+        tpr_pdo()->prepare('DELETE FROM ticket_ratings WHERE technician_id = ?')->execute([$techId]);
+        tpr_cleanup($techId);
+    }
+});
+
 test('technician performance: a same-minute resolution shows MTTR/first-response 0.0, not "-" (Finding F5-rem)', function (): void {
     // MTTR/first-response presence must come from the resolved / responded COUNT, not the average value:
     // a ticket answered and resolved within the same clock-minute has a real 0.0h, not "no data".

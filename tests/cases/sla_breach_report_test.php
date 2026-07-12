@@ -94,6 +94,54 @@ test('sla breach: counting + response/resolution pivot per dimension value', fun
     }
 });
 
+test('sla breach: CSV export cells reconcile with the on-screen row, no format/round drift (screen↔export parity)', function (): void {
+    // Screen and export share collectSlaBreachRows() but map through different formatters
+    // (slaBreachCell vs slaBreachExportRow). This pins them together: the value a manager sees on the page
+    // must be the exact value in the file they download. (BI-review #4: screen↔export reconciliation.)
+    $rid = bin2hex(random_bytes(4));
+    [$catId, $locId, $deptId] = slab_dims($rid);
+    $ticketId = 0;
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $baselineJobId = (int) slab_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM export_jobs')->fetchColumn();
+
+    try {
+        slab_pdo()->prepare(
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, requester_department_id, location_id, ticket_category_id, priority_id, status, requested_at)
+             VALUES (?, 'x', 'x', 1, ?, ?, ?, 1, 'in_progress', NOW())"
+        )->execute(["SLABT-$rid", $deptId, $locId, $catId]);
+        $ticketId = (int) slab_pdo()->lastInsertId();
+        // 1 met response + 1 breached resolution → breach rate 1/2 = 50.0%
+        slab_pdo()->prepare("INSERT INTO ticket_sla_tracks (ticket_id, metric_type, target_at, achieved_at, status) VALUES (?, 'response', ?, ?, 'met')")
+            ->execute([$ticketId, date('Y-m-d H:i:s', time() - 3600), date('Y-m-d H:i:s', time() - 7200)]);
+        slab_pdo()->prepare("INSERT INTO ticket_sla_tracks (ticket_id, metric_type, target_at, breached_at, status) VALUES (?, 'resolution', ?, ?, 'breached')")
+            ->execute([$ticketId, date('Y-m-d H:i:s', time() - 3600), date('Y-m-d H:i:s')]);
+
+        $screen = slab_row('category', "SLAB Cat $rid");
+        assert_true($screen !== null, 'category row present on screen');
+
+        $csv = (string) slab_service()->exportSlaBreachCsv($admin, ['dimension' => 'category'])['content'];
+        $exportRow = null;
+        foreach (explode("\n", trim(substr($csv, 3))) as $line) { // substr(3) strips the BOM
+            $cells = str_getcsv($line);
+            if (($cells[0] ?? null) === "SLAB Cat $rid") {
+                $exportRow = $cells;
+                break;
+            }
+        }
+        assert_true($exportRow !== null, 'the same category appears as a CSV row');
+
+        // cell-by-cell: each CSV column === the exact value the screen row shows (headers: dim, ตอบรับเกิน, แก้ไขเกิน, เกินรวม, ทันกำหนด, %เกิน)
+        assert_same((string) $screen['response']['breached'], $exportRow[1], 'CSV ตอบรับเกิน = screen');
+        assert_same((string) $screen['resolution']['breached'], $exportRow[2], 'CSV แก้ไขเกิน = screen');
+        assert_same((string) $screen['total_breached'], $exportRow[3], 'CSV เกินรวม = screen total_breached');
+        assert_same((string) $screen['total_met'], $exportRow[4], 'CSV ทันกำหนด = screen total_met');
+        assert_same($screen['breach_rate_label'], $exportRow[5], 'CSV %เกิน = screen breach_rate_label ("50.0%", not re-rounded/reformatted)');
+    } finally {
+        slab_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
+        slab_cleanup($ticketId, $catId, $locId, $deptId);
+    }
+});
+
 test('sla breach: two same-named locations (different id) stay separate rows (Finding F3)', function (): void {
     // The schema allows duplicate location/category names. The report groups by dim.id in SQL but pivots
     // by dimension_label in the service, so two distinct places with the same name were merged into one

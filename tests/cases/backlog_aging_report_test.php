@@ -81,6 +81,50 @@ test('backlog aging: age buckets 0-3/3-7/7-30/>30 + open-only + oldest', functio
 // The first test uses mid-bucket ages (1/5/15/40), so an off-by-one in the bucket SQL (< 3 vs <= 3, etc.)
 // would pass unnoticed. This pins the exact edges: SQL is <3 / 3..6 / 7..29 / >=30, so a ticket aged
 // exactly 3, 7 or 30 days must land in the HIGHER bucket. Ages are whole days back, so DATEDIFF = ageDays.
+test('backlog aging: CSV export cells reconcile with the on-screen row (screen↔export parity)', function (): void {
+    // Screen (mapBacklogAgingRow) and export (backlogExportRow) format separately — pin every age-bucket
+    // count + total + oldest a manager reads to the exact cells in the downloaded file. (BI-review #4.)
+    $rid = bin2hex(random_bytes(4));
+    [$locId, $locName] = bla_location($rid);
+    $ids = [];
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $baselineJobId = (int) bla_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM export_jobs')->fetchColumn();
+
+    try {
+        $ids[] = bla_ticket("BLAP1-$rid", $locId, 1);  // 0-3
+        $ids[] = bla_ticket("BLAP2-$rid", $locId, 5);  // 3-7
+        $ids[] = bla_ticket("BLAP3-$rid", $locId, 40); // >30, oldest
+
+        $screen = bla_row('location', $locName);
+        assert_true($screen !== null, 'location appears on screen');
+
+        $csv = (string) bla_service()->exportBacklogAgingCsv($admin, ['dimension' => 'location'])['content'];
+        $exportRow = null;
+        foreach (explode("\n", trim(substr($csv, 3))) as $line) { // substr(3) strips the BOM
+            $cells = str_getcsv($line);
+            if (($cells[0] ?? null) === $locName) {
+                $exportRow = $cells;
+                break;
+            }
+        }
+        assert_true($exportRow !== null, 'the same location appears as a CSV row');
+
+        // headers: dim, 0-3 วัน, 3-7 วัน, 7-30 วัน, >30 วัน, รวม, เก่าสุด (วัน)
+        assert_same((string) $screen['bucket_0_3'], $exportRow[1], 'CSV 0-3 วัน = screen');
+        assert_same((string) $screen['bucket_3_7'], $exportRow[2], 'CSV 3-7 วัน = screen');
+        assert_same((string) $screen['bucket_7_30'], $exportRow[3], 'CSV 7-30 วัน = screen');
+        assert_same((string) $screen['bucket_30_plus'], $exportRow[4], 'CSV >30 วัน = screen');
+        assert_same((string) $screen['total'], $exportRow[5], 'CSV รวม = screen total');
+        assert_same((string) $screen['oldest_days'], $exportRow[6], 'CSV เก่าสุด (วัน) = screen oldest_days (40)');
+    } finally {
+        bla_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
+        foreach ($ids as $id) {
+            bla_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
+        }
+        bla_pdo()->prepare('DELETE FROM locations WHERE id = ?')->execute([$locId]);
+    }
+});
+
 test('backlog aging: bucket boundaries land on the correct side at exactly 3 / 7 / 30 days', function (): void {
     $rid = bin2hex(random_bytes(4));
     [$locId, $locName] = bla_location($rid);

@@ -202,6 +202,58 @@ test('asset reliability: no fan-out + downtime = sum of resolution minutes', fun
     }
 });
 
+test('asset reliability: CSV export cells reconcile with the on-screen row (screen↔export parity)', function (): void {
+    // Screen (mapAssetReliabilityReportRow) and export (assetReportExportRow) format separately — pin the
+    // health label, failure count, downtime/labor a manager reads to the exact downloaded cells. (BI-review #4.)
+    $rid = bin2hex(random_bytes(4));
+    $assetId = 0;
+    $ticketId = 0;
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $baselineJobId = (int) arr_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM export_jobs')->fetchColumn();
+
+    try {
+        arr_pdo()->prepare("INSERT INTO assets (asset_code, name, asset_category_id, location_id) VALUES (?, 'ARP Parity Asset', 1, 1)")
+            ->execute(["ARP-$rid"]);
+        $assetId = (int) arr_pdo()->lastInsertId();
+        arr_pdo()->prepare(
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, asset_id, status, requested_at, resolved_at)
+             VALUES (?, 'x', 'x', 1, 1, 1, 1, ?, 'resolved', ?, ?)"
+        )->execute(["ARPT-$rid", $assetId, date('Y-m-d H:i:s', time() - 7200), date('Y-m-d H:i:s')]);
+        $ticketId = (int) arr_pdo()->lastInsertId();
+        arr_pdo()->prepare(
+            "INSERT INTO work_orders (work_order_no, ticket_id, technician_id, assigned_by, status, labor_minutes) VALUES (?, ?, 3, 4, 'completed', 60)"
+        )->execute(["ARPWO-$rid", $ticketId]);
+
+        $screen = arr_find_row("ARP-$rid");
+        assert_true($screen !== null, 'asset appears on screen');
+
+        $csv = (string) arr_service()->exportAssetReliabilityCsv($admin, [])['content'];
+        $exportRow = null;
+        foreach (explode("\n", trim(substr($csv, 3))) as $line) { // substr(3) strips the BOM
+            $cells = str_getcsv($line);
+            if (($cells[0] ?? null) === "ARP-$rid") {
+                $exportRow = $cells;
+                break;
+            }
+        }
+        assert_true($exportRow !== null, 'the same asset appears as a CSV row');
+
+        // headers: รหัส, ชื่อ, หมวดหมู่, สถานที่, สถานะ, สุขภาพ, เหตุผล, จำนวนครั้ง, …, Downtime (ชม.), ชม.แรงงาน, …
+        assert_same($screen['health_label'], $exportRow[5], 'CSV สุขภาพ = screen health_label');
+        assert_same((string) $screen['failure_count'], $exportRow[7], 'CSV จำนวนครั้ง = screen failure_count');
+        assert_same($screen['downtime_hours_label'], $exportRow[11], 'CSV Downtime = screen downtime_hours_label (2.0)');
+        assert_same($screen['labor_hours_label'], $exportRow[12], 'CSV ชม.แรงงาน = screen labor_hours_label (1.0)');
+    } finally {
+        arr_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
+        if ($ticketId > 0) {
+            arr_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+        }
+        if ($assetId > 0) {
+            arr_pdo()->prepare('DELETE FROM assets WHERE id = ?')->execute([$assetId]);
+        }
+    }
+});
+
 test('asset reliability: MTBF = span / (failures - 1)', function (): void {
     $rid = bin2hex(random_bytes(4));
     $assetId = 0;

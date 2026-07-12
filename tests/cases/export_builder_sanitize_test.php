@@ -52,3 +52,13 @@ test('export-builder(csv): buildCsvExport neutralises a formula cell (guard buil
 
     assert_contains_str("'=cmd()", $content, 'the formula cell is neutralised with a leading quote in the CSV');
 });
+
+test('export-builder(csv): output starts with the 3-byte UTF-8 BOM so Excel reads Thai (all reports route through here)', function (): void {
+    // Every report CSV goes through buildCsvExport, so this one guard covers them all. Without the BOM,
+    // Excel on Windows guesses the encoding and renders Thai headers/labels as mojibake (à¸...). (BI-review #4.)
+    $content = ebs_exporter()->buildCsvExport(['หัวข้อไทย'], [['ค่าไทย']]);
+
+    assert_same("\xEF\xBB\xBF", substr($content, 0, 3), 'CSV begins with the UTF-8 BOM (EF BB BF)');
+    $firstLine = rtrim(explode("\n", substr($content, 3))[0], "\r");
+    assert_same('หัวข้อไทย', $firstLine, 'the Thai header follows immediately after the BOM (not corrupted)');
+});

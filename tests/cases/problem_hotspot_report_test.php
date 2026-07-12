@@ -115,6 +115,58 @@ test('problem hotspot: overdue counted at ticket-level, no fan-out, met ticket e
     }
 });
 
+test('problem hotspot: CSV export cells reconcile with the on-screen row (screen↔export parity)', function (): void {
+    // Screen (mapProblemHotspotRow) and export (hotspotExportRow) format separately — pin the overdue %,
+    // counts and score-label a manager reads to the exact cells in the downloaded file. (BI-review #4.)
+    $rid = bin2hex(random_bytes(4));
+    [$locId] = phs_location($rid);
+    $ids = [];
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $baselineJobId = (int) phs_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM export_jobs')->fetchColumn();
+
+    try {
+        $a = phs_overdue_ticket("PHPA-$rid", $locId);
+        phs_pdo()->prepare("INSERT INTO work_orders (work_order_no, ticket_id, technician_id, assigned_by, status, labor_minutes) VALUES (?, ?, 3, 4, 'in_progress', 60)")
+            ->execute(["PHPWO-$rid", $a]);
+        $ids[] = $a;
+        phs_pdo()->prepare(
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at)
+             VALUES (?, 'x', 'x', 1, ?, 1, 1, 'in_progress', NOW())"
+        )->execute(["PHPB-$rid", $locId]);
+        $b = (int) phs_pdo()->lastInsertId();
+        phs_pdo()->prepare("INSERT INTO ticket_sla_tracks (ticket_id, metric_type, target_at, achieved_at, status) VALUES (?, 'response', ?, ?, 'met')")
+            ->execute([$b, date('Y-m-d H:i:s', time() + 3600), date('Y-m-d H:i:s')]);
+        $ids[] = $b;
+
+        $screen = phs_row('location', "PHS Loc $rid");
+        assert_true($screen !== null, 'location appears on screen');
+
+        $csv = (string) phs_service()->exportProblemHotspotCsv($admin, ['dimension' => 'location'])['content'];
+        $exportRow = null;
+        foreach (explode("\n", trim(substr($csv, 3))) as $line) { // substr(3) strips the BOM
+            $cells = str_getcsv($line);
+            if (($cells[0] ?? null) === "PHS Loc $rid") {
+                $exportRow = $cells;
+                break;
+            }
+        }
+        assert_true($exportRow !== null, 'the same location appears as a CSV row');
+
+        // headers: dim, คะแนนพื้นที่, เหตุผล, แจ้งซ่อม, งานค้าง, เกิน SLA, %เกิน SLA, เวลาซ่อมเฉลี่ย, ชม.แรงงาน
+        assert_same($screen['hotspot_label'], $exportRow[1], 'CSV คะแนนพื้นที่ = screen hotspot_label');
+        assert_same((string) $screen['ticket_count'], $exportRow[3], 'CSV แจ้งซ่อม = screen ticket_count');
+        assert_same((string) $screen['overdue_count'], $exportRow[5], 'CSV เกิน SLA = screen overdue_count');
+        assert_same($screen['overdue_rate_label'], $exportRow[6], 'CSV %เกิน SLA = screen overdue_rate_label (50.0%)');
+        assert_same($screen['labor_hours_label'], $exportRow[8], 'CSV ชม.แรงงาน = screen labor_hours_label (1.0)');
+    } finally {
+        phs_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
+        foreach ($ids as $id) {
+            phs_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
+        }
+        phs_pdo()->prepare('DELETE FROM locations WHERE id = ?')->execute([$locId]);
+    }
+});
+
 test('problem hotspot: composite score — high overdue+labor = พื้นที่ปัญหา, quiet = ปกติ', function (): void {
     $rid = bin2hex(random_bytes(4));
     [$hiId, $hiName] = phs_location($rid, 'HI');
