@@ -40,6 +40,17 @@ class ReportRepository
         ];
     }
 
+    /**
+     * Tickets that "count for SLA". Cancelling only flips the status (the sla_tracks are left intact), and the
+     * per-ticket detail already treats a cancelled ticket as "ไม่คิด SLA" — so every aggregate SLA surface must
+     * exclude it too, or the reports contradict the ticket detail. (Round-8 F1; rejected stays SLA-applicable
+     * by product decision.)
+     */
+    private function slaApplicableCondition(): string
+    {
+        return "t.status <> 'cancelled'";
+    }
+
     public function getSummary(array $viewer, array $filters): array
     {
         $params = [];
@@ -48,6 +59,7 @@ class ReportRepository
         $whereClause = implode(' AND ', $conditions);
         $closedStatuses = ticket_terminal_statuses_sql();
         $resolvedStatuses = ticket_resolved_statuses_sql();
+        $slaApplicable = $this->slaApplicableCondition();
 
         $stmt = $this->db->prepare(
             "SELECT
@@ -68,7 +80,7 @@ class ReportRepository
                     ELSE NULL
                 END), 0) AS overdue_tickets,
                 COALESCE(SUM(CASE
-                    WHEN EXISTS (
+                    WHEN {$slaApplicable} AND EXISTS (
                         SELECT 1
                         FROM ticket_sla_tracks ts
                         WHERE ts.ticket_id = t.id
@@ -338,6 +350,7 @@ class ReportRepository
         $params = [];
         $conditions = [$this->visibilityClause($viewer, $params)];
         $this->applyReportFilters($conditions, $filters, $params);
+        $conditions[] = $this->slaApplicableCondition(); // cancelled ticket = ไม่คิด SLA (round-8 F1)
         $whereClause = implode(' AND ', $conditions);
 
         $stmt = $this->db->prepare(
@@ -380,6 +393,7 @@ class ReportRepository
         $params = [];
         $conditions = [$this->visibilityClause($viewer, $params)];
         $this->applySlaBreachFilters($conditions, $filters, $params);
+        $conditions[] = $this->slaApplicableCondition(); // cancelled ticket = ไม่คิด SLA (round-8 F1)
         $whereClause = implode(' AND ', $conditions);
 
         $stmt = $this->db->prepare(
