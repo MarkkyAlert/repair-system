@@ -259,6 +259,36 @@ test('workflow(neg): cancelTicket rejects a ticket in a terminal state', functio
     }
 });
 
+test('workflow: accept/start are optional shortcuts — start from assigned, resolve from accepted (business-confirmed)', function (): void {
+    // Product-owner-confirmed: a technician may skip the explicit accept/start steps. Locks the shortcut so a
+    // future tightening to a mandatory assigned→accepted→in_progress→resolved sequence is caught — the neg
+    // tests only prove the OUTSIDE boundary, not that the skip itself succeeds.
+    $wo = static function (int $ticketId): void {
+        wf_pdo()->prepare("INSERT INTO work_orders (work_order_no, ticket_id, technician_id, assigned_by, status) VALUES (?, ?, 3, 4, 'assigned')")
+            ->execute(['WFWO-' . bin2hex(random_bytes(4)), $ticketId]);
+    };
+
+    // start directly from assigned (skipping accept) → in_progress
+    $s = wf_insert_ticket(['status' => 'assigned', 'approval_status' => 'approved', 'assigned_technician_id' => 3]);
+    $wo($s);
+    try {
+        wf_service()->startAssignedWork($s, ['id' => 3, 'role' => 'technician'], ['start_note' => 'go']);
+        assert_same('in_progress', wf_state($s)['status'], 'start from assigned (no explicit accept) → in_progress');
+    } finally {
+        wf_cleanup($s);
+    }
+
+    // resolve directly from accepted (skipping start) → resolved
+    $r = wf_insert_ticket(['status' => 'accepted', 'approval_status' => 'approved', 'assigned_technician_id' => 3]);
+    $wo($r);
+    try {
+        wf_service()->resolveAssignedWork($r, ['id' => 3, 'role' => 'technician'], ['diagnosis_summary' => 'd', 'resolution_summary' => 'r', 'labor_minutes' => 10]);
+        assert_same('resolved', wf_state($r)['status'], 'resolve from accepted (no explicit start) → resolved');
+    } finally {
+        wf_cleanup($r);
+    }
+});
+
 test('workflow(neg): malformed numeric input (technician/labor/score "Njunk") is rejected without mutation (round F1)', function (): void {
     // (int)"3junk" === 3 etc. would silently pass. strict_int rejects it before any DB change.
     $a = wf_insert_ticket(['status' => 'approved', 'approval_status' => 'approved']);
