@@ -6,7 +6,9 @@ namespace App\Services;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use RuntimeException;
 
@@ -24,6 +26,28 @@ class ReportExporter
     public function sanitizeExportRow(array $values): array
     {
         return array_map(static fn (mixed $value): string => sanitize_export_cell($value), $values);
+    }
+
+    /**
+     * Write one Excel row, per cell: a pure percentage label ("50.0%", "+25.0%") is stored as a real number
+     * (0.5) with a percentage display format so the exec/manager can pivot/sum it — text "50.0%" cannot be
+     * aggregated (BI-review). Everything else keeps the formula-injection guard; numeric-string cells like
+     * "4.50"/"2" still become numbers via the default value binder.
+     */
+    private function writeDataRow(Worksheet $sheet, int $rowNumber, array $row): void
+    {
+        $colIndex = 1;
+        foreach (array_values($row) as $value) {
+            $coord = Coordinate::stringFromColumnIndex($colIndex) . $rowNumber;
+            $string = (string) $value;
+            if (preg_match('/^[+-]?\d+(\.\d+)?%$/', $string) === 1) {
+                $sheet->setCellValueExplicit($coord, (float) rtrim($string, '%') / 100, DataType::TYPE_NUMERIC);
+                $sheet->getStyle($coord)->getNumberFormat()->setFormatCode('0.0%');
+            } else {
+                $sheet->setCellValue($coord, sanitize_export_cell($value));
+            }
+            $colIndex++;
+        }
     }
 
     /**
@@ -49,7 +73,7 @@ class ReportExporter
 
         $rowNumber = 2;
         foreach ($rows as $row) {
-            $sheet->fromArray($this->sanitizeExportRow($row), null, 'A' . $rowNumber);
+            $this->writeDataRow($sheet, $rowNumber, $row);
             $rowNumber++;
         }
 
@@ -83,7 +107,7 @@ class ReportExporter
         }
         $rowNumber = 2;
         foreach ($rows as $row) {
-            $sheet->fromArray($this->sanitizeExportRow($row), null, 'A' . $rowNumber);
+            $this->writeDataRow($sheet, $rowNumber, $row);
             $rowNumber++;
         }
     }
