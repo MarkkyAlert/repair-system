@@ -272,6 +272,45 @@ test('asset reliability: CSV export cells reconcile with the on-screen row (scre
     }
 });
 
+test('asset reliability: a future incident does not inflate failure_count / MTBF / health (round-8 F3)', function (): void {
+    // A future requested_at (clock skew / bad import) must not be treated as a real failure — otherwise it
+    // inflates last_failure and MTBF so a shaky asset looks reliable ("ปกติ"). Future incidents are excluded
+    // from the reliability aggregation.
+    $rid = bin2hex(random_bytes(4));
+    $assetId = 0;
+    $ids = [];
+
+    try {
+        arr_pdo()->prepare("INSERT INTO assets (asset_code, name, asset_category_id, location_id) VALUES (?, ?, 1, 1)")
+            ->execute(["ARF-$rid", "ARF Asset $rid"]);
+        $assetId = (int) arr_pdo()->lastInsertId();
+        // one real, past failure
+        arr_pdo()->prepare(
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, asset_id, status, requested_at, resolved_at)
+             VALUES (?, 'x', 'x', 1, 1, 1, 1, ?, 'resolved', '2020-01-01 09:00:00', '2020-01-01 10:00:00')"
+        )->execute(["ARFP-$rid", $assetId]);
+        $ids[] = (int) arr_pdo()->lastInsertId();
+        // a FUTURE "failure" in 2030 — impossible, must be ignored
+        arr_pdo()->prepare(
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, asset_id, status, requested_at)
+             VALUES (?, 'x', 'x', 1, 1, 1, 1, ?, 'in_progress', '2030-06-01 09:00:00')"
+        )->execute(["ARFF-$rid", $assetId]);
+        $ids[] = (int) arr_pdo()->lastInsertId();
+
+        $row = arr_find_row("ARF-$rid");
+        assert_true($row !== null, 'asset appears');
+        assert_same(1, $row['failure_count'], 'the 2030 incident is not counted as a failure — only the real past one');
+        assert_same('-', $row['mtbf_days_label'], 'MTBF stays "-" (one real failure); the 2030 date does not fabricate a huge MTBF');
+    } finally {
+        foreach ($ids as $id) {
+            arr_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
+        }
+        if ($assetId > 0) {
+            arr_pdo()->prepare('DELETE FROM assets WHERE id = ?')->execute([$assetId]);
+        }
+    }
+});
+
 test('asset reliability: MTBF = span / (failures - 1)', function (): void {
     $rid = bin2hex(random_bytes(4));
     $assetId = 0;

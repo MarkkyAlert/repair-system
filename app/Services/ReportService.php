@@ -321,7 +321,9 @@ class ReportService
         }
         $first = strtotime((string) $firstAt);
         $last = strtotime((string) $lastAt);
-        if ($first === false || $last === false || $last < $first) {
+        // reject reversed or future failure dates — a 2030 "failure" would fabricate a huge, healthy-looking
+        // MTBF (round-8 F3; belt-and-suspenders alongside the query-level future-incident exclusion).
+        if ($first === false || $last === false || $last < $first || $last > time()) {
             return null;
         }
 

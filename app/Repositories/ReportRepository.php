@@ -238,6 +238,9 @@ class ReportRepository
         $params = [];
         $conditions = [$this->visibilityClause($viewer, $params)];
         $this->applyAssetReportFilters($conditions, $filters, $params);
+        // a future requested_at (clock skew / bad import) is not a real failure — excluding it keeps
+        // failure_count / first_failure / last_failure / MTBF / downtime honest (round-8 F3).
+        $conditions[] = 't.requested_at <= NOW()';
         $whereClause = implode(' AND ', $conditions);
         $limit = max(1, min($limit, self::MAX_ROWS));
 
