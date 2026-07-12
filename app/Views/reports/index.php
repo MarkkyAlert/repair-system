@@ -83,7 +83,7 @@ $isCapped = !empty($rowsMeta['capped']);
         ]) ?>
         <?= render_partial('partials/components/card', [
             'title' => 'เวลาแก้ไขเฉลี่ย (ชม.)',
-            'value' => (string) ($summary['avgResolutionHours'] ?? 0),
+            'value' => (string) ($summary['avgResolutionHoursLabel'] ?? '-'),
             'meta' => 'ตั้งแต่แจ้งจนแก้ไขสำเร็จ',
             'tone' => 'info',
         ]) ?>
@@ -113,13 +113,13 @@ $isCapped = !empty($rowsMeta['capped']);
                     // Export ใช้ POST + CSRF (กัน CSRF-via-GET ที่หน้าภายนอกฝัง <img src> auto-trigger export job ได้)
                     // hidden inputs พา filter ปัจจุบัน (status/department_id/category_id/from_date/to_date) ไปด้วย
                     $exportHidden = '';
-                    foreach (['status', 'department_id', 'category_id', 'from_date', 'to_date'] as $exportField) {
-                        $exportValue = (string) ($filterState[$exportField] ?? '');
-                        if ($exportValue !== '') {
-                            $exportHidden .= '<input type="hidden" name="' . e($exportField) . '" value="' . e($exportValue) . '">';
-                        }
-                    }
-                    ?>
+        foreach (['status', 'department_id', 'category_id', 'from_date', 'to_date'] as $exportField) {
+            $exportValue = (string) ($filterState[$exportField] ?? '');
+            if ($exportValue !== '') {
+                $exportHidden .= '<input type="hidden" name="' . e($exportField) . '" value="' . e($exportValue) . '">';
+            }
+        }
+        ?>
                     <form method="post" action="<?= e(url('/reports/export/excel')) ?>" class="export-dropdown-form">
                         <?= csrf_field() ?>
                         <?= $exportHidden ?>

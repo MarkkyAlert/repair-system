@@ -63,7 +63,7 @@
     </div>
     <div class="summary-item">
         <div class="summary-title">เวลาแก้ไขเฉลี่ย (ชม.)</div>
-        <div class="summary-value"><?= e((string) ($summary['avgResolutionHours'] ?? 0)) ?></div>
+        <div class="summary-value"><?= e((string) ($summary['avgResolutionHoursLabel'] ?? '-')) ?></div>
     </div>
     <div class="summary-item">
         <div class="summary-title">คะแนนเฉลี่ย</div>
@@ -73,7 +73,8 @@
 
 <?php $analytics = $analytics ?? []; ?>
 
-<?php $sla = $analytics['slaCompliance'] ?? []; if (!empty($sla['hasData'])): $slaOverall = $sla['overall'] ?? []; ?>
+<?php $sla = $analytics['slaCompliance'] ?? [];
+    if (!empty($sla['hasData'])): $slaOverall = $sla['overall'] ?? []; ?>
     <div class="section-title">SLA ตรงตามกำหนด</div>
     <p class="section-note">% งานที่ตอบรับ/แก้ไขได้ทันกำหนด เทียบกับที่เกินกำหนด</p>
     <table class="report-table compact stack">
@@ -113,7 +114,8 @@
     </table>
 <?php endif; ?>
 
-<?php $techs = $analytics['technicianPerformance'] ?? []; if (!empty($techs)): ?>
+<?php $techs = $analytics['technicianPerformance'] ?? [];
+    if (!empty($techs)): ?>
     <div class="section-title">ผลงานช่างเทคนิค</div>
     <table class="report-table compact stack">
         <thead>
@@ -145,7 +147,8 @@
     </table>
 <?php endif; ?>
 
-<?php $labor = $analytics['laborEffort'] ?? []; if (!empty($labor['hasData'])): ?>
+<?php $labor = $analytics['laborEffort'] ?? [];
+    if (!empty($labor['hasData'])): ?>
     <div class="section-title">ชั่วโมงแรงงาน</div>
     <p class="section-note">รวม <?= e((string) ($labor['total_hours_label'] ?? '0')) ?> ชม. · เฉลี่ย <?= e((string) ($labor['avg_hours_label'] ?? '0')) ?> ชม./งาน · <?= e((string) ($labor['labored_tickets'] ?? 0)) ?> งานที่บันทึกแรงงาน</p>
     <table class="report-table compact stack">
@@ -172,7 +175,8 @@
     </table>
 <?php endif; ?>
 
-<?php $assets = $analytics['assetReliability'] ?? []; if (!empty($assets)): ?>
+<?php $assets = $analytics['assetReliability'] ?? [];
+    if (!empty($assets)): ?>
     <div class="section-title">ทรัพย์สินเสียบ่อย</div>
     <table class="report-table compact stack">
         <thead>

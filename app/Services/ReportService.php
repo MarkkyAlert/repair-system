@@ -38,6 +38,10 @@ class ReportService
                 'resolved' => (int) ($summary['resolved_tickets'] ?? 0),
                 'overdue' => (int) ($summary['overdue_tickets'] ?? 0),
                 'avgResolutionHours' => round(((float) ($summary['avg_resolution_minutes'] ?? 0)) / 60, 1),
+                // gate the MTTR label on the resolved-ticket base: no resolved tickets → '-' (not a fake 0.0)
+                'avgResolutionHoursLabel' => (int) ($summary['resolution_base'] ?? 0) > 0
+                    ? number_format(round(((float) ($summary['avg_resolution_minutes'] ?? 0)) / 60, 1), 1)
+                    : '-',
                 'avgRating' => (float) ($summary['avg_rating'] ?? 0),
                 'avgRatingLabel' => (float) ($summary['avg_rating'] ?? 0) > 0 ? number_format((float) ($summary['avg_rating'] ?? 0), 1) : '-',
             ],
@@ -2916,6 +2920,9 @@ class ReportService
                     'resolved' => (int) ($summary['resolved_tickets'] ?? 0),
                     'overdue' => (int) ($summary['overdue_tickets'] ?? 0),
                     'avgResolutionHours' => round(((float) ($summary['avg_resolution_minutes'] ?? 0)) / 60, 1),
+                    'avgResolutionHoursLabel' => (int) ($summary['resolution_base'] ?? 0) > 0
+                        ? number_format(round(((float) ($summary['avg_resolution_minutes'] ?? 0)) / 60, 1), 1)
+                        : '-',
                     'avgRatingLabel' => (float) ($summary['avg_rating'] ?? 0) > 0 ? number_format((float) ($summary['avg_rating'] ?? 0), 1) : '-',
                 ],
                 'rows' => $rows,
@@ -3180,7 +3187,10 @@ class ReportService
     private function mapReportRow(array $row): array
     {
         $sla = $this->buildSlaSummary($row);
-        $resolutionMinutes = isset($row['resolution_minutes']) ? (int) $row['resolution_minutes'] : 0;
+        // resolution_minutes is NULL only when the ticket was never resolved (same-minute resolve = 0, not
+        // NULL). Gate on presence, not > 0, so a same-minute resolution shows 0.0 instead of '-'.
+        $hasResolution = isset($row['resolution_minutes']);
+        $resolutionMinutes = $hasResolution ? (int) $row['resolution_minutes'] : 0;
         $ratingScore = (int) ($row['rating_score'] ?? 0);
         $status = (string) ($row['status'] ?? 'submitted');
         $priorityCode = strtoupper((string) ($row['priority_code'] ?? 'MEDIUM'));
@@ -3202,8 +3212,8 @@ class ReportService
             'status_label' => ticket_status_label_th($status),
             'requested_at' => $this->formatDateTime($row['requested_at'] ?? null),
             'resolved_at' => $this->formatDateTime($row['resolved_at'] ?? null),
-            'resolution_hours' => $resolutionMinutes > 0 ? round($resolutionMinutes / 60, 1) : 0,
-            'resolution_hours_label' => $resolutionMinutes > 0 ? number_format(round($resolutionMinutes / 60, 1), 1) : '-',
+            'resolution_hours' => $hasResolution ? round($resolutionMinutes / 60, 1) : 0,
+            'resolution_hours_label' => $hasResolution ? number_format(round($resolutionMinutes / 60, 1), 1) : '-',
             'sla_label' => (string) ($sla['label'] ?? '-'),
             'sla_overdue' => $isOverdue,
             'sla_overdue_label' => $isOverdue ? 'ใช่' : 'ไม่ใช่',

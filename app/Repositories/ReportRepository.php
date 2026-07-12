@@ -84,6 +84,9 @@ class ReportRepository
                     WHEN t.resolved_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at)
                     ELSE NULL
                 END), 0), 1) AS avg_resolution_minutes,
+                -- base for the MTTR average: how many tickets actually have a resolved_at. 0 → no data ('-');
+                -- >0 with a 0-minute average → a real same-minute resolution ('0.0'), not 'no data'.
+                SUM(CASE WHEN t.resolved_at IS NOT NULL THEN 1 ELSE 0 END) AS resolution_base,
                 ROUND(COALESCE(AVG(tr.score), 0), 1) AS avg_rating,
                 COUNT(tr.score) AS rating_count
              FROM tickets t
@@ -98,6 +101,7 @@ class ReportRepository
             'overdue_tickets' => 0,
             'breached_tickets' => 0,
             'avg_resolution_minutes' => 0,
+            'resolution_base' => 0,
             'avg_rating' => 0,
         ];
     }
