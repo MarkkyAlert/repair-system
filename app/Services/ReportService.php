@@ -1068,6 +1068,8 @@ class ReportService
     // ===== Trend แนวโน้มตามเวลา (หน้าแยกเต็มตัว /reports/trend — กราฟ Chart.js) =====
 
     private const TREND_GRANULARITIES = ['day', 'week', 'month'];
+    /** สูงสุดของ "งวด" ในหน้าแนวโน้ม — เกินนี้ปฏิเสธพร้อมข้อความ (ไม่ตัดท้ายช่วงเงียบ ๆ). ตรงกับ guard ใน trendBucketList. */
+    private const MAX_TREND_BUCKETS = 400;
     private const TREND_MONTHS_TH = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 
     public function getTicketTrendReportPage(array $viewer, array $filters = []): array
@@ -1235,7 +1237,36 @@ class ReportService
         $normalized['from_datetime'] = $from . ' 00:00:00';
         $normalized['to_datetime'] = $to . ' 23:59:59';
 
+        // ปฏิเสธช่วงที่ยาวเกิน MAX_TREND_BUCKETS งวด — เดิม trendBucketList ตัดท้ายช่วงทิ้งเงียบ ๆ (วันล่าสุดหาย
+        // จากกราฟ/สรุป/export). แจ้งชัดให้ผู้ใช้ลดช่วงหรือใช้ granularity ที่หยาบกว่าแทน (round-2 #1).
+        $buckets = $this->trendBucketCount($granularity, $from, $to);
+        if ($buckets > self::MAX_TREND_BUCKETS) {
+            $granularityTh = ['day' => 'วัน', 'week' => 'สัปดาห์', 'month' => 'เดือน'][$granularity] ?? $granularity;
+            throw new DomainException(
+                'ช่วงวันที่ยาวเกินไปสำหรับมุมมองราย' . $granularityTh
+                . ' (สูงสุด ' . self::MAX_TREND_BUCKETS . ' งวด, ช่วงที่เลือกต้องใช้ ' . number_format($buckets)
+                . ' งวด) — กรุณาลดช่วงวันที่ หรือเปลี่ยนเป็นมุมมองที่หยาบกว่า (สัปดาห์/เดือน)'
+            );
+        }
+
         return $normalized;
+    }
+
+    /** จำนวน "งวด" ที่ช่วง [from, to] จะสร้างตาม granularity — ใช้เช็ก limit ก่อน gap-fill (ไม่วน bucket จริง). */
+    private function trendBucketCount(string $granularity, string $fromDate, string $toDate): int
+    {
+        $fromTs = strtotime($fromDate);
+        $toTs = strtotime($toDate);
+        if ($fromTs === false || $toTs === false || $toTs < $fromTs) {
+            return 0;
+        }
+
+        return match ($granularity) {
+            'day' => (int) floor(($toTs - $fromTs) / 86400) + 1,
+            'week' => (int) floor(($toTs - (int) strtotime('monday this week', $fromTs)) / (7 * 86400)) + 1,
+            default => ((int) date('Y', $toTs) - (int) date('Y', $fromTs)) * 12
+                + ((int) date('n', $toTs) - (int) date('n', $fromTs)) + 1,
+        };
     }
 
     /** สร้าง bucket ที่คาดหวังทั้งช่วง (key ตรงกับ SQL DATE_FORMAT + label ไทย) — เพื่อ gap-fill งวดว่าง=0. */

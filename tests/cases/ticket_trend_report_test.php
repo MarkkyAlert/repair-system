@@ -31,6 +31,53 @@ function ttr_period(array $page, string $key): ?array
     return null;
 }
 
+test('ticket trend: an over-limit daily range is rejected clearly, not silently truncated (round-2 #1)', function (): void {
+    // trendBucketList capped the expected-bucket list at 400 and silently dropped the tail, so a >400-day
+    // daily range lost its most-recent days from the chart/summary/export with no warning. The range is now
+    // rejected with an actionable message instead of quietly cutting data. (BI-review round-2 #1.)
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $to = date('Y-m-d');
+    $from = date('Y-m-d', strtotime('-402 days', strtotime($to))); // 403 daily buckets > 400 cap
+
+    $threw = false;
+    $msg = '';
+    try {
+        ttr_service()->getTicketTrendReportPage($admin, ['granularity' => 'day', 'from_date' => $from, 'to_date' => $to]);
+    } catch (DomainException $e) {
+        $threw = true;
+        $msg = $e->getMessage();
+    }
+    assert_true($threw, 'a >400-bucket daily range throws instead of silently truncating');
+    assert_contains_str('ยาวเกินไป', $msg, 'the message explains the range is too long (actionable)');
+
+    // the CSV export shares the same normalize seam → rejected too (a truncated file must never be produced)
+    $exportThrew = false;
+    try {
+        ttr_service()->exportTicketTrendCsv($admin, ['granularity' => 'day', 'from_date' => $from, 'to_date' => $to]);
+    } catch (DomainException $e) {
+        $exportThrew = true;
+    }
+    assert_true($exportThrew, 'the CSV export of an over-limit range is rejected too (no silently-truncated file)');
+
+    // the SAME span as weekly is ~58 buckets → must NOT be rejected (the limit is per-bucket, not per-day)
+    $weeklyOk = true;
+    try {
+        ttr_service()->getTicketTrendReportPage($admin, ['granularity' => 'week', 'from_date' => $from, 'to_date' => $to]);
+    } catch (\Throwable $e) {
+        $weeklyOk = false;
+    }
+    assert_true($weeklyOk, 'the same long span renders fine as weekly (coarser granularity)');
+
+    // a normal 30-day daily range is unaffected
+    $normalOk = true;
+    try {
+        ttr_service()->getTicketTrendReportPage($admin, ['granularity' => 'day', 'from_date' => date('Y-m-d', strtotime('-29 days')), 'to_date' => $to]);
+    } catch (\Throwable $e) {
+        $normalOk = false;
+    }
+    assert_true($normalOk, 'a normal 30-day daily range still works');
+});
+
 test('ticket trend: created by requested_at, resolved/SLA/CSAT by resolved_at (cross-month) + gap-fill', function (): void {
     $admin = ['id' => 4, 'role' => 'admin'];
     $rid = bin2hex(random_bytes(4));
