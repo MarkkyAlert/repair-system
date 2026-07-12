@@ -129,11 +129,29 @@ class ReportExporter
         $options->setTempDir($dompdfTmp);
         $options->set('isRemoteEnabled', false);
         $options->set('defaultFont', 'sarabun');
+        // โหลดฟอนต์ไทย sarabun จากไฟล์ที่ commit ใน repo (resources/fonts) ไม่พึ่ง vendor ที่ gitignored —
+        // มิฉะนั้น fresh deploy (composer install) ไม่มีฟอนต์ → ไทยเป็น tofu. metrics cache ลง temp ที่ write ได้.
+        $options->setChroot([BASE_PATH]);
+        $options->set('fontCache', $dompdfTmp);
         $dompdf = new Dompdf($options);
-        $dompdf->loadHtml($html, 'UTF-8');
+        $dompdf->loadHtml($this->withThaiFontFace($html), 'UTF-8');
         $dompdf->setPaper('A4', 'landscape');
         $dompdf->render();
 
         return $dompdf->output();
+    }
+
+    /** ฝัง @font-face ของ sarabun (ชี้ไฟล์ .ttf ที่ commit) เข้า <head> ของ HTML ทุก report PDF. */
+    private function withThaiFontFace(string $html): string
+    {
+        $dir = BASE_PATH . '/resources/fonts';
+        $face = '<style>'
+            . "@font-face{font-family:'sarabun';font-weight:normal;font-style:normal;src:url('" . $dir . "/sarabun-regular.ttf') format('truetype');}"
+            . "@font-face{font-family:'sarabun';font-weight:bold;font-style:normal;src:url('" . $dir . "/sarabun-bold.ttf') format('truetype');}"
+            . '</style>';
+
+        return str_contains($html, '<head>')
+            ? str_replace('<head>', '<head>' . $face, $html)
+            : $face . $html;
     }
 }
