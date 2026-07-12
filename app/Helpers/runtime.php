@@ -217,8 +217,13 @@ function normalize_date_range(string $fromRaw, string $toRaw): array
             return '';
         }
         $timestamp = strtotime($value);
+        // strtotime rolls impossible-but-well-formed dates (2026-02-30 → 2026-03-02, 2025-02-29 → 2025-03-01).
+        // Reject when the round-trip changes the day, so a bad date is empty, not another day's data.
+        if ($timestamp === false || date('Y-m-d', $timestamp) !== $value) {
+            return '';
+        }
 
-        return $timestamp === false ? '' : date('Y-m-d', $timestamp);
+        return $value;
     };
 
     $fromDate = $normalizeDay($fromRaw);

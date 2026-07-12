@@ -24,6 +24,19 @@ test('normalize_date_range: only-from / only-to / invalid / empty', function ():
     assert_same('', normalize_date_range('', '')['from_datetime']);
 });
 
+test('normalize_date_range: impossible calendar dates are rejected, a real leap day passes (round-6 F2)', function (): void {
+    // strtotime rolls a format-valid but impossible date (2026-02-30 → 2026-03-02); it must be rejected
+    // (empty), not silently shifted to another day's data.
+    assert_same('', normalize_date_range('2026-02-30', '2026-02-30')['from_date'], 'Feb 30 does not exist → empty (not 2026-03-02)');
+    assert_same('', normalize_date_range('2026-02-30', '2026-02-30')['to_date'], 'Feb 30 → empty on the to side too');
+    assert_same('', normalize_date_range('2025-02-29', '')['from_date'], 'Feb 29 in a non-leap year → empty');
+    assert_same('', normalize_date_range('2026-13-01', '')['from_date'], 'month 13 → empty');
+    assert_same('', normalize_date_range('2026-04-31', '')['from_date'], 'April has 30 days → empty');
+    // a real leap day round-trips to itself → accepted
+    assert_same('2024-02-29', normalize_date_range('2024-02-29', '')['from_date'], 'a real leap day is accepted');
+    assert_same('2024-02-29 00:00:00', normalize_date_range('2024-02-29', '')['from_datetime'], 'leap-day datetime derived');
+});
+
 // ── ticket status single source ──
 test('ticket_status_values: 12 canonical values in order', function (): void {
     $v = ticket_status_values();
