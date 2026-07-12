@@ -2300,20 +2300,14 @@ class ReportService
         try {
             $spreadsheet = new Spreadsheet();
 
-            // Sheet 1 — สรุปแย่สุดต่อมิติ (active sheet)
-            $sheet = $spreadsheet->getActiveSheet();
-            $sheet->setTitle('ความพึงพอใจ');
-            $column = 'A';
-            foreach ($this->csatExportHeaders($normalizedFilters['dimension']) as $header) {
-                $sheet->setCellValue($column . '1', $header);
-                $sheet->getColumnDimension($column)->setAutoSize(true);
-                $column++;
-            }
-            $rowNumber = 2;
-            foreach ($rows as $row) {
-                $sheet->fromArray($this->exporter->sanitizeExportRow($this->csatExportRow($row)), null, 'A' . $rowNumber);
-                $rowNumber++;
-            }
+            // Sheet 1 — สรุปแย่สุดต่อมิติ (active sheet) — ผ่าน shared writer เดียวกับ export อื่น
+            // เพื่อให้ %พอใจ/%ไม่พอใจ เป็นตัวเลขจริง (pivot/sum ได้) ไม่ใช่ text (BI-review #4 — ปิด gap #2)
+            $this->exporter->fillSheet(
+                $spreadsheet->getActiveSheet(),
+                'ความพึงพอใจ',
+                $this->csatExportHeaders($normalizedFilters['dimension']),
+                array_map(fn (array $row): array => $this->csatExportRow($row), $rows)
+            );
 
             // Sheet 2 — feedback ดิบ (คะแนนแย่ก่อน) — ใช้ helper ร่วม (sanitize ในตัว)
             $this->exporter->addExcelSheet(

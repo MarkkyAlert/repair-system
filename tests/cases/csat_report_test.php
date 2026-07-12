@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 use App\Services\ReportService;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 // Tests for the CSAT / satisfaction report (/reports/csat). Base = ticket_ratings (1:1 with tickets,
@@ -230,6 +231,40 @@ test('csat: excel feedback sheet returns more than the 100-row on-screen cap', f
         $book->disconnectWorksheets();
     } finally {
         @unlink($tmp);
+        csat_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
+        csat_cleanup($ids, [$locId], $deptId);
+    }
+});
+
+test('csat: XLSX breakdown %satisfied/%dissatisfied are numeric so they pivot/sum, not text (Finding #4 — #2 gap)', function (): void {
+    // exportCsatExcel built Sheet 1 by hand with fromArray(), bypassing the shared numeric writer, so the
+    // CSAT percentage columns landed as text — a manager couldn't pivot/chart %พอใจ. Route it through the
+    // same writer as every other export. (BI-review round-2 #4.)
+    $rid = bin2hex(random_bytes(4));
+    $deptId = csat_department($rid);
+    [$locId, $locName] = csat_location($rid);
+    $ids = [];
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $baselineJobId = (int) csat_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM export_jobs')->fetchColumn();
+
+    try {
+        $ids[] = csat_rate("CSATX-$rid", $deptId, $locId, 3, 5); // one 5★ → satisfied 100.0%, dissatisfied 0.0%
+
+        $tmp = tempnam(sys_get_temp_dir(), 'csatx_') . '.xlsx';
+        file_put_contents($tmp, (string) csat_service()->exportCsatExcel($admin, ['dimension' => 'location', 'department_id' => $deptId])['content']);
+        $sheet = IOFactory::createReader('Xlsx')->load($tmp)->getSheet(0);
+        @unlink($tmp);
+
+        assert_same($locName, (string) $sheet->getCell('A2')->getValue(), 'breakdown row 2 = our location');
+        // headers: dim, คะแนนเฉลี่ย, จำนวนรีวิว, %พอใจ(≥4★), %ไม่พอใจ(≤2★) → D=satisfied, E=dissatisfied
+        assert_same(DataType::TYPE_NUMERIC, $sheet->getCell('D2')->getDataType(), '%พอใจ is numeric, not text');
+        assert_same(1.0, $sheet->getCell('D2')->getValue(), '"100.0%" stored as 1.0');
+        assert_same('0.0%', $sheet->getStyle('D2')->getNumberFormat()->getFormatCode(), '%พอใจ displays as a percentage');
+        assert_same(DataType::TYPE_NUMERIC, $sheet->getCell('E2')->getDataType(), '%ไม่พอใจ is numeric');
+        assert_same(0.0, $sheet->getCell('E2')->getValue(), '"0.0%" stored as 0.0');
+        assert_same(5, (int) $sheet->getCell('B2')->getValue(), 'avg stays numeric');
+        assert_same(1, (int) $sheet->getCell('C2')->getValue(), 'count stays numeric');
+    } finally {
         csat_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
         csat_cleanup($ids, [$locId], $deptId);
     }

@@ -60,22 +60,7 @@ class ReportExporter
     public function buildXlsxExport(string $sheetTitle, array $headers, array $rows): string
     {
         $spreadsheet = new Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle($sheetTitle);
-
-        $colIndex = 1;
-        foreach ($headers as $header) {
-            $column = Coordinate::stringFromColumnIndex($colIndex);
-            $sheet->setCellValue($column . '1', $header);
-            $sheet->getColumnDimension($column)->setAutoSize(true);
-            $colIndex++;
-        }
-
-        $rowNumber = 2;
-        foreach ($rows as $row) {
-            $this->writeDataRow($sheet, $rowNumber, $row);
-            $rowNumber++;
-        }
+        $this->fillSheet($spreadsheet->getActiveSheet(), $sheetTitle, $headers, $rows);
 
         $writer = new Xlsx($spreadsheet);
         ob_start();
@@ -96,7 +81,21 @@ class ReportExporter
      */
     public function addExcelSheet(Spreadsheet $spreadsheet, string $title, array $headers, array $rows): void
     {
-        $sheet = $spreadsheet->createSheet();
+        $this->fillSheet($spreadsheet->createSheet(), $title, $headers, $rows);
+    }
+
+    /**
+     * Write a title + header row + data rows into a worksheet through the shared per-cell writer
+     * (writeDataRow), so EVERY sheet gets the same numeric-percentage + formula-injection handling —
+     * single-sheet exports, extra sheets, or a multi-sheet exporter's own active sheet. Public so callers
+     * that manage their own Spreadsheet (e.g. CSAT's 2-sheet export) fill their active sheet through the one
+     * writer instead of a hand-rolled fromArray() that would drop percentages to text.
+     *
+     * @param array<int, string>            $headers
+     * @param array<int, array<int, mixed>> $rows
+     */
+    public function fillSheet(Worksheet $sheet, string $title, array $headers, array $rows): void
+    {
         $sheet->setTitle($title);
         $colIndex = 1;
         foreach ($headers as $header) {
