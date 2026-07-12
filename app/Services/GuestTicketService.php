@@ -137,10 +137,13 @@ class GuestTicketService
         ];
     }
 
-    public function convertToTicket(int $requestId, array $viewer, int $priorityId, int $categoryId, TicketService $tickets): int
+    public function convertToTicket(int $requestId, array $viewer, int|string $priorityId, int|string $categoryId, TicketService $tickets): int
     {
         // Required conversion inputs — validated here (not the controller) so the rule holds for every
-        // caller of convertToTicket, and is checked before any lock/DB work is done.
+        // caller of convertToTicket, and is checked before any lock/DB work is done. strict_int rejects a
+        // malformed "1junk" instead of the controller's old (int) cast silently keeping the "1" prefix (F1).
+        $priorityId = strict_int($priorityId, 'ความสำคัญ');
+        $categoryId = strict_int($categoryId, 'หมวดหมู่');
         if ($priorityId <= 0 || $categoryId <= 0) {
             throw new DomainException('กรุณาเลือกความสำคัญและหมวดหมู่');
         }

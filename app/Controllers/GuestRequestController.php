@@ -60,9 +60,8 @@ class GuestRequestController
     public function convert(string $requestId): void
     {
         $this->handleUpdate(function (array $viewer) use ($requestId): void {
-            $priorityId = (int) ($_POST['priority_id'] ?? 0);
-            $categoryId = (int) ($_POST['ticket_category_id'] ?? 0);
-            $this->guests->convertToTicket((int) $requestId, $viewer, $priorityId, $categoryId, $this->tickets);
+            // pass the raw values — convertToTicket strict-parses them (rejects "1junk" instead of coercing to 1)
+            $this->guests->convertToTicket((int) $requestId, $viewer, (string) ($_POST['priority_id'] ?? ''), (string) ($_POST['ticket_category_id'] ?? ''), $this->tickets);
         }, 'แปลงเป็น Ticket เรียบร้อยแล้ว', '/admin/guest-requests', ['manager', 'admin'], 'หน้านี้สงวนสำหรับผู้จัดการหรือผู้ดูแลระบบเท่านั้น');
     }
 

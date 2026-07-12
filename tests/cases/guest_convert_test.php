@@ -68,6 +68,27 @@ function gc_cleanup(int $requestId, array $ticketIds): void
     }
 }
 
+test('guest convert: a malformed numeric priority/category ("1junk") is rejected, not coerced to 1 (round F1)', function (): void {
+    $admin = ['id' => 4, 'role' => 'admin'];
+    foreach ([['1junk', 1], [1, '2junk']] as [$priority, $category]) {
+        $reqId = gc_insert_request();
+        $before = gc_ticket_count();
+        try {
+            $threw = false;
+            try {
+                gc_service()->convertToTicket($reqId, $admin, $priority, $category, gc_tickets());
+            } catch (DomainException) {
+                $threw = true;
+            }
+            assert_true($threw, 'a malformed priority/category must be rejected as non-integer');
+            assert_same($before, gc_ticket_count(), 'no ticket is created on rejection');
+            assert_same('new', gc_request_status($reqId), 'the request stays new (not converted)');
+        } finally {
+            gc_cleanup($reqId, []);
+        }
+    }
+});
+
 test('guest convert: convert then convert again → exactly one ticket', function (): void {
     $reqId = gc_insert_request();
     $created = [];
