@@ -66,6 +66,40 @@ function rr_row(string $dimension, string $label, array $extra = []): ?array
     return null;
 }
 
+test('reopen: multi-resolve — any reopen WITHIN the window counts for it, even before its re-resolve (chosen semantics, round-5)', function (): void {
+    // Business decision (kept): a period counts every ticket_reopened WITHIN it — we do NOT require the reopen
+    // to be after that period's own resolve (closure-event semantics). So May-resolve → Jun-reopen →
+    // Jun-resolve puts the ticket in June's cohort AND counts June's reopen, while May stays immutable.
+    // This test guards that choice against an accidental drift to reopen_at > resolved_at.
+    $rid = bin2hex(random_bytes(4));
+    [$locId, $locName] = rr_location($rid);
+    $ids = [];
+
+    try {
+        $ids[] = $t = rr_ticket("RRM-$rid", $locId);
+        rr_log($t, 'ticket_resolved', '2021-05-20 10:00:00'); // first close (May)
+        rr_log($t, 'ticket_reopened', '2021-06-05 10:00:00'); // reopened in June (before the June re-close)
+        rr_log($t, 'ticket_resolved', '2021-06-25 10:00:00'); // re-closed in June → June cohort
+
+        $jun = rr_row('location', $locName, ['from_date' => '2021-06-01', 'to_date' => '2021-06-30']);
+        assert_true($jun !== null, 'ticket is in the June cohort (re-resolved in June)');
+        assert_same(1, $jun['resolved'], 'June cohort = 1 (the June re-resolve)');
+        assert_same(1, $jun['reopened'], 'the in-window June reopen counts for June (any in-window reopen counts)');
+        assert_same('100.0%', $jun['reopen_rate_label'], 'June reopen rate = 1/1');
+
+        $may = rr_row('location', $locName, ['from_date' => '2021-05-01', 'to_date' => '2021-05-31']);
+        assert_true($may !== null, 'ticket is in the May cohort (resolved in May)');
+        assert_same(1, $may['resolved'], 'May cohort = 1 (the May resolve)');
+        assert_same(0, $may['reopened'], 'the June reopen is not in May → May stays clean/immutable');
+    } finally {
+        foreach ($ids as $id) {
+            rr_pdo()->prepare('DELETE FROM ticket_activity_logs WHERE ticket_id = ?')->execute([$id]);
+            rr_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
+        }
+        rr_pdo()->prepare('DELETE FROM locations WHERE id = ?')->execute([$locId]);
+    }
+});
+
 test('reopen: a reopen after the window does not restate a past period — as-reported (round-3 gap D)', function (): void {
     // Business decision: past periods are as-reported (immutable). A ticket closed in-window and reopened
     // LATER (another period) must not retroactively drop this window's First-Time-Fix. Only reopens within
