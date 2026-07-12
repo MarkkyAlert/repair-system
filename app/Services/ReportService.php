@@ -565,14 +565,10 @@ class ReportService
             'resolved' => $resolved,
             'open' => (int) ($row['open_count'] ?? 0),
             'completion_label' => $completionPct === null ? '-' : number_format($completionPct, 1) . '%',
-            'completion_tone' => $completionPct === null
-                ? 'default'
-                : ($completionPct >= 80 ? 'success' : ($completionPct >= 60 ? 'warning' : 'danger')),
+            'completion_tone' => $this->completionTone($completionPct),
             'mttr_hours_label' => $resolved > 0 ? number_format(round($mttrMinutes / 60, 1), 1) : '-',
             'avg_rating_label' => $ratingCount > 0 ? number_format($avgRating, 1) : '-',
-            'avg_rating_tone' => $ratingCount === 0
-                ? 'default'
-                : ($avgRating >= 4 ? 'success' : ($avgRating >= 3 ? 'warning' : 'danger')),
+            'avg_rating_tone' => $ratingCount === 0 ? 'default' : $this->csatTone($avgRating),
             'labor_hours_label' => $laborMinutes > 0 ? number_format(round($laborMinutes / 60, 1), 1) : '-',
         ];
     }
@@ -660,19 +656,13 @@ class ReportService
             'assigned' => $assigned,
             'resolved' => $resolved,
             'completion_label' => $completionPct === null ? '-' : number_format($completionPct, 1) . '%',
-            'completion_tone' => $completionPct === null
-                ? 'default'
-                : ($completionPct >= 80 ? 'success' : ($completionPct >= 60 ? 'warning' : 'danger')),
+            'completion_tone' => $this->completionTone($completionPct),
             'sla_on_time_label' => $slaRate === null ? '-' : number_format($slaRate, 1) . '%',
-            'sla_on_time_tone' => $slaRate === null
-                ? 'default'
-                : ($slaRate >= 90 ? 'success' : ($slaRate >= 75 ? 'warning' : 'danger')),
+            'sla_on_time_tone' => $this->slaComplianceTone($slaRate),
             'first_response_hours_label' => (int) ($period['first_response_count'] ?? 0) > 0 ? number_format(round($firstRespMinutes / 60, 1), 1) : '-',
             'mttr_hours_label' => $resolved > 0 ? number_format(round($mttrMinutes / 60, 1), 1) : '-',
             'avg_rating_label' => $ratingCount > 0 ? number_format($avgRating, 1) : '-',
-            'avg_rating_tone' => $ratingCount === 0
-                ? 'default'
-                : ($avgRating >= 4 ? 'success' : ($avgRating >= 3 ? 'warning' : 'danger')),
+            'avg_rating_tone' => $ratingCount === 0 ? 'default' : $this->csatTone($avgRating),
             // sample size ต่อ avg/rate — ให้รายงานประเมินคนบอก base ได้ (กัน "5.0 จาก 1 รีวิว" ดูเท่า "5.0 จาก 40")
             'rating_count' => $ratingCount,
             'labor_hours_label' => $laborMinutes > 0 ? number_format(round($laborMinutes / 60, 1), 1) : '-',
@@ -693,9 +683,7 @@ class ReportService
             'open_now' => (int) array_sum(array_column($rows, 'open_now')),
             'resolved' => (int) array_sum(array_column($rows, 'resolved')),
             'sla_on_time_label' => $slaRate === null ? '-' : number_format($slaRate, 1) . '%',
-            'sla_on_time_tone' => $slaRate === null
-                ? 'default'
-                : ($slaRate >= 90 ? 'success' : ($slaRate >= 75 ? 'warning' : 'danger')),
+            'sla_on_time_tone' => $this->slaComplianceTone($slaRate),
         ];
     }
 
@@ -2137,6 +2125,29 @@ class ReportService
         return $avg >= 4.0 ? 'success' : ($avg >= 3.0 ? 'warning' : 'danger');
     }
 
+    /**
+     * tone SLA/ตรงเวลา: ≥90% เขียว · ≥75% เหลือง · ต่ำกว่าแดง (ยิ่งสูงยิ่งดี). null = ยังไม่มีข้อมูล → default.
+     * Single source สำหรับทุก mapper + guide drift-lock (คู่มืออ่านรายงาน) — ห้าม inline ซ้ำ.
+     */
+    private function slaComplianceTone(?float $pct): string
+    {
+        if ($pct === null) {
+            return 'default';
+        }
+
+        return $pct >= 90 ? 'success' : ($pct >= 75 ? 'warning' : 'danger');
+    }
+
+    /** tone อัตราปิดงาน: ≥80% เขียว · ≥60% เหลือง · ต่ำกว่าแดง (ยิ่งสูงยิ่งดี). null = ยังไม่มีข้อมูล → default. */
+    private function completionTone(?float $pct): string
+    {
+        if ($pct === null) {
+            return 'default';
+        }
+
+        return $pct >= 80 ? 'success' : ($pct >= 60 ? 'warning' : 'danger');
+    }
+
     private function buildCsatSummary(array $rows): array
     {
         $count = (int) array_sum(array_column($rows, 'rating_count'));
@@ -2424,7 +2435,7 @@ class ReportService
             'breached' => $breached,
             'pct' => $pct,
             'pct_label' => $pct === null ? '-' : number_format($pct, 1) . '%',
-            'tone' => $pct === null ? 'default' : ($pct >= 90 ? 'success' : ($pct >= 75 ? 'warning' : 'danger')),
+            'tone' => $this->slaComplianceTone($pct),
         ];
     }
 

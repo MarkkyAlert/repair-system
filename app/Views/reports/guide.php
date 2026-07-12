@@ -68,6 +68,25 @@ $groups = [
         ],
     ],
 ];
+
+// เกณฑ์สี (tone) — ต้องตรงกับ threshold ในโค้ด (pin ไว้ด้วย tests/cases/report_guide_test.php).
+// ค่าที่ "ดี" ต่างกันตามเมตริก: SLA/completion/คะแนน สูง=ดี ; %เปิดซ้ำ/%เกิน SLA/คะแนนความเสี่ยง ต่ำ=ดี.
+$toneRules = [
+    ['metric' => 'SLA ตรงเวลา / SLA compliance', 'green' => '≥ 90%', 'yellow' => '75–89.9%', 'red' => '< 75%'],
+    ['metric' => 'อัตราปิดงาน (completion)', 'green' => '≥ 80%', 'yellow' => '60–79.9%', 'red' => '< 60%'],
+    ['metric' => 'คะแนนความพึงพอใจ (CSAT / คะแนนช่าง)', 'green' => '≥ 4.0', 'yellow' => '3.0–3.9', 'red' => '< 3.0'],
+    ['metric' => '%เปิดซ้ำ (reopen) — ต่ำ = ดี', 'green' => '< 10%', 'yellow' => '10–19.9%', 'red' => '≥ 20%'],
+    ['metric' => '%เกิน SLA / overdue — ต่ำ = ดี', 'green' => '< 10%', 'yellow' => '10–24.9%', 'red' => '≥ 25%'],
+    ['metric' => 'คะแนนสุขภาพทรัพย์สิน — คะแนนสูง = แย่', 'green' => 'ปกติ (0–1)', 'yellow' => 'เฝ้าระวัง (2–3)', 'red' => 'ควรเปลี่ยน (≥ 4)'],
+    ['metric' => 'คะแนนพื้นที่ปัญหา — คะแนนสูง = แย่', 'green' => 'ปกติ (0–1)', 'yellow' => 'เฝ้าระวัง (2)', 'red' => 'พื้นที่ปัญหา (≥ 3)'],
+];
+
+$caveats = [
+    'ข้อมูลน้อยอย่าเพิ่งสรุป — "5.0 จาก 1 รีวิว" หรือ "100% จาก 1 งาน" ไม่มีนัยยะ. ดูจำนวนในวงเล็บ (เช่น "5.0 (2)" = จาก 2 รีวิว) ก่อนตัดสิน',
+    '"-" = ยังไม่มีข้อมูลในช่วงนั้น (ไม่ใช่ 0%). ต่างจาก "0.0%" ที่แปลว่ามีงานแต่ทำสำเร็จ 0% — คนละความหมาย',
+    'ช่วงเวลาสั้น (ไม่กี่วัน) ตัวเลขแกว่งง่ายเพราะ sample น้อย — ดูหน้าแนวโน้มหลายงวดประกอบ',
+    'Export: คอลัมน์ % ใน Excel เป็นตัวเลขจริง (pivot/sum ต่อได้) · PDF ฝังฟอนต์ไทยแล้ว (ส่งบอร์ดอ่านออก ไม่เป็นกล่อง)',
+];
 ?>
 <section class="stack-lg">
     <h1 class="sr-only">คู่มืออ่านรายงาน</h1>
@@ -103,6 +122,46 @@ $groups = [
                 'icon' => 'download',
             ]) ?>
         </div>
+    </section>
+
+    <section class="panel-card stack-md">
+        <div class="panel-head">
+            <h2 class="panel-title">เกณฑ์สี — อ่านสีให้ถูก</h2>
+        </div>
+        <p class="helper-text">สีในตารางบอกว่าค่า <strong>ดี / เฝ้าระวัง / ต้องแก้</strong> — เกณฑ์ตัดตามนี้ (ทิศทางที่ "ดี" ต่างกันตามเมตริก)</p>
+        <div class="table-wrap" tabindex="0">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th scope="col">เมตริก</th>
+                        <th scope="col"><span class="badge badge-success">🟢 ปกติ</span></th>
+                        <th scope="col"><span class="badge badge-warning">🟡 เฝ้าระวัง</span></th>
+                        <th scope="col"><span class="badge badge-danger">🔴 ต้องแก้</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($toneRules as $rule): ?>
+                        <tr>
+                            <td><?= e($rule['metric']) ?></td>
+                            <td><?= e($rule['green']) ?></td>
+                            <td><?= e($rule['yellow']) ?></td>
+                            <td><?= e($rule['red']) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="panel-card stack-md">
+        <div class="panel-head">
+            <h2 class="panel-title">ข้อควรระวังก่อนสรุป (ข้อมูลน้อย ≠ ผลจริง)</h2>
+        </div>
+        <ul style="display:grid; gap:8px; padding-left:1.25rem; margin:0;">
+            <?php foreach ($caveats as $caveat): ?>
+                <li><?= e($caveat) ?></li>
+            <?php endforeach; ?>
+        </ul>
     </section>
 
     <?php foreach ($groups as $groupName => $reports): ?>
