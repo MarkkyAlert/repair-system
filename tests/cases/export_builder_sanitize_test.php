@@ -47,6 +47,26 @@ test('export-builder(xlsx): percentage cells are numeric so users can pivot/sum,
     }
 });
 
+test('export-builder(xlsx): thousands-formatted numbers ("1,234.0") are numeric, not text (round-8 F2)', function (): void {
+    // number_format adds a thousands comma at >= 1000 (asset downtime/labor labels), which the default binder
+    // treats as text → not sum/pivot-able. The shared writer must coerce it to a real number.
+    $content = ebs_exporter()->buildXlsxExport('รายงาน', ['downtime', 'labor', 'count'], [['1,234.0', '12,000', '2']]);
+
+    $tmp = tempnam(sys_get_temp_dir(), 'xlsxk_') . '.xlsx';
+    try {
+        file_put_contents($tmp, $content);
+        $sheet = IOFactory::createReader('Xlsx')->load($tmp)->getActiveSheet();
+        assert_same(DataType::TYPE_NUMERIC, $sheet->getCell('A2')->getDataType(), '"1,234.0" is numeric, not text');
+        assert_same(1234.0, $sheet->getCell('A2')->getValue(), '"1,234.0" stored as 1234.0');
+        assert_same('#,##0.0', $sheet->getStyle('A2')->getNumberFormat()->getFormatCode(), 'grouped 1-decimal display preserved');
+        assert_same(12000.0, $sheet->getCell('B2')->getValue(), '"12,000" stored as 12000');
+        assert_same('#,##0', $sheet->getStyle('B2')->getNumberFormat()->getFormatCode(), 'grouped integer display');
+        assert_same(2, (int) $sheet->getCell('C2')->getValue(), 'plain "2" stays numeric');
+    } finally {
+        @unlink($tmp);
+    }
+});
+
 test('export-builder(csv): buildCsvExport neutralises a formula cell (guard built into the shared builder)', function (): void {
     $content = ebs_exporter()->buildCsvExport(['หัว'], [['=cmd()']]);
 

@@ -43,6 +43,14 @@ class ReportExporter
             if (preg_match('/^[+-]?\d+(\.\d+)?%$/', $string) === 1) {
                 $sheet->setCellValueExplicit($coord, (float) rtrim($string, '%') / 100, DataType::TYPE_NUMERIC);
                 $sheet->getStyle($coord)->getNumberFormat()->setFormatCode('0.0%');
+            } elseif (preg_match('/^[+-]?\d{1,3}(,\d{3})+(\.\d+)?$/', $string) === 1) {
+                // thousands-formatted number ("1,234.0" from number_format ≥ 1000) → a real number with a
+                // grouped display, so Excel can sum/pivot it instead of leaving it as text (round-8 F2). It is
+                // provably numeric so the formula-injection guard is not needed (a numeric cell can't be a formula).
+                $dotPos = strpos($string, '.');
+                $decimals = $dotPos === false ? 0 : strlen($string) - $dotPos - 1;
+                $sheet->setCellValueExplicit($coord, (float) str_replace(',', '', $string), DataType::TYPE_NUMERIC);
+                $sheet->getStyle($coord)->getNumberFormat()->setFormatCode('#,##0' . ($decimals > 0 ? '.' . str_repeat('0', $decimals) : ''));
             } else {
                 $sheet->setCellValue($coord, sanitize_export_cell($value));
             }
