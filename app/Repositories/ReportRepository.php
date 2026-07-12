@@ -796,6 +796,20 @@ class ReportRepository
         }
         $whereClause = implode(' AND ', $conditions);
 
+        // As-reported (business decision): count ONLY reopens that happened WITHIN the window, so a past
+        // period is immutable — a ticket closed in-window and reopened in a later period does not retroactively
+        // drop this window's First-Time-Fix. Separate placeholders (:reopen_ro_*) — reusing :reopen_from/_to
+        // would throw HY093 under EMULATE_PREPARES=false.
+        $reopenBound = '';
+        if ($from !== '') {
+            $reopenBound .= ' AND ro.created_at >= :reopen_ro_from';
+            $params['reopen_ro_from'] = $from;
+        }
+        if ($to !== '') {
+            $reopenBound .= ' AND ro.created_at <= :reopen_ro_to';
+            $params['reopen_ro_to'] = $to;
+        }
+
         $stmt = $this->db->prepare(
             "SELECT
                 {$map['label']} AS dimension_label,
@@ -804,7 +818,7 @@ class ReportRepository
              FROM ticket_activity_logs r
              INNER JOIN tickets t ON t.id = r.ticket_id
              {$map['join']}
-             LEFT JOIN ticket_activity_logs ro ON ro.ticket_id = r.ticket_id AND ro.action = 'ticket_reopened'
+             LEFT JOIN ticket_activity_logs ro ON ro.ticket_id = r.ticket_id AND ro.action = 'ticket_reopened'{$reopenBound}
              WHERE $whereClause
              GROUP BY {$map['group']}"
         );

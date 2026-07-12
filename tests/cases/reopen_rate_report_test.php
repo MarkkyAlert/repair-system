@@ -6,7 +6,8 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 
 // Tests for the Reopen / First-Time-Fix report (/reports/reopen-rate). Cohort = tickets with a
 // `ticket_resolved` activity log in the window (by r.created_at); reopened = those that also carry a
-// `ticket_reopened` log (any time). reopen_rate = reopened/resolved (≤100%), FTF = 100 − rate. Proves
+// `ticket_reopened` log WITHIN the same window (as-reported: a past period is immutable, a later reopen
+// does not restate it). reopen_rate = reopened/resolved (≤100%), FTF = 100 − rate. Proves
 // reopen detection + rate math + tone, the resolve-window filter, COUNT(DISTINCT) against repeated
 // resolve events, Thai/null dimension labels, sort by %reopen desc, the resolved-total invariant across
 // the two LEFT-JOIN dimensions, and the three export formats. Fresh isolated locations = exact assertions.
@@ -64,6 +65,39 @@ function rr_row(string $dimension, string $label, array $extra = []): ?array
 
     return null;
 }
+
+test('reopen: a reopen after the window does not restate a past period — as-reported (round-3 gap D)', function (): void {
+    // Business decision: past periods are as-reported (immutable). A ticket closed in-window and reopened
+    // LATER (another period) must not retroactively drop this window's First-Time-Fix. Only reopens within
+    // the window count, so a past period's number never changes after it closes.
+    $rid = bin2hex(random_bytes(4));
+    [$locId, $locName] = rr_location($rid);
+    $day = '2021-06-15';
+    $ids = [];
+
+    try {
+        // A: closed in-window + reopened in-window → a genuine in-period reopen
+        $ids[] = $a = rr_ticket("RRD-$rid-a", $locId);
+        rr_log($a, 'ticket_resolved', "$day 09:00:00");
+        rr_log($a, 'ticket_reopened', "$day 15:00:00");
+        // B: closed in-window but reopened ~7 weeks LATER → must NOT restate the June window
+        $ids[] = $b = rr_ticket("RRD-$rid-b", $locId);
+        rr_log($b, 'ticket_resolved', "$day 10:00:00");
+        rr_log($b, 'ticket_reopened', '2021-08-01 10:00:00');
+
+        $row = rr_row('location', $locName, ['from_date' => $day, 'to_date' => $day]);
+        assert_true($row !== null, 'the location is in the June window');
+        assert_same(2, $row['resolved'], 'both tickets closed in-window are in the cohort');
+        assert_same(1, $row['reopened'], 'only the in-window reopen counts — the August reopen does not restate June');
+        assert_same('50.0%', $row['reopen_rate_label'], 'June reopen rate is fixed at 1/2, whenever you view it');
+    } finally {
+        foreach ($ids as $id) {
+            rr_pdo()->prepare('DELETE FROM ticket_activity_logs WHERE ticket_id = ?')->execute([$id]);
+            rr_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
+        }
+        rr_pdo()->prepare('DELETE FROM locations WHERE id = ?')->execute([$locId]);
+    }
+});
 
 test('reopen: detection + rate/FTF math + tone + %reopen-desc sort', function (): void {
     $rid = bin2hex(random_bytes(4));
