@@ -87,7 +87,7 @@ class AdminService
 
         // Same guard as createUser — otherwise an invalid department_id reaches the FK and surfaces as a
         // PDOException/500 (the form wrapper only catches Domain/Runtime), not a friendly message. (round F2)
-        $departmentId = (int) ($input['department_id'] ?? 0);
+        $departmentId = strict_int($input['department_id'] ?? null, 'แผนก '); // round F1: reject "1junk"
         if ($departmentId > 0 && !$this->admin->departmentExists($departmentId)) {
             throw new DomainException('Department ที่เลือกไม่ถูกต้อง');
         }
@@ -114,7 +114,7 @@ class AdminService
         $role = trim((string) ($input['role'] ?? 'requester'));
         $password = (string) ($input['password'] ?? '');
         $passwordConfirmation = (string) ($input['password_confirmation'] ?? '');
-        $departmentId = (int) ($input['department_id'] ?? 0);
+        $departmentId = strict_int($input['department_id'] ?? null, 'แผนก '); // round F1: reject "1junk"
 
         if ($username === '' || $fullName === '' || $email === '' || $password === '' || $passwordConfirmation === '') {
             throw new DomainException('กรุณากรอกชื่อผู้ใช้ ชื่อ อีเมล และรหัสผ่านให้ครบถ้วน');

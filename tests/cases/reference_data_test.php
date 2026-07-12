@@ -55,6 +55,19 @@ function rd_valid_priority(array $overrides = []): array
     ], $overrides);
 }
 
+test('reference data: a malformed numeric priority level / sort_order is rejected (round F1)', function (): void {
+    rd_bind_request();
+    foreach ([['level' => '50junk'], ['sort_order' => '5junk']] as $override) {
+        $threw = false;
+        try {
+            rd_service()->createPriority(rd_admin(), rd_valid_priority($override));
+        } catch (DomainException) {
+            $threw = true;
+        }
+        assert_true($threw, 'a malformed ' . array_key_first($override) . ' is rejected, not coerced to its prefix');
+    }
+});
+
 test('reference data: a non-numeric SLA hours on a ticket category is rejected, not stored as a 0-minute SLA (round F1)', function (): void {
     // (float)"abc" === 0.0 would silently create a category with a 0-minute SLA (always overdue). strict_float rejects it.
     rd_bind_request();

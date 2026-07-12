@@ -237,7 +237,7 @@ class ReferenceDataService
     private function buildCategoryPayload(array $input, string $label): array
     {
         return array_merge($this->buildMasterPayload($input, $label), [
-            'sort_order' => max(1, (int) ($input['sort_order'] ?? 1)),
+            'sort_order' => max(1, strict_int($input['sort_order'] ?? null, 'ลำดับการแสดง', 1)),
         ]);
     }
 
@@ -268,7 +268,7 @@ class ReferenceDataService
     {
         $base = $this->buildPriorityPayload($input);
         $code = strtoupper(trim((string) ($input['code'] ?? '')));
-        $level = (int) ($input['level'] ?? 0);
+        $level = strict_int($input['level'] ?? null, 'ระดับความสำคัญ'); // round F1: reject "50junk"
 
         if ($code === '' || !preg_match('/^[A-Z0-9_-]{2,50}$/', $code)) {
             throw new DomainException('รหัส Priority ต้องเป็น A-Z, 0-9, ขีดกลาง หรือขีดล่าง ความยาว 2-50 ตัวอักษร');
@@ -306,7 +306,7 @@ class ReferenceDataService
             'color' => $color,
             'response_time_minutes' => (int) round($responseHours * 60),
             'resolution_time_minutes' => (int) round($resolutionHours * 60),
-            'sort_order' => max(1, (int) ($input['sort_order'] ?? 1)),
+            'sort_order' => max(1, strict_int($input['sort_order'] ?? null, 'ลำดับการแสดง', 1)),
             'is_active' => truthy_input($input['is_active'] ?? '0'),
         ];
     }

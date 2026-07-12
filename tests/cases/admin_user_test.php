@@ -138,6 +138,34 @@ test('updateUser: rejects bad input, then updates real fields on the happy path'
     }
 });
 
+test('admin user: a malformed numeric department ("1junk") is rejected on create and update (round F1)', function (): void {
+    au_bind_request();
+    $suffix = bin2hex(random_bytes(4));
+
+    $threwCreate = false;
+    try {
+        au_service()->createUser(au_admin(), au_valid_input(['username' => "mdep_$suffix", 'email' => "mdep_$suffix@example.com", 'department_id' => '1junk']));
+    } catch (DomainException) {
+        $threwCreate = true;
+    }
+    assert_true($threwCreate, 'createUser rejects a malformed department_id (not coerced to 1)');
+
+    au_pdo()->prepare('INSERT INTO users (username, email, password_hash, full_name, role, is_active, created_at, updated_at) VALUES (?, ?, "x", "Dep", "requester", 1, NOW(), NOW())')
+        ->execute(["mdepu_$suffix", "mdepu_$suffix@example.com"]);
+    $userId = (int) au_pdo()->lastInsertId();
+    try {
+        $threwUpdate = false;
+        try {
+            au_service()->updateUser($userId, au_admin(), ['full_name' => 'Dep', 'email' => "mdepu_$suffix@example.com", 'role' => 'requester', 'department_id' => '1junk']);
+        } catch (DomainException) {
+            $threwUpdate = true;
+        }
+        assert_true($threwUpdate, 'updateUser rejects a malformed department_id');
+    } finally {
+        au_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$userId]);
+    }
+});
+
 test('updateUser: demoting/deactivating a user with open work is blocked (round M2)', function (): void {
     au_bind_request();
     $suffix = bin2hex(random_bytes(4));

@@ -67,7 +67,17 @@ class Router
 
     private function match(string $routePath, string $requestPath): ?array
     {
-        $pattern = preg_replace('#\{([a-zA-Z_][a-zA-Z0-9_-]*)\}#', '(?P<$1>[^/]+)', $routePath);
+        // Numeric id placeholders ({ticketId}, {userId}, {commentId}, …) match DIGITS ONLY, so a malformed
+        // "/tickets/12junk/approve" 404s instead of dispatching "12junk" that the controller would (int)-cast
+        // to ticket 12. Non-id placeholders ({token}, {templateKey}) keep [^/]+.
+        // Numeric id placeholders ({ticketId}, {userId}, {commentId}, …) match DIGITS ONLY, so a malformed
+        // "/tickets/12junk/approve" 404s instead of dispatching "12junk" that the controller would (int)-cast
+        // to ticket 12. Non-id placeholders ({token}, {templateKey}) keep [^/]+.
+        $pattern = preg_replace_callback('#\{([a-zA-Z_][a-zA-Z0-9_-]*)\}#', static function (array $m): string {
+            $charClass = str_ends_with($m[1], 'Id') ? '\d+' : '[^/]+';
+
+            return '(?P<' . $m[1] . '>' . $charClass . ')';
+        }, $routePath);
         $pattern = '#^' . $pattern . '$#';
         $requestPath = $this->normalizePath($requestPath);
 
