@@ -118,3 +118,17 @@ test('report guide: documents the net-is-not-backlog + completion-denominator ca
     assert_contains_str('ปิด ÷ งานที่รับมอบหมาย', $guide, 'guide states the technician completion denominator (assigned)');
     assert_contains_str('อย่านำ % ข้ามสองหน้ามาเทียบกันตรง ๆ', $guide, 'guide warns the two completion %s are not directly comparable');
 });
+
+// BI-review (ChatGPT R10) F3: the short "at a glance" lines on the guide + trend page must NOT assert the
+// created-over-resolved line "= งานค้างกำลังสะสม" (backlog IS accumulating) as fact — net doesn't subtract
+// cancel/reject, so it's only a rough signal. This drift-locks the definitive claim OUT and the caveat wording IN,
+// matching the detailed hint that already says so (otherwise the eyebrow contradicts the glossary).
+test('report guide/trend: the at-a-glance net line is a hedged signal, not a definitive backlog claim (R10-F3)', function (): void {
+    $guide = (string) file_get_contents(BASE_PATH . '/app/Views/reports/guide.php');
+    $trend = (string) file_get_contents(BASE_PATH . '/app/Views/reports/trend.php');
+
+    foreach (['guide' => $guide, 'trend' => $trend] as $name => $html) {
+        assert_false(str_contains($html, 'เส้นปิด = งานค้างกำลังสะสม'), "$name must not state created-over-resolved as a definitive backlog claim");
+        assert_contains_str('สัญญาณคร่าว ๆ ว่างานค้างอาจเพิ่ม', $html, "$name hedges the net line as a rough signal");
+    }
+});

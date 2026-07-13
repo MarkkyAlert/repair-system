@@ -34,7 +34,7 @@ $chartCard = static function (array $chart, string $key, string $title) use ($ch
 
     <div class="action-bar">
         <div class="action-bar-left">
-            <span class="helper-text">กราฟ "แจ้ง vs ปิด" ถ้าเส้นแจ้งอยู่เหนือเส้นปิด = งานค้างกำลังสะสม</span>
+            <span class="helper-text">กราฟ "แจ้ง vs ปิด" ถ้าเส้นแจ้งอยู่เหนือเส้นปิด = สัญญาณคร่าว ๆ ว่างานค้างอาจเพิ่ม (ดู "งานค้างตามอายุ" ประกอบ)</span>
         </div>
         <div class="action-bar-right">
             <?= render_partial('partials/components/button', ['label' => 'กลับไปรายงานรวม', 'variant' => 'ghost', 'href' => '/reports', 'icon' => 'chevron-left']) ?>
