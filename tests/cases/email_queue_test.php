@@ -149,3 +149,36 @@ test('emailQueue(fail): a send failure at max_attempts marks the email failed', 
         eq_delete($id);
     }
 });
+
+// ── ⭐ concurrency (F2): a stale worker cannot clobber a row another worker reclaimed ──
+// Worker A claims (attempts→1). The row goes stale and worker B reclaims it (attempts→2, still processing).
+// A then finishes late and calls its terminal updates with its OLD claim attempt (1) — each must compare-and-set
+// on (status='processing' AND attempts=claimAttempt) and no-op, leaving B's claim intact. Remove the attempts
+// predicate and A's markSent clobbers B → red (power-proof).
+test('emailQueue(concurrency): a stale worker cannot clobber a row another worker reclaimed (F2)', function (): void {
+    $id = eq_seed(['status' => 'queued', 'attempts' => 0]);
+    try {
+        eq_repo()->claimDueEmails(100, date('Y-m-d H:i:s', time() - 900)); // A claims
+        assert_same(1, (int) eq_row($id)['attempts'], 'A claimed → attempts 1');
+
+        // the row goes stale; B reclaims it
+        eq_pdo()->prepare('UPDATE email_queue SET updated_at = ? WHERE id = ?')->execute([date('Y-m-d H:i:s', time() - 7200), $id]);
+        eq_repo()->claimDueEmails(100, date('Y-m-d H:i:s', time() - 3600)); // B reclaims
+        assert_same(2, (int) eq_row($id)['attempts'], 'B reclaimed → attempts 2, still processing');
+
+        // A is stale (claimAttempt = 1); every terminal update must no-op — the row belongs to B now
+        assert_false(eq_repo()->markSent($id, 1), 'stale A markSent no-ops (row reclaimed by B)');
+        assert_false(eq_repo()->releaseForRetry($id, 'late error', 300, 1), 'stale A releaseForRetry no-ops');
+        assert_false(eq_repo()->markFailed($id, 'late error', 1), 'stale A markFailed no-ops');
+
+        $row = eq_row($id);
+        assert_same('processing', $row['status'], "B's claim is intact — status still processing (A did not flip it)");
+        assert_same(2, (int) $row['attempts'], "B's attempts (2) untouched by stale A");
+
+        // sanity: the CURRENT claimant (B, claimAttempt = 2) can complete its own claim
+        assert_true(eq_repo()->markSent($id, 2), 'the current claimant can mark its own row sent');
+        assert_same('sent', eq_row($id)['status'], 'B completed its own claim');
+    } finally {
+        eq_delete($id);
+    }
+});

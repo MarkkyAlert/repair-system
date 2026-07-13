@@ -133,7 +133,12 @@ class EmailQueueRepository
         }
     }
 
-    public function markSent(int $emailId): void
+    // A terminal update (markSent/releaseForRetry/markFailed) must only touch the row THIS worker still holds.
+    // It compares-and-sets on the claim: status='processing' AND attempts=:claim_attempt (the attempts value the
+    // claim assigned). If another worker reclaimed the row after the stale timeout (attempts bumped again), the
+    // stale worker's terminal update matches 0 rows and no-ops instead of clobbering the new claim. Returns
+    // whether the row was still held (rowCount > 0).
+    public function markSent(int $emailId, int $claimAttempt): bool
     {
         $now = date('Y-m-d H:i:s');
         $stmt = $this->db->prepare(
@@ -143,17 +148,23 @@ class EmailQueueRepository
                  failed_at = NULL,
                  error_message = NULL,
                  updated_at = :updated_at
-             WHERE id = :id'
+             WHERE id = :id
+               AND status = :expected_status
+               AND attempts = :claim_attempt'
         );
         $stmt->execute([
             'status' => 'sent',
             'sent_at' => $now,
             'updated_at' => $now,
             'id' => $emailId,
+            'expected_status' => 'processing',
+            'claim_attempt' => $claimAttempt,
         ]);
+
+        return $stmt->rowCount() > 0;
     }
 
-    public function releaseForRetry(int $emailId, string $errorMessage, int $retryDelaySeconds): void
+    public function releaseForRetry(int $emailId, string $errorMessage, int $retryDelaySeconds, int $claimAttempt): bool
     {
         $now = date('Y-m-d H:i:s');
         $availableAt = date('Y-m-d H:i:s', time() + max(60, $retryDelaySeconds));
@@ -164,7 +175,9 @@ class EmailQueueRepository
                  available_at = :available_at,
                  failed_at = NULL,
                  updated_at = :updated_at
-             WHERE id = :id'
+             WHERE id = :id
+               AND status = :expected_status
+               AND attempts = :claim_attempt'
         );
         $stmt->execute([
             'status' => 'queued',
@@ -172,10 +185,14 @@ class EmailQueueRepository
             'available_at' => $availableAt,
             'updated_at' => $now,
             'id' => $emailId,
+            'expected_status' => 'processing',
+            'claim_attempt' => $claimAttempt,
         ]);
+
+        return $stmt->rowCount() > 0;
     }
 
-    public function markFailed(int $emailId, string $errorMessage): void
+    public function markFailed(int $emailId, string $errorMessage, int $claimAttempt): bool
     {
         $now = date('Y-m-d H:i:s');
         $stmt = $this->db->prepare(
@@ -184,7 +201,9 @@ class EmailQueueRepository
                  error_message = :error_message,
                  failed_at = :failed_at,
                  updated_at = :updated_at
-             WHERE id = :id'
+             WHERE id = :id
+               AND status = :expected_status
+               AND attempts = :claim_attempt'
         );
         $stmt->execute([
             'status' => 'failed',
@@ -192,7 +211,11 @@ class EmailQueueRepository
             'failed_at' => $now,
             'updated_at' => $now,
             'id' => $emailId,
+            'expected_status' => 'processing',
+            'claim_attempt' => $claimAttempt,
         ]);
+
+        return $stmt->rowCount() > 0;
     }
 
     public function countByStatus(): array

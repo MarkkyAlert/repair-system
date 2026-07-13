@@ -82,6 +82,9 @@ class EmailQueueService
             $emailId = (int) ($job['id'] ?? 0);
             $subject = (string) ($job['subject'] ?? '');
             $recipient = (string) ($job['to_email'] ?? '');
+            // The attempts value the claim assigned to this job — the terminal updates below compare-and-set on
+            // it so a stale worker can't clobber a row another worker has since reclaimed. See markSent().
+            $claimAttempt = (int) ($job['attempts'] ?? 0);
 
             try {
                 // RISK MAP: delivery is at-least-once BY DESIGN (accepted tradeoff). send() then markSent() —
@@ -89,7 +92,7 @@ class EmailQueueService
                 // be sent again. Exactly-once would require provider-side idempotency; a rare duplicate email
                 // is acceptable for this system and no data is corrupted.
                 $this->mailer->send($job);
-                $this->queue->markSent($emailId);
+                $this->queue->markSent($emailId, $claimAttempt);
                 $sent++;
                 $items[] = [
                     'id' => $emailId,
@@ -103,7 +106,7 @@ class EmailQueueService
                 $errorMessage = $exception->getMessage();
 
                 if ($attempts >= $maxAttempts) {
-                    $this->queue->markFailed($emailId, $errorMessage);
+                    $this->queue->markFailed($emailId, $errorMessage, $claimAttempt);
                     $failed++;
                     $items[] = [
                         'id' => $emailId,
@@ -115,7 +118,7 @@ class EmailQueueService
                     continue;
                 }
 
-                $this->queue->releaseForRetry($emailId, $errorMessage, (int) config('mail.retry_delay_seconds', 300));
+                $this->queue->releaseForRetry($emailId, $errorMessage, (int) config('mail.retry_delay_seconds', 300), $claimAttempt);
                 $retried++;
                 $items[] = [
                     'id' => $emailId,
