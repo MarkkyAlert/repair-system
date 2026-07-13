@@ -44,6 +44,30 @@ function ttr_resolve_log(int $ticketId, string $resolvedAt, int $actorId = 3): v
     )->execute([$ticketId, $actorId, $resolvedAt]);
 }
 
+/**
+ * Seed the per-cycle resolution SLA snapshot the as-reported trend now reads (F1 Phase 2 Part B2). Each resolve
+ * of a (ticket, bucket) maps to its cycle ordinal N; the trend's SLA base/on-time comes from the
+ * ticket_sla_tracks row for (ticket_id, 'resolution', cycle=N) — the CYCLE's frozen target_at, not the mutable
+ * t.resolution_due_at a reopen would overwrite. `$status` is stored for realism but the trend derives on-time by
+ * comparing the representative resolve time to this target_at.
+ */
+function ttr_sla_track(int $ticketId, string $targetAt, int $cycle = 1, string $status = 'met'): void
+{
+    ttr_pdo()->prepare(
+        "INSERT INTO ticket_sla_tracks (ticket_id, metric_type, cycle, target_at, status)
+         VALUES (?, 'resolution', ?, ?, ?)"
+    )->execute([$ticketId, $cycle, $targetAt, $status]);
+}
+
+/** Seed a per-cycle rating the trend reads by the representative resolve's cycle (F1 Phase 2 Part B2). */
+function ttr_rating(int $ticketId, int $score, int $cycle = 1, ?string $createdAt = null): void
+{
+    ttr_pdo()->prepare(
+        'INSERT INTO ticket_ratings (ticket_id, requester_id, cycle, score, created_at)
+         VALUES (?, 1, ?, ?, COALESCE(?, CURRENT_TIMESTAMP))'
+    )->execute([$ticketId, $cycle, $score, $createdAt]);
+}
+
 test('ticket trend: an over-limit daily range is rejected clearly, not silently truncated (round-2 #1)', function (): void {
     // trendBucketList capped the expected-bucket list at 400 and silently dropped the tail, so a >400-day
     // daily range lost its most-recent days from the chart/summary/export with no warning. The range is now
@@ -97,14 +121,17 @@ test('ticket trend: created by requested_at, resolved/SLA/CSAT by resolved_at (c
     $ticketId = 0;
 
     try {
-        // opened 2020-01-15, resolved 2020-02-20 ON TIME (due 2020-02-25), rated 4
+        // opened 2020-01-15, resolved 2020-02-20 ON TIME, rated 4. SLA + CSAT now come from the resolve's CYCLE
+        // snapshot (Part B2): cycle-1 resolution track target 2020-02-25 (resolve 02-20 <= target → on-time) +
+        // cycle-1 rating 4 — not the mutable t.resolution_due_at / latest rating.
         ttr_pdo()->prepare(
-            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at, resolved_at, resolution_due_at)
-             VALUES (?, 'x', 'x', 1, 1, 1, 1, 'resolved', '2020-01-15 09:00:00', '2020-02-20 09:00:00', '2020-02-25 09:00:00')"
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at, resolved_at)
+             VALUES (?, 'x', 'x', 1, 1, 1, 1, 'resolved', '2020-01-15 09:00:00', '2020-02-20 09:00:00')"
         )->execute(["TTR-$rid"]);
         $ticketId = (int) ttr_pdo()->lastInsertId();
         ttr_resolve_log($ticketId, '2020-02-20 09:00:00');
-        ttr_pdo()->prepare('INSERT INTO ticket_ratings (ticket_id, requester_id, score) VALUES (?, 1, 4)')->execute([$ticketId]);
+        ttr_sla_track($ticketId, '2020-02-25 09:00:00', 1, 'met');
+        ttr_rating($ticketId, 4, 1);
 
         $page = ttr_service()->getTicketTrendReportPage($admin, [
             'granularity' => 'month', 'from_date' => '2020-01-01', 'to_date' => '2020-03-31',
@@ -155,6 +182,65 @@ test('ticket trend: a resolved-then-reopened ticket stays in its past period as-
         assert_same(1, $jan['resolved'], 'January throughput counts the closure EVENT, not the (now-NULL) resolved_at');
         // MTTR = 2019-01-20 09:00 − 2019-01-05 09:00 = 15 days = 21600 min = 360.0h (from the event, immutable)
         assert_same(360.0, $jan['mttr_hours'], 'January MTTR = event.created_at − requested_at, not null after reopen');
+        // guard (Part B2): this resolve event has NO matching ticket_sla_tracks cycle row (none seeded) — the
+        // per-cycle LEFT JOIN must yield no SLA base (not crash / not miscount) → the period shows SLA '-'.
+        assert_same(0, $jan['sla_base'], 'a resolve event with no cycle SLA row contributes no SLA base (missing-row guard)');
+        assert_same('-', $jan['sla_pct_label'], 'no cycle SLA row → SLA renders "-", never a spurious 0%/100%');
+    } finally {
+        if ($ticketId > 0) {
+            ttr_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+        }
+    }
+});
+
+test('ticket trend: per-cycle SLA/CSAT — period 1 keeps cycle-1 verdict, period 2 shows cycle-2, neither restates (F1 Phase 2 Part B2)', function (): void {
+    // THE period-immutability lock for the trend's SLA + CSAT columns. A ticket resolved in period 1 (cycle 1:
+    // met SLA, rated 5), reopened, then re-resolved in period 2 (cycle 2: breached, rated 2). Each period must
+    // show the verdict + rating of the CYCLE that closed in it — read from the frozen per-cycle
+    // ticket_sla_tracks / ticket_ratings rows, NOT the mutable t.resolution_due_at or the latest rating.
+    //   • period 1 → SLA 100% (cycle-1 resolve <= cycle-1 target) + CSAT 5.00
+    //   • period 2 → SLA 0%   (cycle-2 resolve  > cycle-2 target) + CSAT 2.00
+    // Under the pre-B2 read (t.resolution_due_at + latest rating, gated to the FINAL bucket) period 1 would show
+    // NO SLA/CSAT at all (both attach only to the last cycle) — this test reddens if that regression returns.
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $rid = bin2hex(random_bytes(4));
+    $ticketId = 0;
+
+    try {
+        // requested 2021-01-01; current resolution_due_at is cycle-2's (what a reopen last wrote) and deliberately
+        // WRONG for period 1 — proving the trend does not read it.
+        ttr_pdo()->prepare(
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at, resolved_at, resolution_due_at)
+             VALUES (?, 'x', 'x', 1, 1, 1, 1, 'resolved', '2021-01-01 09:00:00', '2021-02-10 09:00:00', '2021-02-05 09:00:00')"
+        )->execute(["TTRC-$rid"]);
+        $ticketId = (int) ttr_pdo()->lastInsertId();
+
+        // two resolve events → cycle 1 (Jan) then cycle 2 (Feb), the ordinal the append-on-reopen writer mirrors
+        ttr_resolve_log($ticketId, '2021-01-10 09:00:00'); // cycle 1
+        ttr_resolve_log($ticketId, '2021-02-10 09:00:00'); // cycle 2
+        // cycle 1: target 2021-01-15 → resolve 01-10 on time (met) ; cycle 2: target 2021-02-05 → resolve 02-10 late (breached)
+        ttr_sla_track($ticketId, '2021-01-15 09:00:00', 1, 'met');
+        ttr_sla_track($ticketId, '2021-02-05 09:00:00', 2, 'breached');
+        ttr_rating($ticketId, 5, 1, '2021-01-10 10:00:00');
+        ttr_rating($ticketId, 2, 2, '2021-02-10 10:00:00');
+
+        $page = ttr_service()->getTicketTrendReportPage($admin, [
+            'granularity' => 'month', 'from_date' => '2021-01-01', 'to_date' => '2021-02-28',
+        ]);
+        $jan = ttr_period($page, '2021-01');
+        $feb = ttr_period($page, '2021-02');
+
+        assert_true($jan !== null && $feb !== null, 'both month buckets exist');
+        // period 1 = cycle 1 (immutable, met + 5) — NOT restated by the later cycle
+        assert_same(1, $jan['resolved'], 'Jan counts the cycle-1 closure');
+        assert_same(1, $jan['sla_base'], 'Jan SLA base = the cycle-1 resolution track');
+        assert_same('100.0%', $jan['sla_pct_label'], 'Jan SLA = cycle-1 verdict (resolve <= cycle-1 target) = 100%');
+        assert_same('5.00', $jan['csat_label'], 'Jan CSAT = the cycle-1 rating (5), not the latest rating (2)');
+        // period 2 = cycle 2 (breached + 2)
+        assert_same(1, $feb['resolved'], 'Feb counts the cycle-2 closure');
+        assert_same(1, $feb['sla_base'], 'Feb SLA base = the cycle-2 resolution track');
+        assert_same('0.0%', $feb['sla_pct_label'], 'Feb SLA = cycle-2 verdict (resolve > cycle-2 target) = 0%');
+        assert_same('2.00', $feb['csat_label'], 'Feb CSAT = the cycle-2 rating (2)');
     } finally {
         if ($ticketId > 0) {
             ttr_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
@@ -171,13 +257,14 @@ test('ticket trend: XLSX export cells reconcile with the screen period — SLA% 
     $baselineJobId = (int) ttr_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM export_jobs')->fetchColumn();
 
     try {
-        // created + resolved on-time in 2020-05 (resolved 10:00, due 12:00) → SLA 100%
+        // created + resolved on-time in 2020-05 (resolved 10:00, cycle-1 SLA target 12:00) → SLA 100%
         ttr_pdo()->prepare(
-            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at, resolved_at, resolution_due_at)
-             VALUES (?, 'x', 'x', 1, 1, 1, 1, 'resolved', '2020-05-10 09:00:00', '2020-05-10 10:00:00', '2020-05-10 12:00:00')"
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at, resolved_at)
+             VALUES (?, 'x', 'x', 1, 1, 1, 1, 'resolved', '2020-05-10 09:00:00', '2020-05-10 10:00:00')"
         )->execute(["TTRX-$rid"]);
         $ticketId = (int) ttr_pdo()->lastInsertId();
         ttr_resolve_log($ticketId, '2020-05-10 10:00:00');
+        ttr_sla_track($ticketId, '2020-05-10 12:00:00', 1, 'met');
 
         $filters = ['granularity' => 'month', 'from_date' => '2020-05-01', 'to_date' => '2020-05-31'];
         $screen = ttr_period(ttr_service()->getTicketTrendReportPage($admin, $filters), '2020-05');
@@ -218,14 +305,15 @@ test('ticket trend: a real 0% SLA and a sub-minute MTTR are chart data, not hidd
     $ticketId = 0;
 
     try {
-        // requested + resolved 2020-05-10: resolution due 10:00:10, resolved 10:00:30 → SLA BREACHED (0%);
+        // requested + resolved 2020-05-10: cycle-1 SLA target 10:00:10, resolved 10:00:30 → SLA BREACHED (0%);
         // resolved 30s after request → MTTR = 0 minutes → 0.0h.
         ttr_pdo()->prepare(
-            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at, resolved_at, resolution_due_at)
-             VALUES (?, 'x', 'x', 1, 1, 1, 1, 'resolved', '2020-05-10 10:00:00', '2020-05-10 10:00:30', '2020-05-10 10:00:10')"
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at, resolved_at)
+             VALUES (?, 'x', 'x', 1, 1, 1, 1, 'resolved', '2020-05-10 10:00:00', '2020-05-10 10:00:30')"
         )->execute(["TTRZ-$rid"]);
         $ticketId = (int) ttr_pdo()->lastInsertId();
         ttr_resolve_log($ticketId, '2020-05-10 10:00:30');
+        ttr_sla_track($ticketId, '2020-05-10 10:00:10', 1, 'breached');
 
         $page = ttr_service()->getTicketTrendReportPage($admin, [
             'granularity' => 'month', 'from_date' => '2020-05-01', 'to_date' => '2020-05-31',
@@ -252,14 +340,15 @@ test('ticket trend: periods carry the SLA and rating base counts (Finding F4)', 
     $ticketId = 0;
 
     try {
-        // resolved 2020-07-11 ON TIME (due 2020-07-15) → SLA concluded (base 1) ; rated 4
+        // resolved 2020-07-11 ON TIME (cycle-1 SLA target 2020-07-15) → SLA concluded (base 1) ; rated 4
         ttr_pdo()->prepare(
-            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at, resolved_at, resolution_due_at)
-             VALUES (?, 'x', 'x', 1, 1, 1, 1, 'resolved', '2020-07-10 09:00:00', '2020-07-11 09:00:00', '2020-07-15 09:00:00')"
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at, resolved_at)
+             VALUES (?, 'x', 'x', 1, 1, 1, 1, 'resolved', '2020-07-10 09:00:00', '2020-07-11 09:00:00')"
         )->execute(["TTRB-$rid"]);
         $ticketId = (int) ttr_pdo()->lastInsertId();
         ttr_resolve_log($ticketId, '2020-07-11 09:00:00');
-        ttr_pdo()->prepare('INSERT INTO ticket_ratings (ticket_id, requester_id, score) VALUES (?, 1, 4)')->execute([$ticketId]);
+        ttr_sla_track($ticketId, '2020-07-15 09:00:00', 1, 'met');
+        ttr_rating($ticketId, 4, 1);
 
         $page = ttr_service()->getTicketTrendReportPage($admin, [
             'granularity' => 'month', 'from_date' => '2020-07-01', 'to_date' => '2020-07-31',

@@ -785,12 +785,14 @@ class ReportRepository
      * MAX(created_at) ในงวดนั้น → ปิดซ้ำในงวดเดียวนับครั้งเดียว แต่ปิดคนละงวดนับงวดละครั้ง (แต่ละงวดเห็นการปิดจริง —
      * กติกาเดียวกับ reopen cohort).
      *
-     * SLA/CSAT ผูกกับงวดที่ปิด "รอบสุดท้าย" เท่านั้น (is_final) โดยใช้ t.resolution_due_at (ปัจจุบัน) + rating cycle
-     * ล่าสุด (pin latestRatingCycleClause → ไม่ fan-out แม้ ratings จะ 1:many ตาม cycle แล้ว). NOTE (Phase 2
-     * Part B2, checkpointed): per-cycle SLA/rating snapshots ถูก "เก็บ" แล้ว (reopen/re-rate = append ไม่ทับของเก่า
-     * ดู ticket_sla_tracks.cycle / ticket_ratings.cycle) แต่ TREND ยังผูกกับรอบสุดท้าย — งวดแรกของ ticket ที่ถูกเปิดซ้ำ
-     * จึงยังไม่โชว์ SLA/CSAT ของ cycle เดิม. การ bucket ราย cycle (map resolve-ordinal → cycle) เป็น follow-up ที่
-     * documented ใน docs/as-reported-analytics.md. date window บน event.created_at.
+     * SLA/CSAT ผูก "รายรอบ (cycle)" (F1 Phase 2 Part B2): resolve event ที่ N ของ ticket = cycle N (ROW_NUMBER
+     * over ALL events เรียง created_at,id — ตรงกับที่ reopenTicket append cycle) → SLA อ่านจาก ticket_sla_tracks
+     * row (metric_type='resolution', cycle=N): sla_base = มีแถวรอบนั้น, sla_on_time = resolved_at ตัวแทน <=
+     * target_at ของรอบนั้น (ไม่ใช่ t.resolution_due_at ปัจจุบันที่ reopen ทับ); CSAT อ่านจาก ticket_ratings row
+     * (cycle=N). ทั้งสอง LEFT JOIN + UNIQUE(ticket,metric,cycle)/(ticket,cycle) → ไม่ fan-out และ resolve ที่ไม่มี
+     * SLA row (seed/import พัง) = ts.id NULL → ไม่นับ base ไม่ crash. ผลลัพธ์: งวดที่ปิด cycle 1 ใน ม.ค. โชว์ verdict
+     * ของ cycle 1 (immutable) แม้ภายหลัง reopen+ปิด cycle 2 ใน มี.ค. — แต่ละงวดไม่ทับกัน. date window บน event.created_at
+     * (numbering ทำก่อน filter → cycle ordinal คงที่แม้ cycle เก่าอยู่นอกช่วง).
      */
     public function getTicketTrendResolved(array $viewer, array $filters, string $granularity): array
     {
@@ -799,13 +801,15 @@ class ReportRepository
         $to = is_string($filters['to_datetime'] ?? null) ? trim((string) $filters['to_datetime']) : '';
 
         $params = [];
+        // Window filter applies AFTER cycle numbering (see below) so the cycle ordinal is stable even when an
+        // earlier cycle resolved outside the window — hence it bounds ord.resolved_at, not the raw event.
         $reBounds = '';
         if ($from !== '') {
-            $reBounds .= ' AND r.created_at >= :trend_from';
+            $reBounds .= ' AND ord.resolved_at >= :trend_from';
             $params['trend_from'] = $from;
         }
         if ($to !== '') {
-            $reBounds .= ' AND r.created_at <= :trend_to';
+            $reBounds .= ' AND ord.resolved_at <= :trend_to';
             $params['trend_to'] = $to;
         }
 
@@ -815,31 +819,48 @@ class ReportRepository
         $this->applyTrendDimensionFilters($conditions, $filters, $params);
         $whereClause = implode(' AND ', $conditions);
 
+        // re = one representative resolve per (ticket, bucket) carrying its CYCLE ordinal:
+        //   ord   : number every ticket_resolved event 1..N per ticket (created_at,id) → cycle N (matches
+        //           reopenTicket appending cycle N+1); numbered over ALL events, unfiltered, so the ordinal is stable.
+        //   dedup : within a (ticket, bucket) rank by resolved_at DESC after the window filter → rep_rank 1 = the
+        //           bucket's representative closure (MAX created_at), collapsing multi-resolve to one per period.
+        // SLA/CSAT then join that representative's cycle row (fan-out-free via the per-cycle UNIQUE keys); a
+        // representative with no resolution SLA row (bad seed/import) has ts.id NULL → no base, never a miscount.
         $stmt = $this->db->prepare(
             "SELECT
                 re.bucket AS bucket,
                 COUNT(*) AS resolved,
                 ROUND(AVG(TIMESTAMPDIFF(MINUTE, t.requested_at, re.resolved_at)), 1) AS mttr_minutes,
-                SUM(CASE WHEN re.is_final = 1 AND t.resolution_due_at IS NOT NULL THEN 1 ELSE 0 END) AS sla_base,
-                SUM(CASE WHEN re.is_final = 1 AND t.resolution_due_at IS NOT NULL AND re.resolved_at <= t.resolution_due_at THEN 1 ELSE 0 END) AS sla_on_time,
-                COALESCE(SUM(CASE WHEN re.is_final = 1 THEN tr.score ELSE 0 END), 0) AS rating_sum,
-                SUM(CASE WHEN re.is_final = 1 AND tr.score IS NOT NULL THEN 1 ELSE 0 END) AS rating_count
+                SUM(CASE WHEN ts.id IS NOT NULL THEN 1 ELSE 0 END) AS sla_base,
+                SUM(CASE WHEN ts.id IS NOT NULL AND re.resolved_at <= ts.target_at THEN 1 ELSE 0 END) AS sla_on_time,
+                COALESCE(SUM(tr.score), 0) AS rating_sum,
+                SUM(CASE WHEN tr.score IS NOT NULL THEN 1 ELSE 0 END) AS rating_count
              FROM (
-                SELECT
-                    r.ticket_id AS ticket_id,
-                    DATE_FORMAT(r.created_at, '$fmt') AS bucket,
-                    MAX(r.created_at) AS resolved_at,
-                    CASE WHEN MAX(r.created_at) = (
-                        SELECT MAX(r2.created_at)
-                        FROM ticket_activity_logs r2
-                        WHERE r2.ticket_id = r.ticket_id AND r2.action = 'ticket_resolved'
-                    ) THEN 1 ELSE 0 END AS is_final
-                FROM ticket_activity_logs r
-                WHERE r.action = 'ticket_resolved'{$reBounds}
-                GROUP BY r.ticket_id, DATE_FORMAT(r.created_at, '$fmt')
+                SELECT dedup.ticket_id AS ticket_id, dedup.bucket AS bucket, dedup.resolved_at AS resolved_at, dedup.cycle AS cycle
+                FROM (
+                    SELECT
+                        ord.ticket_id AS ticket_id,
+                        ord.bucket AS bucket,
+                        ord.resolved_at AS resolved_at,
+                        ord.cycle AS cycle,
+                        ROW_NUMBER() OVER (PARTITION BY ord.ticket_id, ord.bucket ORDER BY ord.resolved_at DESC, ord.id DESC) AS rep_rank
+                    FROM (
+                        SELECT
+                            r.ticket_id AS ticket_id,
+                            DATE_FORMAT(r.created_at, '$fmt') AS bucket,
+                            r.created_at AS resolved_at,
+                            r.id AS id,
+                            ROW_NUMBER() OVER (PARTITION BY r.ticket_id ORDER BY r.created_at, r.id) AS cycle
+                        FROM ticket_activity_logs r
+                        WHERE r.action = 'ticket_resolved'
+                    ) ord
+                    WHERE 1 = 1{$reBounds}
+                ) dedup
+                WHERE dedup.rep_rank = 1
              ) re
              INNER JOIN tickets t ON t.id = re.ticket_id
-             LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id AND {$this->latestRatingCycleClause('tr')}
+             LEFT JOIN ticket_sla_tracks ts ON ts.ticket_id = re.ticket_id AND ts.metric_type = 'resolution' AND ts.cycle = re.cycle
+             LEFT JOIN ticket_ratings tr ON tr.ticket_id = re.ticket_id AND tr.cycle = re.cycle
              WHERE $whereClause
              GROUP BY re.bucket
              ORDER BY re.bucket"
