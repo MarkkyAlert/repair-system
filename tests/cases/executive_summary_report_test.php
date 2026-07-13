@@ -400,6 +400,78 @@ test('executive: an empty current period does not fabricate a 0%/delta/tone (Fin
     }
 });
 
+// R11-F2: when the PREVIOUS period has no base (rate/avg denominator 0), the "งวดก่อน" value must read "-",
+// not number_format(0) = "0.0%"/"0.0". Otherwise a manager reads "last period scored zero" instead of "no data".
+// The fix is single-source in execKpiCard, so screen + CSV/XLSX/PDF all inherit it.
+test('executive: a previous period with no base shows prev="-", not a fake 0.0 (R11-F2)', function (): void {
+    // current has a base, previous does not → value shown, prev "-", delta suppressed
+    $prevEmpty = exs_invoke('execKpiCard', ['x', 92.0, 0.0, 'up_good', 1, '%', '92.0%', true, false]);
+    assert_same('92.0%', $prevEmpty['value_label'], 'current value shown (this period has a base)');
+    assert_same('-', $prevEmpty['prev_value_label'], 'previous with no base → "-", not "0.0%"');
+    assert_same('—', $prevEmpty['delta_label'], 'no delta against a base-less previous period');
+
+    // both periods empty → both "-"
+    $bothEmpty = exs_invoke('execKpiCard', ['x', 0.0, 0.0, 'up_good', 1, '%', '-', false, false]);
+    assert_same('-', $bothEmpty['value_label'], 'current no base → "-"');
+    assert_same('-', $bothEmpty['prev_value_label'], 'previous no base → "-"');
+
+    // a COUNT KPI (prevHasData defaults true) keeps a real 0 — 0 tickets is a fact, not "no data"
+    $count = exs_invoke('execKpiCard', ['x', 3.0, 0.0, 'neutral', 0, '', '3']);
+    assert_same('0', $count['prev_value_label'], 'count KPI: previous 0 stays a real numeric value');
+});
+
+test('executive export: an empty previous period carries prev="-" across screen + XLSX (R11-F2 parity)', function (): void {
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $rid = bin2hex(random_bytes(4));
+    $ids = [];
+    $tmp = tempnam(sys_get_temp_dir(), 'exf2_') . '.xlsx';
+    $baselineJobId = (int) exs_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM export_jobs')->fetchColumn();
+    // this = [03-10 .. 03-20] has data; prev = the equal-length window ending 03-09 is empty
+    $filters = ['preset' => 'custom', 'from_date' => '2020-03-10', 'to_date' => '2020-03-20'];
+
+    try {
+        foreach ([0, 1] as $i) {
+            exs_pdo()->prepare(
+                "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at, resolved_at)
+                 VALUES (?, 'x', 'x', 1, 1, 1, 1, 'resolved', '2020-03-15 09:00:00', '2020-03-15 12:00:00')"
+            )->execute(["EXF2-$rid-$i"]);
+            $tid = (int) exs_pdo()->lastInsertId();
+            $ids[] = $tid;
+            exs_pdo()->prepare('INSERT INTO ticket_ratings (ticket_id, requester_id, score) VALUES (?, 1, 5)')->execute([$tid]);
+        }
+
+        $kpi = [];
+        foreach (exs_service()->getExecutiveSummaryPage($admin, $filters)['kpis'] as $k) {
+            $kpi[$k['label']] = $k;
+        }
+        // current has a base → value shown; previous empty → prev "-" for every rate/avg KPI
+        assert_true($kpi['อัตราปิดงาน']['value_label'] !== '-', 'current completion still shows its real value');
+        assert_same('-', $kpi['อัตราปิดงาน']['prev_value_label'], 'completion: base-less previous → prev "-"');
+        assert_same('-', $kpi['เวลาซ่อมเฉลี่ย (ชม.)']['prev_value_label'], 'MTTR: base-less previous → prev "-"');
+        assert_same('-', $kpi['คะแนนเฉลี่ย']['prev_value_label'], 'rating: base-less previous → prev "-"');
+
+        // XLSX parity: the completion row's "งวดก่อน" cell (col C) is "-", matching the screen
+        file_put_contents($tmp, (string) exs_service()->exportExecutiveSummaryExcel($admin, $filters)['content']);
+        $sheet = IOFactory::createReader('Xlsx')->load($tmp)->getActiveSheet();
+        $compRow = null;
+        foreach ($sheet->toArray() as $line) {
+            if ((string) ($line[0] ?? '') === 'อัตราปิดงาน') {
+                $compRow = array_map('strval', $line);
+            }
+        }
+        assert_true($compRow !== null, 'completion KPI row present in the export');
+        // XLSX stores "-" with a leading "'" (formula-injection guard) — strip it to compare the rendered value
+        assert_same('-', ltrim((string) $compRow[2], "'"), 'XLSX completion row carries prev "-" (export = screen)');
+    } finally {
+        @unlink($tmp);
+        foreach ($ids as $id) {
+            exs_pdo()->prepare('DELETE FROM ticket_ratings WHERE ticket_id = ?')->execute([$id]);
+            exs_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
+        }
+        exs_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
+    }
+});
+
 // Finding F5: MTTR presence is the resolved-count base, not the avg value. A period with resolved work
 // that averages 0.0h (sub-minute resolution) is real data → the KPI must show "0.0", not "-".
 test('executive: a period with sub-minute resolutions shows MTTR 0.0, not "-" (Finding F5)', function (): void {

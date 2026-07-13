@@ -1594,7 +1594,9 @@ class ReportService
      */
     private function execKpiCard(string $label, float $thisVal, float $prevVal, string $goodDir, int $decimals, string $unit, string $valueLabel, bool $thisHasData = true, bool $prevHasData = true, ?string $sampleLabel = null): array
     {
-        $prevLabel = number_format($prevVal, $decimals) . $unit;
+        // งวดก่อนไม่มี base (rate/avg ที่ตัวหารเป็น 0) → prev = "-" ไม่ใช่ 0.0 ปลอม (R11-F2). count ส่ง prevHasData
+        // เป็น true เสมอ (0 คือค่าจริง) จึงยังเป็นตัวเลข. single source → หน้าจอ + CSV/XLSX/PDF อ่านค่านี้เหมือนกัน.
+        $prevLabel = $prevHasData ? number_format($prevVal, $decimals) . $unit : '-';
 
         // งวดปัจจุบันไม่มี base (rate/avg ที่ตัวหารเป็น 0) → ห้ามปั้นค่า 0% หรือเดลต้าหลอก (template-review F/Finding A).
         // ต่างจาก count ที่ 0 คือค่าจริง — ตัว count ส่ง hasData=true เสมอ. sample_label = ฐานที่ค่าตั้งอยู่ (F4).
