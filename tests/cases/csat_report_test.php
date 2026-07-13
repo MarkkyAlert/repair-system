@@ -5,8 +5,11 @@ use App\Services\ReportService;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
-// Tests for the CSAT / satisfaction report (/reports/csat). Base = ticket_ratings (1:1 with tickets,
-// UNIQUE(ticket_id) → no fan-out). Proves per-dimension avg/count/%satisfied/%dissatisfied/tone, the
+// Tests for the CSAT / satisfaction report (/reports/csat). Base = ticket_ratings, now one row per
+// lifecycle CYCLE (F1 Phase 2: UNIQUE(ticket_id, cycle)); this CSAT-BY-PERIOD report windows on
+// tr.created_at, so each cycle's rating counts in the period it was given — as-reported. A single-cycle
+// ticket still contributes exactly one row (the pre-existing fixtures below). Proves per-dimension
+// avg/count/%satisfied/%dissatisfied/tone, per-cycle period immutability, the
 // summary average computed as Σscore/Σcount (NOT average-of-averages), worst-first sort, the 1–5 score
 // distribution (missing buckets filled with 0), the feedback list (non-empty only, worst-score-first),
 // Thai/null technician label, the resolved-total invariant across dimensions, and the exports (CSV/PDF =
@@ -82,6 +85,54 @@ function csat_row(string $dimension, int $deptId, string $label): ?array
 
     return null;
 }
+
+test('csat: a re-rate (cycle 2) does not restate the earlier period CSAT — per-cycle as-reported (F1 Phase 2)', function (): void {
+    // Owner-settled as-reported: a re-rate after a reopen APPENDS a new cycle's rating (its own created_at)
+    // instead of overwriting the previous cycle's row. So a past period's CSAT — this report windows on the
+    // rating date — is immutable: the January review still reads 5.00 even after a February re-rate drops the
+    // ticket's current satisfaction to 2. (Reconciliation-style: the two cycles are seeded by direct INSERT.)
+    $rid = bin2hex(random_bytes(4));
+    $deptId = csat_department($rid);
+    [$locId, $locName] = csat_location($rid);
+    $ticketId = 0;
+
+    try {
+        csat_pdo()->prepare(
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, requester_department_id, location_id, ticket_category_id, priority_id, assigned_technician_id, status, requested_at)
+             VALUES (?, 'x', 'x', 1, ?, ?, 1, 1, 3, 'resolved', '2021-01-10 09:00:00')"
+        )->execute(["CSATC-$rid", $deptId, $locId]);
+        $ticketId = (int) csat_pdo()->lastInsertId();
+        // cycle 1 rated 5 in January; cycle 2 re-rated 2 in February — both rows survive (append, not overwrite)
+        csat_pdo()->prepare('INSERT INTO ticket_ratings (ticket_id, requester_id, technician_id, cycle, score, created_at, updated_at) VALUES (?, 1, 3, 1, 5, ?, ?)')
+            ->execute([$ticketId, '2021-01-10 12:00:00', '2021-01-10 12:00:00']);
+        csat_pdo()->prepare('INSERT INTO ticket_ratings (ticket_id, requester_id, technician_id, cycle, score, created_at, updated_at) VALUES (?, 1, 3, 2, 2, ?, ?)')
+            ->execute([$ticketId, '2021-02-15 12:00:00', '2021-02-15 12:00:00']);
+
+        $janRow = null;
+        foreach (csat_page('location', $deptId, ['from_date' => '2021-01-01', 'to_date' => '2021-01-31'])['rows'] as $r) {
+            if ($r['label'] === $locName) {
+                $janRow = $r;
+            }
+        }
+        assert_true($janRow !== null, 'January window sees the location');
+        assert_same(1, $janRow['rating_count'], 'January counts only the cycle-1 rating');
+        assert_same('5.00', $janRow['avg_label'], 'January CSAT is frozen at 5.00 — the February re-rate did not restate it');
+
+        $febRow = null;
+        foreach (csat_page('location', $deptId, ['from_date' => '2021-02-01', 'to_date' => '2021-02-28'])['rows'] as $r) {
+            if ($r['label'] === $locName) {
+                $febRow = $r;
+            }
+        }
+        assert_true($febRow !== null, 'February window sees the location');
+        assert_same(1, $febRow['rating_count'], 'February counts only the cycle-2 rating');
+        assert_same('2.00', $febRow['avg_label'], 'February CSAT reflects the new cycle-2 review (2.00)');
+    } finally {
+        csat_pdo()->prepare('DELETE FROM ticket_ratings WHERE ticket_id = ?')->execute([$ticketId]);
+        csat_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+        csat_cleanup([], [$locId], $deptId);
+    }
+});
 
 test('csat: per-dimension avg / count / %satisfied / %dissatisfied / tone', function (): void {
     $rid = bin2hex(random_bytes(4));

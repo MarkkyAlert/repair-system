@@ -51,6 +51,29 @@ class ReportRepository
         return "t.status <> 'cancelled'";
     }
 
+    /**
+     * As-reported (F1 Phase 2): pin a ticket_sla_tracks reference (alias $a) to the ticket's LATEST cycle per
+     * metric_type. ticket_sla_tracks now holds one row per lifecycle CYCLE (reopen appends a new cycle), so a
+     * CURRENT-STATE SLA surface (summary overdue, hotspot, backlog, sla-compliance current) must look only at
+     * the newest cycle — an old cycle's breached/pending verdict must not keep re-flagging a since-reopened
+     * ticket. Keeps the join fan-out-free (one row per (ticket, metric)).
+     */
+    private function latestSlaCycleClause(string $a): string
+    {
+        return "$a.cycle = (SELECT MAX(slc.cycle) FROM ticket_sla_tracks slc WHERE slc.ticket_id = $a.ticket_id AND slc.metric_type = $a.metric_type)";
+    }
+
+    /**
+     * As-reported (F1 Phase 2): pin a ticket_ratings join (alias $a) to the ticket's LATEST rating cycle =
+     * the CURRENT satisfaction. ticket_ratings now holds one row per cycle (a re-rate after reopen appends),
+     * so current-state CSAT surfaces (executive summary, overview rows, technician avg) read the newest cycle
+     * and stay fan-out-free. (CSAT-BY-PERIOD reports window on tr.created_at instead — see getRatingByDimension.)
+     */
+    private function latestRatingCycleClause(string $a): string
+    {
+        return "$a.cycle = (SELECT MAX(rtc.cycle) FROM ticket_ratings rtc WHERE rtc.ticket_id = $a.ticket_id)";
+    }
+
     public function getSummary(array $viewer, array $filters): array
     {
         $params = [];
@@ -71,6 +94,7 @@ class ReportRepository
                             SELECT 1
                             FROM ticket_sla_tracks ts
                             WHERE ts.ticket_id = t.id
+                              AND {$this->latestSlaCycleClause('ts')}
                               AND (
                                   ts.status = 'breached'
                                   OR (ts.status = 'pending' AND ts.target_at < NOW())
@@ -84,6 +108,7 @@ class ReportRepository
                         SELECT 1
                         FROM ticket_sla_tracks ts
                         WHERE ts.ticket_id = t.id
+                          AND {$this->latestSlaCycleClause('ts')}
                           AND (
                               ts.status = 'breached'
                               OR (ts.status = 'pending' AND ts.target_at < NOW())
@@ -102,7 +127,7 @@ class ReportRepository
                 ROUND(COALESCE(AVG(tr.score), 0), 1) AS avg_rating,
                 COUNT(tr.score) AS rating_count
              FROM tickets t
-             LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id
+             LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id AND {$this->latestRatingCycleClause('tr')}
              WHERE $whereClause"
         );
         $stmt->execute($params);
@@ -159,6 +184,7 @@ class ReportRepository
                             SELECT 1
                             FROM ticket_sla_tracks ts
                             WHERE ts.ticket_id = t.id
+                              AND {$this->latestSlaCycleClause('ts')}
                               AND (
                                   ts.status = 'breached'
                                   OR (ts.status = 'pending' AND ts.target_at < NOW())
@@ -174,7 +200,7 @@ class ReportRepository
              INNER JOIN users requester ON requester.id = t.requester_id
              LEFT JOIN departments d ON d.id = t.requester_department_id
              LEFT JOIN users technician ON technician.id = t.assigned_technician_id
-             LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id
+             LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id AND {$this->latestRatingCycleClause('tr')}
              WHERE $whereClause
              ORDER BY t.requested_at DESC, t.id DESC
              $limitClause"
@@ -354,6 +380,7 @@ class ReportRepository
         $conditions = [$this->visibilityClause($viewer, $params)];
         $this->applyReportFilters($conditions, $filters, $params);
         $conditions[] = $this->slaApplicableCondition(); // cancelled ticket = ไม่คิด SLA (round-8 F1)
+        $conditions[] = $this->latestSlaCycleClause('ts'); // sla-compliance current = the latest cycle's verdict (F1 Phase 2)
         $whereClause = implode(' AND ', $conditions);
 
         $stmt = $this->db->prepare(
@@ -397,6 +424,7 @@ class ReportRepository
         $conditions = [$this->visibilityClause($viewer, $params)];
         $this->applySlaBreachFilters($conditions, $filters, $params);
         $conditions[] = $this->slaApplicableCondition(); // cancelled ticket = ไม่คิด SLA (round-8 F1)
+        $conditions[] = $this->latestSlaCycleClause('ts'); // sla-breach current = the latest cycle's verdict (F1 Phase 2)
         $whereClause = implode(' AND ', $conditions);
 
         $stmt = $this->db->prepare(
@@ -511,7 +539,7 @@ class ReportRepository
                 COALESCE(SUM(wo.labor_minutes), 0) AS labor_minutes
              FROM users u
              INNER JOIN tickets t ON t.assigned_technician_id = u.id
-             LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id
+             LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id AND {$this->latestRatingCycleClause('tr')}
              LEFT JOIN work_orders wo ON wo.ticket_id = t.id
              WHERE u.role = 'technician' AND $whereClause
              GROUP BY u.id, u.full_name
@@ -528,6 +556,11 @@ class ReportRepository
      * เวลาตอบรับเฉลี่ย + SLA ตรงเวลาต่อคน (คิด ticket-level จาก resolution_due_at → ไม่ fan-out กับ
      * ratings/work_orders 1:1). date-filtered ตาม applyReportFilters. คง getTechnicianPerformance เดิม
      * (panel /reports ใช้อยู่) ไม่แตะ.
+     *
+     * NOTE (Phase 2): the report surfaces resolved + MTTR **as-reported** — attributed to the resolve-event
+     * actor via getTechnicianResolverStats(), which the service overlays. The `resolved`/`mttr_minutes`/
+     * `resolution_base` columns HERE stay the assignment-keyed figures (COUNT of assigned tickets whose
+     * status is resolved) and are what the row-base/"no LIMIT drops a technician" contract is proven against.
      */
     public function getTechnicianPeriodStats(array $viewer, array $filters): array
     {
@@ -554,13 +587,63 @@ class ReportRepository
                 COALESCE(SUM(wo.labor_minutes), 0) AS labor_minutes
              FROM users u
              INNER JOIN tickets t ON t.assigned_technician_id = u.id
-             LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id
+             LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id AND {$this->latestRatingCycleClause('tr')}
              LEFT JOIN work_orders wo ON wo.ticket_id = t.id
              WHERE u.role = 'technician' AND $whereClause
              GROUP BY u.id, u.full_name"
             // no LIMIT: GROUP BY u.id yields exactly one row per technician (bounded by the technician count),
             // matching the unbounded getTechnicianLiveWorkload base. A LIMIT here silently dropped technicians
             // on a people-evaluation report and undercounted team totals when there were >200 of them.
+        );
+        $stmt->execute($params);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /**
+     * As-reported resolver attribution (Phase 2) — resolved งาน + MTTR ต่อ "ช่างที่ปิดงานจริง" (actor ของ event
+     * `ticket_resolved`) ไม่ใช่ t.assigned_technician_id (reassign หลังปิดจะย้ายเครดิตออกจากคนปิด). ยุบแต่ละ
+     * (resolver, ticket) เหลือ resolve ตัวแทน = MAX(created_at) → ปิดซ้ำ (resolve→reopen→resolve) โดยคนเดิม
+     * นับครั้งเดียว. window บน event.created_at (immutable) ; dept/category + visibility บน ticket ; ตัด backwards
+     * timestamp (resolve < requested_at) ทิ้งเหมือน trend เพื่อไม่ให้ MTTR ติดลบ. key = resolver id → service เอาไป
+     * overlay ทับแถวช่าง. resolved == resolution_base (event-sourced resolve มีเวลาปิดจริงเสมอ).
+     */
+    public function getTechnicianResolverStats(array $viewer, array $filters): array
+    {
+        $from = is_string($filters['from_datetime'] ?? null) ? trim((string) $filters['from_datetime']) : '';
+        $to = is_string($filters['to_datetime'] ?? null) ? trim((string) $filters['to_datetime']) : '';
+
+        $params = [];
+        // visibility + dept/category apply to the ticket row; exclude backwards timestamps so MTTR is never negative.
+        $conditions = [$this->visibilityClause($viewer, $params), 'rep.resolved_at >= t.requested_at'];
+        $this->applyTrendDimensionFilters($conditions, $filters, $params); // dept/category (บน t) ไม่มี date/status
+        $whereClause = implode(' AND ', $conditions);
+
+        $reWin = '';
+        if ($from !== '') {
+            $reWin .= ' AND r.created_at >= :tech_res_from';
+            $params['tech_res_from'] = $from;
+        }
+        if ($to !== '') {
+            $reWin .= ' AND r.created_at <= :tech_res_to';
+            $params['tech_res_to'] = $to;
+        }
+
+        $stmt = $this->db->prepare(
+            "SELECT
+                rep.actor_id AS id,
+                COUNT(*) AS resolved,
+                ROUND(AVG(TIMESTAMPDIFF(MINUTE, t.requested_at, rep.resolved_at)), 1) AS mttr_minutes,
+                COUNT(*) AS resolution_base
+             FROM (
+                SELECT r.ticket_id AS ticket_id, r.actor_id AS actor_id, MAX(r.created_at) AS resolved_at
+                FROM ticket_activity_logs r
+                WHERE r.action = 'ticket_resolved' AND r.actor_id IS NOT NULL{$reWin}
+                GROUP BY r.ticket_id, r.actor_id
+             ) rep
+             INNER JOIN tickets t ON t.id = rep.ticket_id
+             WHERE $whereClause
+             GROUP BY rep.actor_id"
         );
         $stmt->execute($params);
 
@@ -626,6 +709,7 @@ class ReportRepository
                         AND EXISTS (
                             SELECT 1 FROM ticket_sla_tracks ts
                             WHERE ts.ticket_id = t.id
+                              AND {$this->latestSlaCycleClause('ts')}
                               AND (ts.status = 'breached' OR (ts.status = 'pending' AND ts.target_at < NOW()))
                         )
                     THEN 1 ELSE 0
@@ -699,9 +783,14 @@ class ReportRepository
      *
      * Multi-resolve de-dup: ยุบ resolve events ของ ticket เดียวเหลือ "ตัวแทนหนึ่งตัวต่อ (ticket, งวด)" =
      * MAX(created_at) ในงวดนั้น → ปิดซ้ำในงวดเดียวนับครั้งเดียว แต่ปิดคนละงวดนับงวดละครั้ง (แต่ละงวดเห็นการปิดจริง —
-     * กติกาเดียวกับ reopen cohort). SLA/CSAT ผูกกับงวดที่ปิด "รอบสุดท้าย" เท่านั้น (is_final) เพื่อให้ resolution_due_at
-     * / ticket_ratings แถวปัจจุบัน (แถวเดียว) ถูกนับครั้งเดียว ไม่ซ้ำทุกงวดที่ ticket โผล่ (snapshot ราย cycle = Phase 2,
-     * ดู docs/as-reported-analytics.md). ratings 1:1 → ไม่ fan-out ; date window บน event.created_at.
+     * กติกาเดียวกับ reopen cohort).
+     *
+     * SLA/CSAT ผูกกับงวดที่ปิด "รอบสุดท้าย" เท่านั้น (is_final) โดยใช้ t.resolution_due_at (ปัจจุบัน) + rating cycle
+     * ล่าสุด (pin latestRatingCycleClause → ไม่ fan-out แม้ ratings จะ 1:many ตาม cycle แล้ว). NOTE (Phase 2
+     * Part B2, checkpointed): per-cycle SLA/rating snapshots ถูก "เก็บ" แล้ว (reopen/re-rate = append ไม่ทับของเก่า
+     * ดู ticket_sla_tracks.cycle / ticket_ratings.cycle) แต่ TREND ยังผูกกับรอบสุดท้าย — งวดแรกของ ticket ที่ถูกเปิดซ้ำ
+     * จึงยังไม่โชว์ SLA/CSAT ของ cycle เดิม. การ bucket ราย cycle (map resolve-ordinal → cycle) เป็น follow-up ที่
+     * documented ใน docs/as-reported-analytics.md. date window บน event.created_at.
      */
     public function getTicketTrendResolved(array $viewer, array $filters, string $granularity): array
     {
@@ -750,7 +839,7 @@ class ReportRepository
                 GROUP BY r.ticket_id, DATE_FORMAT(r.created_at, '$fmt')
              ) re
              INNER JOIN tickets t ON t.id = re.ticket_id
-             LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id
+             LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id AND {$this->latestRatingCycleClause('tr')}
              WHERE $whereClause
              GROUP BY re.bucket
              ORDER BY re.bucket"
@@ -805,9 +894,13 @@ class ReportRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    // มิติที่ยอมให้ group Reopen/FTF ได้ (whitelist กัน SQL-injection)
+    // มิติที่ยอมให้ group Reopen/FTF ได้ (whitelist กัน SQL-injection).
+    // technician = as-reported: ผูกกับ "ช่างที่ปิดงานจริง" (actor ของ event ticket_resolved ตัวแทน = latest-in-window
+    // ต่อ ticket, หนึ่งช่างต่อ ticket) ไม่ใช่ t.assigned_technician_id (ปัจจุบัน) — reassign หลังปิดจะไม่ย้าย "โทษ"
+    // การเปิดซ้ำออกจากช่างที่ปิด. join จริงถูกสร้างใน getReopenByDimension() (ต้องฉีด window params) — entry นี้คงไว้
+    // เป็น whitelist key เท่านั้น.
     private const REOPEN_DIMENSIONS = [
-        'technician' => ['join' => 'LEFT JOIN users dim ON dim.id = t.assigned_technician_id', 'label' => "COALESCE(dim.full_name, 'ยังไม่มอบหมาย')", 'group' => 'dim.id'],
+        'technician' => ['join' => '', 'label' => "COALESCE(dim.full_name, 'ยังไม่มอบหมาย')", 'group' => 'dim.id'],
         'category' => ['join' => 'INNER JOIN ticket_categories dim ON dim.id = t.ticket_category_id', 'label' => 'dim.name', 'group' => 'dim.id'],
         'priority' => ['join' => 'INNER JOIN priorities dim ON dim.id = t.priority_id', 'label' => 'dim.name', 'group' => 'dim.id'],
         'department' => ['join' => 'LEFT JOIN departments dim ON dim.id = t.requester_department_id', 'label' => "COALESCE(dim.name, 'ไม่ระบุแผนก')", 'group' => 'dim.id'],
@@ -822,7 +915,8 @@ class ReportRepository
      */
     public function getReopenByDimension(array $viewer, array $filters, string $dimension): array
     {
-        $map = self::REOPEN_DIMENSIONS[$dimension] ?? self::REOPEN_DIMENSIONS['technician'];
+        $dimension = isset(self::REOPEN_DIMENSIONS[$dimension]) ? $dimension : 'technician';
+        $map = self::REOPEN_DIMENSIONS[$dimension];
         $from = is_string($filters['from_datetime'] ?? null) ? trim((string) $filters['from_datetime']) : '';
         $to = is_string($filters['to_datetime'] ?? null) ? trim((string) $filters['to_datetime']) : '';
 
@@ -838,6 +932,39 @@ class ReportRepository
             $params['reopen_to'] = $to;
         }
         $whereClause = implode(' AND ', $conditions);
+
+        // Technician dimension is as-reported (Phase 2): attribute to the ticket's REPRESENTATIVE resolver —
+        // the actor of its latest-in-window `ticket_resolved` event, exactly ONE resolver per ticket — not
+        // t.assigned_technician_id (current assignee, which a post-resolve reassign would move). One resolver
+        // per ticket keeps the cross-dimension resolved-total invariant (each ticket maps to a single group).
+        // Separate placeholders (:reopen_res_*) avoid HY093 under EMULATE_PREPARES=false.
+        $dimensionJoin = $map['join'];
+        if ($dimension === 'technician') {
+            $resWin = $resWin2 = '';
+            if ($from !== '') {
+                $resWin .= ' AND rv.created_at >= :reopen_res_from';
+                $resWin2 .= ' AND rv2.created_at >= :reopen_res_from2';
+                $params['reopen_res_from'] = $from;
+                $params['reopen_res_from2'] = $from;
+            }
+            if ($to !== '') {
+                $resWin .= ' AND rv.created_at <= :reopen_res_to';
+                $resWin2 .= ' AND rv2.created_at <= :reopen_res_to2';
+                $params['reopen_res_to'] = $to;
+                $params['reopen_res_to2'] = $to;
+            }
+            $dimensionJoin = "LEFT JOIN (
+                    SELECT rv.ticket_id AS ticket_id, rv.actor_id AS actor_id
+                    FROM ticket_activity_logs rv
+                    WHERE rv.action = 'ticket_resolved'$resWin
+                      AND rv.id = (
+                        SELECT rv2.id FROM ticket_activity_logs rv2
+                        WHERE rv2.ticket_id = rv.ticket_id AND rv2.action = 'ticket_resolved'$resWin2
+                        ORDER BY rv2.created_at DESC, rv2.id DESC LIMIT 1
+                      )
+                 ) resv ON resv.ticket_id = t.id
+                 LEFT JOIN users dim ON dim.id = resv.actor_id";
+        }
 
         // As-reported (business decision): count ONLY reopens that happened WITHIN the window, so a past
         // period is immutable — a ticket closed in-window and reopened in a later period does not retroactively
@@ -860,7 +987,7 @@ class ReportRepository
                 COUNT(DISTINCT ro.ticket_id) AS reopened
              FROM ticket_activity_logs r
              INNER JOIN tickets t ON t.id = r.ticket_id
-             {$map['join']}
+             {$dimensionJoin}
              LEFT JOIN ticket_activity_logs ro ON ro.ticket_id = r.ticket_id AND ro.action = 'ticket_reopened'{$reopenBound}
              WHERE $whereClause
              GROUP BY {$map['group']}"

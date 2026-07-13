@@ -31,6 +31,18 @@ function tpr_tech(string $rid): array
     return [(int) tpr_pdo()->lastInsertId(), $fullName];
 }
 
+/**
+ * Seed the immutable `ticket_resolved` event the report now reads for as-reported resolved/MTTR (Phase 2).
+ * $actorId = the technician who ACTUALLY resolved; $createdAt = the close time (defaults to the ticket's resolved_at).
+ */
+function tpr_resolve_event(int $ticketId, int $actorId, string $createdAt): void
+{
+    tpr_pdo()->prepare(
+        "INSERT INTO ticket_activity_logs (ticket_id, actor_id, action, from_status, to_status, created_at)
+         VALUES (?, ?, 'ticket_resolved', 'in_progress', 'resolved', ?)"
+    )->execute([$ticketId, $actorId, $createdAt]);
+}
+
 function tpr_row(string $fullName, array $filters = []): ?array
 {
     $page = tpr_service()->getTechnicianPerformanceReportPage(['id' => 4, 'role' => 'admin'], $filters);
@@ -102,6 +114,7 @@ test('technician performance: period first-response avg + per-tech SLA on-time r
             date('Y-m-d H:i:s', $now - 7200), date('Y-m-d H:i:s', $now - 7200 + 1800),
             date('Y-m-d H:i:s', $now - 3600), date('Y-m-d H:i:s', $now),
         ]);
+        tpr_resolve_event((int) tpr_pdo()->lastInsertId(), $techId, date('Y-m-d H:i:s', $now - 3600));
         // B: responded 90min after request, resolved LATE (resolved_at > resolution_due_at)
         tpr_pdo()->prepare(
             "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, assigned_technician_id, status, requested_at, first_response_at, resolved_at, resolution_due_at)
@@ -111,11 +124,12 @@ test('technician performance: period first-response avg + per-tech SLA on-time r
             date('Y-m-d H:i:s', $now - 10800), date('Y-m-d H:i:s', $now - 10800 + 5400),
             date('Y-m-d H:i:s', $now), date('Y-m-d H:i:s', $now - 3600),
         ]);
+        tpr_resolve_event((int) tpr_pdo()->lastInsertId(), $techId, date('Y-m-d H:i:s', $now));
 
         $row = tpr_row($fullName);
         assert_true($row !== null, 'technician appears');
         assert_same(2, $row['assigned'], 'assigned = 2');
-        assert_same(2, $row['resolved'], 'resolved = 2');
+        assert_same(2, $row['resolved'], 'resolved = 2 (as-reported: the technician resolved both, via the resolve events)');
         assert_same('50.0%', $row['sla_on_time_label'], 'SLA on-time = 1 of 2 = 50%');
         assert_same('1.0', $row['first_response_hours_label'], 'first response avg (30+90)/2 = 60min = 1.0h');
     } finally {
@@ -178,6 +192,7 @@ test('technician performance: CSV export cells reconcile with the on-screen row 
             date('Y-m-d H:i:s', $now - 3600), date('Y-m-d H:i:s', $now - 1800), date('Y-m-d H:i:s', $now),
         ]);
         $tid = (int) tpr_pdo()->lastInsertId();
+        tpr_resolve_event($tid, $techId, date('Y-m-d H:i:s', $now - 1800)); // as-reported resolved/MTTR reads this event
         tpr_pdo()->prepare(
             "INSERT INTO ticket_ratings (ticket_id, requester_id, technician_id, score, feedback, created_at, updated_at)
              VALUES (?, 1, ?, 5, '', ?, ?)"
@@ -230,10 +245,16 @@ test('technician performance: CSV export cells reconcile with the on-screen row 
     }
 });
 
-test('technician performance: resolved status but NULL resolved_at → MTTR "-", same-minute stays 0.0 (round-4 F1)', function (): void {
-    // Edge: status='resolved' with resolved_at=NULL (schema allows it). There is no close time to average,
-    // so MTTR must read '-' — but completion still counts the status-resolved ticket. Gate MTTR on the
-    // resolved_at base, not the status count, in BOTH technician views (report + overview mini). (round-4 F1.)
+test('technician performance: a status-resolved ticket with NO resolve event is not counted; same-minute event stays 0.0 (Phase 2, was round-4 F1)', function (): void {
+    // INTENT REWRITTEN (Phase 2, owner-settled): the dedicated report's resolved + MTTR are now event-sourced —
+    // attributed to the actor of the `ticket_resolved` event (getTechnicianResolverStats), not derived from
+    // t.status / t.resolved_at. So a ticket that is status='resolved' but carries NO resolve event (bad seed /
+    // import — production ALWAYS writes the event) is simply NOT counted: resolved=0, MTTR '-'. Previously this
+    // encoded "status='resolved' + NULL resolved_at → resolved=1, MTTR '-'"; under event-sourcing there is no
+    // close event to count, so the count drops rather than the MTTR alone. A genuine same-minute closure — a
+    // resolve event whose created_at equals requested_at — still reads 0.0 (0 minutes, boundary included).
+    // The /reports OVERVIEW MINI stays a current-assignee status snapshot (getTechnicianPerformance) and is
+    // asserted unchanged below.
     $rid = bin2hex(random_bytes(4));
     [$nullTech, $nullName] = tpr_tech($rid);
     [$fastTech, $fastName] = tpr_tech($rid . 'F');
@@ -242,26 +263,27 @@ test('technician performance: resolved status but NULL resolved_at → MTTR "-",
     $deptId = (int) tpr_pdo()->lastInsertId();
 
     try {
-        // resolved status, NO resolved_at
+        // status='resolved' but NO resolved_at and NO resolve event → not a counted closure under event-sourcing
         tpr_pdo()->prepare(
             "INSERT INTO tickets (ticket_no, title, description, requester_id, requester_department_id, location_id, ticket_category_id, priority_id, assigned_technician_id, status, requested_at)
              VALUES (?, 'x', 'x', 1, ?, 1, 1, 1, ?, 'resolved', NOW())"
         )->execute(["TPRF-$rid", $deptId, $nullTech]);
-        // genuine same-minute resolution (resolved_at = requested_at)
+        // genuine same-minute resolution: resolved_at = requested_at, WITH a matching resolve event by fastTech
         $now = date('Y-m-d H:i:s');
         tpr_pdo()->prepare(
             "INSERT INTO tickets (ticket_no, title, description, requester_id, requester_department_id, location_id, ticket_category_id, priority_id, assigned_technician_id, status, requested_at, resolved_at)
              VALUES (?, 'x', 'x', 1, ?, 1, 1, 1, ?, 'resolved', ?, ?)"
         )->execute(["TPRG-$rid", $deptId, $fastTech, $now, $now]);
+        tpr_resolve_event((int) tpr_pdo()->lastInsertId(), $fastTech, $now);
 
-        // dedicated technician report (mapTechnicianPerformanceRow)
+        // dedicated technician report (mapTechnicianPerformanceRow) — as-reported/event-sourced
         $nullRow = tpr_row($nullName);
-        assert_true($nullRow !== null, 'null-timestamp technician appears');
-        assert_same(1, $nullRow['resolved'], 'completion still counts the status-resolved ticket (=1)');
-        assert_same('-', $nullRow['mttr_hours_label'], 'no resolved_at → MTTR "-", not a fake 0.0');
-        assert_same('0.0', tpr_row($fastName)['mttr_hours_label'], 'a real same-minute resolve still shows 0.0');
+        assert_true($nullRow !== null, 'the technician still appears (base = all active techs)');
+        assert_same(0, $nullRow['resolved'], 'a status-resolved ticket with NO resolve event is not counted (event-sourced)');
+        assert_same('-', $nullRow['mttr_hours_label'], 'no resolve event → MTTR "-"');
+        assert_same('0.0', tpr_row($fastName)['mttr_hours_label'], 'a real same-minute resolve event still shows 0.0');
 
-        // overview mini-table (mapTechnicianRow) — scoped to the fresh dept so only our two techs appear
+        // overview mini-table (mapTechnicianRow) — stays a current-assignee status snapshot, UNCHANGED by Phase 2
         $mini = [];
         foreach (tpr_service()->getReportPageData($admin, ['department_id' => $deptId])['technicianPerformance'] as $t) {
             $mini[$t['full_name']] = $t;
@@ -286,6 +308,8 @@ test('technician performance: a same-minute resolution shows MTTR/first-response
             "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, assigned_technician_id, status, requested_at, first_response_at, resolved_at, resolution_due_at)
              VALUES (?, 'x', 'x', 1, 1, 1, 1, ?, 'resolved', '2020-05-10 10:00:00', '2020-05-10 10:00:30', '2020-05-10 10:00:45', '2020-05-11 10:00:00')"
         )->execute(["TPRZ-$rid", $techId]);
+        // as-reported resolved/MTTR read the resolve event (Phase 2) — same clock-minute as the request → 0 minutes
+        tpr_resolve_event((int) tpr_pdo()->lastInsertId(), $techId, '2020-05-10 10:00:45');
 
         $row = tpr_row($fullName, ['from_date' => '2020-05-01', 'to_date' => '2020-05-31']);
         assert_true($row !== null, 'technician appears');

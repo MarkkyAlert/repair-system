@@ -17,6 +17,22 @@ class TicketReadRepository
     {
     }
 
+    /**
+     * As-reported (F1 Phase 2): ticket_sla_tracks / ticket_ratings now hold one row per lifecycle CYCLE
+     * (reopen / re-rate append instead of overwrite). Every CURRENT-STATE surface here (dashboard overdue,
+     * ticket detail SLA + rating, "breached" list filter) must read only the ticket's LATEST cycle, or an old
+     * cycle's verdict/rating would leak into the current view. These pin an aliased reference to that cycle.
+     */
+    private function latestSlaCycleClause(string $a): string
+    {
+        return "$a.cycle = (SELECT MAX(slc.cycle) FROM ticket_sla_tracks slc WHERE slc.ticket_id = $a.ticket_id AND slc.metric_type = $a.metric_type)";
+    }
+
+    private function latestRatingCycleClause(string $a): string
+    {
+        return "$a.cycle = (SELECT MAX(rtc.cycle) FROM ticket_ratings rtc WHERE rtc.ticket_id = $a.ticket_id)";
+    }
+
     // ── Dashboard reads — metrics, recent, trends, breakdowns, CSAT ──
     public function getDashboardMetrics(array $viewer, array $filters = []): array
     {
@@ -45,6 +61,7 @@ class TicketReadRepository
                             SELECT 1
                             FROM ticket_sla_tracks ts
                             WHERE ts.ticket_id = t.id
+                              AND {$this->latestSlaCycleClause('ts')}
                               AND (
                                   ts.status = 'breached'
                                   OR (ts.status = 'pending' AND ts.target_at < NOW())
@@ -263,6 +280,7 @@ class TicketReadRepository
                             SELECT 1
                             FROM ticket_sla_tracks ts
                             WHERE ts.ticket_id = t.id
+                              AND {$this->latestSlaCycleClause('ts')}
                               AND (
                                   ts.status = 'breached'
                                   OR (ts.status = 'pending' AND ts.target_at < NOW())
@@ -273,7 +291,7 @@ class TicketReadRepository
                 END) AS overdue_count
              FROM tickets t
              INNER JOIN users u ON u.id = t.assigned_technician_id
-             LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id
+             LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id AND {$this->latestRatingCycleClause('tr')}
              WHERE $whereClause
              GROUP BY u.id, u.full_name
              ORDER BY ticket_count DESC, avg_rating DESC, u.full_name ASC
@@ -304,6 +322,7 @@ class TicketReadRepository
                             SELECT 1
                             FROM ticket_sla_tracks ts
                             WHERE ts.ticket_id = t.id
+                              AND {$this->latestSlaCycleClause('ts')}
                               AND (
                                   ts.status = 'breached'
                                   OR (ts.status = 'pending' AND ts.target_at < NOW())
@@ -344,7 +363,7 @@ class TicketReadRepository
                 SUM(CASE WHEN tr.score >= 4 THEN 1 ELSE 0 END) AS positive_ratings
              FROM ticket_ratings tr
              INNER JOIN tickets t ON t.id = tr.ticket_id
-             WHERE $whereClause"
+             WHERE $whereClause AND {$this->latestRatingCycleClause('tr')}"
         );
         $stmt->execute($params);
         $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
@@ -414,7 +433,7 @@ class TicketReadRepository
             $params['preset_user_id'] = $presetUserId;
         } elseif ($preset === 'overdue') {
             $conditions[] = 't.status NOT IN (' . ticket_terminal_statuses_sql() . ')';
-            $conditions[] = "EXISTS (SELECT 1 FROM ticket_sla_tracks preset_ts WHERE preset_ts.ticket_id = t.id AND (preset_ts.status = 'breached' OR (preset_ts.status = 'pending' AND preset_ts.target_at < NOW())))";
+            $conditions[] = "EXISTS (SELECT 1 FROM ticket_sla_tracks preset_ts WHERE preset_ts.ticket_id = t.id AND {$this->latestSlaCycleClause('preset_ts')} AND (preset_ts.status = 'breached' OR (preset_ts.status = 'pending' AND preset_ts.target_at < NOW())))";
         } elseif ($preset === 'pending_approval') {
             $conditions[] = "t.status = 'pending_approval' AND t.approval_status = 'pending'";
         } elseif ($preset === 'today') {
@@ -521,6 +540,7 @@ class TicketReadRepository
              FROM ticket_sla_tracks ts
              INNER JOIN tickets t ON t.id = ts.ticket_id
              WHERE ts.status = 'pending'
+               AND {$this->latestSlaCycleClause('ts')}
                AND ts.target_at < NOW()
                AND t.status NOT IN ($closed)
              ORDER BY ts.target_at ASC, ts.id ASC
@@ -654,7 +674,7 @@ class TicketReadRepository
              LEFT JOIN users manager ON manager.id = t.assigned_manager_id
              LEFT JOIN users technician ON technician.id = t.assigned_technician_id
              LEFT JOIN work_orders wo ON wo.ticket_id = t.id
-             LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id
+             LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id AND {$this->latestRatingCycleClause('tr')}
              LEFT JOIN assets a ON a.id = t.asset_id
              WHERE t.id = :ticket_id AND $visibility
              LIMIT 1"
@@ -816,7 +836,7 @@ class TicketReadRepository
         }
         if ($sla === 'overdue') {
             $conditions[] = 't.status NOT IN (' . ticket_terminal_statuses_sql() . ')';
-            $conditions[] = "EXISTS (SELECT 1 FROM ticket_sla_tracks ticket_sla_filter WHERE ticket_sla_filter.ticket_id = t.id AND (ticket_sla_filter.status = 'breached' OR (ticket_sla_filter.status = 'pending' AND ticket_sla_filter.target_at < NOW())))";
+            $conditions[] = "EXISTS (SELECT 1 FROM ticket_sla_tracks ticket_sla_filter WHERE ticket_sla_filter.ticket_id = t.id AND {$this->latestSlaCycleClause('ticket_sla_filter')} AND (ticket_sla_filter.status = 'breached' OR (ticket_sla_filter.status = 'pending' AND ticket_sla_filter.target_at < NOW())))";
         }
     }
 }
