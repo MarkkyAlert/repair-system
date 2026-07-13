@@ -736,10 +736,12 @@ class TicketRepository
                 throw new RuntimeException('ไม่พบ work order สำหรับ ticket นี้');
             }
 
-            // Keep ticket_ratings row to preserve audit trail; upsertTicketRating will overwrite it if rated again.
-
-            $this->resetSlaTrack($ticketId, 'response', $responseDueAt);
-            $this->resetSlaTrack($ticketId, 'resolution', $resolutionDueAt);
+            // As-reported (F1 Phase 2): the previous cycle's rating stays (a re-rate APPENDS a new cycle), and
+            // the previous cycle's SLA rows stay frozen — reopen APPENDS a fresh pending cycle instead of
+            // resetting, so a past period's SLA verdict / CSAT is immutable.
+            $nextCycle = $this->currentTicketCycle($ticketId) + 1;
+            $this->appendSlaCycle($ticketId, 'response', $responseDueAt, $nextCycle);
+            $this->appendSlaCycle($ticketId, 'resolution', $resolutionDueAt, $nextCycle);
             $this->insertActivityLog($ticketId, $actorId, 'ticket_reopened', $currentStatus, 'assigned', $note);
 
             $this->db->commit();
@@ -1132,13 +1134,19 @@ class TicketRepository
 
     private function upsertTicketRating(int $ticketId, int $requesterId, ?int $technicianId, int $score, string $feedback, string $createdAt): void
     {
+        // As-reported (F1 Phase 2): one rating per lifecycle CYCLE. A re-rate after a reopen APPENDS a new
+        // cycle's rating (its own created_at) instead of overwriting the previous cycle's — so a past period's
+        // CSAT (windowed on created_at) is immutable. Idempotent WITHIN a cycle (re-confirming the same cycle
+        // updates that cycle's row rather than violating UNIQUE(ticket_id, cycle)).
+        $cycle = $this->currentTicketCycle($ticketId);
+
         $lookupStmt = $this->db->prepare(
             'SELECT id
              FROM ticket_ratings
-             WHERE ticket_id = :ticket_id
+             WHERE ticket_id = :ticket_id AND cycle = :cycle
              LIMIT 1'
         );
-        $lookupStmt->execute(['ticket_id' => $ticketId]);
+        $lookupStmt->execute(['ticket_id' => $ticketId, 'cycle' => $cycle]);
 
         $ratingId = $lookupStmt->fetchColumn();
 
@@ -1165,13 +1173,14 @@ class TicketRepository
         }
 
         $insertStmt = $this->db->prepare(
-            'INSERT INTO ticket_ratings (ticket_id, requester_id, technician_id, score, feedback, created_at, updated_at)
-             VALUES (:ticket_id, :requester_id, :technician_id, :score, :feedback, :created_at, :updated_at)'
+            'INSERT INTO ticket_ratings (ticket_id, requester_id, technician_id, cycle, score, feedback, created_at, updated_at)
+             VALUES (:ticket_id, :requester_id, :technician_id, :cycle, :score, :feedback, :created_at, :updated_at)'
         );
         $insertStmt->execute([
             'ticket_id' => $ticketId,
             'requester_id' => $requesterId,
             'technician_id' => $technicianId,
+            'cycle' => $cycle,
             'score' => $score,
             'feedback' => $feedback !== '' ? $feedback : null,
             'created_at' => $createdAt,
@@ -1181,7 +1190,12 @@ class TicketRepository
 
     private function markSlaAchieved(int $ticketId, string $metricType, string $achievedAt): void
     {
-        // RISK MAP: SLA status must be updated idempotently from the effective achieved timestamp.
+        // As-reported (F1 Phase 2): SLA tracks are per-cycle; a resolve concludes the LATEST cycle's verdict.
+        // An earlier cycle's met/breached record stays frozen. RISK MAP: idempotent from the achieved timestamp.
+        $cycle = $this->latestSlaCycle($ticketId, $metricType);
+        if ($cycle === 0) {
+            return; // no SLA row (should not happen in the real flow — every ticket seeds cycle 1 at creation)
+        }
         $stmt = $this->db->prepare(
             'UPDATE ticket_sla_tracks
              SET achieved_at = COALESCE(achieved_at, :achieved_at_value),
@@ -1194,7 +1208,7 @@ class TicketRepository
                      WHEN COALESCE(achieved_at, :status_achieved_at_compare) > target_at THEN :breached_status
                      ELSE :met_status
                  END
-             WHERE ticket_id = :ticket_id AND metric_type = :metric_type'
+             WHERE ticket_id = :ticket_id AND metric_type = :metric_type AND cycle = :cycle'
         );
         $stmt->execute([
             'achieved_at_value' => $achievedAt,
@@ -1205,25 +1219,71 @@ class TicketRepository
             'met_status' => 'met',
             'ticket_id' => $ticketId,
             'metric_type' => $metricType,
+            'cycle' => $cycle,
         ]);
     }
 
+    /**
+     * Reset the LATEST cycle's SLA row to pending (WITHIN-cycle — used by a reassign, which invalidates the
+     * previous technician's response but does NOT start a new lifecycle cycle; a reopen APPENDS a cycle instead).
+     */
     private function resetSlaTrack(int $ticketId, string $metricType, string $targetAt): void
     {
-        // RISK MAP: Reopen depends on existing response/resolution SLA rows; schema should enforce one row per metric.
+        $cycle = $this->latestSlaCycle($ticketId, $metricType);
+        if ($cycle === 0) {
+            return;
+        }
         $stmt = $this->db->prepare(
             'UPDATE ticket_sla_tracks
              SET target_at = :target_at,
                  achieved_at = NULL,
                  breached_at = NULL,
                  status = :status
-             WHERE ticket_id = :ticket_id AND metric_type = :metric_type'
+             WHERE ticket_id = :ticket_id AND metric_type = :metric_type AND cycle = :cycle'
         );
         $stmt->execute([
             'target_at' => $targetAt,
             'status' => 'pending',
             'ticket_id' => $ticketId,
             'metric_type' => $metricType,
+            'cycle' => $cycle,
+        ]);
+    }
+
+    /** Highest SLA cycle for (ticket, metric); 0 if none. */
+    private function latestSlaCycle(int $ticketId, string $metricType): int
+    {
+        $stmt = $this->db->prepare(
+            'SELECT COALESCE(MAX(cycle), 0) FROM ticket_sla_tracks WHERE ticket_id = :ticket_id AND metric_type = :metric_type'
+        );
+        $stmt->execute(['ticket_id' => $ticketId, 'metric_type' => $metricType]);
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    /** The ticket's current lifecycle cycle = highest SLA cycle across metrics (>=1). */
+    private function currentTicketCycle(int $ticketId): int
+    {
+        $stmt = $this->db->prepare('SELECT COALESCE(MAX(cycle), 1) FROM ticket_sla_tracks WHERE ticket_id = :ticket_id');
+        $stmt->execute(['ticket_id' => $ticketId]);
+
+        return max(1, (int) $stmt->fetchColumn());
+    }
+
+    /** Append a fresh (pending) SLA row for a new lifecycle cycle — as-reported: never overwrites a past cycle. */
+    private function appendSlaCycle(int $ticketId, string $metricType, string $targetAt, int $cycle): void
+    {
+        $stmt = $this->db->prepare(
+            'INSERT INTO ticket_sla_tracks (ticket_id, metric_type, cycle, target_at, achieved_at, breached_at, status, created_at)
+             VALUES (:ticket_id, :metric_type, :cycle, :target_at, NULL, NULL, :status, :created_at)'
+        );
+        $stmt->execute([
+            'ticket_id' => $ticketId,
+            'metric_type' => $metricType,
+            'cycle' => $cycle,
+            'target_at' => $targetAt,
+            'status' => 'pending',
+            'created_at' => date('Y-m-d H:i:s'),
         ]);
     }
 }

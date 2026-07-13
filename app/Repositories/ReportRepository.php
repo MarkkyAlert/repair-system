@@ -51,6 +51,29 @@ class ReportRepository
         return "t.status <> 'cancelled'";
     }
 
+    /**
+     * As-reported (F1 Phase 2): pin a ticket_sla_tracks reference (alias $a) to the ticket's LATEST cycle per
+     * metric_type. ticket_sla_tracks now holds one row per lifecycle CYCLE (reopen appends a new cycle), so a
+     * CURRENT-STATE SLA surface (summary overdue, hotspot, backlog, sla-compliance current) must look only at
+     * the newest cycle — an old cycle's breached/pending verdict must not keep re-flagging a since-reopened
+     * ticket. Keeps the join fan-out-free (one row per (ticket, metric)).
+     */
+    private function latestSlaCycleClause(string $a): string
+    {
+        return "$a.cycle = (SELECT MAX(slc.cycle) FROM ticket_sla_tracks slc WHERE slc.ticket_id = $a.ticket_id AND slc.metric_type = $a.metric_type)";
+    }
+
+    /**
+     * As-reported (F1 Phase 2): pin a ticket_ratings join (alias $a) to the ticket's LATEST rating cycle =
+     * the CURRENT satisfaction. ticket_ratings now holds one row per cycle (a re-rate after reopen appends),
+     * so current-state CSAT surfaces (executive summary, overview rows, technician avg) read the newest cycle
+     * and stay fan-out-free. (CSAT-BY-PERIOD reports window on tr.created_at instead — see getRatingByDimension.)
+     */
+    private function latestRatingCycleClause(string $a): string
+    {
+        return "$a.cycle = (SELECT MAX(rtc.cycle) FROM ticket_ratings rtc WHERE rtc.ticket_id = $a.ticket_id)";
+    }
+
     public function getSummary(array $viewer, array $filters): array
     {
         $params = [];
@@ -71,6 +94,7 @@ class ReportRepository
                             SELECT 1
                             FROM ticket_sla_tracks ts
                             WHERE ts.ticket_id = t.id
+                              AND {$this->latestSlaCycleClause('ts')}
                               AND (
                                   ts.status = 'breached'
                                   OR (ts.status = 'pending' AND ts.target_at < NOW())
@@ -84,6 +108,7 @@ class ReportRepository
                         SELECT 1
                         FROM ticket_sla_tracks ts
                         WHERE ts.ticket_id = t.id
+                          AND {$this->latestSlaCycleClause('ts')}
                           AND (
                               ts.status = 'breached'
                               OR (ts.status = 'pending' AND ts.target_at < NOW())
@@ -102,7 +127,7 @@ class ReportRepository
                 ROUND(COALESCE(AVG(tr.score), 0), 1) AS avg_rating,
                 COUNT(tr.score) AS rating_count
              FROM tickets t
-             LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id
+             LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id AND {$this->latestRatingCycleClause('tr')}
              WHERE $whereClause"
         );
         $stmt->execute($params);
@@ -159,6 +184,7 @@ class ReportRepository
                             SELECT 1
                             FROM ticket_sla_tracks ts
                             WHERE ts.ticket_id = t.id
+                              AND {$this->latestSlaCycleClause('ts')}
                               AND (
                                   ts.status = 'breached'
                                   OR (ts.status = 'pending' AND ts.target_at < NOW())
@@ -174,7 +200,7 @@ class ReportRepository
              INNER JOIN users requester ON requester.id = t.requester_id
              LEFT JOIN departments d ON d.id = t.requester_department_id
              LEFT JOIN users technician ON technician.id = t.assigned_technician_id
-             LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id
+             LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id AND {$this->latestRatingCycleClause('tr')}
              WHERE $whereClause
              ORDER BY t.requested_at DESC, t.id DESC
              $limitClause"
@@ -354,6 +380,7 @@ class ReportRepository
         $conditions = [$this->visibilityClause($viewer, $params)];
         $this->applyReportFilters($conditions, $filters, $params);
         $conditions[] = $this->slaApplicableCondition(); // cancelled ticket = ไม่คิด SLA (round-8 F1)
+        $conditions[] = $this->latestSlaCycleClause('ts'); // sla-compliance current = the latest cycle's verdict (F1 Phase 2)
         $whereClause = implode(' AND ', $conditions);
 
         $stmt = $this->db->prepare(
@@ -397,6 +424,7 @@ class ReportRepository
         $conditions = [$this->visibilityClause($viewer, $params)];
         $this->applySlaBreachFilters($conditions, $filters, $params);
         $conditions[] = $this->slaApplicableCondition(); // cancelled ticket = ไม่คิด SLA (round-8 F1)
+        $conditions[] = $this->latestSlaCycleClause('ts'); // sla-breach current = the latest cycle's verdict (F1 Phase 2)
         $whereClause = implode(' AND ', $conditions);
 
         $stmt = $this->db->prepare(
@@ -511,7 +539,7 @@ class ReportRepository
                 COALESCE(SUM(wo.labor_minutes), 0) AS labor_minutes
              FROM users u
              INNER JOIN tickets t ON t.assigned_technician_id = u.id
-             LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id
+             LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id AND {$this->latestRatingCycleClause('tr')}
              LEFT JOIN work_orders wo ON wo.ticket_id = t.id
              WHERE u.role = 'technician' AND $whereClause
              GROUP BY u.id, u.full_name
@@ -559,7 +587,7 @@ class ReportRepository
                 COALESCE(SUM(wo.labor_minutes), 0) AS labor_minutes
              FROM users u
              INNER JOIN tickets t ON t.assigned_technician_id = u.id
-             LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id
+             LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id AND {$this->latestRatingCycleClause('tr')}
              LEFT JOIN work_orders wo ON wo.ticket_id = t.id
              WHERE u.role = 'technician' AND $whereClause
              GROUP BY u.id, u.full_name"
@@ -681,6 +709,7 @@ class ReportRepository
                         AND EXISTS (
                             SELECT 1 FROM ticket_sla_tracks ts
                             WHERE ts.ticket_id = t.id
+                              AND {$this->latestSlaCycleClause('ts')}
                               AND (ts.status = 'breached' OR (ts.status = 'pending' AND ts.target_at < NOW()))
                         )
                     THEN 1 ELSE 0
