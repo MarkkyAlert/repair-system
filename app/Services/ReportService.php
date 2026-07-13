@@ -658,12 +658,12 @@ class ReportService
         $slaBase = (int) ($period['sla_base'] ?? 0);
         $slaOnTime = (int) ($period['sla_on_time'] ?? 0);
 
-        // completion = ปิดงาน(as-reported) ÷ (ปิดงาน + งานค้างปัจจุบันของช่าง) — ตัวตั้ง+ตัวหาร cohort เดียวกัน
-        // (งานที่อยู่ในมือช่างคนนี้: ปิดไปแล้ว + ยังค้าง) จึงได้ 0–100% เสมอ และกระทบยอดจากสองคอลัมน์ที่เห็นได้
-        // (ปิดงาน + งานค้างปัจจุบัน). เดิมเอา resolved(event actor) หาร assigned(current assignee) = คนละ cohort
-        // → เกิน 100% หรือขึ้น "-" ทั้งที่ช่างมีผลงาน (R10-F1). $assigned (รับในช่วง) ยังโชว์เป็นข้อมูลประกอบ.
-        $completionBase = $resolved + $openNow;
-        $completionPct = $completionBase > 0 ? round($resolved / $completionBase * 100, 1) : null;
+        // completion = ปิด(ตามสถานะ)ในช่วง ÷ งานที่รับในช่วง — ทั้งคู่ windowed บน requested_at (period stats) →
+        // ตัวตั้ง ⊆ ตัวหาร (0–100%) และ **นิ่งย้อนหลัง**: ค่าเดือนเก่าไม่ขยับเมื่อ backlog ปัจจุบันเปลี่ยน. อย่าเอา
+        // live open_now (ไม่ windowed) มาปนในตัวหารของ rate ย้อนหลัง — งวด ม.ค. จะเพี้ยนเมื่อช่างมีงานค้างวันนี้ (R11-F1;
+        // แก้จาก R10 ที่ใช้ resolved+open_now). resolver-credit (as-reported) ยังโชว์แยกในคอลัมน์ "ปิดงาน" ($resolved).
+        $periodResolved = (int) ($period['resolved'] ?? 0);
+        $completionPct = $assigned > 0 ? round($periodResolved / $assigned * 100, 1) : null;
         $slaRate = $slaBase > 0 ? round($slaOnTime / $slaBase * 100, 1) : null;
         $sharePct = $totalOpenNow > 0 ? round($openNow / $totalOpenNow * 100, 1) : null;
         $oldestAge = $this->daysSince($live['oldest_open_at'] ?? null);
