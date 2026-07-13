@@ -124,8 +124,12 @@ Performance report and reopen dimension both keep the closure credited to tech 3
 Schema: `ticket_sla_tracks` gains `cycle` (UNIQUE → `ticket_id, metric_type, cycle`); `ticket_ratings` gains
 `cycle` (UNIQUE → `ticket_id, cycle`). `database/schema.sql` has it for fresh installs; existing rows default
 to cycle 1. **Upgrading an existing database:** run `database/migrate_sla_rating_cycle.sql` once (it adds the
-columns + swaps the UNIQUE keys; safe on live data — every existing row becomes cycle 1). Fresh installs from
-schema.sql do NOT need it.
+columns + swaps the UNIQUE keys; safe on live data). Never-reopened tickets stay cycle 1 (the bulk of data).
+A ticket that was **closed → reopened → re-closed before the upgrade** kept only ONE SLA/rating snapshot (the old
+code overwrote in place) reflecting its **latest** resolve, so the migration backfills that surviving row to its
+latest cycle `= 1 + COUNT(ticket_reopened)` — otherwise the trend would read the latest snapshot in the first
+period and blank the latest. Older cycles whose snapshots were genuinely lost read as "no data" (correct, not
+moved). Locked by `tests/cases/migration_cycle_backfill_test.php` (R10-F2). Fresh installs do NOT need it.
 
 Writers (`TicketRepository`): `reopenTicket` **appends** a fresh pending SLA cycle (`currentTicketCycle()+1`)
 instead of resetting the row, so a past cycle's due-date + met/breached verdict is frozen; `markSlaAchieved` /
