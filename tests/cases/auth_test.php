@@ -284,6 +284,29 @@ test('auth: login returns identical generic error for wrong-password / unknown-u
     }
 });
 
+// The message above hides account existence in the RESPONSE BODY. This closes the TIMING side-channel behind
+// it: an unknown login used to short-circuit past password_verify (`!$user || password_verify(...)`), so it
+// returned ~100ms faster than a real-user-wrong-password and an attacker could enumerate valid accounts by the
+// clock. attemptLogin now runs a bcrypt verify on EVERY attempt (a throwaway dummy hash when the user is
+// unknown). Proven deterministically via the counting password_verify shadow — no flaky wall-clock timing.
+test('auth(anti-enumeration): an unknown login still spends a bcrypt verify — closes the timing oracle', function (): void {
+    $ip = '203.0.113.11';
+    $unknownLogin = 'ghost_' . bin2hex(random_bytes(4));
+    password_verify_calls_reset();
+    try {
+        auth_login_error($unknownLogin, 'whatever-password', $ip); // throws the same generic error as a real user
+
+        assert_true(
+            password_verify_calls() >= 1,
+            'attemptLogin must run password_verify even for a login that does not exist — otherwise the response is faster for unknown accounts and the clock reveals which usernames/emails are real'
+        );
+    } finally {
+        auth_cleanup(null, [$unknownLogin]);
+        auth_rate_limiter()->clear('login:' . sha1(strtolower($unknownLogin) . '|' . $ip));
+        auth_rate_limiter()->clear('login-ip:' . sha1($ip));
+    }
+});
+
 // ── login: rate limiting blocks once the attempt cap is exceeded ──
 
 test('auth: login is blocked once the attempt cap is exceeded', function (): void {

@@ -55,7 +55,15 @@ class AuthService
         }
 
         $user = $this->users->findByLogin($login);
-        if (!$user || !password_verify($password, (string) $user['password_hash'])) {
+        // Constant-time against user enumeration: run a bcrypt verify on EVERY attempt, even an unknown login,
+        // so the response time never reveals whether the account exists. An unknown login verifies a throwaway
+        // hash (always false) instead of short-circuiting past the ~100ms bcrypt work. The generic error below
+        // already hides existence in the RESPONSE BODY; this closes the TIMING side-channel behind it.
+        $storedHash = ($user && isset($user['password_hash']))
+            ? (string) $user['password_hash']
+            : $this->dummyPasswordHash();
+        $passwordValid = password_verify($password, $storedHash);
+        if (!$user || !$passwordValid) {
             $this->rateLimiter->hit($limiterKey);
             $this->rateLimiter->hit($ipKey, self::ATTEMPT_DECAY_SECONDS);
             $this->logAttempt(
@@ -90,6 +98,22 @@ class AuthService
         }
 
         return $this->auth->user() ?? [];
+    }
+
+    /**
+     * A throwaway bcrypt hash, used only to spend roughly the same bcrypt time on an unknown-login attempt as
+     * on a real one (see attemptLogin), so response timing can't reveal whether an account exists. Computed
+     * once per process at the CURRENT default cost — the same PASSWORD_BCRYPT that changePassword/resetPassword
+     * hash with — so it stays cost-matched even if that default changes. A verify against it always fails.
+     */
+    private function dummyPasswordHash(): string
+    {
+        static $hash = null;
+        if ($hash === null) {
+            $hash = password_hash('timing-equalizer-not-a-real-credential', PASSWORD_BCRYPT);
+        }
+
+        return $hash;
     }
 
     private function logAttempt(string $login, ?int $userId, string $ipAddress, string $userAgent, bool $success, ?string $reason = null): void

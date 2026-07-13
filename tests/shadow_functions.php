@@ -25,6 +25,19 @@ namespace App\Services {
         }
     }
 
+    // Pass-through COUNTING shadow for password_verify(): behaviour is identical (delegates to the global
+    // function, real result), it only records how many times it ran. Lets a test prove AuthService::attemptLogin
+    // spends a bcrypt verify even on an UNKNOWN login — the constant-time / anti-enumeration guard — without a
+    // flaky wall-clock timing assertion. Real login tests are unaffected (same true/false they always got).
+    if (!function_exists('App\\Services\\password_verify')) {
+        function password_verify(string $password, string $hash): bool
+        {
+            $GLOBALS['__shadow_password_verify_calls'] = ($GLOBALS['__shadow_password_verify_calls'] ?? 0) + 1;
+
+            return \password_verify($password, $hash);
+        }
+    }
+
     // Companion shadow for move_uploaded_file(): under CLI the native call always fails (no real HTTP upload),
     // which makes AttachmentService::storeValidated() untestable. Move the temp file with rename()/copy()
     // instead so the store + partial-write-cleanup path can run against real files.
@@ -55,5 +68,17 @@ namespace {
     function reset_is_uploaded_file(): void
     {
         unset($GLOBALS['__shadow_is_uploaded_file']);
+    }
+
+    /** Zero the password_verify call counter before exercising a login path. */
+    function password_verify_calls_reset(): void
+    {
+        $GLOBALS['__shadow_password_verify_calls'] = 0;
+    }
+
+    /** How many times the App\Services password_verify shadow ran since the last reset. */
+    function password_verify_calls(): int
+    {
+        return (int) ($GLOBALS['__shadow_password_verify_calls'] ?? 0);
     }
 }
