@@ -277,7 +277,7 @@ test('csat: excel feedback sheet returns more than the 100-row on-screen cap', f
 
         file_put_contents($tmp, (string) csat_service()->exportCsatExcel($admin, $filters)['content']);
         $book = IOFactory::createReader('Xlsx')->load($tmp);
-        $dataRows = $book->getSheet(1)->getHighestDataRow() - 1; // minus header row
+        $dataRows = $book->getSheetByName('ความคิดเห็น')->getHighestDataRow() - 1; // minus header row
         assert_same(101, $dataRows, 'Excel feedback sheet carries all 101 comments (beyond the page cap)');
         $book->disconnectWorksheets();
     } finally {
@@ -340,7 +340,7 @@ test('csat: XLSX breakdown %satisfied/%dissatisfied are numeric so they pivot/su
 
         $tmp = tempnam(sys_get_temp_dir(), 'csatx_') . '.xlsx';
         file_put_contents($tmp, (string) csat_service()->exportCsatExcel($admin, ['dimension' => 'location', 'department_id' => $deptId])['content']);
-        $sheet = IOFactory::createReader('Xlsx')->load($tmp)->getSheet(0);
+        $sheet = IOFactory::createReader('Xlsx')->load($tmp)->getSheetByName('ความพึงพอใจ');
         @unlink($tmp);
 
         assert_same($locName, (string) $sheet->getCell('A2')->getValue(), 'breakdown row 2 = our location');
@@ -397,7 +397,9 @@ test('csat: empty range shows no score distribution — no misleading 0.0% bucke
     }
 });
 
-test('csat: export csv/pdf = breakdown, excel = 2 sheets (breakdown + feedback)', function (): void {
+test('csat export parity: every format carries all 4 sections (summary/distribution/breakdown/feedback)', function (): void {
+    // BI-review F4: the screen shows 4 sections but exports used to differ (CSV = breakdown only,
+    // Excel had no summary/distribution, PDF had no feedback). Lock that all three formats now match.
     $rid = bin2hex(random_bytes(4));
     $deptId = csat_department($rid);
     [$locId] = csat_location($rid);
@@ -410,21 +412,34 @@ test('csat: export csv/pdf = breakdown, excel = 2 sheets (breakdown + feedback)'
         $ids[] = csat_rate("CSAT-$rid-a", $deptId, $locId, 3, 2, 'ปรับปรุงด้วย');
         $filters = ['dimension' => 'technician', 'department_id' => $deptId];
 
+        // Excel: 4 sheets in screen order — summary, distribution, breakdown, feedback
         file_put_contents($tmp, (string) csat_service()->exportCsatExcel($admin, $filters)['content']);
         $book = IOFactory::createReader('Xlsx')->load($tmp);
-        assert_same(2, $book->getSheetCount(), 'two sheets');
-        assert_same('ความพึงพอใจ', $book->getSheetNames()[0], 'sheet 1 = breakdown');
-        assert_same('ความคิดเห็น', $book->getSheetNames()[1], 'sheet 2 = feedback (Thai title)');
-        assert_same('ช่าง', (string) $book->getSheet(0)->getCell('A1')->getValue(), 'breakdown first header = dimension');
-        assert_same('เลขที่ Ticket', (string) $book->getSheet(1)->getCell('A1')->getValue(), 'feedback first header = ticket number');
-        assert_same('ความคิดเห็น', (string) $book->getSheet(1)->getCell('C1')->getValue(), 'feedback carries the comment column');
+        assert_same(4, $book->getSheetCount(), 'four sheets (one per screen section)');
+        assert_same('สรุปความพึงพอใจ', $book->getSheetNames()[0], 'sheet 1 = summary');
+        assert_same('การกระจายคะแนน', $book->getSheetNames()[1], 'sheet 2 = distribution');
+        assert_same('ความพึงพอใจ', $book->getSheetNames()[2], 'sheet 3 = breakdown');
+        assert_same('ความคิดเห็น', $book->getSheetNames()[3], 'sheet 4 = feedback');
+        assert_same('ตัวชี้วัด', (string) $book->getSheet(0)->getCell('A1')->getValue(), 'summary first header = metric');
+        assert_same('คะแนน', (string) $book->getSheet(1)->getCell('A1')->getValue(), 'distribution first header = score');
+        assert_same('ช่าง', (string) $book->getSheet(2)->getCell('A1')->getValue(), 'breakdown first header = dimension');
+        assert_same('เลขที่ Ticket', (string) $book->getSheet(3)->getCell('A1')->getValue(), 'feedback first header = ticket number');
+        assert_same('ความคิดเห็น', (string) $book->getSheet(3)->getCell('C1')->getValue(), 'feedback carries the comment column');
         $book->disconnectWorksheets();
 
+        // CSV: all 4 section titles present in one file
+        $csv = (string) csat_service()->exportCsatCsv($admin, $filters)['content'];
+        foreach (['สรุปความพึงพอใจ', 'การกระจายคะแนน', 'ความพึงพอใจ', 'ความคิดเห็น'] as $section) {
+            assert_true(str_contains($csv, $section), "csv carries the '$section' section");
+        }
+        assert_true(str_contains($csv, 'ปรับปรุงด้วย'), 'csv feedback section carries the actual comment');
+
+        // PDF: renders and now includes the feedback comment
         $pdf = csat_service()->exportCsatPdf($admin, $filters);
         assert_same('%PDF-', substr((string) $pdf['content'], 0, 5), 'pdf magic bytes');
-
-        $csv = (string) csat_service()->exportCsatCsv($admin, $filters)['content'];
-        assert_true(str_contains($csv, 'คะแนนเฉลี่ย'), 'csv breakdown carries the average column');
+        $pdfText = (new \Smalot\PdfParser\Parser())->parseContent((string) $pdf['content'])->getText();
+        assert_true(mb_strpos($pdfText, 'ความคิดเห็นจากผู้ใช้') !== false, 'pdf renders the feedback section heading');
+        assert_true(mb_strpos($pdfText, 'ปรับปรุงด้วย') !== false, 'pdf renders the actual comment text');
     } finally {
         @unlink($tmp);
         csat_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);

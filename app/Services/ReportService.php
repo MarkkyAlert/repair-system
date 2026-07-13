@@ -2335,6 +2335,35 @@ class ReportService
         return [$row['ticket_no'], $row['score'], $row['feedback'], $row['technician_name'], $row['category_name'], $row['created_at']];
     }
 
+    /**
+     * The 4 CSAT sections (summary / distribution / breakdown / feedback) as title+headers+rows — SINGLE SOURCE
+     * so every export format carries the same sections the screen shows (BI-review F4 parity: CSV was breakdown-
+     * only, Excel had no distribution, PDF had no feedback). Order matches the screen.
+     */
+    private function csatExportSections(array $viewer, array $normalizedFilters, array $rows, int $feedbackLimit): array
+    {
+        $summary = $this->buildCsatSummary($rows);
+        $distribution = $this->buildCsatDistribution($viewer, $normalizedFilters, (int) ($summary['rating_count'] ?? 0));
+        $feedback = $this->collectCsatFeedback($viewer, $normalizedFilters, $feedbackLimit);
+
+        return [
+            ['title' => 'สรุปความพึงพอใจ', 'headers' => ['ตัวชี้วัด', 'ค่า'], 'rows' => [
+                ['คะแนนเฉลี่ย', $summary['avg_label']],
+                ['จำนวนรีวิว', $summary['rating_count']],
+                ['พอใจ (4–5 ดาว)', $summary['satisfied']],
+                ['สัดส่วนพอใจ', $summary['satisfied_pct_label']],
+                ['ไม่พอใจ (1–2 ดาว)', $summary['dissatisfied']],
+                ['สัดส่วนไม่พอใจ', $summary['dissatisfied_pct_label']],
+            ]],
+            ['title' => 'การกระจายคะแนน', 'headers' => ['คะแนน', 'จำนวน', 'สัดส่วน'], 'rows' => array_map(
+                static fn (array $b): array => [$b['score'], $b['count'], $b['pct_label']],
+                $distribution
+            )],
+            ['title' => 'ความพึงพอใจ', 'headers' => $this->csatExportHeaders($normalizedFilters['dimension']), 'rows' => array_map(fn (array $r): array => $this->csatExportRow($r), $rows)],
+            ['title' => 'ความคิดเห็น', 'headers' => $this->csatFeedbackExportHeaders(), 'rows' => array_map(fn (array $r): array => $this->csatFeedbackExportRow($r), $feedback)],
+        ];
+    }
+
     public function exportCsatCsv(array $viewer, array $filters = []): array
     {
         $this->ensureCanViewReports($viewer);
@@ -2344,9 +2373,9 @@ class ReportService
         $fileName = 'csat-' . date('Ymd-His') . '.csv';
 
         try {
-            $content = $this->exporter->buildCsvExport(
-                $this->csatExportHeaders($normalizedFilters['dimension']),
-                array_map(fn ($row): array => $this->csatExportRow($row), $rows)
+            // all 4 sections (summary + distribution + breakdown + feedback), same as Excel / screen
+            $content = $this->exporter->buildCsvSections(
+                $this->csatExportSections($viewer, $normalizedFilters, $rows, self::CSAT_FEEDBACK_EXPORT_LIMIT)
             );
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
@@ -2363,29 +2392,19 @@ class ReportService
         $normalizedFilters = $this->normalizeCsatFilters($filters);
         $rows = $this->collectCsatRows($viewer, $normalizedFilters);
         // Excel ดึง feedback ได้มากกว่าหน้าจอ (ตามที่ UI แจ้งว่า "ดูใน Excel") — เพดาน repo = 500
-        $feedback = $this->collectCsatFeedback($viewer, $normalizedFilters, self::CSAT_FEEDBACK_EXPORT_LIMIT);
+        $sections = $this->csatExportSections($viewer, $normalizedFilters, $rows, self::CSAT_FEEDBACK_EXPORT_LIMIT);
         $jobId = $this->createExportJob((int) ($viewer['id'] ?? 0), 'csat_report', 'xlsx', $normalizedFilters);
         $fileName = 'csat-' . date('Ymd-His') . '.xlsx';
 
         try {
             $spreadsheet = new Spreadsheet();
 
-            // Sheet 1 — สรุปแย่สุดต่อมิติ (active sheet) — ผ่าน shared writer เดียวกับ export อื่น
-            // เพื่อให้ %พอใจ/%ไม่พอใจ เป็นตัวเลขจริง (pivot/sum ได้) ไม่ใช่ text (BI-review #4 — ปิด gap #2)
-            $this->exporter->fillSheet(
-                $spreadsheet->getActiveSheet(),
-                'ความพึงพอใจ',
-                $this->csatExportHeaders($normalizedFilters['dimension']),
-                array_map(fn (array $row): array => $this->csatExportRow($row), $rows)
-            );
-
-            // Sheet 2 — feedback ดิบ (คะแนนแย่ก่อน) — ใช้ helper ร่วม (sanitize ในตัว)
-            $this->exporter->addExcelSheet(
-                $spreadsheet,
-                'ความคิดเห็น',
-                $this->csatFeedbackExportHeaders(),
-                array_map(fn (array $row): array => $this->csatFeedbackExportRow($row), $feedback)
-            );
+            // All 4 sections as sheets (parity with CSV / screen). summary + distribution + breakdown go through
+            // the numeric writer (%พอใจ / %กระจาย เป็นตัวเลขจริง pivot/sum ได้); feedback is text.
+            $this->exporter->fillSheet($spreadsheet->getActiveSheet(), $sections[0]['title'], $sections[0]['headers'], $sections[0]['rows']);
+            $this->exporter->fillSheet($spreadsheet->createSheet(), $sections[1]['title'], $sections[1]['headers'], $sections[1]['rows']);
+            $this->exporter->fillSheet($spreadsheet->createSheet(), $sections[2]['title'], $sections[2]['headers'], $sections[2]['rows']);
+            $this->exporter->addExcelSheet($spreadsheet, $sections[3]['title'], $sections[3]['headers'], $sections[3]['rows']);
 
             $spreadsheet->setActiveSheetIndex(0);
 
@@ -2425,6 +2444,8 @@ class ReportService
                 'summary' => $summary,
                 'distribution' => $this->buildCsatDistribution($viewer, $normalizedFilters, $summary['rating_count']),
                 'rows' => $rows,
+                // feedback comments — the screen shows them, so the PDF should too (export parity)
+                'feedback' => $this->collectCsatFeedback($viewer, $normalizedFilters, self::CSAT_FEEDBACK_EXPORT_LIMIT),
                 'filters' => $this->describeFilters($normalizedFilters, $this->reports->getFilterReferenceData()),
             ]);
 

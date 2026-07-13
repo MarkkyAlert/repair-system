@@ -108,5 +108,30 @@
     <?php endforeach; ?>
     </tbody>
 </table>
+<?php if (!empty($feedback ?? [])): // ความคิดเห็นจากผู้ใช้ — ให้ตรงกับหน้าจอ (export parity) ?>
+<p class="section-title">ความคิดเห็นจากผู้ใช้ (คะแนนน้อยสุดก่อน)</p>
+<table class="report-table">
+    <thead>
+    <tr>
+        <th>เลขที่ Ticket</th>
+        <th class="num">คะแนน</th>
+        <th>ความคิดเห็น</th>
+        <th>ช่าง</th>
+        <th>วันที่</th>
+    </tr>
+    </thead>
+    <tbody>
+    <?php foreach (($feedback ?? []) as $fb): ?>
+        <tr>
+            <td><?= e((string) ($fb['ticket_no'] ?? '-')) ?></td>
+            <td class="num"><?= e((string) ($fb['score'] ?? '-')) ?></td>
+            <td><?= e((string) ($fb['feedback'] ?? '')) ?></td>
+            <td><?= e((string) ($fb['technician_name'] ?? '-')) ?></td>
+            <td><?= e((string) ($fb['created_at'] ?? '-')) ?></td>
+        </tr>
+    <?php endforeach; ?>
+    </tbody>
+</table>
+<?php endif; ?>
 </body>
 </html>
