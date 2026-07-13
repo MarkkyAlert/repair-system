@@ -151,6 +151,12 @@ class AuthService
 
         $user = $this->users->findByEmail($email);
         if (!$user || !(bool) $user['is_active']) {
+            // Anti-enumeration: an unknown/inactive email produces NO token and NO email — so account existence
+            // can't leak via a reset row, a delivered mail, or a queue side effect. The response text is the
+            // same generic message either way (AuthController), and the rate-limiter above was hit
+            // unconditionally. The remaining timing delta (an active account does ~2 extra DB writes) is an
+            // accepted, rate-limited residual — the DB-write signal is small and noisy, unlike login's bcrypt.
+            // Side-effect parity is locked by auth_test 'password reset creates a token+email ONLY for active'.
             return null;
         }
 

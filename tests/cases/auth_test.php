@@ -95,6 +95,24 @@ function auth_password_hash(int $userId): string
     return (string) auth_pdo()->query('SELECT password_hash FROM users WHERE id = ' . $userId)->fetchColumn();
 }
 
+/** How many password_resets rows exist for an email (side-effect probe for the reset anti-enumeration test). */
+function auth_reset_row_count(string $email): int
+{
+    $stmt = auth_pdo()->prepare('SELECT COUNT(*) FROM password_resets WHERE email = ?');
+    $stmt->execute([$email]);
+
+    return (int) $stmt->fetchColumn();
+}
+
+/** How many email_queue rows are addressed to an email (side-effect probe for the reset anti-enumeration test). */
+function auth_queued_email_count(string $email): int
+{
+    $stmt = auth_pdo()->prepare('SELECT COUNT(*) FROM email_queue WHERE to_email = ?');
+    $stmt->execute([$email]);
+
+    return (int) $stmt->fetchColumn();
+}
+
 // ── password reset: pure validation (throws before touching the repo — no seed needed) ──
 
 test('auth: resetPassword throws when new password != confirmation', function (): void {
@@ -304,6 +322,46 @@ test('auth(anti-enumeration): an unknown login still spends a bcrypt verify — 
         auth_cleanup(null, [$unknownLogin]);
         auth_rate_limiter()->clear('login:' . sha1(strtolower($unknownLogin) . '|' . $ip));
         auth_rate_limiter()->clear('login-ip:' . sha1($ip));
+    }
+});
+
+// F2: password-reset anti-enumeration — SIDE-EFFECT parity. The response text is already identical for known
+// and unknown emails (AuthController flashes one generic message) and the rate-limiter is hit unconditionally,
+// so this locks the OTHER observable channel: an unknown / inactive email must leave NO reset row and NO queued
+// email, while an active one creates exactly one of each — otherwise a leaked token, a delivered mail, or a
+// queue side effect would reveal which emails are real accounts. (The residual DB-write timing delta between
+// the branches is an accepted, rate-limited residual — documented in createPasswordReset.)
+test('auth(anti-enumeration): password reset creates a token+email ONLY for an active account; unknown/inactive leave no trace', function (): void {
+    $active = auth_seed_user();
+    $inactive = auth_seed_user(['is_active' => 0]);
+    $unknownEmail = 'ghost_' . bin2hex(random_bytes(4)) . '@example.com';
+    $ip = '203.0.113.12';
+    $_SERVER['REMOTE_ADDR'] = $ip;
+
+    try {
+        // active → a url is returned, and exactly one reset row + one queued email are created
+        $url = auth_service()->createPasswordReset($active['email']);
+        assert_true($url !== null, 'an active account gets a reset url');
+        assert_same(1, auth_reset_row_count($active['email']), 'active → exactly one reset row');
+        assert_same(1, auth_queued_email_count($active['email']), 'active → exactly one queued email');
+
+        // inactive → null and NO side effect (existence must not leak via a token/mail)
+        assert_true(auth_service()->createPasswordReset($inactive['email']) === null, 'inactive account returns null');
+        assert_same(0, auth_reset_row_count($inactive['email']), 'inactive → no reset row');
+        assert_same(0, auth_queued_email_count($inactive['email']), 'inactive → no queued email');
+
+        // unknown → null and NO side effect
+        assert_true(auth_service()->createPasswordReset($unknownEmail) === null, 'unknown email returns null');
+        assert_same(0, auth_reset_row_count($unknownEmail), 'unknown → no reset row');
+        assert_same(0, auth_queued_email_count($unknownEmail), 'unknown → no queued email');
+    } finally {
+        foreach ([$active['email'], $inactive['email'], $unknownEmail] as $em) {
+            auth_delete_resets($em);
+            auth_pdo()->prepare('DELETE FROM email_queue WHERE to_email = ?')->execute([$em]);
+            auth_rate_limiter()->clear('pwreset:' . sha1($em . '|' . $ip));
+        }
+        auth_cleanup($active['id']);
+        auth_cleanup($inactive['id']);
     }
 });
 
