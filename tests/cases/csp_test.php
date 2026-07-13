@@ -52,3 +52,15 @@ test('csp(nonce): a per-request nonce is non-empty and stable within the request
     assert_true(strlen($a) >= 16, 'the nonce carries real entropy');
     assert_contains_str("'nonce-{$a}'", content_security_policy($a), 'the policy embeds the live nonce');
 });
+
+// The non-CSP security headers (nosniff / X-Frame-Options / Referrer-Policy) now live in application code
+// (security_headers(), emitted once per request in public/index.php) instead of relying only on the Apache
+// .htaccess copy — so a buyer on nginx, or Apache with AllowOverride None, still gets them. This locks the set
+// and each value; drop or weaken one and this reddens. (security-review: headers-in-code, not .htaccess-only)
+test('security_headers(): nosniff + clickjacking + referrer defenses are set in code, not .htaccess only', function (): void {
+    $headers = security_headers();
+
+    assert_same('nosniff', $headers['X-Content-Type-Options'] ?? null, 'X-Content-Type-Options: nosniff — no MIME sniffing an inline attachment into HTML');
+    assert_same('SAMEORIGIN', $headers['X-Frame-Options'] ?? null, 'X-Frame-Options: SAMEORIGIN — legacy clickjacking defense for browsers without CSP frame-ancestors');
+    assert_same('strict-origin-when-cross-origin', $headers['Referrer-Policy'] ?? null, "Referrer-Policy — don't leak full URLs (ids/tokens) cross-origin");
+});

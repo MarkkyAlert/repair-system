@@ -16,6 +16,11 @@ if (is_unsafe_production_debug((string) config('app.env', 'production'), (bool) 
     exit('Server misconfigured (debug enabled in production). See the server log.');
 }
 
+// Set the static security headers (nosniff / X-Frame-Options / Referrer-Policy) in code so they hold on any
+// server, not just Apache-with-.htaccess. Done before dispatch so every response — including the /setup
+// redirect below and file downloads — carries them. CSP is emitted per-response in View::render (needs the nonce).
+emit_security_headers();
+
 try {
     $request = Request::capture();
     $container->instance(Request::class, $request);

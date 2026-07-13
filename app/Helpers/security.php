@@ -39,3 +39,38 @@ function content_security_policy(string $nonce): string
         "frame-ancestors 'self'",
     ]);
 }
+
+/**
+ * Static (non-CSP) security response headers. These mirror the `Header always set` lines in public/.htaccess,
+ * but living in application code means a buyer who deploys behind nginx, or on Apache with AllowOverride None,
+ * still gets them — the .htaccess copy is a belt-and-suspenders for Apache, not the only source. CSP is emitted
+ * separately (View::render) because it carries a per-request nonce; these three are constant so they live here.
+ *
+ * @return array<string, string>
+ */
+function security_headers(): array
+{
+    return [
+        // stop browsers MIME-sniffing a response into a more dangerous type (e.g. an inline attachment → HTML)
+        'X-Content-Type-Options' => 'nosniff',
+        // legacy clickjacking defense; CSP frame-ancestors 'self' covers modern browsers, this covers the rest
+        'X-Frame-Options' => 'SAMEORIGIN',
+        // don't leak full URLs (with ids/tokens) in the Referer to other origins
+        'Referrer-Policy' => 'strict-origin-when-cross-origin',
+    ];
+}
+
+/**
+ * Emit security_headers() on the current response. Called once per request (public/index.php) so every
+ * response type — HTML, JSON, file download, redirect — inherits them, regardless of web server. No-op once
+ * output has begun (CLI/tests), matching the CSP guard in View::render.
+ */
+function emit_security_headers(): void
+{
+    if (headers_sent()) {
+        return;
+    }
+    foreach (security_headers() as $name => $value) {
+        header($name . ': ' . $value);
+    }
+}
