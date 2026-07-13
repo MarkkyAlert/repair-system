@@ -355,6 +355,73 @@ test('lineage(e2e): a full reopen cycle freezes the first cycle SLA snapshot + a
     }
 });
 
+test('lineage(e2e): the trend reads its SLA from the frozen per-cycle track, not the mutable resolution_due_at (F1 Phase 2 Part B2)', function (): void {
+    // The as-reported trend now sources each period's SLA verdict from the resolve's CYCLE snapshot
+    // (ticket_sla_tracks.target_at), NOT the current t.resolution_due_at that a reopen overwrites. Proven through
+    // the REAL resolve flow: technician 3 resolves cycle 1 well within target → the trend period shows 100%; we
+    // then mutate t.resolution_due_at into the deep past (standing in for the reopen that rewrites that column)
+    // and the SAME period still reads 100% — the frozen cycle-1 track, immune to the current-column mutation.
+    // Under the pre-B2 read (which compared the resolve to t.resolution_due_at) this would flip to a false 0%.
+    // NOTE (real-flow limitation, see docs/as-reported-analytics.md): driven in one session both closures land in
+    // the same calendar bucket, so the CROSS-PERIOD immutability (period 1 keeps cycle 1 while period 2 shows
+    // cycle 2) is locked by the ticket_trend_report_test unit test with controlled timestamps + seeded rating
+    // cycles; here the E2E proves the SLA per-cycle READ is wired to the real flow and ignores the mutable column.
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $tech = ['id' => 3, 'role' => 'technician'];
+    $requester = ['id' => 1, 'role' => 'requester'];
+
+    $monthFilter = ['granularity' => 'month', 'from_date' => date('Y-m-01'), 'to_date' => date('Y-m-d')];
+    $curKey = date('Y-m');
+    $trendPeriod = static function () use ($admin, $monthFilter, $curKey): ?array {
+        foreach (lin_reports()->getTicketTrendReportPage($admin, $monthFilter)['periods'] as $p) {
+            if ($p['key'] === $curKey) {
+                return $p;
+            }
+        }
+
+        return null;
+    };
+
+    $ref = tvm_container()->get(TicketReadRepository::class)->getCreateFormReferenceData();
+    $ticketId = lin_tickets()->createTicket($requester, [
+        'submission_token' => bin2hex(random_bytes(32)),
+        'title' => 'LIN trend-sla e2e ' . bin2hex(random_bytes(3)),
+        'description' => 'per-cycle trend SLA read lineage probe',
+        'priority_id' => (int) $ref['priorities'][0]['id'],
+        'ticket_category_id' => (int) $ref['categories'][0]['id'],
+        'location_id' => (int) $ref['locations'][0]['id'],
+        'impact_level' => 'medium',
+        'urgency_level' => 'medium',
+    ], []);
+
+    try {
+        // resolve cycle 1 through the REAL workflow — resolved instantly, well within the SLA target → MET
+        lin_wf()->approveTicket($ticketId, $admin, ['note' => '']);
+        lin_wf()->assignTechnician($ticketId, $admin, ['technician_id' => 3, 'instructions' => '']);
+        lin_wf()->acceptAssignedWork($ticketId, $tech, ['accept_note' => '']);
+        lin_wf()->startAssignedWork($ticketId, $tech, ['start_note' => '']);
+        lin_wf()->resolveAssignedWork($ticketId, $tech, ['diagnosis_summary' => 'd', 'resolution_summary' => 'r', 'labor_minutes' => '30']);
+
+        // the flow wrote a cycle-1 resolution track; the trend reads it → this month's SLA = 100% (met), base 1
+        $before = $trendPeriod();
+        assert_true($before !== null, 'the current month period exists');
+        assert_true((int) $before['sla_base'] >= 1, 'the trend counts the real cycle-1 resolution track as SLA base');
+        assert_same('100.0%', $before['sla_pct_label'], 'the real cycle-1 resolve is on time → the trend period shows 100%');
+
+        // simulate the current-column mutation a reopen performs: rewrite t.resolution_due_at into the deep past.
+        // A read that (wrongly) used this column would now judge the resolve LATE → a false 0%.
+        lin_pdo()->prepare('UPDATE tickets SET resolution_due_at = ? WHERE id = ?')->execute(['2000-01-01 00:00:00', $ticketId]);
+
+        $after = $trendPeriod();
+        assert_true($after !== null, 'the current month period still exists after the column mutation');
+        assert_same((int) $before['sla_base'], (int) $after['sla_base'], 'SLA base unchanged — sourced from the cycle track, not resolution_due_at');
+        assert_same('100.0%', $after['sla_pct_label'], 'the trend still reads the FROZEN cycle-1 target → 100%, immune to the resolution_due_at mutation (pre-B2 would flip to 0%)');
+    } finally {
+        lin_pdo()->prepare("DELETE FROM notifications WHERE related_type = 'ticket' AND related_id = ?")->execute([$ticketId]);
+        lin_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]); // cascades logs / sla_tracks / ratings / work_orders
+    }
+});
+
 // ── F2: status contract — the report's status filters ⊆ the real tickets.status enum ──
 
 /** The value list of the tickets.status ENUM, parsed from schema.sql (the single source of truth). */
