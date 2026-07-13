@@ -88,36 +88,74 @@ The `/reports` **overview mini** technician table stays a current-assignee quick
 workload beside it); the dedicated Technician Performance report is the intended as-reported record and is
 addressed in Phase 2 below.
 
-## Phase 2 (scoped follow-up) — attribution surfaces + per-cycle SLA + CSAT snapshots
+## Phase 2 (this PR) — attribution surfaces + per-cycle SLA + CSAT snapshots
 
-### Technician-report + reopen-dimension attribution (deferred — test-intent collisions)
+### Part A — resolver attribution (shipped)
 
-Event-sourcing the **technician-report** resolved/MTTR columns and the **reopen technician dimension** to the
-resolve-event actor is correct, but each collides with owner-documented behaviour that a faithful migration
-must *rewrite*, not merely re-seed — so each belongs in its own reviewable change:
+Event-sourced the two attribution surfaces to the resolve-event **actor** (who actually resolved), not
+`t.assigned_technician_id` (the current assignee, which a post-resolve reassign would move):
 
-- `technician_performance_report_test.php`: "status='resolved' with NULL resolved_at → `resolved`=1, MTTR
-  '-'" encodes the resolved_at-based rule. Under event-sourcing MTTR comes from the event, so this case's
-  meaning changes (a status-resolved ticket with no resolve event is simply not counted).
-- `reopen_rate_report_test.php`: "null technician → ยังไม่มอบหมาย" asserts the *current-assignee* semantics;
-  resolver attribution puts the ticket under its resolver instead. The fix must join to the ticket's
-  **representative** (latest) resolver — one resolver per ticket — to keep the cross-dimension resolved-total
-  invariant, and the test's documented intent updated with the owner.
+- **Technician Performance report** — new `ReportRepository::getTechnicianResolverStats()` aggregates the
+  immutable `ticket_resolved` log keyed by actor: each `(resolver, ticket)` collapses to one representative
+  resolve (`MAX(created_at)`), window filters on the event's `created_at`, backwards timestamps
+  (`resolve < requested_at`) are dropped so MTTR is never negative — the same rules as the Phase 1 trend.
+  `ReportService` overlays `resolved` / `mttr` / `resolution_base` onto each technician row (screen + export
+  share `collectTechnicianPerformanceRows`, so parity holds). `assigned` / SLA / first-response / ratings /
+  labor stay assignment-keyed; the `/reports` overview mini stays a current-assignee snapshot.
+- **Reopen/FTF technician dimension** — `getReopenByDimension('technician')` now joins to the ticket's
+  **representative resolver**: the actor of its latest-in-window `ticket_resolved` event, exactly ONE resolver
+  per ticket (a correlated `rv.id = (… ORDER BY created_at DESC, id DESC LIMIT 1)`), so each ticket maps to a
+  single technician group and the **cross-dimension resolved-total invariant** (Σ over technician == Σ over
+  department) holds. Genuinely unattributed (→ ยังไม่มอบหมาย) only when the resolve event has a NULL actor.
 
-### Per-cycle SLA + CSAT snapshots
+Rewrote the two colliding test intents (not merely re-seeded), per the owner decision:
+- `technician_performance_report_test.php`: "status='resolved' + NULL resolved_at → resolved=1, MTTR '-'"
+  → under event-sourcing a status-resolved ticket with **no resolve event** is simply **not counted**
+  (resolved=0, MTTR '-'); production always writes the event. Other seed-only tech tests were migrated to
+  write the `ticket_resolved` event.
+- `reopen_rate_report_test.php`: "null technician → ยังไม่มอบหมาย" (current-assignee semantics) → now proves
+  resolver attribution, the NULL-actor unattributed path, and the preserved cross-dimension invariant.
 
-To make SLA and CSAT fully immutable, stop overwriting per-cycle state:
+E2E (`report_lineage_test.php`): tech 3 resolves, the ticket is reassigned to another tech — the Technician
+Performance report and reopen dimension both keep the closure credited to tech 3, never the new assignee.
 
-- **`ticket_sla_tracks`**: add a `cycle` column, drop `UNIQUE(ticket_id, metric_type)` in favour of
-  `UNIQUE(ticket_id, metric_type, cycle)`. `reopenTicket` **appends** a new cycle instead of resetting;
-  `markSlaAchieved` targets the latest cycle. Current-state SLA queries (summary "overdue", hotspot,
-  backlog) filter to the **latest** cycle; as-reported period queries pick the cycle whose
-  resolve/breach falls in the window.
-- **`ticket_ratings`**: drop `UNIQUE(ticket_id)`; append a rating row per cycle; CSAT-by-period reads
-  the rating whose cycle resolved in the window.
-- **Reopen technician dimension**: join to the actor of the ticket's **representative** (latest-in-
-  cohort) resolve event — one resolver per ticket — preserving the cross-dimension invariant.
+### Part B — per-cycle SLA + CSAT snapshots (shipped: schema + writers + readers; trend read checkpointed)
 
-This touches ~10 SLA/CSAT read sites and ~15 test files, so it is a separate reviewable change. Until
-it lands, Phase 1 already makes the headline metric (throughput/MTTR/attribution) immutable, and SLA/CSAT
-per period are **no worse than today** (today a reopened ticket vanishes from the period entirely).
+Schema: `ticket_sla_tracks` gains `cycle` (UNIQUE → `ticket_id, metric_type, cycle`); `ticket_ratings` gains
+`cycle` (UNIQUE → `ticket_id, cycle`). `database/schema.sql` + `ALTER` on `repair_system` and
+`repair_system_test`; existing rows default to cycle 1.
+
+Writers (`TicketRepository`): `reopenTicket` **appends** a fresh pending SLA cycle (`currentTicketCycle()+1`)
+instead of resetting the row, so a past cycle's due-date + met/breached verdict is frozen; `markSlaAchieved` /
+`resetSlaTrack` target the **latest** cycle; `upsertTicketRating` **appends** a rating per cycle (idempotent
+within a cycle) instead of UPDATE-in-place.
+
+Readers: every **current-state** SLA/CSAT surface (dashboard + report summary overdue/breached, ticket detail
+SLA + rating, sla-compliance / sla-breach current, problem-hotspot, "breached" list filters, pending-SLA
+escalation list, technician + overview avg-rating) is pinned to the ticket's **latest** cycle via shared
+`latestSlaCycleClause()` / `latestRatingCycleClause()` helpers — keeping every join fan-out-free now that
+these tables are 1:many. **CSAT-by-period** reads (`getRatingByDimension` / `Distribution` / `Feedback`) stay
+windowed on `tr.created_at`, which is now genuinely as-reported: an old cycle's rating keeps its original date
++ score, so a re-rate no longer restates a past period (locked by a new `csat_report_test.php` reconciliation
+test). E2E (`report_lineage_test.php`): a full reopen cycle through the real services freezes the first
+cycle's resolution-SLA snapshot byte-for-byte and stores the rating against the cycle actually rated.
+
+**Note on the reopen→re-rate path:** the requester workflow only allows a reopen from `resolved` (a
+`completed`/rated ticket is final — an unhappy requester duplicates instead), so a ticket is rated at most
+once through the real flow. The per-cycle rating schema is still the correct immutable design and makes
+CSAT-by-period fan-out-safe; the reconciliation test seeds two cycles directly to prove the period immutability.
+
+### Checkpoint — Part B2: per-cycle TREND SLA/CSAT (documented follow-up)
+
+The **trend** report's per-period SLA/CSAT columns (`getTicketTrendResolved`) still use the Phase-1
+best-effort: the current `t.resolution_due_at` + the latest rating, attached to the ticket's **final** resolve
+bucket (`is_final`; the rating join is now pinned to the latest cycle so it can't fan out). The per-cycle
+snapshots are now **persisted** (reopen/re-rate append), so this is a pure **read** rework — but it needs a
+`resolve-event ordinal → cycle` mapping (the event log has no `cycle` column) to attach each cycle's frozen
+SLA verdict / rating to the bucket where that cycle resolved, plus migrating the trend tests (which seed the
+`t.resolution_due_at` column + a single rating rather than per-cycle `ticket_sla_tracks` rows). Consequence
+until it lands: the **first** period of a reopened ticket still shows no SLA/CSAT (its later cycle carries
+them) — no worse than Phase 1, and the primary SLA compliance + CSAT-by-period reports are already
+as-reported. Cleanest approach when picked up: compute per-bucket SLA directly from `ticket_sla_tracks`
+resolution rows bucketed by `achieved_at`, and per-bucket CSAT from `ticket_ratings` bucketed by
+`created_at`, merged by bucket in the service alongside the event-sourced resolved/MTTR.
