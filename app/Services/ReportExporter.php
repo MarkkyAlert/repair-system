@@ -128,14 +128,36 @@ class ReportExporter
      */
     public function buildCsvExport(array $headers, array $rows): string
     {
+        return $this->buildCsvSections([['headers' => $headers, 'rows' => $rows]]);
+    }
+
+    /**
+     * Multi-section CSV: one UTF-8 BOM (so Excel reads Thai), then each section as an optional title row + header
+     * row + sanitised data rows, separated by a blank line. Lets the /reports CSV carry the ticket table AND the
+     * analytics blocks (parity with the Excel sheets / screen) while each block stays a clean pivotable table.
+     * Each section = ['headers' => string[], 'rows' => array<array>, 'title' => ?string].
+     */
+    public function buildCsvSections(array $sections): string
+    {
         $stream = fopen('php://temp', 'w+b');
         if ($stream === false) {
             throw new RuntimeException('ไม่สามารถเตรียมไฟล์ CSV ได้');
         }
         fwrite($stream, "\xEF\xBB\xBF");
-        fputcsv($stream, $headers);
-        foreach ($rows as $row) {
-            fputcsv($stream, $this->sanitizeExportRow($row));
+        $first = true;
+        foreach ($sections as $section) {
+            if (!$first) {
+                fputcsv($stream, []); // blank line between sections
+            }
+            $first = false;
+            $title = (string) ($section['title'] ?? '');
+            if ($title !== '') {
+                fputcsv($stream, [$title]);
+            }
+            fputcsv($stream, (array) ($section['headers'] ?? []));
+            foreach ((array) ($section['rows'] ?? []) as $row) {
+                fputcsv($stream, $this->sanitizeExportRow((array) $row));
+            }
         }
         rewind($stream);
         $content = (string) stream_get_contents($stream);

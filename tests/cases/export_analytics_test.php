@@ -4,11 +4,12 @@ declare(strict_types=1);
 use App\Services\ReportService;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
-// Tests that the report export carries the same 4 analytics as the on-screen panels:
+// Tests that the report export carries the same 4 analytics as the on-screen panels, in EVERY format:
 //  - Excel workbook gets 5 sheets (ticket + SLA / technician / labor / asset) with the right titles.
 //  - The SLA sheet always carries the "รวมทั้งหมด" overall row (present even with no priority breakdown).
 //  - PDF still renders (starts with %PDF-) once analytics sections are injected into the view.
-//  - CSV stays raw ticket rows (single-table, analytics deliberately excluded).
+//  - CSV carries the ticket table + the same 4 analytics blocks (BI-review F4 — one export contract across
+//    formats; the sections come from ReportService::reportAnalyticsSections, the single source shared with Excel).
 // Structural assertions only (no seeded-value coupling) so it holds regardless of test-DB contents.
 
 function ea_service(): ReportService
@@ -53,7 +54,7 @@ test('export analytics: xlsx has 5 sheets (ticket + 4 analytics) with correct ti
     }
 });
 
-test('export analytics: pdf still renders (%PDF-) and csv stays raw ticket rows', function (): void {
+test('export analytics: pdf still renders (%PDF-) and csv carries the ticket table + 4 analytics blocks', function (): void {
     $admin = ['id' => 4, 'role' => 'admin'];
     $baselineJobId = (int) ea_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM export_jobs')->fetchColumn();
 
@@ -63,9 +64,13 @@ test('export analytics: pdf still renders (%PDF-) and csv stays raw ticket rows'
 
         $csv = ea_service()->exportCsv($admin, []);
         $csvBody = (string) $csv['content'];
-        // BOM + ticket header row; analytics section titles must NOT leak into the single-table CSV.
-        assert_true(str_contains($csvBody, 'เลขที่'), 'csv keeps ticket header');
-        assert_false(str_contains($csvBody, 'SLA ตรงตามกำหนด'), 'csv stays raw ticket rows (no analytics section)');
+        assert_same("\xEF\xBB\xBF", substr($csvBody, 0, 3), 'csv begins with the UTF-8 BOM (Excel reads Thai)');
+        assert_true(str_contains($csvBody, 'เลขที่'), 'csv keeps the ticket table (first block)');
+        // F4: the CSV now carries the SAME 4 analytics blocks as the Excel sheets / screen (export parity)
+        foreach (['SLA ตรงตามกำหนด', 'ผลงานช่างเทคนิค', 'ชั่วโมงแรงงาน', 'ทรัพย์สินเสียบ่อย'] as $section) {
+            assert_true(str_contains($csvBody, $section), "csv carries the '$section' analytics block");
+        }
+        assert_true(str_contains($csvBody, 'รวมทั้งหมด'), 'csv SLA block includes the overall row (same as the Excel sheet)');
     } finally {
         ea_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
     }

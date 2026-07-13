@@ -3000,15 +3000,22 @@ class ReportService
         $fileName = 'ticket-report-' . date('Ymd-His') . '.csv';
 
         try {
-            $content = $this->exporter->buildCsvExport(
-                ['เลขที่', 'หัวข้อ', 'ผู้แจ้ง', 'แผนก', 'หมวดหมู่', 'ช่างเทคนิค', 'ความสำคัญ', 'สถานะ', 'วันที่แจ้ง', 'วันที่แก้ไข', 'เวลาแก้ไข (ชม.)', 'เกิน SLA', 'สถานะ SLA', 'คะแนน', 'สถานที่'],
-                array_map(fn ($row): array => [
+            // The CSV carries the ticket table PLUS the same 4 analytics blocks as the Excel sheets / screen, so
+            // a manager who exports CSV gets the same conclusions as the other formats (BI-review F4). The ticket
+            // table stays the first block (a clean pivotable table); the analytics follow as titled blocks.
+            $ticketSection = [
+                'headers' => ['เลขที่', 'หัวข้อ', 'ผู้แจ้ง', 'แผนก', 'หมวดหมู่', 'ช่างเทคนิค', 'ความสำคัญ', 'สถานะ', 'วันที่แจ้ง', 'วันที่แก้ไข', 'เวลาแก้ไข (ชม.)', 'เกิน SLA', 'สถานะ SLA', 'คะแนน', 'สถานที่'],
+                'rows' => array_map(fn ($row): array => [
                     $row['ticket_no'], $row['title'], $row['requester_name'], $row['department_name'],
                     $row['category_name'], $row['technician_name'], $row['priority_label'], $row['status_label'],
                     $row['requested_at'], $row['resolved_at'], $row['resolution_hours_label'],
                     $row['sla_overdue_label'], $row['sla_label'], $row['rating_label'], $row['location_name'],
-                ], $rows)
-            );
+                ], $rows),
+            ];
+            $content = $this->exporter->buildCsvSections(array_merge(
+                [$ticketSection],
+                $this->reportAnalyticsSections($this->collectAnalytics($viewer, $normalizedFilters))
+            ));
             $this->reports->markExportJobCompleted($jobId, $fileName);
 
             return ['content' => $content, 'file_name' => $fileName, 'content_type' => 'text/csv; charset=UTF-8'];
@@ -3018,8 +3025,11 @@ class ReportService
         }
     }
 
-    /** เพิ่ม sheet analytics 4 ตัวเข้า workbook (ต่อจาก sheet ticket) ให้ export ตรงกับหน้าจอ. */
-    private function appendAnalyticsSheets(Spreadsheet $spreadsheet, array $analytics): void
+    /**
+     * The 4 analytics sections (title / headers / rows) — SINGLE SOURCE so the Excel sheets, the CSV blocks and
+     * the on-screen panels all carry the same data (export parity by construction). Each = ['title','headers','rows'].
+     */
+    private function reportAnalyticsSections(array $analytics): array
     {
         $overall = $analytics['slaCompliance']['overall'] ?? [];
         $slaRows = [[
@@ -3033,28 +3043,21 @@ class ReportService
                 $p['resolution']['met'], $p['resolution']['breached'], $p['resolution']['pct_label'],
             ];
         }
-        $this->exporter->addExcelSheet($spreadsheet, 'SLA ตรงตามกำหนด', ['ระดับความสำคัญ', 'ตอบรับ ตรง', 'ตอบรับ เกิน', 'ตอบรับ %', 'แก้ไข ตรง', 'แก้ไข เกิน', 'แก้ไข %'], $slaRows);
 
-        $this->exporter->addExcelSheet(
-            $spreadsheet,
-            'ผลงานช่างเทคนิค',
-            ['ช่าง', 'มอบหมาย', 'ปิดงาน', 'ค้าง', 'อัตราปิดงาน', 'เวลาซ่อมเฉลี่ย (ชม.)', 'คะแนนเฉลี่ย', 'ชม.แรงงาน'],
-            array_map(static fn (array $t): array => [$t['full_name'], $t['assigned'], $t['resolved'], $t['open'], $t['completion_label'], $t['mttr_hours_label'], $t['avg_rating_label'], $t['labor_hours_label']], $analytics['technicianPerformance'] ?? [])
-        );
+        return [
+            ['title' => 'SLA ตรงตามกำหนด', 'headers' => ['ระดับความสำคัญ', 'ตอบรับ ตรง', 'ตอบรับ เกิน', 'ตอบรับ %', 'แก้ไข ตรง', 'แก้ไข เกิน', 'แก้ไข %'], 'rows' => $slaRows],
+            ['title' => 'ผลงานช่างเทคนิค', 'headers' => ['ช่าง', 'มอบหมาย', 'ปิดงาน', 'ค้าง', 'อัตราปิดงาน', 'เวลาซ่อมเฉลี่ย (ชม.)', 'คะแนนเฉลี่ย', 'ชม.แรงงาน'], 'rows' => array_map(static fn (array $t): array => [$t['full_name'], $t['assigned'], $t['resolved'], $t['open'], $t['completion_label'], $t['mttr_hours_label'], $t['avg_rating_label'], $t['labor_hours_label']], $analytics['technicianPerformance'] ?? [])],
+            ['title' => 'ชั่วโมงแรงงาน', 'headers' => ['หมวดหมู่งาน', 'จำนวนงาน', 'งานที่บันทึกแรงงาน', 'รวมชั่วโมง', 'เฉลี่ย/งาน (ชม.)'], 'rows' => array_map(static fn (array $c): array => [$c['category_name'], $c['tickets'], $c['labored_tickets'], $c['labor_hours_label'], $c['avg_hours_label']], $analytics['laborEffort']['byCategory'] ?? [])],
+            ['title' => 'ทรัพย์สินเสียบ่อย', 'headers' => ['รหัส', 'ชื่อ', 'หมวดหมู่', 'สถานที่', 'สถานะ', 'จำนวนครั้ง', 'ครั้งล่าสุด', 'เวลาซ่อมเฉลี่ย (ชม.)', 'ชม.แรงงาน'], 'rows' => array_map(static fn (array $a): array => [$a['asset_code'], $a['name'], $a['category_name'], $a['location_name'], $a['status_label'], $a['failure_count'], $a['last_failure'], $a['avg_resolution_hours_label'], $a['labor_hours_label']], $analytics['assetReliability'] ?? [])],
+        ];
+    }
 
-        $this->exporter->addExcelSheet(
-            $spreadsheet,
-            'ชั่วโมงแรงงาน',
-            ['หมวดหมู่งาน', 'จำนวนงาน', 'งานที่บันทึกแรงงาน', 'รวมชั่วโมง', 'เฉลี่ย/งาน (ชม.)'],
-            array_map(static fn (array $c): array => [$c['category_name'], $c['tickets'], $c['labored_tickets'], $c['labor_hours_label'], $c['avg_hours_label']], $analytics['laborEffort']['byCategory'] ?? [])
-        );
-
-        $this->exporter->addExcelSheet(
-            $spreadsheet,
-            'ทรัพย์สินเสียบ่อย',
-            ['รหัส', 'ชื่อ', 'หมวดหมู่', 'สถานที่', 'สถานะ', 'จำนวนครั้ง', 'ครั้งล่าสุด', 'เวลาซ่อมเฉลี่ย (ชม.)', 'ชม.แรงงาน'],
-            array_map(static fn (array $a): array => [$a['asset_code'], $a['name'], $a['category_name'], $a['location_name'], $a['status_label'], $a['failure_count'], $a['last_failure'], $a['avg_resolution_hours_label'], $a['labor_hours_label']], $analytics['assetReliability'] ?? [])
-        );
+    /** เพิ่ม sheet analytics 4 ตัวเข้า workbook (ต่อจาก sheet ticket) ให้ export ตรงกับหน้าจอ. */
+    private function appendAnalyticsSheets(Spreadsheet $spreadsheet, array $analytics): void
+    {
+        foreach ($this->reportAnalyticsSections($analytics) as $section) {
+            $this->exporter->addExcelSheet($spreadsheet, $section['title'], $section['headers'], $section['rows']);
+        }
     }
 
     private function recordExportFailure(int $jobId, \Throwable $exception): void
