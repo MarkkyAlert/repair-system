@@ -528,6 +528,11 @@ class ReportRepository
      * เวลาตอบรับเฉลี่ย + SLA ตรงเวลาต่อคน (คิด ticket-level จาก resolution_due_at → ไม่ fan-out กับ
      * ratings/work_orders 1:1). date-filtered ตาม applyReportFilters. คง getTechnicianPerformance เดิม
      * (panel /reports ใช้อยู่) ไม่แตะ.
+     *
+     * NOTE (Phase 2): the report surfaces resolved + MTTR **as-reported** — attributed to the resolve-event
+     * actor via getTechnicianResolverStats(), which the service overlays. The `resolved`/`mttr_minutes`/
+     * `resolution_base` columns HERE stay the assignment-keyed figures (COUNT of assigned tickets whose
+     * status is resolved) and are what the row-base/"no LIMIT drops a technician" contract is proven against.
      */
     public function getTechnicianPeriodStats(array $viewer, array $filters): array
     {
@@ -561,6 +566,56 @@ class ReportRepository
             // no LIMIT: GROUP BY u.id yields exactly one row per technician (bounded by the technician count),
             // matching the unbounded getTechnicianLiveWorkload base. A LIMIT here silently dropped technicians
             // on a people-evaluation report and undercounted team totals when there were >200 of them.
+        );
+        $stmt->execute($params);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /**
+     * As-reported resolver attribution (Phase 2) — resolved งาน + MTTR ต่อ "ช่างที่ปิดงานจริง" (actor ของ event
+     * `ticket_resolved`) ไม่ใช่ t.assigned_technician_id (reassign หลังปิดจะย้ายเครดิตออกจากคนปิด). ยุบแต่ละ
+     * (resolver, ticket) เหลือ resolve ตัวแทน = MAX(created_at) → ปิดซ้ำ (resolve→reopen→resolve) โดยคนเดิม
+     * นับครั้งเดียว. window บน event.created_at (immutable) ; dept/category + visibility บน ticket ; ตัด backwards
+     * timestamp (resolve < requested_at) ทิ้งเหมือน trend เพื่อไม่ให้ MTTR ติดลบ. key = resolver id → service เอาไป
+     * overlay ทับแถวช่าง. resolved == resolution_base (event-sourced resolve มีเวลาปิดจริงเสมอ).
+     */
+    public function getTechnicianResolverStats(array $viewer, array $filters): array
+    {
+        $from = is_string($filters['from_datetime'] ?? null) ? trim((string) $filters['from_datetime']) : '';
+        $to = is_string($filters['to_datetime'] ?? null) ? trim((string) $filters['to_datetime']) : '';
+
+        $params = [];
+        // visibility + dept/category apply to the ticket row; exclude backwards timestamps so MTTR is never negative.
+        $conditions = [$this->visibilityClause($viewer, $params), 'rep.resolved_at >= t.requested_at'];
+        $this->applyTrendDimensionFilters($conditions, $filters, $params); // dept/category (บน t) ไม่มี date/status
+        $whereClause = implode(' AND ', $conditions);
+
+        $reWin = '';
+        if ($from !== '') {
+            $reWin .= ' AND r.created_at >= :tech_res_from';
+            $params['tech_res_from'] = $from;
+        }
+        if ($to !== '') {
+            $reWin .= ' AND r.created_at <= :tech_res_to';
+            $params['tech_res_to'] = $to;
+        }
+
+        $stmt = $this->db->prepare(
+            "SELECT
+                rep.actor_id AS id,
+                COUNT(*) AS resolved,
+                ROUND(AVG(TIMESTAMPDIFF(MINUTE, t.requested_at, rep.resolved_at)), 1) AS mttr_minutes,
+                COUNT(*) AS resolution_base
+             FROM (
+                SELECT r.ticket_id AS ticket_id, r.actor_id AS actor_id, MAX(r.created_at) AS resolved_at
+                FROM ticket_activity_logs r
+                WHERE r.action = 'ticket_resolved' AND r.actor_id IS NOT NULL{$reWin}
+                GROUP BY r.ticket_id, r.actor_id
+             ) rep
+             INNER JOIN tickets t ON t.id = rep.ticket_id
+             WHERE $whereClause
+             GROUP BY rep.actor_id"
         );
         $stmt->execute($params);
 

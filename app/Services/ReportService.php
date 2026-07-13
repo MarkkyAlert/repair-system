@@ -615,6 +615,13 @@ class ReportService
             $period[(int) $row['id']] = $row;
         }
 
+        // As-reported (Phase 2): resolved + MTTR are attributed to the resolve-event actor, keyed by resolver id,
+        // and overlaid onto the technician row — independent of who the ticket is currently assigned to.
+        $resolver = [];
+        foreach ($this->reports->getTechnicianResolverStats($viewer, $normalizedFilters) as $row) {
+            $resolver[(int) $row['id']] = $row;
+        }
+
         $live = $this->reports->getTechnicianLiveWorkload($viewer);
         $totalOpenNow = 0;
         foreach ($live as $row) {
@@ -623,7 +630,7 @@ class ReportService
         $teamSize = count($live);
 
         $rows = array_map(
-            fn (array $l): array => $this->mapTechnicianPerformanceRow($period[(int) $l['id']] ?? [], $l, $totalOpenNow, $teamSize),
+            fn (array $l): array => $this->mapTechnicianPerformanceRow($period[(int) $l['id']] ?? [], $resolver[(int) $l['id']] ?? [], $l, $totalOpenNow, $teamSize),
             $live
         );
 
@@ -632,16 +639,18 @@ class ReportService
         return $rows;
     }
 
-    private function mapTechnicianPerformanceRow(array $period, array $live, int $totalOpenNow, int $teamSize): array
+    private function mapTechnicianPerformanceRow(array $period, array $resolver, array $live, int $totalOpenNow, int $teamSize): array
     {
         $openNow = (int) ($live['open_now'] ?? 0);
         $assigned = (int) ($period['assigned'] ?? 0);
-        $resolved = (int) ($period['resolved'] ?? 0);
+        // As-reported (Phase 2): resolved + MTTR come from the resolve-event actor (getTechnicianResolverStats),
+        // NOT the assignment-keyed period row — a post-resolve reassign no longer moves a past closure's credit.
+        $resolved = (int) ($resolver['resolved'] ?? 0);
         $ratingCount = (int) ($period['rating_count'] ?? 0);
         $avgRating = (float) ($period['avg_rating'] ?? 0);
-        $mttrMinutes = (float) ($period['mttr_minutes'] ?? 0);
-        // MTTR presence = tickets with a real resolved_at, not the status-resolved count (F1)
-        $resolutionBase = (int) ($period['resolution_base'] ?? 0);
+        $mttrMinutes = (float) ($resolver['mttr_minutes'] ?? 0);
+        // MTTR presence = tickets with a real resolve event (resolution_base), not the status-resolved count (F1)
+        $resolutionBase = (int) ($resolver['resolution_base'] ?? 0);
         $firstRespMinutes = (float) ($period['first_response_minutes'] ?? 0);
         $laborMinutes = (int) ($period['labor_minutes'] ?? 0);
         $slaBase = (int) ($period['sla_base'] ?? 0);

@@ -193,7 +193,9 @@ test('reports: a valid on-time resolution still counts as SLA 100% / "อยู�
 
 test('reports: a valid same-minute resolution still reads 0.0, not "-" (round-6 F1 guard is not over-broad)', function (): void {
     // the >= requested_at guard must keep valid rows: resolved_at == requested_at (0 minutes) is still a real,
-    // in-window resolution → 0.0, not excluded.
+    // in-window resolution → 0.0, not excluded. Technician MTTR is now event-sourced (Phase 2), so seed the
+    // matching same-minute `ticket_resolved` event (actor = the technician) — the guard is exercised on the
+    // event's created_at, not sidestepped by an absent event.
     $admin = ['id' => 4, 'role' => 'admin'];
     $rid = bin2hex(random_bytes(4));
     dbt_pdo()->prepare('INSERT INTO departments (code, name) VALUES (?, ?)')->execute(["DBTV-$rid", "DBTV Dept $rid"]);
@@ -208,6 +210,11 @@ test('reports: a valid same-minute resolution still reads 0.0, not "-" (round-6 
             "INSERT INTO tickets (ticket_no, title, description, requester_id, requester_department_id, location_id, ticket_category_id, priority_id, assigned_technician_id, status, requested_at, resolved_at, first_response_at)
              VALUES (?, 'x', 'x', 1, ?, 1, 1, 1, ?, 'resolved', ?, ?, ?)"
         )->execute(["DBTV-$rid", $deptId, $techId, $now, $now, $now]);
+        $tid = (int) dbt_pdo()->lastInsertId();
+        dbt_pdo()->prepare(
+            "INSERT INTO ticket_activity_logs (ticket_id, actor_id, action, from_status, to_status, created_at)
+             VALUES (?, ?, 'ticket_resolved', 'in_progress', 'resolved', ?)"
+        )->execute([$tid, $techId, $now]);
 
         $tech = null;
         foreach (dbt_service()->getTechnicianPerformanceReportPage($admin, ['department_id' => $deptId])['rows'] as $r) {
