@@ -105,3 +105,16 @@ test('report guide: glossary defines the non-obvious metrics — formula + direc
     assert_contains_str('จำนวนครั้ง', $guide, 'MTBF entry shows the per-interval formula');
     assert_contains_str('ไม่ขึ้นกับช่วงวันที่', $guide, 'workload share is defined as a live snapshot');
 });
+
+// BI-review F2: two interpretability traps the guide must state so managers don't misread the numbers —
+// (1) "net" is only แจ้ง−ปิด (it does NOT subtract cancel/reject, so it isn't an exact backlog delta), and
+// (2) "completion %" uses a different denominator on the executive vs technician page (don't compare them
+// across pages). Drift-lock: the guide file must keep saying both, or this reddens.
+test('report guide: documents the net-is-not-backlog + completion-denominator caveats (F2)', function (): void {
+    $guide = (string) file_get_contents(BASE_PATH . '/app/Views/reports/guide.php');
+
+    assert_contains_str('สุทธิ (net)', $guide, 'guide defines the "net" metric');
+    assert_contains_str('ยังไม่หักงานที่ยกเลิก/ปฏิเสธ', $guide, 'guide warns net does not subtract cancel/reject (not an exact backlog change)');
+    assert_contains_str('ปิด ÷ งานที่รับมอบหมาย', $guide, 'guide states the technician completion denominator (assigned)');
+    assert_contains_str('อย่านำ % ข้ามสองหน้ามาเทียบกันตรง ๆ', $guide, 'guide warns the two completion %s are not directly comparable');
+});
