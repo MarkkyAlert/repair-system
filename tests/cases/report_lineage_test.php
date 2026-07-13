@@ -98,6 +98,101 @@ test('lineage(e2e): a ticket created + resolved through the real services is see
     }
 });
 
+test('lineage(e2e): a resolved ticket reopened + reassigned stays in its resolve period as-reported (F1)', function (): void {
+    // The as-reported guarantee, proven through the REAL services (no INSERT, no direct column writes): once a
+    // month's throughput counts a closure, a later reopen — which NULLs resolved_at + resets the SLA — and a
+    // later reassign must NOT erase it. The trend buckets on the immutable ticket_resolved event, so the count
+    // stays put even though the current-state resolved_at is now NULL. Under the old resolved_at query the
+    // ticket vanished from the month the instant it was reopened.
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $tech = ['id' => 3, 'role' => 'technician'];
+    $requester = ['id' => 1, 'role' => 'requester'];
+    $rid = bin2hex(random_bytes(4));
+
+    $monthFilter = ['granularity' => 'month', 'from_date' => date('Y-m-01'), 'to_date' => date('Y-m-d')];
+    $curKey = date('Y-m');
+    $trendResolved = static function () use ($admin, $monthFilter, $curKey): int {
+        foreach (lin_reports()->getTicketTrendReportPage($admin, $monthFilter)['periods'] as $p) {
+            if ($p['key'] === $curKey) {
+                return (int) $p['resolved'];
+            }
+        }
+
+        return 0;
+    };
+
+    // fresh location + a second technician → the reopen report's location dimension isolates this one ticket,
+    // and the reassign target is a real technician (FK-valid) distinct from the resolver.
+    lin_pdo()->prepare('INSERT INTO locations (code, name) VALUES (?, ?)')->execute(["LINR-$rid", "LIN Reopen Loc $rid"]);
+    $locId = (int) lin_pdo()->lastInsertId();
+    lin_pdo()->prepare("INSERT INTO users (username, email, password_hash, full_name, role, is_active) VALUES (?, ?, 'x', ?, 'technician', 1)")
+        ->execute(["lin_$rid", "lin_$rid@example.com", "LIN Tech2 $rid"]);
+    $tech2 = (int) lin_pdo()->lastInsertId();
+
+    $resolvedBefore = $trendResolved();
+
+    $ref = tvm_container()->get(TicketReadRepository::class)->getCreateFormReferenceData();
+    $ticketId = lin_tickets()->createTicket($requester, [
+        'submission_token' => bin2hex(random_bytes(32)),
+        'title' => "LIN reopen e2e $rid",
+        'description' => 'as-reported lineage probe',
+        'priority_id' => (int) $ref['priorities'][0]['id'],
+        'ticket_category_id' => (int) $ref['categories'][0]['id'],
+        'location_id' => $locId,
+        'impact_level' => 'medium',
+        'urgency_level' => 'medium',
+    ], []);
+
+    try {
+        // drive to resolved through the REAL workflow (technician 3 resolves it)
+        lin_wf()->approveTicket($ticketId, $admin, ['note' => '']);
+        lin_wf()->assignTechnician($ticketId, $admin, ['technician_id' => 3, 'instructions' => '']);
+        lin_wf()->acceptAssignedWork($ticketId, $tech, ['accept_note' => '']);
+        lin_wf()->startAssignedWork($ticketId, $tech, ['start_note' => '']);
+        lin_wf()->resolveAssignedWork($ticketId, $tech, ['diagnosis_summary' => 'd', 'resolution_summary' => 'r', 'labor_minutes' => '30']);
+
+        $afterResolve = $trendResolved();
+        assert_same($resolvedBefore + 1, $afterResolve, 'the real resolve is counted in this month\'s throughput (+1)');
+
+        // reopen through the REAL flow — NULLs resolved_at, resets the SLA, logs ticket_reopened
+        lin_wf()->reopenTicket($ticketId, $requester, ['reopen_note' => 'ขอให้ตรวจซ้ำ']);
+
+        // the mutation that WOULD have dropped it from the old resolved_at report has happened...
+        $row = lin_pdo()->query("SELECT status, resolved_at FROM tickets WHERE id = $ticketId")->fetch(PDO::FETCH_ASSOC);
+        assert_same('assigned', (string) $row['status'], 'reopen sent the ticket back to assigned');
+        assert_true($row['resolved_at'] === null, 'reopen NULLed resolved_at (the old report would now drop the ticket)');
+        // ...but the immutable resolve event — the as-reported source of truth — survives
+        $events = (int) lin_pdo()->query("SELECT COUNT(*) FROM ticket_activity_logs WHERE ticket_id = $ticketId AND action = 'ticket_resolved'")->fetchColumn();
+        assert_same(1, $events, 'the ticket_resolved event survives the reopen');
+
+        $afterReopen = $trendResolved();
+        assert_same($afterResolve, $afterReopen, 'reopen does NOT erase the closure from this month\'s throughput (as-reported)');
+
+        // a later reassign to a DIFFERENT technician must not move the closure out of its period either
+        lin_pdo()->prepare('UPDATE tickets SET assigned_technician_id = ? WHERE id = ?')->execute([$tech2, $ticketId]);
+        assert_same($afterResolve, $trendResolved(), 'a later reassign does not shift the closure out of its resolve period');
+
+        // the as-reported reopen cohort sees this location's single ticket resolved once + reopened once
+        $today = date('Y-m-d');
+        $page = lin_reports()->getReopenRateReportPage($admin, ['dimension' => 'location', 'from_date' => $today, 'to_date' => $today]);
+        $locRow = null;
+        foreach ($page['rows'] as $r) {
+            if ($r['label'] === "LIN Reopen Loc $rid") {
+                $locRow = $r;
+                break;
+            }
+        }
+        assert_true($locRow !== null, 'the fresh location appears in the reopen report');
+        assert_same(1, $locRow['resolved'], 'reopen cohort counts the closure once');
+        assert_same(1, $locRow['reopened'], 'the ticket is flagged reopened (as-reported)');
+    } finally {
+        lin_pdo()->prepare("DELETE FROM notifications WHERE related_type = 'ticket' AND related_id = ?")->execute([$ticketId]);
+        lin_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]); // cascades logs / sla_tracks / work_orders
+        lin_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$tech2]);
+        lin_pdo()->prepare('DELETE FROM locations WHERE id = ?')->execute([$locId]);
+    }
+});
+
 // ── F2: status contract — the report's status filters ⊆ the real tickets.status enum ──
 
 /** The value list of the tickets.status ENUM, parsed from schema.sql (the single source of truth). */
