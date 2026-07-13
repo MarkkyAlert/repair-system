@@ -122,8 +122,10 @@ Performance report and reopen dimension both keep the closure credited to tech 3
 ### Part B — per-cycle SLA + CSAT snapshots (shipped: schema + writers + readers; trend read shipped in Part B2 below)
 
 Schema: `ticket_sla_tracks` gains `cycle` (UNIQUE → `ticket_id, metric_type, cycle`); `ticket_ratings` gains
-`cycle` (UNIQUE → `ticket_id, cycle`). `database/schema.sql` + `ALTER` on `repair_system` and
-`repair_system_test`; existing rows default to cycle 1.
+`cycle` (UNIQUE → `ticket_id, cycle`). `database/schema.sql` has it for fresh installs; existing rows default
+to cycle 1. **Upgrading an existing database:** run `database/migrate_sla_rating_cycle.sql` once (it adds the
+columns + swaps the UNIQUE keys; safe on live data — every existing row becomes cycle 1). Fresh installs from
+schema.sql do NOT need it.
 
 Writers (`TicketRepository`): `reopenTicket` **appends** a fresh pending SLA cycle (`currentTicketCycle()+1`)
 instead of resetting the row, so a past cycle's due-date + met/breached verdict is frozen; `markSlaAchieved` /
