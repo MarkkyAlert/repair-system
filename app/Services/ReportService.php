@@ -205,6 +205,10 @@ class ReportService
             'labor_minutes' => $laborMinutes,
             'labor_hours_label' => $laborMinutes > 0 ? number_format(round($laborMinutes / 60, 1), 1) : '-',
             'age_label' => $ageYears !== null ? number_format($ageYears, 1) . ' ปี' : '-',
+            // raw numerics for Excel export (the label carries a Thai unit → text in Excel; the export header
+            // already states the unit, so the sheet gets a bare number the manager can pivot/sum) (BI-review F3)
+            'mtbf_days_export' => $mtbfDays !== null ? number_format(round($mtbfDays, 0), 0) : '-',
+            'age_years_export' => $ageYears !== null ? number_format($ageYears, 1) : '-',
             'warranty_label' => $warranty['label'],
             'warranty_tone' => $warranty['tone'],
             'health_score' => $health['score'],
@@ -430,8 +434,8 @@ class ReportService
         return [
             $row['asset_code'], $row['name'], $row['category_name'], $row['location_name'], $row['status_label'],
             $row['health_label'], $row['health_reason'], $row['failure_count'], $row['last_failure'],
-            $row['mtbf_days_label'], $row['avg_resolution_hours_label'], $row['downtime_hours_label'],
-            $row['labor_hours_label'], $row['age_label'], $row['warranty_label'],
+            $row['mtbf_days_export'], $row['avg_resolution_hours_label'], $row['downtime_hours_label'],
+            $row['labor_hours_label'], $row['age_years_export'], $row['warranty_label'],
         ];
     }
 
@@ -663,6 +667,7 @@ class ReportService
             'workload_share_label' => $sharePct === null ? '-' : number_format($sharePct, 1) . '%',
             'workload_tone' => $workloadTone,
             'oldest_open_age_label' => $oldestAge === null ? '-' : number_format($oldestAge, 0) . ' วัน',
+            'oldest_open_age_export' => $oldestAge === null ? '-' : number_format($oldestAge, 0), // bare number for Excel (F3)
             // performance ในช่วง
             'assigned' => $assigned,
             'resolved' => $resolved,
@@ -715,7 +720,7 @@ class ReportService
     private function technicianPerformanceExportHeaders(): array
     {
         return [
-            'ช่าง', 'งานค้างปัจจุบัน', 'สัดส่วนโหลด', 'ค้างเก่าสุด', 'รับ', 'ปิดงาน', 'อัตราปิดงาน',
+            'ช่าง', 'งานค้างปัจจุบัน', 'สัดส่วนโหลด', 'ค้างเก่าสุด (วัน)', 'รับ', 'ปิดงาน', 'อัตราปิดงาน',
             'SLA ตรงเวลา', 'งาน SLA', 'เวลาตอบรับ (ชม.)', 'เวลาซ่อมเฉลี่ย (ชม.)', 'คะแนน', 'จำนวนรีวิว', 'ชม.แรงงาน',
         ];
     }
@@ -724,7 +729,7 @@ class ReportService
     {
         // 'งาน SLA' และ 'จำนวนรีวิว' = base ของอัตรา/คะแนน — ให้ export บอก sample size เหมือนหน้าจอ (Finding B)
         return [
-            $row['full_name'], $row['open_now'], $row['workload_share_label'], $row['oldest_open_age_label'],
+            $row['full_name'], $row['open_now'], $row['workload_share_label'], $row['oldest_open_age_export'],
             $row['assigned'], $row['resolved'], $row['completion_label'], $row['sla_on_time_label'], $row['sla_base'],
             $row['first_response_hours_label'], $row['mttr_hours_label'], $row['avg_rating_label'], $row['rating_count'], $row['labor_hours_label'],
         ];
