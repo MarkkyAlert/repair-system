@@ -292,7 +292,9 @@ class AssetRepository
 
     public function updateAsset(int $assetId, array $payload): void
     {
-        // Optimistic lock: prevent one admin's stale edit form from overwriting another admin's newer asset update.
+        // Optimistic lock on an integer version (not updated_at): a DATETIME token has second granularity, so two
+        // edits in the same second could BOTH match and the later silently overwrote the earlier. version bumps on
+        // every write, so a stale edit form never matches.
         $stmt = $this->db->prepare(
             'UPDATE assets
              SET asset_code = :asset_code,
@@ -309,9 +311,10 @@ class AssetRepository
                  warranty_expires_at = :warranty_expires_at,
                  status = :status,
                  notes = :notes,
+                 version = version + 1,
                  updated_at = :updated_at
              WHERE id = :asset_id
-               AND updated_at = :original_updated_at'
+               AND version = :original_version'
         );
         try {
             $stmt->execute([
@@ -331,7 +334,7 @@ class AssetRepository
                 'notes' => $payload['notes'] ?: null,
                 'updated_at' => date('Y-m-d H:i:s'),
                 'asset_id' => $assetId,
-                'original_updated_at' => (string) ($payload['original_updated_at'] ?? ''),
+                'original_version' => (int) ($payload['original_version'] ?? 0),
             ]);
         } catch (PDOException $exception) {
             $this->translateAssetUniqueViolation($exception);
@@ -342,10 +345,10 @@ class AssetRepository
             return;
         }
 
-        $currentStmt = $this->db->prepare('SELECT updated_at FROM assets WHERE id = :asset_id LIMIT 1');
+        $currentStmt = $this->db->prepare('SELECT version FROM assets WHERE id = :asset_id LIMIT 1');
         $currentStmt->execute(['asset_id' => $assetId]);
-        $currentUpdatedAt = $currentStmt->fetchColumn();
-        if ($currentUpdatedAt === false || (string) $currentUpdatedAt !== (string) ($payload['original_updated_at'] ?? '')) {
+        $currentVersion = $currentStmt->fetchColumn();
+        if ($currentVersion === false || (int) $currentVersion !== (int) ($payload['original_version'] ?? 0)) {
             throw new DomainException('ข้อมูล Asset ถูกแก้ไขโดยผู้ใช้อื่นแล้ว กรุณารีเฟรชหน้าแล้วลองอีกครั้ง');
         }
     }
@@ -412,6 +415,7 @@ class AssetRepository
                 a.notes,
                 a.created_at,
                 a.updated_at,
+                a.version,
                 ac.code AS category_code,
                 ac.name AS category_name,
                 d.name AS department_name,

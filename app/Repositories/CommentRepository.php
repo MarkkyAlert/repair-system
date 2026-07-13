@@ -32,7 +32,7 @@ class CommentRepository
     public function getCommentsByTicketId(int $ticketId, bool $includeInternal): array
     {
         $sql =
-            'SELECT c.id, c.ticket_id, c.user_id, c.parent_id, c.body, c.is_internal, c.created_at, c.updated_at, u.full_name AS author_name, u.role AS author_role
+            'SELECT c.id, c.ticket_id, c.user_id, c.parent_id, c.body, c.is_internal, c.created_at, c.updated_at, c.version, u.full_name AS author_name, u.role AS author_role
              FROM ticket_comments c
              INNER JOIN users u ON u.id = c.user_id
              WHERE c.ticket_id = :ticket_id';
@@ -52,7 +52,7 @@ class CommentRepository
     public function findCommentById(int $commentId): ?array
     {
         $stmt = $this->db->prepare(
-            'SELECT c.id, c.ticket_id, c.user_id, c.parent_id, c.body, c.is_internal, c.created_at, c.updated_at, u.full_name AS author_name, u.role AS author_role
+            'SELECT c.id, c.ticket_id, c.user_id, c.parent_id, c.body, c.is_internal, c.created_at, c.updated_at, c.version, u.full_name AS author_name, u.role AS author_role
              FROM ticket_comments c
              INNER JOIN users u ON u.id = c.user_id
              WHERE c.id = :comment_id
@@ -97,37 +97,41 @@ class CommentRepository
         }
     }
 
-    public function updateComment(int $commentId, string $body, bool $isInternal, string $originalUpdatedAt): void
+    public function updateComment(int $commentId, string $body, bool $isInternal, int $originalVersion): void
     {
+        // Optimistic lock on an integer version, not updated_at: the DATETIME token had second granularity, so
+        // two edits within the same second (and the row last touched that second) could BOTH match and the later
+        // one silently overwrote the earlier. version increments on every write, so a stale editor never matches.
         $stmt = $this->db->prepare(
             'UPDATE ticket_comments
              SET body = :body,
                  is_internal = :is_internal,
+                 version = version + 1,
                  updated_at = :updated_at
              WHERE id = :comment_id
-               AND updated_at = :original_updated_at'
+               AND version = :original_version'
         );
         $stmt->execute([
             'body' => $body,
             'is_internal' => $isInternal ? 1 : 0,
             'updated_at' => date('Y-m-d H:i:s'),
             'comment_id' => $commentId,
-            'original_updated_at' => $originalUpdatedAt,
+            'original_version' => $originalVersion,
         ]);
 
         if ($stmt->rowCount() > 0) {
             return;
         }
 
-        $existsStmt = $this->db->prepare('SELECT updated_at FROM ticket_comments WHERE id = :comment_id LIMIT 1');
+        $existsStmt = $this->db->prepare('SELECT version FROM ticket_comments WHERE id = :comment_id LIMIT 1');
         $existsStmt->execute(['comment_id' => $commentId]);
-        $currentUpdatedAt = $existsStmt->fetchColumn();
+        $currentVersion = $existsStmt->fetchColumn();
 
-        if ($currentUpdatedAt === false) {
+        if ($currentVersion === false) {
             throw new DomainException('ไม่พบ comment ที่ต้องการแก้ไข');
         }
 
-        if ((string) $currentUpdatedAt !== $originalUpdatedAt) {
+        if ((int) $currentVersion !== $originalVersion) {
             throw new DomainException('Comment ถูกแก้ไขโดยผู้ใช้อื่นแล้ว กรุณารีเฟรชหน้าแล้วลองอีกครั้ง');
         }
     }

@@ -49,7 +49,7 @@ $canUseInternalComment = $canUseInternalComment ?? false;
         <div data-comment-edit-panel<?= $isEditing ? '' : ' hidden' ?>>
             <form method="post" action="<?= e(url('/tickets/' . $ticketId . '/comments/' . $comment['id'] . '/update')) ?>" class="stack-md" data-comment-edit-form>
                 <?= csrf_field() ?>
-                <input type="hidden" name="original_updated_at" value="<?= e((string) ($comment['updated_at'] ?? '')) ?>">
+                <input type="hidden" name="original_version" value="<?= e((string) ($comment['version'] ?? '1')) ?>">
                 <div class="field-group">
                     <label for="comment_edit_<?= e((string) $comment['id']) ?>" class="field-label">แก้ไขความเห็น</label>
                     <textarea id="comment_edit_<?= e((string) $comment['id']) ?>" name="body" class="input" rows="3" data-comment-edit-textarea><?= e($editBody) ?></textarea>

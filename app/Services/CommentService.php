@@ -81,17 +81,17 @@ class CommentService
         $comment = $this->requireEditableComment($ticketId, $commentId, $viewer);
         $body = trim((string) ($input['body'] ?? ''));
         $isInternal = $this->parseInternalFlag($viewer, $input, (bool) ($comment['is_internal'] ?? false));
-        $originalUpdatedAt = trim((string) ($input['original_updated_at'] ?? ''));
+        $originalVersion = (int) ($input['original_version'] ?? 0);
 
         if ($body === '') {
             throw new DomainException('กรุณากรอกข้อความ comment ก่อนบันทึก');
         }
 
-        if ($originalUpdatedAt === '') {
+        if ($originalVersion <= 0) {
             throw new DomainException('ข้อมูล comment ไม่ครบถ้วน กรุณารีเฟรชหน้าแล้วลองอีกครั้ง');
         }
 
-        $this->comments->updateComment($commentId, $body, $isInternal, $originalUpdatedAt);
+        $this->comments->updateComment($commentId, $body, $isInternal, $originalVersion);
         $this->notifications->notifyCommentEvent($ticketId, $commentId, (int) ($viewer['id'] ?? 0), $isInternal, $body, 'updated');
 
         return [

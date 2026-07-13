@@ -840,9 +840,9 @@ class TicketService
             'visibility_label' => $isInternal ? 'ภายใน' : 'สาธารณะ',
             'visibility_tone' => $isInternal ? 'warning' : 'default',
             'created_at' => $this->formatDateTime($comment['created_at'] ?? null),
-            // raw datetime สำหรับ optimistic-lock ตอนแก้ไข (hidden original_updated_at) —
-            // ต้องตรงกับ DB (WHERE updated_at = :original_updated_at) จึงไม่ format
-            'updated_at' => (string) ($comment['updated_at'] ?? ''),
+            // integer version สำหรับ optimistic-lock ตอนแก้ไข (hidden original_version) — กัน same-second lost
+            // update ที่ token แบบ updated_at (วินาที) ทำไม่ได้ (WHERE version = :original_version)
+            'version' => (int) ($comment['version'] ?? 1),
             'can_manage' => $this->canManageComment($comment, $viewer),
         ];
     }

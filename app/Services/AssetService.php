@@ -97,13 +97,13 @@ class AssetService
             throw new DomainException('ไม่พบ asset ที่ต้องการแก้ไข');
         }
 
-        $originalUpdatedAt = trim((string) ($input['updated_at'] ?? ''));
-        if ($originalUpdatedAt === '') {
+        $originalVersion = (int) ($input['original_version'] ?? 0);
+        if ($originalVersion <= 0) {
             throw new DomainException('ข้อมูล Asset ไม่ครบถ้วน กรุณารีเฟรชหน้าแล้วลองอีกครั้ง');
         }
 
         $payload = $this->validateAssetInput($input);
-        $payload['original_updated_at'] = $originalUpdatedAt;
+        $payload['original_version'] = $originalVersion;
 
         $this->assets->updateAsset($assetId, $payload);
     }
@@ -363,7 +363,7 @@ class AssetService
                 'warranty_expires_at' => (string) ($oldInput['warranty_expires_at'] ?? ($asset['warranty_expires_at'] ?? '')),
                 'status' => (string) ($oldInput['status'] ?? ($asset['status'] ?? 'active')),
                 'notes' => (string) ($oldInput['notes'] ?? ($asset['notes'] ?? '')),
-                'updated_at' => (string) ($oldInput['updated_at'] ?? ($asset['updated_at'] ?? '')),
+                'version' => (int) ($oldInput['original_version'] ?? ($asset['version'] ?? 1)),
             ],
         ];
     }

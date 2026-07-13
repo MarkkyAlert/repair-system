@@ -4,11 +4,11 @@ declare(strict_types=1);
 use App\Repositories\AssetRepository;
 
 // Locks the asset-update optimistic lock (AssetRepository::updateAsset): the UPDATE carries
-// WHERE id = ? AND updated_at = :original_updated_at, so a stale edit form (an original_updated_at that no
-// longer matches the row) matches zero rows → the re-query confirms the row moved on → DomainException,
-// leaving the newer value intact. Regression target: drop the updated_at guard and a stale edit silently
-// overwrites a newer one (lost update). Seeded with a deliberately-old updated_at so the stale case is
-// unambiguous (not the sub-second same-timestamp edge).
+// WHERE id = ? AND version = :original_version and SET version = version + 1, so a stale edit form (an
+// original_version that no longer matches the row) matches zero rows → the re-query confirms the row moved on →
+// DomainException, leaving the newer value intact. The integer version increments on every write, so unlike the
+// former second-precision updated_at token it also rejects a stale edit that lands in the SAME second (F1).
+// Regression target: drop the version guard/increment and a stale edit silently overwrites a newer one.
 
 function aupd_repo(): AssetRepository
 {
@@ -132,18 +132,20 @@ test('assetUpdate(optimistic-lock): a fresh update succeeds; a stale one is reje
     [$id, $base] = aupd_seed();
 
     try {
-        // update #1 — original_updated_at matches the seeded value → the WHERE matches → succeeds
-        aupd_repo()->updateAsset($id, array_merge($base, ['name' => 'First Update', 'original_updated_at' => '2020-01-01 00:00:00']));
+        // update #1 — original_version (1) matches the seeded row → the WHERE matches → succeeds, version → 2.
+        // Both updates run in the same wall-clock second: with the old second-precision updated_at token the
+        // stale update #2 could have slipped through; the integer version rejects it regardless of timing (F1).
+        aupd_repo()->updateAsset($id, array_merge($base, ['name' => 'First Update', 'original_version' => 1]));
         assert_same(
             'First Update',
             (string) aupd_pdo()->query("SELECT name FROM assets WHERE id = $id")->fetchColumn(),
             'the fresh update lands'
         );
 
-        // update #2 — carries the SAME, now-stale original_updated_at → the WHERE no longer matches → rejected
+        // update #2 — carries the SAME, now-stale original_version (1); the row is at version 2 → rejected
         $rejected = false;
         try {
-            aupd_repo()->updateAsset($id, array_merge($base, ['name' => 'Stale Overwrite', 'original_updated_at' => '2020-01-01 00:00:00']));
+            aupd_repo()->updateAsset($id, array_merge($base, ['name' => 'Stale Overwrite', 'original_version' => 1]));
         } catch (DomainException $e) {
             $rejected = true;
             assert_contains_str('ถูกแก้ไขโดยผู้ใช้อื่น', $e->getMessage(), 'the stale update reports a conflict');

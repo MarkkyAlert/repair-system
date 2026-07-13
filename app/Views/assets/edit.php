@@ -27,7 +27,7 @@
 
         <form method="post" action="<?= e(url('/asset-registry/' . (int) $assetId)) ?>" class="stack-lg">
             <?= csrf_field() ?>
-            <input type="hidden" name="updated_at" value="<?= e((string) ($form['defaults']['updated_at'] ?? '')) ?>">
+            <input type="hidden" name="original_version" value="<?= e((string) ($form['defaults']['version'] ?? '1')) ?>">
 
             <div class="content-grid">
                 <div class="field-group">

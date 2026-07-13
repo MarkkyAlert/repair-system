@@ -11,7 +11,7 @@ use App\Services\CommentService;
 //
 // Note on "tokens": CommentService does NOT check the CSRF (_csrf) token — that is controller-level.
 // createComment validates a submission_token (is_submission_token: 64 hex chars); updateComment uses an
-// original_updated_at optimistic-lock stamp. We supply valid values so the real permission logic runs.
+// integer original_version optimistic-lock stamp. We supply valid values so the real permission logic runs.
 
 function cm_service(): CommentService
 {
@@ -67,8 +67,14 @@ function cm_seed_comment(int $ticketId, int $ownerId, string $body = 'original b
     cm_pdo()->prepare('INSERT INTO ticket_comments (ticket_id, user_id, body, is_internal, created_at, updated_at) VALUES (?, ?, ?, 0, NOW(), NOW())')
         ->execute([$ticketId, $ownerId, $body]);
     $id = (int) cm_pdo()->lastInsertId();
-    $updatedAt = (string) cm_pdo()->query("SELECT updated_at FROM ticket_comments WHERE id = $id")->fetchColumn();
-    return [$id, $updatedAt];
+    $version = (int) cm_pdo()->query("SELECT version FROM ticket_comments WHERE id = $id")->fetchColumn();
+    return [$id, $version];
+}
+
+/** Current integer version (optimistic-lock token) of a comment. */
+function cm_version(int $commentId): int
+{
+    return (int) cm_pdo()->query("SELECT version FROM ticket_comments WHERE id = $commentId")->fetchColumn();
 }
 
 function cm_body(int $commentId): ?string
@@ -94,7 +100,7 @@ test('comment(permission): updateComment — owner/manager/admin allowed; non-ow
         [$cId, $upd] = cm_seed_comment($ticketId, 1, 'original body');
         $threw = false;
         try {
-            cm_service()->updateComment($ticketId, $cId, cm_tech(), ['body' => 'HACKED', 'original_updated_at' => $upd]);
+            cm_service()->updateComment($ticketId, $cId, cm_tech(), ['body' => 'HACKED', 'original_version' => $upd]);
         } catch (DomainException $e) {
             $threw = true;
             assert_same('คุณไม่มีสิทธิ์แก้ไข comment นี้', $e->getMessage());
@@ -104,17 +110,17 @@ test('comment(permission): updateComment — owner/manager/admin allowed; non-ow
 
         // allow — owner edits own
         [$c2, $u2] = cm_seed_comment($ticketId, 1, 'owner original');
-        cm_service()->updateComment($ticketId, $c2, cm_owner(), ['body' => 'owner edited', 'original_updated_at' => $u2]);
+        cm_service()->updateComment($ticketId, $c2, cm_owner(), ['body' => 'owner edited', 'original_version' => $u2]);
         assert_same('owner edited', cm_body($c2), 'owner can edit own comment');
 
         // allow — manager edits requester's comment (elevated)
         [$c3, $u3] = cm_seed_comment($ticketId, 1, 'for manager');
-        cm_service()->updateComment($ticketId, $c3, cm_manager(), ['body' => 'manager edited', 'original_updated_at' => $u3]);
+        cm_service()->updateComment($ticketId, $c3, cm_manager(), ['body' => 'manager edited', 'original_version' => $u3]);
         assert_same('manager edited', cm_body($c3), 'manager can edit another user\'s comment');
 
         // allow — admin edits requester's comment
         [$c4, $u4] = cm_seed_comment($ticketId, 1, 'for admin');
-        cm_service()->updateComment($ticketId, $c4, cm_admin(), ['body' => 'admin edited', 'original_updated_at' => $u4]);
+        cm_service()->updateComment($ticketId, $c4, cm_admin(), ['body' => 'admin edited', 'original_version' => $u4]);
         assert_same('admin edited', cm_body($c4), 'admin can edit another user\'s comment');
     } finally {
         cm_cleanup($ticketId);
@@ -196,7 +202,7 @@ test('comment(validation): empty body / bad token / missing ticket / missing com
         $throws(fn () => cm_service()->createComment($ticketId, cm_owner(), ['body' => '', 'submission_token' => cm_token()]), 'กรุณากรอกข้อความ comment ก่อนบันทึก', 'empty body');
         $throws(fn () => cm_service()->createComment($ticketId, cm_owner(), ['body' => 'hi', 'submission_token' => 'not-a-valid-token']), 'แบบฟอร์ม comment หมดอายุ กรุณารีเฟรชหน้าแล้วลองอีกครั้ง', 'bad submission token');
         $throws(fn () => cm_service()->createComment(999999999, cm_owner(), ['body' => 'hi', 'submission_token' => cm_token()]), 'ไม่พบ ticket ที่ต้องการแสดงความคิดเห็น', 'non-existent ticket');
-        $throws(fn () => cm_service()->updateComment($ticketId, 999999999, cm_owner(), ['body' => 'hi', 'original_updated_at' => '2020-01-01 00:00:00']), 'ไม่พบ comment ที่ต้องการแก้ไข', 'non-existent comment (update)');
+        $throws(fn () => cm_service()->updateComment($ticketId, 999999999, cm_owner(), ['body' => 'hi', 'original_version' => 1]), 'ไม่พบ comment ที่ต้องการแก้ไข', 'non-existent comment (update)');
         $throws(fn () => cm_service()->deleteComment($ticketId, 999999999, cm_owner()), 'ไม่พบ comment ที่ต้องการแก้ไข', 'non-existent comment (delete)');
         // a guest cannot even see the ticket → blocked at the visibility guard (not the login message)
         $throws(fn () => cm_service()->createComment($ticketId, ['id' => 0, 'role' => 'guest'], ['body' => 'hi', 'submission_token' => cm_token()]), 'ไม่พบ ticket ที่ต้องการแสดงความคิดเห็น', 'guest blocked');
@@ -223,21 +229,20 @@ test('comment: createComment happy path stores the comment (no attachments)', fu
     }
 });
 
-// ── concurrency: optimistic lock on update (original_updated_at) ──
+// ── concurrency: optimistic lock on update (integer version) ──
 
-test('comment(concurrency): a stale original_updated_at is rejected (optimistic lock) and does not overwrite', function (): void {
+test('comment(concurrency): a stale version is rejected (optimistic lock) and does not overwrite', function (): void {
     $ticketId = cm_seed_ticket();
     try {
-        [$cId, $staleVersion] = cm_seed_comment($ticketId, 1, 'original body');
+        [$cId, $staleVersion] = cm_seed_comment($ticketId, 1, 'original body'); // version 1
 
-        // simulate a concurrent edit that bumps updated_at to a clearly different value (avoid DATETIME
-        // second-granularity collisions) — the version we loaded ($staleVersion) is now out of date
-        cm_pdo()->prepare('UPDATE ticket_comments SET body = ?, updated_at = ? WHERE id = ?')
-            ->execute(['edited by someone else', date('Y-m-d H:i:s', time() + 5), $cId]);
+        // a concurrent edit lands first (version 1 → 2) — the version we loaded is now out of date
+        cm_service()->updateComment($ticketId, $cId, cm_owner(), ['body' => 'edited by someone else', 'original_version' => $staleVersion]);
+        assert_same(2, cm_version($cId), 'the first edit bumped the version to 2');
 
         $threw = false;
         try {
-            cm_service()->updateComment($ticketId, $cId, cm_owner(), ['body' => 'my late edit', 'original_updated_at' => $staleVersion]);
+            cm_service()->updateComment($ticketId, $cId, cm_owner(), ['body' => 'my late edit', 'original_version' => $staleVersion]);
         } catch (DomainException $e) {
             $threw = true;
             assert_same('Comment ถูกแก้ไขโดยผู้ใช้อื่นแล้ว กรุณารีเฟรชหน้าแล้วลองอีกครั้ง', $e->getMessage());
@@ -248,12 +253,38 @@ test('comment(concurrency): a stale original_updated_at is rejected (optimistic 
         // a missing version stamp is rejected before touching the row
         $threw2 = false;
         try {
-            cm_service()->updateComment($ticketId, $cId, cm_owner(), ['body' => 'x', 'original_updated_at' => '']);
+            cm_service()->updateComment($ticketId, $cId, cm_owner(), ['body' => 'x', 'original_version' => 0]);
         } catch (DomainException $e) {
             $threw2 = true;
             assert_same('ข้อมูล comment ไม่ครบถ้วน กรุณารีเฟรชหน้าแล้วลองอีกครั้ง', $e->getMessage());
         }
-        assert_true($threw2, 'a missing original_updated_at is rejected');
+        assert_true($threw2, 'a missing version stamp is rejected');
+    } finally {
+        cm_cleanup($ticketId);
+    }
+});
+
+// This is the case a second-precision updated_at token missed (F1): two edits that both loaded version 1 and
+// save within the SAME wall-clock second. With updated_at the second write matched and silently overwrote the
+// first; with an integer version the first bumps to 2, so the second (still holding 1) is rejected.
+test('comment(concurrency): two same-second edits from the same loaded version — the second is rejected, not lost (F1)', function (): void {
+    $ticketId = cm_seed_ticket();
+    try {
+        [$cId, $loadedVersion] = cm_seed_comment($ticketId, 1, 'original body'); // version 1, created this second
+
+        // both editors loaded version 1; editor A saves first (same second as creation)
+        cm_service()->updateComment($ticketId, $cId, cm_owner(), ['body' => 'edit A', 'original_version' => $loadedVersion]);
+
+        // editor B saves in the same second with the SAME loaded version — must be rejected, not overwrite A
+        $threw = false;
+        try {
+            cm_service()->updateComment($ticketId, $cId, cm_owner(), ['body' => 'edit B', 'original_version' => $loadedVersion]);
+        } catch (DomainException $e) {
+            $threw = true;
+            assert_same('Comment ถูกแก้ไขโดยผู้ใช้อื่นแล้ว กรุณารีเฟรชหน้าแล้วลองอีกครั้ง', $e->getMessage());
+        }
+        assert_true($threw, 'the same-second second edit is rejected (the version bumped, unlike a per-second timestamp)');
+        assert_same('edit A', cm_body($cId), "A's edit is preserved — B did not overwrite it within the same second");
     } finally {
         cm_cleanup($ticketId);
     }
