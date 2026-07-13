@@ -107,19 +107,31 @@ class NotificationPreferenceRepository
         );
 
         $now = date('Y-m-d H:i:s');
-        foreach ($matrix as $type => $channels) {
-            foreach ($channels as $channel => $enabled) {
-                if (!in_array($channel, ['email', 'in_app'], true)) {
-                    continue;
+        // All-or-nothing: the whole preference matrix is one save. Wrap the per-cell upserts in a transaction so
+        // a failure partway through rolls the earlier cells back instead of persisting a half-saved matrix.
+        try {
+            $this->db->beginTransaction();
+            foreach ($matrix as $type => $channels) {
+                foreach ($channels as $channel => $enabled) {
+                    if (!in_array($channel, ['email', 'in_app'], true)) {
+                        continue;
+                    }
+                    $stmt->execute([
+                        'user_id' => $userId,
+                        'notification_type' => $type,
+                        'channel' => $channel,
+                        'is_enabled' => $enabled ? 1 : 0,
+                        'updated_at' => $now,
+                    ]);
                 }
-                $stmt->execute([
-                    'user_id' => $userId,
-                    'notification_type' => $type,
-                    'channel' => $channel,
-                    'is_enabled' => $enabled ? 1 : 0,
-                    'updated_at' => $now,
-                ]);
             }
+            $this->db->commit();
+        } catch (\Throwable $exception) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+
+            throw $exception;
         }
     }
 }

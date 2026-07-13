@@ -31,7 +31,12 @@ class FailingStatement extends PDOStatement
     public function execute(?array $params = null): bool
     {
         if ($this->owner->failOnSql !== '' && str_contains($this->queryString, $this->owner->failOnSql)) {
-            throw new RuntimeException('FailingPdo: injected statement failure on SQL containing "' . $this->owner->failOnSql . '"');
+            $this->owner->matchCount++;
+            // fail only AFTER letting `failOnSqlSkip` matching statements through — so a loop test can assert the
+            // earlier writes are rolled back when a later one fails (skip=0 fails on the first match).
+            if ($this->owner->matchCount > $this->owner->failOnSqlSkip) {
+                throw new RuntimeException('FailingPdo: injected statement failure on SQL containing "' . $this->owner->failOnSql . '"');
+            }
         }
 
         return parent::execute($params);
@@ -41,6 +46,8 @@ class FailingStatement extends PDOStatement
 class FailingPdo extends PDO
 {
     public string $failOnSql = '';
+    public int $failOnSqlSkip = 0;
+    public int $matchCount = 0;
 
     /** @param array<int, mixed>|null $options */
     public function __construct(string $dsn, ?string $username = null, ?string $password = null, ?array $options = null)
@@ -50,8 +57,12 @@ class FailingPdo extends PDO
     }
 }
 
-/** Run $fn with the container PDO swapped for one that throws on any statement whose SQL contains $failOnSql. */
-function with_failing_pdo(string $failOnSql, callable $fn): void
+/**
+ * Run $fn with the container PDO swapped for one that throws on statements whose SQL contains $failOnSql. $skip
+ * matching statements are let through before the throw (skip=0 → fail on the first match; skip=1 → fail on the
+ * second, so a loop test can prove the first write is rolled back).
+ */
+function with_failing_pdo(string $failOnSql, callable $fn, int $skip = 0): void
 {
     $container = tvm_container();
     $original = $container->get(PDO::class);
@@ -64,6 +75,7 @@ function with_failing_pdo(string $failOnSql, callable $fn): void
         PDO::ATTR_EMULATE_PREPARES => false,
     ]);
     $failing->failOnSql = $failOnSql;
+    $failing->failOnSqlSkip = max(0, $skip);
 
     $container->instance(PDO::class, $failing);
     try {

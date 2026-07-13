@@ -49,6 +49,30 @@ class EmailTemplateRepository
         return $fields;
     }
 
+    /**
+     * Persist several fields of one template as a single all-or-nothing save: the per-field upserts run in one
+     * transaction so a failure partway through rolls the earlier fields back (never a half-saved template, e.g.
+     * a new subject with the old body). $fieldValues is fieldKey => value.
+     *
+     * @param array<string, string> $fieldValues
+     */
+    public function upsertFields(string $templateKey, array $fieldValues, int $userId): void
+    {
+        try {
+            $this->db->beginTransaction();
+            foreach ($fieldValues as $fieldKey => $value) {
+                $this->upsertField($templateKey, (string) $fieldKey, (string) $value, $userId);
+            }
+            $this->db->commit();
+        } catch (\Throwable $exception) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+
+            throw $exception;
+        }
+    }
+
     public function upsertField(string $templateKey, string $fieldKey, string $value, int $userId): void
     {
         $now = date('Y-m-d H:i:s');

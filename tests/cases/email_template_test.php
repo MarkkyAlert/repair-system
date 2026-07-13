@@ -98,3 +98,32 @@ test('email HTML kicker renders app_tagline (escaped) and hides when empty', fun
         );
     }
 });
+
+// ── ⭐ atomicity (F3): a template override save is all-or-nothing ──
+// saveOverrides writes every registered field of a template; a mid-save DB failure must not leave the template
+// half-updated (e.g. a new subject with the old body). upsertFields wraps the per-field upserts in one
+// transaction. Inject a failure on the SECOND email_template_overrides write (skip=1) → assert NOTHING persisted.
+// Remove the transaction and the first field commits → red (power-proof).
+test('emailTemplate(atomicity): a failing field rolls back the whole override save — no half-save (F3)', function (): void {
+    $key = 'ET-F3-' . bin2hex(random_bytes(4));
+    $threw = false;
+
+    with_failing_pdo('email_template_overrides', function () use ($key, &$threw): void {
+        try {
+            tvm_container()->get(EmailTemplateRepository::class)
+                ->upsertFields($key, ['subject' => 'new subject', 'body' => 'new body'], 1);
+        } catch (Throwable) {
+            $threw = true;
+        }
+    }, 1); // let the first field write through, fail the second
+
+    $pdo = tvm_container()->get(PDO::class);
+    try {
+        assert_true($threw, 'the injected second-field failure must surface');
+        $count = $pdo->prepare('SELECT COUNT(*) FROM email_template_overrides WHERE template_key = ?');
+        $count->execute([$key]);
+        assert_same(0, (int) $count->fetchColumn(), 'no field persisted — the override save is all-or-nothing');
+    } finally {
+        $pdo->prepare('DELETE FROM email_template_overrides WHERE template_key = ?')->execute([$key]);
+    }
+});

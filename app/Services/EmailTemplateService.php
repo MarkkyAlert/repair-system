@@ -88,9 +88,13 @@ class EmailTemplateService
             throw new DomainException('ไม่พบ template ที่ต้องการบันทึก');
         }
 
+        // All-or-nothing: save every registered field in one transaction (see upsertFields) so a mid-save
+        // failure can't leave a template half-updated (e.g. a new subject paired with the old body).
+        $fieldValues = [];
         foreach ($meta['fields'] as $fieldKey) {
-            $this->templates->upsertField($templateKey, $fieldKey, trim((string) ($input[$fieldKey] ?? '')), $editorId);
+            $fieldValues[$fieldKey] = trim((string) ($input[$fieldKey] ?? ''));
         }
+        $this->templates->upsertFields($templateKey, $fieldValues, $editorId);
 
         $this->refreshOverrides();
     }

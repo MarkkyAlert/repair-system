@@ -309,3 +309,31 @@ test('notify(atomicity): a failing recipient insert rolls back the parent notifi
         nt_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$userId]);
     }
 });
+
+// ── ⭐ atomicity (F3): the notification-preference matrix save is all-or-nothing ──
+// upsertMatrix writes one cell per (type, channel); a mid-save failure must not persist a half-saved matrix.
+// It wraps the per-cell upserts in a transaction. Inject a failure on the SECOND notification_preferences write
+// (skip=1) → assert NO cell persisted. Remove the transaction and the first cell commits → red (power-proof).
+test('notify(pref atomicity): a failing cell rolls back the whole preference matrix — no half-save (F3)', function (): void {
+    $userId = nt_seed_user('requester');
+    $matrix = ['ticket.assigned' => ['email' => true, 'in_app' => false]]; // 2 cells → 2 upserts
+    $threw = false;
+
+    with_failing_pdo('notification_preferences', function () use ($userId, $matrix, &$threw): void {
+        try {
+            tvm_container()->get(\App\Repositories\NotificationPreferenceRepository::class)->upsertMatrix($userId, $matrix);
+        } catch (Throwable) {
+            $threw = true;
+        }
+    }, 1); // let the first cell write through, fail the second
+
+    try {
+        assert_true($threw, 'the injected second-cell failure must surface');
+        $count = nt_pdo()->prepare('SELECT COUNT(*) FROM notification_preferences WHERE user_id = ?');
+        $count->execute([$userId]);
+        assert_same(0, (int) $count->fetchColumn(), 'no cell persisted — the matrix save is all-or-nothing');
+    } finally {
+        nt_pdo()->prepare('DELETE FROM notification_preferences WHERE user_id = ?')->execute([$userId]);
+        nt_cleanup([], [$userId]);
+    }
+});
