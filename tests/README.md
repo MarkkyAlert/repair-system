@@ -32,6 +32,13 @@ git config core.hooksPath .githooks
 - `cases/viewmodel_test.php` — service view-model builders extracted from templates this round: ticket filter chips / urgent alerts, dashboard `summarizeChart` / primary CTA / cron health, asset filter chips.
 - `cases/workflow_test.php` — **integration** tests driving the real ticket lifecycle against the test DB: approve, separation-of-duties guard, reject, assign, full happy path (approve→assign→accept→start→resolve), requester cancel.
 
+## Security guards
+
+Every security control has a test that goes RED when the guard is removed (the project's form of mutation
+testing). [`docs/security-guards.md`](../docs/security-guards.md) is the inventory: each guard → where it lives
+→ the test that locks it → the exact mutation to prove the lock still bites. Keep it in sync when you add or
+touch a control.
+
 ## Scope + next steps
 
 Pure-logic tests cover the enum/label/date consolidations + view-model extractions. Workflow tests cover the ticket lifecycle transitions — the regression net now in place **before** splitting `TicketService` / `TicketRepository` into `TicketWorkflowService` / `TicketReadRepository`.
