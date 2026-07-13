@@ -472,6 +472,47 @@ test('executive export: an empty previous period carries prev="-" across screen 
     }
 });
 
+// R12: screen↔export parity at the VALUE level (not just headers). Render the page, take the exact completion
+// label the screen shows, export the PDF, and assert that same string is PRINTED in the PDF. Seeds a distinctive
+// completion (3 of 4 resolved = 75.0%) with no SLA/rating rows, so "75.0%" can only come from completion — a
+// template that printed the wrong field would not produce it. Power-proof: point the PDF cell at another KPI.
+test('executive PDF: the on-screen completion value is printed verbatim in the PDF (screen=PDF value parity, R12)', function (): void {
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $rid = bin2hex(random_bytes(4));
+    $ids = [];
+    $baselineJobId = (int) exs_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM export_jobs')->fetchColumn();
+    $filters = ['preset' => 'custom', 'from_date' => '2020-04-01', 'to_date' => '2020-04-30'];
+
+    try {
+        // 3 resolved + 1 submitted, all requested in the window → completion 3/4 = 75.0%
+        foreach (['resolved', 'resolved', 'resolved', 'submitted'] as $i => $status) {
+            exs_pdo()->prepare(
+                "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at)
+                 VALUES (?, 'x', 'x', 1, 1, 1, 1, ?, '2020-04-10 09:00:00')"
+            )->execute(["EXP12-$rid-$i", $status]);
+            $ids[] = (int) exs_pdo()->lastInsertId();
+        }
+
+        $comp = null;
+        foreach (exs_service()->getExecutiveSummaryPage($admin, $filters)['kpis'] as $k) {
+            if ($k['label'] === 'อัตราปิดงาน') {
+                $comp = (string) $k['value_label'];
+            }
+        }
+        assert_same('75.0%', $comp, 'setup: completion = 3/4 = 75.0% on screen');
+
+        $pdf = (string) exs_service()->exportExecutiveSummaryPdf($admin, $filters)['content'];
+        assert_same('%PDF-', substr($pdf, 0, 5), 'valid PDF');
+        $text = (new \Smalot\PdfParser\Parser())->parseContent($pdf)->getText();
+        assert_true(mb_strpos($text, '75.0%') !== false, 'the exact on-screen completion value (75.0%) is printed in the PDF');
+    } finally {
+        foreach ($ids as $id) {
+            exs_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
+        }
+        exs_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
+    }
+});
+
 // Finding F5: MTTR presence is the resolved-count base, not the avg value. A period with resolved work
 // that averages 0.0h (sub-minute resolution) is real data → the KPI must show "0.0", not "-".
 test('executive: a period with sub-minute resolutions shows MTTR 0.0, not "-" (Finding F5)', function (): void {

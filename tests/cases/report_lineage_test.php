@@ -628,3 +628,45 @@ test('status contract: every status the reports filter on is a real tickets.stat
         );
     }
 });
+
+test('lineage(e2e): a guest request converted to a ticket is counted by the reports (R12)', function (): void {
+    // The guest→ticket path writes report data through the SAME createTicket the normal flow uses
+    // (GuestTicketService::convertToTicket delegates to it), so the report must count the converted ticket. The
+    // guest_ticket_requests row is only the precondition (not report data) → seeded directly; the TICKET the
+    // report reads is created through the real service. Locks that the guest production path isn't a blind spot.
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $guest = tvm_container()->get(\App\Services\GuestTicketService::class);
+    $rid = bin2hex(random_bytes(4));
+    $ref = tvm_container()->get(TicketReadRepository::class)->getCreateFormReferenceData();
+
+    lin_pdo()->prepare(
+        "INSERT INTO guest_ticket_requests (request_no, guest_name, title, description, location_id, status)
+         VALUES (?, 'Guest R12', 'g title', 'g desc', ?, 'new')"
+    )->execute(["GR12-$rid", (int) $ref['locations'][0]['id']]);
+    $requestId = (int) lin_pdo()->lastInsertId();
+    $ticketId = 0;
+
+    try {
+        $before = (int) (lin_reports()->getReportPageData($admin, [])['summary']['total'] ?? 0);
+        $ticketId = $guest->convertToTicket(
+            $requestId,
+            $admin,
+            (int) $ref['priorities'][0]['id'],
+            (int) $ref['categories'][0]['id'],
+            lin_tickets()
+        );
+        assert_true($ticketId > 0, 'the guest request converted into a real ticket via createTicket');
+
+        $after = (int) (lin_reports()->getReportPageData($admin, [])['summary']['total'] ?? 0);
+        assert_same($before + 1, $after, 'the report summary counts the converted guest ticket (+1)');
+        assert_same('converted', (string) lin_pdo()->query("SELECT status FROM guest_ticket_requests WHERE id = $requestId")->fetchColumn(), 'the guest request is marked converted');
+    } finally {
+        if ($ticketId > 0) {
+            lin_pdo()->prepare("DELETE FROM notifications WHERE related_type = 'ticket' AND related_id = ?")->execute([$ticketId]);
+        }
+        lin_pdo()->prepare('DELETE FROM guest_ticket_requests WHERE id = ?')->execute([$requestId]);
+        if ($ticketId > 0) {
+            lin_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+        }
+    }
+});
