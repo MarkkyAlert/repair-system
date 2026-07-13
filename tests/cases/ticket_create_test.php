@@ -156,6 +156,99 @@ test('ticketCreate(idempotency): the same submission_token returns the same tick
     }
 });
 
+// ── ⭐ atomicity (G1): a failing child insert rolls back the whole ticket — no orphan / partial write ──
+
+// A PDO whose prepared statements throw when the SQL contains a target table, to simulate a mid-transaction
+// child-insert failure WITHOUT touching production code. Mirrors CountingPdo (a PDO subclass installed via
+// ATTR_STATEMENT_CLASS) but fails instead of counting. createTicket inserts tickets → ticket_approvals →
+// ticket_sla_tracks → ticket_activity_logs in one transaction; forcing the SLA-track insert to throw must roll
+// the ticket + approval back so no partial ticket (a ticket with no SLA tracks would silently corrupt SLA reports).
+class TcFailingStatement extends PDOStatement
+{
+    protected TcFailingPdo $owner;
+
+    protected function __construct(TcFailingPdo $owner)
+    {
+        $this->owner = $owner;
+    }
+
+    public function execute(?array $params = null): bool
+    {
+        if ($this->owner->failOnSql !== '' && str_contains($this->queryString, $this->owner->failOnSql)) {
+            throw new RuntimeException('injected child-insert failure on: ' . $this->owner->failOnSql);
+        }
+
+        return parent::execute($params);
+    }
+}
+
+class TcFailingPdo extends PDO
+{
+    public string $failOnSql = '';
+
+    /** @param array<int, mixed>|null $options */
+    public function __construct(string $dsn, ?string $username = null, ?string $password = null, ?array $options = null)
+    {
+        parent::__construct($dsn, $username, $password, $options);
+        $this->setAttribute(PDO::ATTR_STATEMENT_CLASS, [TcFailingStatement::class, [$this]]);
+    }
+}
+
+/** Run $fn with the container PDO swapped for one that throws on any statement whose SQL contains $failOnSql. */
+function tc_with_failing_pdo(string $failOnSql, callable $fn): void
+{
+    $container = tvm_container();
+    $original = $container->get(PDO::class);
+    $db = $container->get('config')['db'];
+    $dsn = sprintf('mysql:host=%s;port=%s;dbname=%s;charset=%s', $db['host'], $db['port'], $db['name'], $db['charset']);
+    $failing = new TcFailingPdo($dsn, $db['username'], $db['password'], [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES => false,
+    ]);
+    $failing->failOnSql = $failOnSql;
+    $container->instance(PDO::class, $failing);
+    try {
+        $fn();
+    } finally {
+        $container->instance(PDO::class, $original); // restore for every other test
+    }
+}
+
+test('ticketCreate(atomicity): a failing SLA-track insert rolls back the whole ticket — no orphan / partial write (G1)', function (): void {
+    $ref = tc_ref();
+    $token = tc_token();
+    $input = tc_valid_input($ref, ['submission_token' => $token]);
+
+    $threw = false;
+    // A fresh TicketService (transient) picks up the swapped failing PDO. The ticket + approval rows insert, then
+    // the ticket_sla_tracks insert throws mid-transaction — the whole thing must roll back (nothing partial).
+    tc_with_failing_pdo('ticket_sla_tracks', function () use ($input, &$threw): void {
+        try {
+            tvm_container()->get(TicketService::class)->createTicket(tc_requester(), $input, []);
+        } catch (Throwable) {
+            $threw = true;
+        }
+    });
+
+    try {
+        assert_true($threw, 'the injected SLA-track insert failure must surface an error');
+
+        // no orphan: the ticket row never survived (so neither did its cascade children).
+        $ticketCount = tc_pdo()->prepare('SELECT COUNT(*) FROM tickets WHERE submission_token = ?');
+        $ticketCount->execute([$token]);
+        assert_same(0, (int) $ticketCount->fetchColumn(), 'the ticket was rolled back — no orphan/partial ticket for the token');
+    } finally {
+        // defensive: nothing should persist, but if the rollback were defeated (power-proof) clean the leaked row
+        $stmt = tc_pdo()->prepare('SELECT id FROM tickets WHERE submission_token = ?');
+        $stmt->execute([$token]);
+        $leaked = $stmt->fetchColumn();
+        if ($leaked !== false) {
+            tc_cleanup((int) $leaked);
+        }
+    }
+});
+
 // ── happy path ──
 
 test('ticketCreate: happy path stores the ticket (pending_approval) + creates SLA tracks with future targets', function (): void {
