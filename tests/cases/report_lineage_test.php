@@ -193,6 +193,87 @@ test('lineage(e2e): a resolved ticket reopened + reassigned stays in its resolve
     }
 });
 
+test('lineage(e2e): resolver attribution survives a post-resolve reassign — technician report + reopen dimension (F1 Phase 2 Part A)', function (): void {
+    // As-reported (Phase 2): resolved credit + reopen "blame" attach to the technician who ACTUALLY resolved
+    // (the `ticket_resolved` event actor), NOT the current assignee. Proven through the REAL services: technician
+    // 3 resolves, then the ticket is reassigned to a different technician — 3 keeps the credit, the new assignee
+    // never gains it, in BOTH the Technician Performance report and the reopen technician dimension.
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $tech = ['id' => 3, 'role' => 'technician'];
+    $requester = ['id' => 1, 'role' => 'requester'];
+    $rid = bin2hex(random_bytes(4));
+    $today = date('Y-m-d');
+    $reopenWin = ['dimension' => 'technician', 'from_date' => $today, 'to_date' => $today];
+
+    $resolverName = (string) lin_pdo()->query('SELECT full_name FROM users WHERE id = 3')->fetchColumn();
+    lin_pdo()->prepare("INSERT INTO users (username, email, password_hash, full_name, role, is_active) VALUES (?, ?, 'x', ?, 'technician', 1)")
+        ->execute(["linp_$rid", "linp_$rid@example.com", "LIN P2 Tech2 $rid"]);
+    $tech2 = (int) lin_pdo()->lastInsertId();
+    $tech2Name = "LIN P2 Tech2 $rid";
+
+    // resolved-by-technician count in the dedicated Technician Performance report (all-time)
+    $techReportResolved = static function (string $name) use ($admin): int {
+        foreach (lin_reports()->getTechnicianPerformanceReportPage($admin, [])['rows'] as $r) {
+            if ($r['full_name'] === $name) {
+                return (int) $r['resolved'];
+            }
+        }
+
+        return 0;
+    };
+    // resolved count in the reopen report technician dimension (today window)
+    $reopenResolved = static function (string $name) use ($admin, $reopenWin): int {
+        foreach (lin_reports()->getReopenRateReportPage($admin, $reopenWin)['rows'] as $r) {
+            if ($r['label'] === $name) {
+                return (int) $r['resolved'];
+            }
+        }
+
+        return 0;
+    };
+
+    $tech3ReportBefore = $techReportResolved($resolverName);
+    $tech3ReopenBefore = $reopenResolved($resolverName);
+    $tech2ReportBefore = $techReportResolved($tech2Name);
+    $tech2ReopenBefore = $reopenResolved($tech2Name);
+
+    $ref = tvm_container()->get(TicketReadRepository::class)->getCreateFormReferenceData();
+    $ticketId = lin_tickets()->createTicket($requester, [
+        'submission_token' => bin2hex(random_bytes(32)),
+        'title' => "LIN attrib e2e $rid",
+        'description' => 'resolver attribution lineage probe',
+        'priority_id' => (int) $ref['priorities'][0]['id'],
+        'ticket_category_id' => (int) $ref['categories'][0]['id'],
+        'location_id' => (int) $ref['locations'][0]['id'],
+        'impact_level' => 'medium',
+        'urgency_level' => 'medium',
+    ], []);
+
+    try {
+        // resolve through the REAL workflow — technician 3 is the resolve-event actor
+        lin_wf()->approveTicket($ticketId, $admin, ['note' => '']);
+        lin_wf()->assignTechnician($ticketId, $admin, ['technician_id' => 3, 'instructions' => '']);
+        lin_wf()->acceptAssignedWork($ticketId, $tech, ['accept_note' => '']);
+        lin_wf()->startAssignedWork($ticketId, $tech, ['start_note' => '']);
+        lin_wf()->resolveAssignedWork($ticketId, $tech, ['diagnosis_summary' => 'd', 'resolution_summary' => 'r', 'labor_minutes' => '30']);
+
+        assert_same($tech3ReportBefore + 1, $techReportResolved($resolverName), 'tech report: the resolver is credited +1 after the real resolve');
+        assert_same($tech3ReopenBefore + 1, $reopenResolved($resolverName), 'reopen dim: the closure is attributed to the technician who resolved it');
+
+        // reassign to a DIFFERENT technician — the current assignee changes, the resolve event does not
+        lin_pdo()->prepare('UPDATE tickets SET assigned_technician_id = ? WHERE id = ?')->execute([$tech2, $ticketId]);
+
+        assert_same($tech3ReportBefore + 1, $techReportResolved($resolverName), 'tech report: the resolver keeps the credit after a reassign (as-reported)');
+        assert_same($tech2ReportBefore, $techReportResolved($tech2Name), 'tech report: the new assignee did NOT gain the resolved credit');
+        assert_same($tech3ReopenBefore + 1, $reopenResolved($resolverName), 'reopen dim: still attributed to the resolver after a reassign');
+        assert_same($tech2ReopenBefore, $reopenResolved($tech2Name), 'reopen dim: the new assignee is not blamed for a close it did not do');
+    } finally {
+        lin_pdo()->prepare("DELETE FROM notifications WHERE related_type = 'ticket' AND related_id = ?")->execute([$ticketId]);
+        lin_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]); // cascades logs / sla_tracks / work_orders
+        lin_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$tech2]);
+    }
+});
+
 // ── F2: status contract — the report's status filters ⊆ the real tickets.status enum ──
 
 /** The value list of the tickets.status ENUM, parsed from schema.sql (the single source of truth). */
