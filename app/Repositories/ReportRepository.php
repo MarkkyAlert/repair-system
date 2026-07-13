@@ -694,8 +694,14 @@ class ReportRepository
     }
 
     /**
-     * งานที่ "ปิด" ต่องวด + MTTR + SLA ตรงเวลา + CSAT — group by DATE_FORMAT(resolved_at). date window บน
-     * resolved_at. ticket-level ไม่ fan-out (ticket_ratings 1:1). SLA base = ที่มี resolution_due_at.
+     * งานที่ "ปิด" ต่องวด + MTTR + SLA ตรงเวลา + CSAT — as-reported (F1): bucket ตาม event `ticket_resolved`
+     * (immutable) ไม่ใช่ t.resolved_at ที่ reopen NULL ทิ้ง (งานที่ปิดใน ม.ค. แล้วถูกเปิดซ้ำจะไม่หายจากยอด ม.ค.).
+     *
+     * Multi-resolve de-dup: ยุบ resolve events ของ ticket เดียวเหลือ "ตัวแทนหนึ่งตัวต่อ (ticket, งวด)" =
+     * MAX(created_at) ในงวดนั้น → ปิดซ้ำในงวดเดียวนับครั้งเดียว แต่ปิดคนละงวดนับงวดละครั้ง (แต่ละงวดเห็นการปิดจริง —
+     * กติกาเดียวกับ reopen cohort). SLA/CSAT ผูกกับงวดที่ปิด "รอบสุดท้าย" เท่านั้น (is_final) เพื่อให้ resolution_due_at
+     * / ticket_ratings แถวปัจจุบัน (แถวเดียว) ถูกนับครั้งเดียว ไม่ซ้ำทุกงวดที่ ticket โผล่ (snapshot ราย cycle = Phase 2,
+     * ดู docs/as-reported-analytics.md). ratings 1:1 → ไม่ fan-out ; date window บน event.created_at.
      */
     public function getTicketTrendResolved(array $viewer, array $filters, string $granularity): array
     {
@@ -704,34 +710,50 @@ class ReportRepository
         $to = is_string($filters['to_datetime'] ?? null) ? trim((string) $filters['to_datetime']) : '';
 
         $params = [];
-        // exclude backwards timestamps (resolved_at < requested_at, bad seed/import data) so the trend MTTR
-        // is never negative (F1); the resolved bucket + SLA are over valid rows only.
-        $conditions = [$this->visibilityClause($viewer, $params), 't.resolved_at IS NOT NULL', 't.resolved_at >= t.requested_at'];
-        $this->applyTrendDimensionFilters($conditions, $filters, $params);
+        $reBounds = '';
         if ($from !== '') {
-            $conditions[] = 't.resolved_at >= :trend_from';
+            $reBounds .= ' AND r.created_at >= :trend_from';
             $params['trend_from'] = $from;
         }
         if ($to !== '') {
-            $conditions[] = 't.resolved_at <= :trend_to';
+            $reBounds .= ' AND r.created_at <= :trend_to';
             $params['trend_to'] = $to;
         }
+
+        // visibility + dept/category apply to the ticket row ; exclude backwards timestamps (representative
+        // resolve < requested_at, bad seed/import) so trend MTTR is never negative (F1).
+        $conditions = [$this->visibilityClause($viewer, $params), 're.resolved_at >= t.requested_at'];
+        $this->applyTrendDimensionFilters($conditions, $filters, $params);
         $whereClause = implode(' AND ', $conditions);
 
         $stmt = $this->db->prepare(
             "SELECT
-                DATE_FORMAT(t.resolved_at, '$fmt') AS bucket,
+                re.bucket AS bucket,
                 COUNT(*) AS resolved,
-                ROUND(AVG(TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at)), 1) AS mttr_minutes,
-                SUM(CASE WHEN t.resolution_due_at IS NOT NULL THEN 1 ELSE 0 END) AS sla_base,
-                SUM(CASE WHEN t.resolution_due_at IS NOT NULL AND t.resolved_at <= t.resolution_due_at THEN 1 ELSE 0 END) AS sla_on_time,
-                COALESCE(SUM(tr.score), 0) AS rating_sum,
-                COUNT(tr.score) AS rating_count
-             FROM tickets t
+                ROUND(AVG(TIMESTAMPDIFF(MINUTE, t.requested_at, re.resolved_at)), 1) AS mttr_minutes,
+                SUM(CASE WHEN re.is_final = 1 AND t.resolution_due_at IS NOT NULL THEN 1 ELSE 0 END) AS sla_base,
+                SUM(CASE WHEN re.is_final = 1 AND t.resolution_due_at IS NOT NULL AND re.resolved_at <= t.resolution_due_at THEN 1 ELSE 0 END) AS sla_on_time,
+                COALESCE(SUM(CASE WHEN re.is_final = 1 THEN tr.score ELSE 0 END), 0) AS rating_sum,
+                SUM(CASE WHEN re.is_final = 1 AND tr.score IS NOT NULL THEN 1 ELSE 0 END) AS rating_count
+             FROM (
+                SELECT
+                    r.ticket_id AS ticket_id,
+                    DATE_FORMAT(r.created_at, '$fmt') AS bucket,
+                    MAX(r.created_at) AS resolved_at,
+                    CASE WHEN MAX(r.created_at) = (
+                        SELECT MAX(r2.created_at)
+                        FROM ticket_activity_logs r2
+                        WHERE r2.ticket_id = r.ticket_id AND r2.action = 'ticket_resolved'
+                    ) THEN 1 ELSE 0 END AS is_final
+                FROM ticket_activity_logs r
+                WHERE r.action = 'ticket_resolved'{$reBounds}
+                GROUP BY r.ticket_id, DATE_FORMAT(r.created_at, '$fmt')
+             ) re
+             INNER JOIN tickets t ON t.id = re.ticket_id
              LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id
              WHERE $whereClause
-             GROUP BY bucket
-             ORDER BY bucket"
+             GROUP BY re.bucket
+             ORDER BY re.bucket"
         );
         $stmt->execute($params);
 
