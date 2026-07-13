@@ -31,6 +31,19 @@ function ttr_period(array $page, string $key): ?array
     return null;
 }
 
+/**
+ * Append the immutable `ticket_resolved` event the as-reported trend buckets on (F1). The trend groups
+ * by this event's created_at, not the mutable t.resolved_at — so a seed must log the closure, matching
+ * how the real resolveAssignedWork flow writes it. Cascades on ticket delete (FK ON DELETE CASCADE).
+ */
+function ttr_resolve_log(int $ticketId, string $resolvedAt, int $actorId = 3): void
+{
+    ttr_pdo()->prepare(
+        "INSERT INTO ticket_activity_logs (ticket_id, actor_id, action, from_status, to_status, created_at)
+         VALUES (?, ?, 'ticket_resolved', 'in_progress', 'resolved', ?)"
+    )->execute([$ticketId, $actorId, $resolvedAt]);
+}
+
 test('ticket trend: an over-limit daily range is rejected clearly, not silently truncated (round-2 #1)', function (): void {
     // trendBucketList capped the expected-bucket list at 400 and silently dropped the tail, so a >400-day
     // daily range lost its most-recent days from the chart/summary/export with no warning. The range is now
@@ -90,6 +103,7 @@ test('ticket trend: created by requested_at, resolved/SLA/CSAT by resolved_at (c
              VALUES (?, 'x', 'x', 1, 1, 1, 1, 'resolved', '2020-01-15 09:00:00', '2020-02-20 09:00:00', '2020-02-25 09:00:00')"
         )->execute(["TTR-$rid"]);
         $ticketId = (int) ttr_pdo()->lastInsertId();
+        ttr_resolve_log($ticketId, '2020-02-20 09:00:00');
         ttr_pdo()->prepare('INSERT INTO ticket_ratings (ticket_id, requester_id, score) VALUES (?, 1, 4)')->execute([$ticketId]);
 
         $page = ttr_service()->getTicketTrendReportPage($admin, [
@@ -116,6 +130,38 @@ test('ticket trend: created by requested_at, resolved/SLA/CSAT by resolved_at (c
     }
 });
 
+test('ticket trend: a resolved-then-reopened ticket stays in its past period as-reported (F1)', function (): void {
+    // The immutable claim: once January's throughput is counted, a later reopen — which NULLs resolved_at
+    // and resets the SLA track — must NOT erase the January closure. The as-reported trend buckets on the
+    // `ticket_resolved` EVENT, so the count + MTTR stay put even though the current-state resolved_at is
+    // now NULL. Under the old resolved_at-based query this ticket vanished from January entirely.
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $rid = bin2hex(random_bytes(4));
+    $ticketId = 0;
+
+    try {
+        // requested 2019-01-05, closed 2019-01-20 (event logged), THEN reopened → current resolved_at is NULL
+        ttr_pdo()->prepare(
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at, resolved_at)
+             VALUES (?, 'x', 'x', 1, 1, 1, 1, 'assigned', '2019-01-05 09:00:00', NULL)"
+        )->execute(["TTRO-$rid"]);
+        $ticketId = (int) ttr_pdo()->lastInsertId();
+        ttr_resolve_log($ticketId, '2019-01-20 09:00:00'); // the January closure event survives the reopen
+
+        $jan = ttr_period(ttr_service()->getTicketTrendReportPage($admin, [
+            'granularity' => 'month', 'from_date' => '2019-01-01', 'to_date' => '2019-01-31',
+        ]), '2019-01');
+        assert_true($jan !== null, 'the January bucket exists');
+        assert_same(1, $jan['resolved'], 'January throughput counts the closure EVENT, not the (now-NULL) resolved_at');
+        // MTTR = 2019-01-20 09:00 − 2019-01-05 09:00 = 15 days = 21600 min = 360.0h (from the event, immutable)
+        assert_same(360.0, $jan['mttr_hours'], 'January MTTR = event.created_at − requested_at, not null after reopen');
+    } finally {
+        if ($ticketId > 0) {
+            ttr_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+        }
+    }
+});
+
 test('ticket trend: XLSX export cells reconcile with the screen period — SLA% numeric, counts numeric (round-5)', function (): void {
     // screen↔XLSX parity for the trend report: the SLA% column becomes a real number (screen_pct/100) via the
     // shared writer, counts + base stay numeric — the same values the on-screen period row shows.
@@ -131,6 +177,7 @@ test('ticket trend: XLSX export cells reconcile with the screen period — SLA% 
              VALUES (?, 'x', 'x', 1, 1, 1, 1, 'resolved', '2020-05-10 09:00:00', '2020-05-10 10:00:00', '2020-05-10 12:00:00')"
         )->execute(["TTRX-$rid"]);
         $ticketId = (int) ttr_pdo()->lastInsertId();
+        ttr_resolve_log($ticketId, '2020-05-10 10:00:00');
 
         $filters = ['granularity' => 'month', 'from_date' => '2020-05-01', 'to_date' => '2020-05-31'];
         $screen = ttr_period(ttr_service()->getTicketTrendReportPage($admin, $filters), '2020-05');
@@ -178,6 +225,7 @@ test('ticket trend: a real 0% SLA and a sub-minute MTTR are chart data, not hidd
              VALUES (?, 'x', 'x', 1, 1, 1, 1, 'resolved', '2020-05-10 10:00:00', '2020-05-10 10:00:30', '2020-05-10 10:00:10')"
         )->execute(["TTRZ-$rid"]);
         $ticketId = (int) ttr_pdo()->lastInsertId();
+        ttr_resolve_log($ticketId, '2020-05-10 10:00:30');
 
         $page = ttr_service()->getTicketTrendReportPage($admin, [
             'granularity' => 'month', 'from_date' => '2020-05-01', 'to_date' => '2020-05-31',
@@ -210,6 +258,7 @@ test('ticket trend: periods carry the SLA and rating base counts (Finding F4)', 
              VALUES (?, 'x', 'x', 1, 1, 1, 1, 'resolved', '2020-07-10 09:00:00', '2020-07-11 09:00:00', '2020-07-15 09:00:00')"
         )->execute(["TTRB-$rid"]);
         $ticketId = (int) ttr_pdo()->lastInsertId();
+        ttr_resolve_log($ticketId, '2020-07-11 09:00:00');
         ttr_pdo()->prepare('INSERT INTO ticket_ratings (ticket_id, requester_id, score) VALUES (?, 1, 4)')->execute([$ticketId]);
 
         $page = ttr_service()->getTicketTrendReportPage($admin, [

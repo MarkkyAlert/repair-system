@@ -38,6 +38,13 @@ test('reports: a backwards resolved_at/first_response_at → all duration metric
             "INSERT INTO tickets (ticket_no, title, description, requester_id, requester_department_id, location_id, asset_id, ticket_category_id, priority_id, assigned_technician_id, status, requested_at, resolved_at, first_response_at)
              VALUES (?, 'x', 'x', 1, ?, ?, ?, 1, 1, ?, 'resolved', '2020-07-15 10:00:00', '2020-07-15 09:00:00', '2020-07-15 08:00:00')"
         )->execute(["DBT-$rid", $deptId, $locId, $assetId, $techId]);
+        $dbtTicketId = (int) dbt_pdo()->lastInsertId();
+        // as-reported trend buckets on the resolve event; log the (backwards) closure so the trend's
+        // `re.resolved_at >= t.requested_at` guard is genuinely exercised, not sidestepped by an absent event.
+        dbt_pdo()->prepare(
+            "INSERT INTO ticket_activity_logs (ticket_id, actor_id, action, from_status, to_status, created_at)
+             VALUES (?, ?, 'ticket_resolved', 'in_progress', 'resolved', '2020-07-15 09:00:00')"
+        )->execute([$dbtTicketId, $techId]);
 
         // Executive: MTTR "-" but completion still counts the status-resolved ticket
         $exKpis = [];
