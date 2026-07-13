@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Core\AuthManager;
+use App\Core\Session;
 use App\Repositories\UserRepository;
 
 class RememberMeService
@@ -66,6 +67,10 @@ class RememberMeService
             return false;
         }
 
+        // Restoring a remember-me cookie authenticates the current session, so rotate the id first — same
+        // anti-session-fixation step as AuthService::attemptLogin. Without it, a pre-planted (attacker-known)
+        // session id gets elevated to an authenticated one on the victim's next protected request.
+        Session::regenerate();
         $this->auth->login($user);
         $this->issueFor((int) $user['id']);
 
