@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+use App\Repositories\NotificationRepository;
 use App\Services\NotificationService;
 
 // Tests for NotificationService recipient targeting + filters (not every method). Drives the real service
@@ -265,5 +266,46 @@ test('notify(markAsRead): a user cannot mark another user\'s notification as rea
         assert_same(0, $readState($requester), 'the other recipient\'s row is untouched (per-recipient scope)');
     } finally {
         nt_cleanup([$ticketId], [$requester, $manager, $technician, $outsider]);
+    }
+});
+
+// ── ⭐ atomicity (G2): a failing recipient insert rolls back the parent notification — no orphan ──
+// createNotification inserts the parent notification then N notification_recipients rows in one transaction
+// (NotificationRepository owns the tx — single layer). Forcing a recipient insert to throw must roll the parent
+// back, or an orphan notification with zero recipients would linger (visible to no one, skews any count-by-type).
+// Uses the shared FailingPdo (tests/failing_pdo.php). Power-proof: flip the repo's rollBack()→commit() → red.
+test('notify(atomicity): a failing recipient insert rolls back the parent notification — no orphan (G2)', function (): void {
+    $marker = 'G2-atomicity-' . bin2hex(random_bytes(6)); // unique title so we can find any orphan
+    $userId = nt_seed_user('requester'); // a real recipient so a notification_recipients insert actually runs
+    $threw = false;
+
+    with_failing_pdo('notification_recipients', function () use ($marker, $userId, &$threw): void {
+        try {
+            // fresh repo picks up the swapped failing PDO; parent notification inserts, then the recipient
+            // insert throws mid-transaction → the whole thing must roll back
+            tvm_container()->get(NotificationRepository::class)->createNotification(
+                ['type' => 'ticket', 'title' => $marker, 'message' => 'atomicity probe', 'related_type' => 'ticket', 'related_id' => null],
+                [$userId]
+            );
+        } catch (Throwable) {
+            $threw = true;
+        }
+    });
+
+    try {
+        assert_true($threw, 'the injected recipient-insert failure must surface an error');
+
+        $count = nt_pdo()->prepare('SELECT COUNT(*) FROM notifications WHERE title = ?');
+        $count->execute([$marker]);
+        assert_same(0, (int) $count->fetchColumn(), 'the parent notification was rolled back — no orphan notification without recipients');
+    } finally {
+        // defensive: if the rollback were defeated (power-proof), clean the orphan + its recipients
+        $ids = nt_pdo()->prepare('SELECT id FROM notifications WHERE title = ?');
+        $ids->execute([$marker]);
+        foreach ($ids->fetchAll(PDO::FETCH_COLUMN) as $nid) {
+            nt_pdo()->prepare('DELETE FROM notification_recipients WHERE notification_id = ?')->execute([(int) $nid]);
+            nt_pdo()->prepare('DELETE FROM notifications WHERE id = ?')->execute([(int) $nid]);
+        }
+        nt_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$userId]);
     }
 });
