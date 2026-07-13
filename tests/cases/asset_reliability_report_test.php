@@ -100,6 +100,8 @@ test('asset reliability: a same-minute resolution shows avg 0.0, not "-" (Findin
         assert_true($row !== null, 'asset appears');
         assert_same(1, $row['failure_count'], 'failure_count = 1');
         assert_same('0.0', $row['avg_resolution_hours_label'], 'avg resolution 0.0h (same-minute resolve), not "-"');
+        // downtime presence follows the resolved-incident count too (F4): a sub-minute repair = real 0.0h, not "-"
+        assert_same('0.0', $row['downtime_hours_label'], 'downtime 0.0h (same-minute resolve), not "-"');
     } finally {
         if ($ticketId > 0) {
             arr_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);

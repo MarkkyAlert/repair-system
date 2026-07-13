@@ -201,7 +201,9 @@ class ReportService
             'mtbf_days_label' => $mtbfDays !== null ? number_format(round($mtbfDays, 0), 0) . ' วัน' : '-',
             'avg_resolution_hours_label' => (int) ($row['resolved_count'] ?? 0) > 0 ? number_format($avgHours, 1) : '-',
             'downtime_minutes' => $downtimeMinutes,
-            'downtime_hours_label' => $downtimeMinutes > 0 ? number_format(round($downtimeMinutes / 60, 1), 1) : '-',
+            // presence = มี incident ที่ปิดจริง (resolved_count) ไม่ใช่ค่าผลรวม > 0 — งานที่ซ่อมเสร็จในนาทีเดียว
+            // มี downtime จริง 0.0 ชม. ต้องไม่อ่านเป็น "ไม่มีข้อมูล" (BI-review F4, เกณฑ์เดียวกับ avg_resolution)
+            'downtime_hours_label' => (int) ($row['resolved_count'] ?? 0) > 0 ? number_format(round($downtimeMinutes / 60, 1), 1) : '-',
             'labor_minutes' => $laborMinutes,
             'labor_hours_label' => $laborMinutes > 0 ? number_format(round($laborMinutes / 60, 1), 1) : '-',
             'age_label' => $ageYears !== null ? number_format($ageYears, 1) . ' ปี' : '-',
