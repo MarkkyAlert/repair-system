@@ -169,9 +169,13 @@ class SystemSettingsService
 
         $remove = truthy_input($input['remove_logo'] ?? '0');
         if ($remove) {
-            $currentLogoPath = $this->currentLogoFilePath();
-            $this->settings->upsert('app_logo_path', '', 'string', true, (int) ($viewer['id'] ?? 0));
-            $this->deleteLogoFile($currentLogoPath);
+            // Serialize the read-current → upsert → delete-previous swap (see withLogoPathLock) so a concurrent
+            // logo change can't leave a file with no reference.
+            $this->withLogoPathLock(function () use ($viewer): void {
+                $currentLogoPath = $this->currentLogoFilePath();
+                $this->settings->upsert('app_logo_path', '', 'string', true, (int) ($viewer['id'] ?? 0));
+                $this->deleteLogoFile($currentLogoPath);
+            });
             $this->audit->record($viewer, 'logo.removed', 'system_setting', null, ['setting_key' => 'app_logo_path']);
             return;
         }
@@ -214,21 +218,53 @@ class SystemSettingsService
             throw new \RuntimeException('ไม่สามารถบันทึกไฟล์โลโก้ได้');
         }
 
-        $currentLogoPath = $this->currentLogoFilePath();
         $relativeStoredPath = $relativeDirectory . '/' . $storedName;
-        try {
-            $this->settings->upsert('app_logo_path', $relativeStoredPath, 'string', true, (int) ($viewer['id'] ?? 0));
-        } catch (Throwable $exception) {
-            $this->deleteLogoFile($absolutePath);
-            throw $exception;
-        }
+        // Serialize read-current → upsert → delete-previous so two admins uploading at once can't orphan a file:
+        // whoever runs second reads the first's path as "current" and deletes it, leaving only the referenced one.
+        $this->withLogoPathLock(function () use ($relativeStoredPath, $absolutePath, $viewer): void {
+            $currentLogoPath = $this->currentLogoFilePath();
+            try {
+                $this->settings->upsert('app_logo_path', $relativeStoredPath, 'string', true, (int) ($viewer['id'] ?? 0));
+            } catch (Throwable $exception) {
+                $this->deleteLogoFile($absolutePath);
+                throw $exception;
+            }
+            $this->deleteLogoFile($currentLogoPath);
+        });
 
-        $this->deleteLogoFile($currentLogoPath);
         $this->audit->record($viewer, 'logo.updated', 'system_setting', null, [
             'setting_key' => 'app_logo_path',
             'stored_path' => $relativeStoredPath,
             'mime' => $mime,
         ]);
+    }
+
+    /**
+     * Run a logo-path swap (read current → upsert → delete previous) under a connection-level named lock, so two
+     * admins changing the logo concurrently serialize instead of each deleting the shared old path and leaving
+     * the loser's freshly-written file with no reference (an orphan). Mirrors the GET_LOCK pattern used for
+     * running numbers. The uploaded file is moved to disk BEFORE the lock (distinct random name, no contention);
+     * only the setting read/write + previous-file delete need serializing.
+     */
+    private function withLogoPathLock(callable $fn): void
+    {
+        $lockName = 'system-setting-app_logo_path';
+        $lockStmt = $this->db->prepare('SELECT GET_LOCK(:name, 5)');
+        $lockStmt->execute(['name' => $lockName]);
+        if ((int) $lockStmt->fetchColumn() !== 1) {
+            throw new \RuntimeException('ระบบกำลังอัปเดตโลโก้ กรุณาลองอีกครั้ง');
+        }
+
+        try {
+            $fn();
+        } finally {
+            try {
+                $releaseStmt = $this->db->prepare('SELECT RELEASE_LOCK(:name)');
+                $releaseStmt->execute(['name' => $lockName]);
+            } catch (Throwable) {
+                // releasing a connection-scoped lock must not mask the swap result
+            }
+        }
     }
 
     private function currentLogoFilePath(): ?string

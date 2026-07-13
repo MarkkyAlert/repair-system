@@ -359,4 +359,28 @@ namespace {
             @unlink($tmp);
         }
     });
+
+    // ── ⭐ concurrency (F4): the logo swap is serialized by a named lock so two admins can't orphan a file ──
+    // updateLogo reads the current logo path, upserts the new one, then deletes the previous. Two admins doing
+    // this at once would each delete the shared old path and leave the loser's new file unreferenced. The swap
+    // now runs under a GET_LOCK; we prove it by observing, from a SECOND connection (a concurrent admin), that
+    // the lock is HELD for the duration of the swap (IS_FREE_LOCK = 0) and released after. Strip the GET_LOCK
+    // and the lock reads free during the swap → red (power-proof).
+    test('logo(concurrency): the logo swap runs inside the app_logo_path named lock — serialized vs a concurrent admin (F4)', function (): void {
+        $service = ss_service();
+
+        $cfg = tvm_container()->get('config')['db'];
+        $dsn = sprintf('mysql:host=%s;port=%s;dbname=%s;charset=%s', $cfg['host'], $cfg['port'], $cfg['name'], $cfg['charset']);
+        $observer = new PDO($dsn, $cfg['username'], $cfg['password'], [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+        $isFree = static fn (): int => (int) $observer->query("SELECT IS_FREE_LOCK('system-setting-app_logo_path')")->fetchColumn();
+
+        $freeDuringSwap = null;
+        call_private($service, 'withLogoPathLock', [function () use ($isFree, &$freeDuringSwap): void {
+            // inside the swap, a different admin's connection must see the named lock as NOT free (it would block)
+            $freeDuringSwap = $isFree();
+        }]);
+
+        assert_same(0, $freeDuringSwap, 'the named lock is HELD during the swap → a concurrent logo change serializes behind it, no orphan file');
+        assert_same(1, $isFree(), 'the lock is released after the swap');
+    });
 }
