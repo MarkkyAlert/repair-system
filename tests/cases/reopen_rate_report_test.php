@@ -303,27 +303,56 @@ test('reopen: repeated resolve/reopen events count the ticket once (COUNT DISTIN
     }
 });
 
-test('reopen: null technician/department labels + resolved-total invariant across LEFT-JOIN dimensions', function (): void {
+test('reopen: technician dimension attributes to the RESOLVER (not assignee) + null-actor→ยังไม่มอบหมาย + cross-dim invariant (Phase 2)', function (): void {
+    // Owner-settled (Phase 2, as-reported): the reopen technician dimension attributes a closure to the
+    // technician who ACTUALLY resolved it — the actor of the ticket's latest-in-window `ticket_resolved`
+    // event — NOT t.assigned_technician_id. So a reassign after the close does not move the reopen "blame".
+    // A closure is genuinely unattributed (→ ยังไม่มอบหมาย) ONLY when its resolve event has a NULL actor.
+    // (Previously this test asserted a null-*assignee* mapped to ยังไม่มอบหมาย; that encoded the old
+    // current-assignee semantics and is rewritten to the resolver semantics.) The representative-resolver
+    // join yields exactly ONE resolver per ticket, so Σ resolved over the technician dimension still equals
+    // Σ resolved over the department dimension.
     $admin = ['id' => 4, 'role' => 'admin'];
     $rid = bin2hex(random_bytes(4));
     [$locId] = rr_location($rid);
-    $ticketId = 0;
+    // a fresh resolver technician, distinct from the (null) current assignee
+    rr_pdo()->prepare("INSERT INTO users (username, email, password_hash, full_name, role, is_active) VALUES (?, ?, 'x', ?, 'technician', 1)")
+        ->execute(["rr_res_$rid", "rr_res_$rid@example.com", "RR Resolver $rid"]);
+    $resolverId = (int) rr_pdo()->lastInsertId();
+    $resolvedTicket = 0;
+    $nullActorTicket = 0;
 
     try {
-        $ticketId = rr_ticket("RR-$rid", $locId, null, null); // technician NULL, department NULL
-        rr_log($ticketId, 'ticket_resolved');
+        // ticket A: assigned to NOBODY (technician NULL) but RESOLVED by our fresh resolver → attributes to the resolver
+        $resolvedTicket = rr_ticket("RRT-$rid-a", $locId, null, null);
+        rr_pdo()->prepare('INSERT INTO ticket_activity_logs (ticket_id, actor_id, action, from_status, to_status) VALUES (?, ?, ?, ?, ?)')
+            ->execute([$resolvedTicket, $resolverId, 'ticket_resolved', 'in_progress', 'resolved']);
+        // ticket B: the resolve event itself has a NULL actor → genuinely unattributed → ยังไม่มอบหมาย
+        $nullActorTicket = rr_ticket("RRT-$rid-b", $locId, null, null);
+        rr_pdo()->prepare('INSERT INTO ticket_activity_logs (ticket_id, actor_id, action, from_status, to_status) VALUES (?, NULL, ?, ?, ?)')
+            ->execute([$nullActorTicket, 'ticket_resolved', 'in_progress', 'resolved']);
 
-        $tech = rr_row('technician', 'ยังไม่มอบหมาย');
-        assert_true($tech !== null && $tech['resolved'] >= 1, 'null technician → ยังไม่มอบหมาย');
+        // the closure lands under its RESOLVER's name — even though the ticket was assigned to nobody
+        $res = rr_row('technician', "RR Resolver $rid");
+        assert_true($res !== null && $res['resolved'] >= 1, 'closure attributes to the technician who resolved it, not the (null) assignee');
+        // only a NULL-actor resolve event is genuinely unattributed
+        $unassigned = rr_row('technician', 'ยังไม่มอบหมาย');
+        assert_true($unassigned !== null && $unassigned['resolved'] >= 1, 'a resolve event with a NULL actor → ยังไม่มอบหมาย');
+
         $dept = rr_row('department', 'ไม่ระบุแผนก');
-        assert_true($dept !== null && $dept['resolved'] >= 1, 'null department → ไม่ระบุแผนก');
+        assert_true($dept !== null && $dept['resolved'] >= 2, 'both null-department tickets → ไม่ระบุแผนก');
 
         $byTech = rr_service()->getReopenRateReportPage($admin, ['dimension' => 'technician'])['summary']['resolved'];
         $byDept = rr_service()->getReopenRateReportPage($admin, ['dimension' => 'department'])['summary']['resolved'];
-        assert_same($byTech, $byDept, 'resolved total identical across the two LEFT-JOIN dimensions');
+        assert_same($byTech, $byDept, 'resolved total identical across the two LEFT-JOIN dimensions (one resolver per ticket)');
     } finally {
-        rr_pdo()->prepare('DELETE FROM ticket_activity_logs WHERE ticket_id = ?')->execute([$ticketId]);
-        rr_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+        foreach ([$resolvedTicket, $nullActorTicket] as $id) {
+            if ($id > 0) {
+                rr_pdo()->prepare('DELETE FROM ticket_activity_logs WHERE ticket_id = ?')->execute([$id]);
+                rr_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
+            }
+        }
+        rr_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$resolverId]);
         rr_pdo()->prepare('DELETE FROM locations WHERE id = ?')->execute([$locId]);
     }
 });

@@ -805,9 +805,13 @@ class ReportRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    // มิติที่ยอมให้ group Reopen/FTF ได้ (whitelist กัน SQL-injection)
+    // มิติที่ยอมให้ group Reopen/FTF ได้ (whitelist กัน SQL-injection).
+    // technician = as-reported: ผูกกับ "ช่างที่ปิดงานจริง" (actor ของ event ticket_resolved ตัวแทน = latest-in-window
+    // ต่อ ticket, หนึ่งช่างต่อ ticket) ไม่ใช่ t.assigned_technician_id (ปัจจุบัน) — reassign หลังปิดจะไม่ย้าย "โทษ"
+    // การเปิดซ้ำออกจากช่างที่ปิด. join จริงถูกสร้างใน getReopenByDimension() (ต้องฉีด window params) — entry นี้คงไว้
+    // เป็น whitelist key เท่านั้น.
     private const REOPEN_DIMENSIONS = [
-        'technician' => ['join' => 'LEFT JOIN users dim ON dim.id = t.assigned_technician_id', 'label' => "COALESCE(dim.full_name, 'ยังไม่มอบหมาย')", 'group' => 'dim.id'],
+        'technician' => ['join' => '', 'label' => "COALESCE(dim.full_name, 'ยังไม่มอบหมาย')", 'group' => 'dim.id'],
         'category' => ['join' => 'INNER JOIN ticket_categories dim ON dim.id = t.ticket_category_id', 'label' => 'dim.name', 'group' => 'dim.id'],
         'priority' => ['join' => 'INNER JOIN priorities dim ON dim.id = t.priority_id', 'label' => 'dim.name', 'group' => 'dim.id'],
         'department' => ['join' => 'LEFT JOIN departments dim ON dim.id = t.requester_department_id', 'label' => "COALESCE(dim.name, 'ไม่ระบุแผนก')", 'group' => 'dim.id'],
@@ -822,7 +826,8 @@ class ReportRepository
      */
     public function getReopenByDimension(array $viewer, array $filters, string $dimension): array
     {
-        $map = self::REOPEN_DIMENSIONS[$dimension] ?? self::REOPEN_DIMENSIONS['technician'];
+        $dimension = isset(self::REOPEN_DIMENSIONS[$dimension]) ? $dimension : 'technician';
+        $map = self::REOPEN_DIMENSIONS[$dimension];
         $from = is_string($filters['from_datetime'] ?? null) ? trim((string) $filters['from_datetime']) : '';
         $to = is_string($filters['to_datetime'] ?? null) ? trim((string) $filters['to_datetime']) : '';
 
@@ -838,6 +843,39 @@ class ReportRepository
             $params['reopen_to'] = $to;
         }
         $whereClause = implode(' AND ', $conditions);
+
+        // Technician dimension is as-reported (Phase 2): attribute to the ticket's REPRESENTATIVE resolver —
+        // the actor of its latest-in-window `ticket_resolved` event, exactly ONE resolver per ticket — not
+        // t.assigned_technician_id (current assignee, which a post-resolve reassign would move). One resolver
+        // per ticket keeps the cross-dimension resolved-total invariant (each ticket maps to a single group).
+        // Separate placeholders (:reopen_res_*) avoid HY093 under EMULATE_PREPARES=false.
+        $dimensionJoin = $map['join'];
+        if ($dimension === 'technician') {
+            $resWin = $resWin2 = '';
+            if ($from !== '') {
+                $resWin .= ' AND rv.created_at >= :reopen_res_from';
+                $resWin2 .= ' AND rv2.created_at >= :reopen_res_from2';
+                $params['reopen_res_from'] = $from;
+                $params['reopen_res_from2'] = $from;
+            }
+            if ($to !== '') {
+                $resWin .= ' AND rv.created_at <= :reopen_res_to';
+                $resWin2 .= ' AND rv2.created_at <= :reopen_res_to2';
+                $params['reopen_res_to'] = $to;
+                $params['reopen_res_to2'] = $to;
+            }
+            $dimensionJoin = "LEFT JOIN (
+                    SELECT rv.ticket_id AS ticket_id, rv.actor_id AS actor_id
+                    FROM ticket_activity_logs rv
+                    WHERE rv.action = 'ticket_resolved'$resWin
+                      AND rv.id = (
+                        SELECT rv2.id FROM ticket_activity_logs rv2
+                        WHERE rv2.ticket_id = rv.ticket_id AND rv2.action = 'ticket_resolved'$resWin2
+                        ORDER BY rv2.created_at DESC, rv2.id DESC LIMIT 1
+                      )
+                 ) resv ON resv.ticket_id = t.id
+                 LEFT JOIN users dim ON dim.id = resv.actor_id";
+        }
 
         // As-reported (business decision): count ONLY reopens that happened WITHIN the window, so a past
         // period is immutable — a ticket closed in-window and reopened in a later period does not retroactively
@@ -860,7 +898,7 @@ class ReportRepository
                 COUNT(DISTINCT ro.ticket_id) AS reopened
              FROM ticket_activity_logs r
              INNER JOIN tickets t ON t.id = r.ticket_id
-             {$map['join']}
+             {$dimensionJoin}
              LEFT JOIN ticket_activity_logs ro ON ro.ticket_id = r.ticket_id AND ro.action = 'ticket_reopened'{$reopenBound}
              WHERE $whereClause
              GROUP BY {$map['group']}"
