@@ -274,6 +274,87 @@ test('lineage(e2e): resolver attribution survives a post-resolve reassign — te
     }
 });
 
+test('lineage(e2e): a full reopen cycle freezes the first cycle SLA snapshot + appends per-cycle rating (F1 Phase 2 Part B)', function (): void {
+    // The per-cycle as-reported guarantee, proven through the REAL services end to end:
+    // resolve (cycle 1) → reopen → reassign → re-resolve (cycle 2) → complete+rate. The first cycle's
+    // resolution-SLA verdict (met, its target + achieved timestamps) must be FROZEN — a reopen APPENDS a new
+    // cycle instead of resetting the row — and the rating is stored against the cycle that was actually rated.
+    // NOTE: driven in a single session every event's timestamp is "now", so both closures land in the same
+    // calendar bucket; the immutability proven here is at the CYCLE-snapshot level (ticket_sla_tracks.cycle /
+    // ticket_ratings.cycle). Calendar-period resolver attribution surviving a reassign is proven separately by
+    // the Part A reassign lineage test above.
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $tech = ['id' => 3, 'role' => 'technician'];
+    $requester = ['id' => 1, 'role' => 'requester'];
+    $rid = bin2hex(random_bytes(4));
+
+    lin_pdo()->prepare("INSERT INTO users (username, email, password_hash, full_name, role, is_active) VALUES (?, ?, 'x', ?, 'technician', 1)")
+        ->execute(["linb_$rid", "linb_$rid@example.com", "LIN B Tech2 $rid"]);
+    $tech2 = (int) lin_pdo()->lastInsertId();
+
+    $ref = tvm_container()->get(TicketReadRepository::class)->getCreateFormReferenceData();
+    $ticketId = lin_tickets()->createTicket($requester, [
+        'submission_token' => bin2hex(random_bytes(32)),
+        'title' => "LIN cycle e2e $rid",
+        'description' => 'per-cycle snapshot lineage probe',
+        'priority_id' => (int) $ref['priorities'][0]['id'],
+        'ticket_category_id' => (int) $ref['categories'][0]['id'],
+        'location_id' => (int) $ref['locations'][0]['id'],
+        'impact_level' => 'medium',
+        'urgency_level' => 'medium',
+    ], []);
+
+    $resolutionSla = static fn (): array => lin_pdo()->query(
+        "SELECT cycle, status, target_at, achieved_at FROM ticket_sla_tracks WHERE ticket_id = $ticketId AND metric_type = 'resolution' ORDER BY cycle"
+    )->fetchAll(PDO::FETCH_ASSOC);
+
+    try {
+        // ── cycle 1: resolve through the real workflow (technician 3) ──
+        lin_wf()->approveTicket($ticketId, $admin, ['note' => '']);
+        lin_wf()->assignTechnician($ticketId, $admin, ['technician_id' => 3, 'instructions' => '']);
+        lin_wf()->acceptAssignedWork($ticketId, $tech, ['accept_note' => '']);
+        lin_wf()->startAssignedWork($ticketId, $tech, ['start_note' => '']);
+        lin_wf()->resolveAssignedWork($ticketId, $tech, ['diagnosis_summary' => 'd', 'resolution_summary' => 'r', 'labor_minutes' => '30']);
+
+        $cycle1 = $resolutionSla();
+        assert_same(1, count($cycle1), 'exactly one resolution-SLA cycle after the first resolve');
+        assert_same('met', $cycle1[0]['status'], 'cycle 1 resolution SLA concluded met');
+        $frozenTarget = (string) $cycle1[0]['target_at'];
+        $frozenAchieved = (string) $cycle1[0]['achieved_at'];
+
+        // ── reopen → reassign to a different technician → cycle 2 resolve+complete+rate ──
+        lin_wf()->reopenTicket($ticketId, $requester, ['reopen_note' => 'ตรวจซ้ำ']);
+        $tech2v = ['id' => $tech2, 'role' => 'technician'];
+        lin_wf()->assignTechnician($ticketId, $admin, ['technician_id' => $tech2, 'instructions' => '']);
+        lin_wf()->acceptAssignedWork($ticketId, $tech2v, ['accept_note' => '']);
+        lin_wf()->startAssignedWork($ticketId, $tech2v, ['start_note' => '']);
+        lin_wf()->resolveAssignedWork($ticketId, $tech2v, ['diagnosis_summary' => 'd2', 'resolution_summary' => 'r2', 'labor_minutes' => '5']);
+        lin_wf()->completeResolvedTicket($ticketId, $requester, ['score' => 3, 'closure_note' => '', 'feedback' => 'ok cycle2']);
+
+        // ── the first cycle's SLA snapshot is UNCHANGED; a second cycle was appended (never reset) ──
+        $after = $resolutionSla();
+        assert_same(2, count($after), 'reopen APPENDED a second resolution-SLA cycle (did not reset the first)');
+        assert_same(1, (int) $after[0]['cycle'], 'the first row is still cycle 1');
+        assert_same('met', $after[0]['status'], 'cycle 1 SLA verdict is frozen at met (immutable snapshot)');
+        assert_same($frozenTarget, (string) $after[0]['target_at'], 'cycle 1 SLA target_at is unchanged after the reopen cycle');
+        assert_same($frozenAchieved, (string) $after[0]['achieved_at'], 'cycle 1 SLA achieved_at is unchanged after the reopen cycle');
+
+        // ── the rating is appended against the cycle that was actually rated (cycle 2), not overwriting cycle 1 ──
+        $ratings = lin_pdo()->query("SELECT cycle, score FROM ticket_ratings WHERE ticket_id = $ticketId ORDER BY cycle")->fetchAll(PDO::FETCH_ASSOC);
+        assert_same(1, count($ratings), 'exactly one rating — cycle 1 was reopened before it could be rated');
+        assert_same(2, (int) $ratings[0]['cycle'], 'the rating is stored against cycle 2 (the completed cycle)');
+        assert_same(3, (int) $ratings[0]['score'], 'the cycle-2 rating carries the score the requester gave');
+
+        // ── both immutable resolve events survive: cycle 1 by tech 3, cycle 2 by the reassigned tech ──
+        $actors = lin_pdo()->query("SELECT actor_id FROM ticket_activity_logs WHERE ticket_id = $ticketId AND action = 'ticket_resolved' ORDER BY created_at")->fetchAll(PDO::FETCH_COLUMN);
+        assert_same([3, $tech2], array_map('intval', $actors), 'the two resolve events record their real resolvers (tech 3 then the reassigned tech)');
+    } finally {
+        lin_pdo()->prepare("DELETE FROM notifications WHERE related_type = 'ticket' AND related_id = ?")->execute([$ticketId]);
+        lin_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]); // cascades logs / sla_tracks / ratings / work_orders
+        lin_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$tech2]);
+    }
+});
+
 // ── F2: status contract — the report's status filters ⊆ the real tickets.status enum ──
 
 /** The value list of the tickets.status ENUM, parsed from schema.sql (the single source of truth). */
