@@ -783,9 +783,14 @@ class ReportRepository
      *
      * Multi-resolve de-dup: ยุบ resolve events ของ ticket เดียวเหลือ "ตัวแทนหนึ่งตัวต่อ (ticket, งวด)" =
      * MAX(created_at) ในงวดนั้น → ปิดซ้ำในงวดเดียวนับครั้งเดียว แต่ปิดคนละงวดนับงวดละครั้ง (แต่ละงวดเห็นการปิดจริง —
-     * กติกาเดียวกับ reopen cohort). SLA/CSAT ผูกกับงวดที่ปิด "รอบสุดท้าย" เท่านั้น (is_final) เพื่อให้ resolution_due_at
-     * / ticket_ratings แถวปัจจุบัน (แถวเดียว) ถูกนับครั้งเดียว ไม่ซ้ำทุกงวดที่ ticket โผล่ (snapshot ราย cycle = Phase 2,
-     * ดู docs/as-reported-analytics.md). ratings 1:1 → ไม่ fan-out ; date window บน event.created_at.
+     * กติกาเดียวกับ reopen cohort).
+     *
+     * SLA/CSAT ผูกกับงวดที่ปิด "รอบสุดท้าย" เท่านั้น (is_final) โดยใช้ t.resolution_due_at (ปัจจุบัน) + rating cycle
+     * ล่าสุด (pin latestRatingCycleClause → ไม่ fan-out แม้ ratings จะ 1:many ตาม cycle แล้ว). NOTE (Phase 2
+     * Part B2, checkpointed): per-cycle SLA/rating snapshots ถูก "เก็บ" แล้ว (reopen/re-rate = append ไม่ทับของเก่า
+     * ดู ticket_sla_tracks.cycle / ticket_ratings.cycle) แต่ TREND ยังผูกกับรอบสุดท้าย — งวดแรกของ ticket ที่ถูกเปิดซ้ำ
+     * จึงยังไม่โชว์ SLA/CSAT ของ cycle เดิม. การ bucket ราย cycle (map resolve-ordinal → cycle) เป็น follow-up ที่
+     * documented ใน docs/as-reported-analytics.md. date window บน event.created_at.
      */
     public function getTicketTrendResolved(array $viewer, array $filters, string $granularity): array
     {
@@ -834,7 +839,7 @@ class ReportRepository
                 GROUP BY r.ticket_id, DATE_FORMAT(r.created_at, '$fmt')
              ) re
              INNER JOIN tickets t ON t.id = re.ticket_id
-             LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id
+             LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id AND {$this->latestRatingCycleClause('tr')}
              WHERE $whereClause
              GROUP BY re.bucket
              ORDER BY re.bucket"
