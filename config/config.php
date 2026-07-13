@@ -80,6 +80,9 @@ return [
         'import_asset_max_rows' => (int) Env::get('UPLOAD_IMPORT_ASSET_MAX_ROWS', 500),
         'import_user_max_bytes' => (int) Env::get('UPLOAD_IMPORT_USER_MAX_BYTES', 1 * 1024 * 1024),
         'import_user_max_rows' => (int) Env::get('UPLOAD_IMPORT_USER_MAX_ROWS', 200),
+        // Where the organisation logo is stored (relative to the app root). Overridable so a deploy can point it
+        // at a writable/shared volume.
+        'branding_dir' => trim((string) Env::get('BRANDING_UPLOAD_DIR', 'storage/uploads/branding'), '/'),
     ],
     'paths' => [
         'views' => BASE_PATH . '/app/Views',

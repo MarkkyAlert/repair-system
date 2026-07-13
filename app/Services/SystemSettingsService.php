@@ -206,7 +206,7 @@ class SystemSettingsService
         }
 
         $extension = $allowed[$mime];
-        $relativeDirectory = 'storage/uploads/branding';
+        $relativeDirectory = $this->brandingRelativeDir();
         $absoluteDirectory = BASE_PATH . '/' . $relativeDirectory;
         if (!is_dir($absoluteDirectory) && !mkdir($absoluteDirectory, 0775, true) && !is_dir($absoluteDirectory)) {
             throw new \RuntimeException('ไม่สามารถสร้างโฟลเดอร์เก็บโลโก้ได้');
@@ -219,18 +219,26 @@ class SystemSettingsService
         }
 
         $relativeStoredPath = $relativeDirectory . '/' . $storedName;
-        // Serialize read-current → upsert → delete-previous so two admins uploading at once can't orphan a file:
-        // whoever runs second reads the first's path as "current" and deletes it, leaving only the referenced one.
-        $this->withLogoPathLock(function () use ($relativeStoredPath, $absolutePath, $viewer): void {
-            $currentLogoPath = $this->currentLogoFilePath();
-            try {
+        // The file is already on disk. Serialize read-current → upsert → delete-previous so two admins uploading
+        // at once can't orphan a file (whoever runs second reads the first's path as "current" and deletes it).
+        // The outer try/catch cleans up the just-moved file if ACQUIRING THE LOCK or the upsert fails — otherwise
+        // that ≤1MB file would linger with no setting referencing it. $committed guards the case where the new
+        // path was already stored: a later best-effort delete-previous must never take the referenced file down.
+        $committed = false;
+        try {
+            $this->withLogoPathLock(function () use ($relativeStoredPath, $viewer, &$committed): void {
+                $currentLogoPath = $this->currentLogoFilePath();
                 $this->settings->upsert('app_logo_path', $relativeStoredPath, 'string', true, (int) ($viewer['id'] ?? 0));
-            } catch (Throwable $exception) {
+                $committed = true;
+                $this->deleteLogoFile($currentLogoPath);
+            });
+        } catch (Throwable $exception) {
+            if (!$committed) {
                 $this->deleteLogoFile($absolutePath);
-                throw $exception;
             }
-            $this->deleteLogoFile($currentLogoPath);
-        });
+
+            throw $exception;
+        }
 
         $this->audit->record($viewer, 'logo.updated', 'system_setting', null, [
             'setting_key' => 'app_logo_path',
@@ -246,6 +254,12 @@ class SystemSettingsService
      * running numbers. The uploaded file is moved to disk BEFORE the lock (distinct random name, no contention);
      * only the setting read/write + previous-file delete need serializing.
      */
+    /** Logo storage directory, relative to the app root (config-driven so a deploy — or a test — can redirect it). */
+    private function brandingRelativeDir(): string
+    {
+        return trim((string) config('uploads.branding_dir', 'storage/uploads/branding'), '/');
+    }
+
     private function withLogoPathLock(callable $fn): void
     {
         $lockName = 'system-setting-app_logo_path';
@@ -276,7 +290,7 @@ class SystemSettingsService
         }
 
         $relativePath = ltrim($existingPath, '/');
-        $storageRoot = realpath(BASE_PATH . '/storage/uploads/branding');
+        $storageRoot = realpath(BASE_PATH . '/' . $this->brandingRelativeDir());
         $publicRoot = realpath(BASE_PATH . '/public/uploads/branding');
         $absoluteCandidates = [
             BASE_PATH . '/' . $relativePath,

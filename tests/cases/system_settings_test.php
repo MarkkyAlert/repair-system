@@ -383,4 +383,54 @@ namespace {
         assert_same(0, $freeDuringSwap, 'the named lock is HELD during the swap → a concurrent logo change serializes behind it, no orphan file');
         assert_same(1, $isFree(), 'the lock is released after the swap');
     });
+
+    // ── ⭐ (F4-followup): a lock failure AFTER the move cleans up the orphaned file ──
+    // The uploaded file is moved to the branding dir BEFORE the lock is taken. If acquiring the lock (or the
+    // upsert) then fails, that just-moved ≤1MB file would linger with no setting referencing it. updateLogo wraps
+    // the swap in an outer try/catch that deletes it. We redirect the branding dir to a writable temp path (the
+    // real one may be owned by the web server), inject a GET_LOCK failure, and assert: it threw, app_logo_path is
+    // unchanged, and NO logo file remains in the temp dir. Remove the outer cleanup → the orphan stays → red.
+    test('logo(cleanup): a lock failure after the move deletes the orphan and leaves the setting intact (F4)', function (): void {
+        $container = tvm_container();
+        $settings = $container->get(\App\Repositories\SettingsRepository::class);
+        $beforeValue = (string) ($settings->getByKey('app_logo_path')['setting_value'] ?? '');
+
+        // redirect uploads.branding_dir to a writable temp path (config-driven; restored in finally)
+        $relDir = 'storage/uploads/tickets/brtest_' . bin2hex(random_bytes(5));
+        $absDir = BASE_PATH . '/' . $relDir;
+        $logoFiles = static fn (): array => is_dir($absDir) ? (glob($absDir . '/logo-*') ?: []) : [];
+        $baseConfig = $container->get('config');
+        $override = $baseConfig;
+        $override['uploads']['branding_dir'] = $relDir;
+        $container->instance('config', $override);
+
+        // a real 1x1 PNG so the content-sniff MIME check passes and the file is actually moved to disk
+        $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGNgYGAAAAAEAAH2FzhVAAAAAElFTkSuQmCC');
+        $tmp = ss_tmp($png);
+
+        $threw = false;
+        // FailingPdo throws on the GET_LOCK statement → withLogoPathLock throws AFTER the file was moved but
+        // BEFORE its callback, so only the outer cleanup can delete it.
+        with_failing_pdo('GET_LOCK', function () use ($tmp, $png, &$threw): void {
+            try {
+                tvm_container()->get(SystemSettingsService::class)
+                    ->updateLogo(ss_admin(), ss_logo_entry(['tmp_name' => $tmp, 'size' => strlen($png)]), []);
+            } catch (Throwable) {
+                $threw = true;
+            }
+        });
+
+        try {
+            assert_true($threw, 'the injected GET_LOCK failure must surface');
+            assert_same($beforeValue, (string) ($settings->getByKey('app_logo_path')['setting_value'] ?? ''), 'app_logo_path is unchanged (the upsert never ran)');
+            assert_same([], $logoFiles(), 'the just-moved file was cleaned up — no orphan branding file remains');
+        } finally {
+            $container->instance('config', $baseConfig); // restore the shared config
+            @unlink($tmp);
+            foreach ($logoFiles() as $orphan) { // clean any orphan a failing power-proof run leaves
+                @unlink($orphan);
+            }
+            @rmdir($absDir);
+        }
+    });
 }
