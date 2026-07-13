@@ -119,7 +119,7 @@ Rewrote the two colliding test intents (not merely re-seeded), per the owner dec
 E2E (`report_lineage_test.php`): tech 3 resolves, the ticket is reassigned to another tech — the Technician
 Performance report and reopen dimension both keep the closure credited to tech 3, never the new assignee.
 
-### Part B — per-cycle SLA + CSAT snapshots (shipped: schema + writers + readers; trend read checkpointed)
+### Part B — per-cycle SLA + CSAT snapshots (shipped: schema + writers + readers; trend read shipped in Part B2 below)
 
 Schema: `ticket_sla_tracks` gains `cycle` (UNIQUE → `ticket_id, metric_type, cycle`); `ticket_ratings` gains
 `cycle` (UNIQUE → `ticket_id, cycle`). `database/schema.sql` + `ALTER` on `repair_system` and
@@ -145,17 +145,52 @@ cycle's resolution-SLA snapshot byte-for-byte and stores the rating against the 
 once through the real flow. The per-cycle rating schema is still the correct immutable design and makes
 CSAT-by-period fan-out-safe; the reconciliation test seeds two cycles directly to prove the period immutability.
 
-### Checkpoint — Part B2: per-cycle TREND SLA/CSAT (documented follow-up)
+### Part B2 — per-cycle TREND SLA/CSAT (shipped)
 
-The **trend** report's per-period SLA/CSAT columns (`getTicketTrendResolved`) still use the Phase-1
-best-effort: the current `t.resolution_due_at` + the latest rating, attached to the ticket's **final** resolve
-bucket (`is_final`; the rating join is now pinned to the latest cycle so it can't fan out). The per-cycle
-snapshots are now **persisted** (reopen/re-rate append), so this is a pure **read** rework — but it needs a
-`resolve-event ordinal → cycle` mapping (the event log has no `cycle` column) to attach each cycle's frozen
-SLA verdict / rating to the bucket where that cycle resolved, plus migrating the trend tests (which seed the
-`t.resolution_due_at` column + a single rating rather than per-cycle `ticket_sla_tracks` rows). Consequence
-until it lands: the **first** period of a reopened ticket still shows no SLA/CSAT (its later cycle carries
-them) — no worse than Phase 1, and the primary SLA compliance + CSAT-by-period reports are already
-as-reported. Cleanest approach when picked up: compute per-bucket SLA directly from `ticket_sla_tracks`
-resolution rows bucketed by `achieved_at`, and per-bucket CSAT from `ticket_ratings` bucketed by
-`created_at`, merged by bucket in the service alongside the event-sourced resolved/MTTR.
+The **trend** report's per-period SLA/CSAT columns (`getTicketTrendResolved`) now read the **per-cycle**
+snapshots persisted in Part B, so each period's SLA verdict + CSAT reflect the cycle that actually **closed in
+that period** — immutably. A ticket resolved in January (cycle 1) then reopened + re-resolved in March
+(cycle 2) shows January's cycle-1 verdict/rating in January and cycle-2's in March; neither period restates the
+other.
+
+**Resolve-event ordinal → cycle mapping.** The event log has no `cycle` column, so the trend derives it:
+number every `ticket_resolved` event `ROW_NUMBER() OVER (PARTITION BY ticket_id ORDER BY created_at, id)` →
+the Nth resolve is **cycle N**, exactly the ordinal `reopenTicket` uses when it appends cycle `N+1`. The
+numbering runs over **all** the ticket's resolve events *before* the report window filter, so a cycle that
+resolved outside the window doesn't shift the ordinal of the ones inside it. The multi-resolve de-dup is
+unchanged: within a `(ticket, bucket)` the representative resolve is still `MAX(created_at)` (one closure per
+ticket per period), and it carries **its own** cycle number.
+
+**How SLA/CSAT read per cycle.** For each representative resolve of cycle N:
+- **SLA** = the `ticket_sla_tracks` row for `(ticket_id, metric_type='resolution', cycle=N)`. `sla_base` counts
+  the row's existence; `sla_on_time` compares the representative **resolve time to that cycle's frozen
+  `target_at`** — not the current `t.resolution_due_at`, which a reopen overwrites.
+- **CSAT** = the `ticket_ratings` row for `(ticket_id, cycle=N)` (`score`/`count`), not the latest rating.
+
+Both are `LEFT JOIN`s on the per-cycle `UNIQUE` keys (`(ticket, metric, cycle)` / `(ticket, cycle)`) so they stay
+**fan-out-free**. A representative resolve with **no** matching resolution SLA row (bad seed/import) yields
+`ts.id IS NULL` → **no SLA base**, never a crash or a spurious 0%/100%. The `is_final` gate and the
+latest-rating join used by Phase 1 are removed. The cross-dimension resolved-total invariant and the single MTTR
+rounding pipeline (`ROUND(AVG(TIMESTAMPDIFF(MINUTE, …)), 1)` → `/60` once in the service) are unchanged.
+
+**Tests.** The trend reconciliation seeds were migrated from the `t.resolution_due_at` column + a single rating
+to per-cycle `ticket_sla_tracks` + `ticket_ratings` rows (`ticket_trend_report_test.php`), exercising the
+per-cycle read; the intent of those tests is the same (Feb SLA 100%, a real 0% period, F4 base counts) — only
+the seed mechanism moved to the cycle rows. New locks:
+- **Period immutability** (unit): cycle 1 resolves in period 1 (met, rated 5), reopened, cycle 2 resolves in
+  period 2 (breached, rated 2) → period 1 shows 100% + 5, period 2 shows 0% + 2, neither restates the other.
+- **Missing-row guard**: a resolve event with no cycle SLA row contributes no SLA base and renders `-`.
+- **E2E** (`report_lineage_test.php`): a real resolve is read by the trend as its cycle-1 track (100%); mutating
+  `t.resolution_due_at` into the past (what a reopen does to that column) leaves the period at 100% — proving
+  the trend reads the frozen cycle track, not the mutable column.
+
+**Real-flow limitation (unchanged from Part B).** Driven through the real services in one session, every event's
+timestamp is "now", so both closures land in the same calendar bucket — the E2E therefore proves the per-cycle
+**read** wiring (and the SLA snapshot immutability against a current-column mutation), while the cross-**period**
+immutability (and the CSAT re-rate case, unreachable through the services once `completed`) is locked by the unit
+test with controlled timestamps + directly seeded rating cycles.
+
+**Power-proof.** Reverting `getTicketTrendResolved` to the pre-B2 read (`t.resolution_due_at` + latest rating,
+gated to the `is_final` bucket) reddens the period-immutability unit lock (period 1's cycle-1 SLA base drops to
+0) and the E2E lock (the period flips to a false 0% after the column mutation); restoring returns the suite to
+green.
