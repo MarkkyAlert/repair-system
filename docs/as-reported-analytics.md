@@ -75,7 +75,36 @@ two technician groups. Deferred to Phase 2 with the representative-resolver join
 MTTR keeps the single pipeline the repo already uses (`ROUND(AVG(TIMESTAMPDIFF(MINUTE, …)), 1)` →
 minutes → `/60` once in the service), so screen and export agree.
 
-## Phase 2 (scoped follow-up) — per-cycle SLA + CSAT snapshots
+## What Phase 1 shipped
+
+- `ReportRepository::getTicketTrendResolved` buckets on the `ticket_resolved` event
+  (`ticket_trend_report_test.php` + `duration_backwards_timestamp_test.php` migrated to seed the event;
+  new lock: a resolved-then-reopened ticket stays in its past bucket).
+- `report_lineage_test.php` E2E: create→resolve→reopen→reassign through the real services, asserting the
+  month's throughput is +1 after resolve and unchanged after reopen/reassign, that reopen NULLed
+  `resolved_at`, that the `ticket_resolved` event survived, and that the reopen cohort is as-reported.
+
+The `/reports` **overview mini** technician table stays a current-assignee quick snapshot (like the live
+workload beside it); the dedicated Technician Performance report is the intended as-reported record and is
+addressed in Phase 2 below.
+
+## Phase 2 (scoped follow-up) — attribution surfaces + per-cycle SLA + CSAT snapshots
+
+### Technician-report + reopen-dimension attribution (deferred — test-intent collisions)
+
+Event-sourcing the **technician-report** resolved/MTTR columns and the **reopen technician dimension** to the
+resolve-event actor is correct, but each collides with owner-documented behaviour that a faithful migration
+must *rewrite*, not merely re-seed — so each belongs in its own reviewable change:
+
+- `technician_performance_report_test.php`: "status='resolved' with NULL resolved_at → `resolved`=1, MTTR
+  '-'" encodes the resolved_at-based rule. Under event-sourcing MTTR comes from the event, so this case's
+  meaning changes (a status-resolved ticket with no resolve event is simply not counted).
+- `reopen_rate_report_test.php`: "null technician → ยังไม่มอบหมาย" asserts the *current-assignee* semantics;
+  resolver attribution puts the ticket under its resolver instead. The fix must join to the ticket's
+  **representative** (latest) resolver — one resolver per ticket — to keep the cross-dimension resolved-total
+  invariant, and the test's documented intent updated with the owner.
+
+### Per-cycle SLA + CSAT snapshots
 
 To make SLA and CSAT fully immutable, stop overwriting per-cycle state:
 
