@@ -658,7 +658,12 @@ class ReportService
         $slaBase = (int) ($period['sla_base'] ?? 0);
         $slaOnTime = (int) ($period['sla_on_time'] ?? 0);
 
-        $completionPct = $assigned > 0 ? round($resolved / $assigned * 100, 1) : null;
+        // completion = ปิดงาน(as-reported) ÷ (ปิดงาน + งานค้างปัจจุบันของช่าง) — ตัวตั้ง+ตัวหาร cohort เดียวกัน
+        // (งานที่อยู่ในมือช่างคนนี้: ปิดไปแล้ว + ยังค้าง) จึงได้ 0–100% เสมอ และกระทบยอดจากสองคอลัมน์ที่เห็นได้
+        // (ปิดงาน + งานค้างปัจจุบัน). เดิมเอา resolved(event actor) หาร assigned(current assignee) = คนละ cohort
+        // → เกิน 100% หรือขึ้น "-" ทั้งที่ช่างมีผลงาน (R10-F1). $assigned (รับในช่วง) ยังโชว์เป็นข้อมูลประกอบ.
+        $completionBase = $resolved + $openNow;
+        $completionPct = $completionBase > 0 ? round($resolved / $completionBase * 100, 1) : null;
         $slaRate = $slaBase > 0 ? round($slaOnTime / $slaBase * 100, 1) : null;
         $sharePct = $totalOpenNow > 0 ? round($openNow / $totalOpenNow * 100, 1) : null;
         $oldestAge = $this->daysSince($live['oldest_open_at'] ?? null);

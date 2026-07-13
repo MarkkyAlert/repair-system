@@ -115,8 +115,10 @@ test('report guide: documents the net-is-not-backlog + completion-denominator ca
 
     assert_contains_str('สุทธิ (net)', $guide, 'guide defines the "net" metric');
     assert_contains_str('ยังไม่หักงานที่ยกเลิก/ปฏิเสธ', $guide, 'guide warns net does not subtract cancel/reject (not an exact backlog change)');
-    assert_contains_str('ปิด ÷ งานที่รับมอบหมาย', $guide, 'guide states the technician completion denominator (assigned)');
+    assert_contains_str('ปิด ÷ (ปิด + งานค้างปัจจุบันของช่าง)', $guide, 'guide states the technician completion denominator (closed + still-open, one cohort)');
     assert_contains_str('อย่านำ % ข้ามสองหน้ามาเทียบกันตรง ๆ', $guide, 'guide warns the two completion %s are not directly comparable');
+    // R10-F1: the guide must also state the three "resolved" counts use different grains on purpose
+    assert_contains_str('ยอดปิดงาน — นับต่างกันตามหน้า', $guide, 'guide documents the executive/trend/technician resolved-count grain difference');
 });
 
 // BI-review (ChatGPT R10) F3: the short "at a glance" lines on the guide + trend page must NOT assert the

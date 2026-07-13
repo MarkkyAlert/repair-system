@@ -274,6 +274,116 @@ test('lineage(e2e): resolver attribution survives a post-resolve reassign — te
     }
 });
 
+test('lineage(e2e): resolved counts reconcile across executive/trend/technician by grain, completion stays 0–100% (R10-F1)', function (): void {
+    // The three "ปิดงาน/resolved" numbers use DIFFERENT grains ON PURPOSE (owner decision "keep the difference"):
+    //   • executive summary = current STATE  (a reopened ticket isn't counted until it is re-resolved)
+    //   • trend             = per-TICKET throughput (one ticket → one closure per calendar bucket)
+    //   • technician report = per-RESOLVER credit (two people each closed it once → +1 each)
+    // so after one ticket is closed by tech 3, reopened, reassigned, and re-closed by tech 2 IN THE SAME bucket,
+    // executive moves +1 and trend moves +1, but the technician report moves +2 (one credit per resolver). This
+    // test drives that whole path through the REAL services and locks the three deltas to their grains — plus the
+    // fix that matters: the technician completion % must divide a SINGLE cohort (closed ÷ (closed + still-open)),
+    // so it is always 0–100% and a resolver reassigned away from their close still shows a real %, never a false
+    // "-" or a ">100%" (the old event-resolved ÷ current-assignment mix, R10-F1).
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $requester = ['id' => 1, 'role' => 'requester'];
+    $rid = bin2hex(random_bytes(4));
+
+    $monthFilter = ['granularity' => 'month', 'from_date' => date('Y-m-01'), 'to_date' => date('Y-m-d')];
+    $curKey = date('Y-m');
+
+    // two FRESH technicians so their report state is fully controlled (baseline 0): techA closes cycle 1 and is
+    // then reassigned away (its current-assignment drops to 0 — the exact trigger for the old false "-"); techB
+    // closes cycle 2. Using isolated technicians makes the completion assertion deterministic (a shared fixture
+    // tech carries unrelated assigned tickets that mask the bug).
+    lin_pdo()->prepare("INSERT INTO users (username, email, password_hash, full_name, role, is_active) VALUES (?, ?, 'x', ?, 'technician', 1)")
+        ->execute(["lina_$rid", "lina_$rid@example.com", "LIN R10 TechA $rid"]);
+    $techA = (int) lin_pdo()->lastInsertId();
+    $techAName = "LIN R10 TechA $rid";
+    $techAv = ['id' => $techA, 'role' => 'technician'];
+    lin_pdo()->prepare("INSERT INTO users (username, email, password_hash, full_name, role, is_active) VALUES (?, ?, 'x', ?, 'technician', 1)")
+        ->execute(["linb_$rid", "linb_$rid@example.com", "LIN R10 TechB $rid"]);
+    $techB = (int) lin_pdo()->lastInsertId();
+    $techBName = "LIN R10 TechB $rid";
+    $techBv = ['id' => $techB, 'role' => 'technician'];
+
+    $execResolved = static fn (): int => (int) (lin_reports()->getReportPageData($admin, [])['summary']['resolved'] ?? 0);
+    $trendResolved = static function () use ($admin, $monthFilter, $curKey): int {
+        foreach (lin_reports()->getTicketTrendReportPage($admin, $monthFilter)['periods'] as $p) {
+            if ($p['key'] === $curKey) {
+                return (int) $p['resolved'];
+            }
+        }
+
+        return 0;
+    };
+    $techRow = static function (string $name) use ($admin): ?array {
+        foreach (lin_reports()->getTechnicianPerformanceReportPage($admin, [])['rows'] as $r) {
+            if ($r['full_name'] === $name) {
+                return $r;
+            }
+        }
+
+        return null;
+    };
+    $techResolved = static fn (string $name): int => (int) (($techRow($name)['resolved'] ?? 0));
+
+    $execBefore = $execResolved();
+    $trendBefore = $trendResolved();
+
+    $ref = tvm_container()->get(TicketReadRepository::class)->getCreateFormReferenceData();
+    $ticketId = lin_tickets()->createTicket($requester, [
+        'submission_token' => bin2hex(random_bytes(32)),
+        'title' => "LIN R10 grain $rid",
+        'description' => 'cross-report grain reconciliation probe',
+        'priority_id' => (int) $ref['priorities'][0]['id'],
+        'ticket_category_id' => (int) $ref['categories'][0]['id'],
+        'location_id' => (int) $ref['locations'][0]['id'],
+        'impact_level' => 'medium',
+        'urgency_level' => 'medium',
+    ], []);
+
+    try {
+        // cycle 1: techA closes it
+        lin_wf()->approveTicket($ticketId, $admin, ['note' => '']);
+        lin_wf()->assignTechnician($ticketId, $admin, ['technician_id' => $techA, 'instructions' => '']);
+        lin_wf()->acceptAssignedWork($ticketId, $techAv, ['accept_note' => '']);
+        lin_wf()->startAssignedWork($ticketId, $techAv, ['start_note' => '']);
+        lin_wf()->resolveAssignedWork($ticketId, $techAv, ['diagnosis_summary' => 'd', 'resolution_summary' => 'r', 'labor_minutes' => '30']);
+
+        // reopen → reassign to techB → cycle 2: techB closes it (same calendar bucket). techA is now reassigned
+        // away, so its current-assignment count is 0 while it still owns one resolve event.
+        lin_wf()->reopenTicket($ticketId, $requester, ['reopen_note' => 'ตรวจซ้ำ']);
+        lin_wf()->assignTechnician($ticketId, $admin, ['technician_id' => $techB, 'instructions' => '']);
+        lin_wf()->acceptAssignedWork($ticketId, $techBv, ['accept_note' => '']);
+        lin_wf()->startAssignedWork($ticketId, $techBv, ['start_note' => '']);
+        lin_wf()->resolveAssignedWork($ticketId, $techBv, ['diagnosis_summary' => 'd2', 'resolution_summary' => 'r2', 'labor_minutes' => '5']);
+
+        // ── grain reconciliation: same event, three intended counts ──
+        assert_same($execBefore + 1, $execResolved(), 'executive (current state): the re-resolved ticket is counted once');
+        assert_same($trendBefore + 1, $trendResolved(), 'trend (per ticket): one closure in the bucket, though two people closed it');
+        assert_same(1, $techResolved($techAName), 'technician (per resolver): techA credited for its close (fresh tech, baseline 0)');
+        assert_same(1, $techResolved($techBName), 'technician (per resolver): techB credited for its close (fresh tech, baseline 0)');
+        // → executive +1, trend +1, but the per-resolver total is +2: the documented grain difference
+
+        // ── completion is a single-cohort 0–100% for BOTH resolvers (the old event÷current-assignment mix is gone) ──
+        // techA is the sharp case: reassigned away → current-assignment 0 → the old formula divided by 0 and showed "-".
+        foreach ([$techAName, $techBName] as $name) {
+            $row = $techRow($name);
+            assert_true($row !== null, "$name appears in the technician report");
+            $label = (string) $row['completion_label'];
+            assert_true($label !== '-', "$name shows a real completion %, not a false '-' (it closed work)");
+            $pct = (float) rtrim($label, '%');
+            assert_true($pct >= 0.0 && $pct <= 100.0, "$name completion is within 0–100% (the cohort mix could exceed 100): $label");
+        }
+    } finally {
+        lin_pdo()->prepare("DELETE FROM notifications WHERE related_type = 'ticket' AND related_id = ?")->execute([$ticketId]);
+        lin_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]); // cascades logs / sla_tracks / work_orders
+        lin_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$techA]);
+        lin_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$techB]);
+    }
+});
+
 test('lineage(e2e): a full reopen cycle freezes the first cycle SLA snapshot + appends per-cycle rating (F1 Phase 2 Part B)', function (): void {
     // The per-cycle as-reported guarantee, proven through the REAL services end to end:
     // resolve (cycle 1) → reopen → reassign → re-resolve (cycle 2) → complete+rate. The first cycle's
