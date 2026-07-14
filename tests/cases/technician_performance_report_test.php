@@ -43,6 +43,18 @@ function tpr_resolve_event(int $ticketId, int $actorId, string $createdAt): void
     )->execute([$ticketId, $actorId, $createdAt]);
 }
 
+/**
+ * Seed the frozen per-cycle resolution SLA track the report now reads for the technician's SLA-on-time (R13):
+ * on-time = the resolve-event time <= this $targetAt. cycle 1 = the first resolve.
+ */
+function tpr_sla_track(int $ticketId, string $targetAt, int $cycle = 1): void
+{
+    tpr_pdo()->prepare(
+        "INSERT INTO ticket_sla_tracks (ticket_id, metric_type, cycle, target_at, status)
+         VALUES (?, 'resolution', ?, ?, 'met')"
+    )->execute([$ticketId, $cycle, $targetAt]);
+}
+
 function tpr_row(string $fullName, array $filters = []): ?array
 {
     $page = tpr_service()->getTechnicianPerformanceReportPage(['id' => 4, 'role' => 'admin'], $filters);
@@ -99,39 +111,38 @@ test('technician performance: more than 200 technicians are all counted, none dr
     }
 });
 
-test('technician performance: period first-response avg + per-tech SLA on-time rate', function (): void {
+test('technician performance: per-tech SLA on-time rate (as-reported, from the frozen cycle target)', function (): void {
+    // SLA-on-time is now immutable/as-reported (R13): of the tickets the technician RESOLVED, how many closed
+    // within their cycle's FROZEN target_at (ticket_sla_tracks) — not the current resolution_due_at. So a later
+    // reopen/reassign can't restate it. (First-response time + labor were removed — not immutable per-tech.)
     $rid = bin2hex(random_bytes(4));
     [$techId, $fullName] = tpr_tech($rid);
 
     try {
         $now = time();
-        // A: responded 30min after request, resolved ON TIME (resolved_at <= resolution_due_at)
+        // A: resolved ON TIME — resolve event (now-3600) <= frozen target (now)
         tpr_pdo()->prepare(
-            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, assigned_technician_id, status, requested_at, first_response_at, resolved_at, resolution_due_at)
-             VALUES (?, 'x', 'x', 1, 1, 1, 1, ?, 'resolved', ?, ?, ?, ?)"
-        )->execute([
-            "TPRA-$rid", $techId,
-            date('Y-m-d H:i:s', $now - 7200), date('Y-m-d H:i:s', $now - 7200 + 1800),
-            date('Y-m-d H:i:s', $now - 3600), date('Y-m-d H:i:s', $now),
-        ]);
-        tpr_resolve_event((int) tpr_pdo()->lastInsertId(), $techId, date('Y-m-d H:i:s', $now - 3600));
-        // B: responded 90min after request, resolved LATE (resolved_at > resolution_due_at)
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, assigned_technician_id, status, requested_at, resolved_at)
+             VALUES (?, 'x', 'x', 1, 1, 1, 1, ?, 'resolved', ?, ?)"
+        )->execute(["TPRA-$rid", $techId, date('Y-m-d H:i:s', $now - 7200), date('Y-m-d H:i:s', $now - 3600)]);
+        $a = (int) tpr_pdo()->lastInsertId();
+        tpr_resolve_event($a, $techId, date('Y-m-d H:i:s', $now - 3600));
+        tpr_sla_track($a, date('Y-m-d H:i:s', $now)); // target after the resolve → on time
+        // B: resolved LATE — resolve event (now) > frozen target (now-3600)
         tpr_pdo()->prepare(
-            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, assigned_technician_id, status, requested_at, first_response_at, resolved_at, resolution_due_at)
-             VALUES (?, 'x', 'x', 1, 1, 1, 1, ?, 'resolved', ?, ?, ?, ?)"
-        )->execute([
-            "TPRB-$rid", $techId,
-            date('Y-m-d H:i:s', $now - 10800), date('Y-m-d H:i:s', $now - 10800 + 5400),
-            date('Y-m-d H:i:s', $now), date('Y-m-d H:i:s', $now - 3600),
-        ]);
-        tpr_resolve_event((int) tpr_pdo()->lastInsertId(), $techId, date('Y-m-d H:i:s', $now));
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, assigned_technician_id, status, requested_at, resolved_at)
+             VALUES (?, 'x', 'x', 1, 1, 1, 1, ?, 'resolved', ?, ?)"
+        )->execute(["TPRB-$rid", $techId, date('Y-m-d H:i:s', $now - 10800), date('Y-m-d H:i:s', $now)]);
+        $b = (int) tpr_pdo()->lastInsertId();
+        tpr_resolve_event($b, $techId, date('Y-m-d H:i:s', $now));
+        tpr_sla_track($b, date('Y-m-d H:i:s', $now - 3600)); // target before the resolve → late
 
         $row = tpr_row($fullName);
         assert_true($row !== null, 'technician appears');
         assert_same(2, $row['assigned'], 'assigned = 2');
         assert_same(2, $row['resolved'], 'resolved = 2 (as-reported: the technician resolved both, via the resolve events)');
-        assert_same('50.0%', $row['sla_on_time_label'], 'SLA on-time = 1 of 2 = 50%');
-        assert_same('1.0', $row['first_response_hours_label'], 'first response avg (30+90)/2 = 60min = 1.0h');
+        assert_same('50.0%', $row['sla_on_time_label'], 'SLA on-time = 1 of 2 = 50% (A on time, B late vs the frozen target)');
+        assert_same(2, $row['sla_base'], 'sla_base = 2 (both resolves have a cycle track)');
     } finally {
         tpr_cleanup($techId);
     }
@@ -146,23 +157,22 @@ test('technician performance: avg rating & SLA rate carry their sample size (Fin
 
     try {
         $now = time();
-        // one resolved, on-time ticket with a single 5-star rating for this technician
+        // one resolved, on-time ticket with a single 5-star rating for this technician (all read via the resolve cycle)
         tpr_pdo()->prepare(
-            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, assigned_technician_id, status, requested_at, resolved_at, resolution_due_at)
-             VALUES (?, 'x', 'x', 1, 1, 1, 1, ?, 'resolved', ?, ?, ?)"
-        )->execute([
-            "TPRR-$rid", $techId,
-            date('Y-m-d H:i:s', $now - 3600), date('Y-m-d H:i:s', $now - 1800), date('Y-m-d H:i:s', $now),
-        ]);
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, assigned_technician_id, status, requested_at, resolved_at)
+             VALUES (?, 'x', 'x', 1, 1, 1, 1, ?, 'resolved', ?, ?)"
+        )->execute(["TPRR-$rid", $techId, date('Y-m-d H:i:s', $now - 3600), date('Y-m-d H:i:s', $now - 1800)]);
         $tid = (int) tpr_pdo()->lastInsertId();
+        tpr_resolve_event($tid, $techId, date('Y-m-d H:i:s', $now - 1800));
+        tpr_sla_track($tid, date('Y-m-d H:i:s', $now)); // resolve (now-1800) <= target (now) → on time
         tpr_pdo()->prepare(
-            "INSERT INTO ticket_ratings (ticket_id, requester_id, technician_id, score, feedback, created_at, updated_at)
-             VALUES (?, 1, ?, 5, '', ?, ?)"
+            "INSERT INTO ticket_ratings (ticket_id, requester_id, technician_id, cycle, score, feedback, created_at, updated_at)
+             VALUES (?, 1, ?, 1, 5, '', ?, ?)"
         )->execute([$tid, $techId, date('Y-m-d H:i:s', $now - 1800), date('Y-m-d H:i:s', $now - 1800)]);
 
         $row = tpr_row($fullName);
         assert_true($row !== null, 'technician appears');
-        assert_same('5.0', $row['avg_rating_label'], 'avg rating label = 5.0');
+        assert_same('5.0', $row['avg_rating_label'], 'avg rating label = 5.0 (resolver cohort, cycle 1)');
         assert_same('100.0%', $row['sla_on_time_label'], 'SLA on-time = 1 of 1 = 100%');
         // Finding B: the sample size behind each average/rate must be exposed on the row
         assert_same(1, $row['rating_count'] ?? null, 'row exposes rating_count = 1 (the single rating behind 5.0)');
@@ -185,17 +195,15 @@ test('technician performance: CSV export cells reconcile with the on-screen row 
     try {
         $now = time();
         tpr_pdo()->prepare(
-            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, assigned_technician_id, status, requested_at, resolved_at, resolution_due_at)
-             VALUES (?, 'x', 'x', 1, 1, 1, 1, ?, 'resolved', ?, ?, ?)"
-        )->execute([
-            "TPRP-$rid", $techId,
-            date('Y-m-d H:i:s', $now - 3600), date('Y-m-d H:i:s', $now - 1800), date('Y-m-d H:i:s', $now),
-        ]);
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, assigned_technician_id, status, requested_at, resolved_at)
+             VALUES (?, 'x', 'x', 1, 1, 1, 1, ?, 'resolved', ?, ?)"
+        )->execute(["TPRP-$rid", $techId, date('Y-m-d H:i:s', $now - 3600), date('Y-m-d H:i:s', $now - 1800)]);
         $tid = (int) tpr_pdo()->lastInsertId();
-        tpr_resolve_event($tid, $techId, date('Y-m-d H:i:s', $now - 1800)); // as-reported resolved/MTTR reads this event
+        tpr_resolve_event($tid, $techId, date('Y-m-d H:i:s', $now - 1800)); // as-reported resolved/MTTR/SLA/rating read this
+        tpr_sla_track($tid, date('Y-m-d H:i:s', $now)); // resolve (now-1800) <= target (now) → on time → 100%
         tpr_pdo()->prepare(
-            "INSERT INTO ticket_ratings (ticket_id, requester_id, technician_id, score, feedback, created_at, updated_at)
-             VALUES (?, 1, ?, 5, '', ?, ?)"
+            "INSERT INTO ticket_ratings (ticket_id, requester_id, technician_id, cycle, score, feedback, created_at, updated_at)
+             VALUES (?, 1, ?, 1, 5, '', ?, ?)"
         )->execute([$tid, $techId, date('Y-m-d H:i:s', $now - 1800), date('Y-m-d H:i:s', $now - 1800)]);
 
         $screen = tpr_row($fullName);
@@ -217,8 +225,8 @@ test('technician performance: CSV export cells reconcile with the on-screen row 
         assert_same((string) $screen['resolved'], $exportRow[5], 'CSV ปิดงาน = screen resolved');
         assert_same($screen['sla_on_time_label'], $exportRow[6], 'CSV SLA ตรงเวลา = screen sla_on_time_label (100.0%)');
         assert_same((string) $screen['sla_base'], $exportRow[7], 'CSV งาน SLA = screen sla_base (sample behind the rate)');
-        assert_same($screen['avg_rating_label'], $exportRow[10], 'CSV คะแนน = screen avg_rating_label (5.0)');
-        assert_same((string) $screen['rating_count'], $exportRow[11], 'CSV จำนวนรีวิว = screen rating_count');
+        assert_same($screen['avg_rating_label'], $exportRow[9], 'CSV คะแนน = screen avg_rating_label (5.0)');
+        assert_same((string) $screen['rating_count'], $exportRow[10], 'CSV จำนวนรีวิว = screen rating_count');
 
         // XLSX parity — % columns as real numbers (screen_pct/100), rating/counts numeric
         $xlsxTmp = tempnam(sys_get_temp_dir(), 'tprx_') . '.xlsx';
@@ -235,8 +243,8 @@ test('technician performance: CSV export cells reconcile with the on-screen row 
         assert_true($xlsxRow !== null, 'the same technician appears as an XLSX row');
         assert_same((int) $screen['resolved'], (int) $xlsxRow[5], 'XLSX ปิดงาน numeric = screen');
         assert_same((float) rtrim($screen['sla_on_time_label'], '%') / 100, (float) $xlsxRow[6], 'XLSX SLA ตรงเวลา = screen rate as a real number');
-        assert_same((float) $screen['avg_rating_label'], (float) $xlsxRow[10], 'XLSX คะแนน numeric = screen avg_rating');
-        assert_same((int) $screen['rating_count'], (int) $xlsxRow[11], 'XLSX จำนวนรีวิว numeric = screen');
+        assert_same((float) $screen['avg_rating_label'], (float) $xlsxRow[9], 'XLSX คะแนน numeric = screen avg_rating');
+        assert_same((int) $screen['rating_count'], (int) $xlsxRow[10], 'XLSX จำนวนรีวิว numeric = screen');
     } finally {
         tpr_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
         tpr_pdo()->prepare('DELETE FROM ticket_ratings WHERE technician_id = ?')->execute([$techId]);
@@ -252,8 +260,8 @@ test('technician performance: a status-resolved ticket with NO resolve event is 
     // encoded "status='resolved' + NULL resolved_at → resolved=1, MTTR '-'"; under event-sourcing there is no
     // close event to count, so the count drops rather than the MTTR alone. A genuine same-minute closure — a
     // resolve event whose created_at equals requested_at — still reads 0.0 (0 minutes, boundary included).
-    // The /reports OVERVIEW MINI stays a current-assignee status snapshot (getTechnicianPerformance) and is
-    // asserted unchanged below.
+    // The /reports OVERVIEW MINI now reads the SAME immutable resolver rows as the full page (R13), so it too
+    // counts only real resolve events — asserted equal below.
     $rid = bin2hex(random_bytes(4));
     [$nullTech, $nullName] = tpr_tech($rid);
     [$fastTech, $fastName] = tpr_tech($rid . 'F');
@@ -282,7 +290,7 @@ test('technician performance: a status-resolved ticket with NO resolve event is 
         assert_same('-', $nullRow['mttr_hours_label'], 'no resolve event → MTTR "-"');
         assert_same('0.0', tpr_row($fastName)['mttr_hours_label'], 'a real same-minute resolve event still shows 0.0');
 
-        // overview mini-table (mapTechnicianRow) — stays a current-assignee status snapshot, UNCHANGED by Phase 2
+        // overview mini-table — now the SAME immutable resolver rows as the full page (R13): event-sourced, agrees
         $mini = [];
         foreach (tpr_service()->getReportPageData($admin, ['department_id' => $deptId])['technicianPerformance'] as $t) {
             $mini[$t['full_name']] = $t;
@@ -296,16 +304,16 @@ test('technician performance: a status-resolved ticket with NO resolve event is 
     }
 });
 
-test('technician performance: a same-minute resolution shows MTTR/first-response 0.0, not "-" (Finding F5-rem)', function (): void {
-    // MTTR/first-response presence must come from the resolved / responded COUNT, not the average value:
-    // a ticket answered and resolved within the same clock-minute has a real 0.0h, not "no data".
+test('technician performance: a same-minute resolution shows MTTR 0.0, not "-" (Finding F5-rem)', function (): void {
+    // MTTR presence must come from the resolved COUNT, not the average value: a ticket resolved within the same
+    // clock-minute as the request has a real 0.0h, not "no data".
     $rid = bin2hex(random_bytes(4));
     [$techId, $fullName] = tpr_tech($rid);
 
     try {
         tpr_pdo()->prepare(
-            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, assigned_technician_id, status, requested_at, first_response_at, resolved_at, resolution_due_at)
-             VALUES (?, 'x', 'x', 1, 1, 1, 1, ?, 'resolved', '2020-05-10 10:00:00', '2020-05-10 10:00:30', '2020-05-10 10:00:45', '2020-05-11 10:00:00')"
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, assigned_technician_id, status, requested_at, resolved_at)
+             VALUES (?, 'x', 'x', 1, 1, 1, 1, ?, 'resolved', '2020-05-10 10:00:00', '2020-05-10 10:00:45')"
         )->execute(["TPRZ-$rid", $techId]);
         // as-reported resolved/MTTR read the resolve event (Phase 2) — same clock-minute as the request → 0 minutes
         tpr_resolve_event((int) tpr_pdo()->lastInsertId(), $techId, '2020-05-10 10:00:45');
@@ -314,7 +322,6 @@ test('technician performance: a same-minute resolution shows MTTR/first-response
         assert_true($row !== null, 'technician appears');
         assert_same(1, $row['resolved'], 'resolved = 1');
         assert_same('0.0', $row['mttr_hours_label'], 'MTTR 0.0h (resolved in the same minute), not "-"');
-        assert_same('0.0', $row['first_response_hours_label'], 'first response 0.0h, not "-"');
     } finally {
         tpr_cleanup($techId);
     }
@@ -340,6 +347,7 @@ test('reports overview: same-minute resolution shows 0.0 in the technician + ass
              VALUES (?, 'x', 'x', 1, ?, 1, 1, ?, ?, 'resolved', ?, ?)"
         )->execute(["OVT-$rid", $locId, $techId, $assetId, "$base:00", "$base:30"]);
         $ticketId = (int) tpr_pdo()->lastInsertId();
+        tpr_resolve_event($ticketId, $techId, "$base:30"); // overview mini is now event-sourced too (R13)
 
         $page = tpr_service()->getReportPageData($admin, []);
 

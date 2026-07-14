@@ -70,10 +70,8 @@
         <th class="num">รับ</th>
         <th class="num">ปิดงาน</th>
         <th class="num">SLA ตรงเวลา</th>
-        <th class="num">ตอบรับ (ชม.)</th>
         <th class="num">เวลาซ่อมเฉลี่ย (ชม.)</th>
         <th class="num">คะแนน</th>
-        <th class="num">ชม.แรงงาน</th>
     </tr>
     </thead>
     <tbody>
@@ -86,10 +84,8 @@
             <td class="num"><?= e((string) ($row['assigned'] ?? 0)) ?></td>
             <td class="num"><?= e((string) ($row['resolved'] ?? 0)) ?></td>
             <td class="num"><?= e((string) ($row['sla_on_time_label'] ?? '-')) ?><?php if ((int) ($row['sla_base'] ?? 0) > 0): ?> <small>(<?= e((string) $row['sla_base']) ?>)</small><?php endif; ?></td>
-            <td class="num"><?= e((string) ($row['first_response_hours_label'] ?? '-')) ?></td>
             <td class="num"><?= e((string) ($row['mttr_hours_label'] ?? '-')) ?></td>
             <td class="num"><?= e((string) ($row['avg_rating_label'] ?? '-')) ?><?php if ((int) ($row['rating_count'] ?? 0) > 0): ?> <small>(<?= e((string) $row['rating_count']) ?>)</small><?php endif; ?></td>
-            <td class="num"><?= e((string) ($row['labor_hours_label'] ?? '-')) ?></td>
         </tr>
     <?php endforeach; ?>
     </tbody>

@@ -165,10 +165,8 @@ $filterState = $filters['selected'] ?? [];
                         <th data-sort-col="4" data-sort-type="number">รับ</th>
                         <th data-sort-col="5" data-sort-type="number">ปิดงาน</th>
                         <th data-sort-col="6" data-sort-type="number">SLA ตรงเวลา</th>
-                        <th data-sort-col="7" data-sort-type="number">เวลาตอบรับ (ชม.)</th>
-                        <th data-sort-col="8" data-sort-type="number">เวลาซ่อมเฉลี่ย (ชม.)</th>
-                        <th data-sort-col="9" data-sort-type="number">คะแนน</th>
-                        <th data-sort-col="10" data-sort-type="number">ชม.แรงงาน</th>
+                        <th data-sort-col="7" data-sort-type="number">เวลาซ่อมเฉลี่ย (ชม.)</th>
+                        <th data-sort-col="8" data-sort-type="number">คะแนน</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -181,10 +179,8 @@ $filterState = $filters['selected'] ?? [];
                             <td><?= e((string) $tech['assigned']) ?></td>
                             <td><?= e((string) $tech['resolved']) ?></td>
                             <td><span class="badge badge-<?= e((string) $tech['sla_on_time_tone']) ?>"><?= e((string) $tech['sla_on_time_label']) ?></span><?php if ((int) ($tech['sla_base'] ?? 0) > 0): ?> <small title="จำนวนงานที่นับ SLA (ฐานของอัตรานี้)">(<?= e((string) $tech['sla_base']) ?>)</small><?php endif; ?></td>
-                            <td><?= e((string) $tech['first_response_hours_label']) ?></td>
                             <td><?= e((string) $tech['mttr_hours_label']) ?></td>
                             <td><span class="badge badge-<?= e((string) $tech['avg_rating_tone']) ?>"><?= e((string) $tech['avg_rating_label']) ?></span><?php if ((int) ($tech['rating_count'] ?? 0) > 0): ?> <small title="จำนวนรีวิว (ฐานของคะแนนเฉลี่ย)">(<?= e((string) $tech['rating_count']) ?>)</small><?php endif; ?></td>
-                            <td><?= e((string) $tech['labor_hours_label']) ?></td>
                         </tr>
                     <?php endforeach; ?>
                     </tbody>

@@ -379,41 +379,43 @@ test('lineage(e2e): resolved counts reconcile across executive/trend/technician 
     }
 });
 
-test('technician resolved credit is immutable through reopen + reassign (R12 historical invariance)', function (): void {
-    // Why the per-tech completion % was removed: its base restated on reopen/reassign. This locks that the metrics
-    // that REMAIN on the technician report (the resolved-event credit + MTTR) do NOT restate — driven through the
-    // REAL workflow: techH resolves → snapshot → reopen + reassign to techJ (no re-resolve) → techH keeps its close
-    // credit for that window and techJ never inherits it. Power-proof: computing "resolved" from the mutable current
-    // status/assignee (instead of the immutable resolve event) makes techH drop to 0 after the reopen → reddens.
+test('technician performance is immutable through reopen + reassign — every metric + both pages (R13 invariance)', function (): void {
+    // The comprehensive lock (R13): EVERY remaining technician metric (resolved credit, MTTR, SLA-on-time) is
+    // as-reported/immutable, on BOTH the /reports overview mini AND the full technician page, and the two agree.
+    // Driven through the REAL workflow: techH resolves → snapshot both pages → reopen + reassign to techJ →
+    // techH's numbers are UNCHANGED on both pages and techJ inherits nothing. Power-proof: sourcing any of these
+    // from the mutable current status/assignee makes techH's row restate/vanish after the reopen → reddens.
     $admin = ['id' => 4, 'role' => 'admin'];
     $requester = ['id' => 1, 'role' => 'requester'];
     $rid = bin2hex(random_bytes(4));
-    $window = ['from_date' => date('Y-m-01'), 'to_date' => date('Y-m-d')];
 
     lin_pdo()->prepare("INSERT INTO users (username, email, password_hash, full_name, role, is_active) VALUES (?, ?, 'x', ?, 'technician', 1)")
-        ->execute(["linh_$rid", "linh_$rid@example.com", "LIN R12 TechH $rid"]);
+        ->execute(["linh_$rid", "linh_$rid@example.com", "LIN R13 TechH $rid"]);
     $techH = (int) lin_pdo()->lastInsertId();
-    $techHName = "LIN R12 TechH $rid";
+    $techHName = "LIN R13 TechH $rid";
     $techHv = ['id' => $techH, 'role' => 'technician'];
     lin_pdo()->prepare("INSERT INTO users (username, email, password_hash, full_name, role, is_active) VALUES (?, ?, 'x', ?, 'technician', 1)")
-        ->execute(["linj_$rid", "linj_$rid@example.com", "LIN R12 TechJ $rid"]);
+        ->execute(["linj_$rid", "linj_$rid@example.com", "LIN R13 TechJ $rid"]);
     $techJ = (int) lin_pdo()->lastInsertId();
-    $techJName = "LIN R12 TechJ $rid";
+    $techJName = "LIN R13 TechJ $rid";
 
-    $resolved = static function (string $name) use ($admin, $window): int {
-        foreach (lin_reports()->getTechnicianPerformanceReportPage($admin, $window)['rows'] as $r) {
-            if ($r['full_name'] === $name) {
-                return (int) $r['resolved'];
+    // pull a technician's row from the FULL page and, separately, from the /reports OVERVIEW mini
+    $pick = static function (array $rows, string $name): array {
+        foreach ($rows as $r) {
+            if (($r['full_name'] ?? null) === $name) {
+                return ['resolved' => (int) $r['resolved'], 'sla' => (string) $r['sla_on_time_label'], 'mttr' => (string) $r['mttr_hours_label']];
             }
         }
 
-        return 0;
+        return ['resolved' => 0, 'sla' => '-', 'mttr' => '-'];
     };
+    $fullRow = static fn (string $name): array => $pick(lin_reports()->getTechnicianPerformanceReportPage($admin, [])['rows'], $name);
+    $ovRow = static fn (string $name): array => $pick(lin_reports()->getReportPageData($admin, [])['technicianPerformance'], $name);
 
     $ref = tvm_container()->get(TicketReadRepository::class)->getCreateFormReferenceData();
     $ticketId = lin_tickets()->createTicket($requester, [
         'submission_token' => bin2hex(random_bytes(32)),
-        'title' => "LIN R12 invariance $rid",
+        'title' => "LIN R13 invariance $rid",
         'description' => 'historical invariance probe',
         'priority_id' => (int) $ref['priorities'][0]['id'],
         'ticket_category_id' => (int) $ref['categories'][0]['id'],
@@ -423,23 +425,27 @@ test('technician resolved credit is immutable through reopen + reassign (R12 his
     ], []);
 
     try {
-        // techH resolves through the real workflow
+        // techH resolves through the real workflow (concludes the resolution SLA → met)
         lin_wf()->approveTicket($ticketId, $admin, ['note' => '']);
         lin_wf()->assignTechnician($ticketId, $admin, ['technician_id' => $techH, 'instructions' => '']);
         lin_wf()->acceptAssignedWork($ticketId, $techHv, ['accept_note' => '']);
         lin_wf()->startAssignedWork($ticketId, $techHv, ['start_note' => '']);
         lin_wf()->resolveAssignedWork($ticketId, $techHv, ['diagnosis_summary' => 'd', 'resolution_summary' => 'r', 'labor_minutes' => '30']);
 
-        assert_same(1, $resolved($techHName), 'techH is credited with the close');
-        assert_same(0, $resolved($techJName), 'techJ has no close yet');
+        $before = $fullRow($techHName);
+        assert_same(1, $before['resolved'], 'techH is credited with the close');
+        assert_same('100.0%', $before['sla'], 'techH SLA-on-time = 100% (resolved within the frozen target)');
+        assert_same($before, $ovRow($techHName), 'overview mini agrees with the full page (same immutable rows)');
 
         // reopen + reassign to techJ (NO re-resolve) through the real workflow
         lin_wf()->reopenTicket($ticketId, $requester, ['reopen_note' => 'ตรวจซ้ำ']);
         lin_wf()->assignTechnician($ticketId, $admin, ['technician_id' => $techJ, 'instructions' => '']);
 
-        // the window's credit for techH is UNCHANGED (immutable resolve event); techJ did not inherit it
-        assert_same(1, $resolved($techHName), 'techH keeps its close credit after the ticket is reopened + reassigned');
-        assert_same(0, $resolved($techJName), 'techJ never gains a close it did not do');
+        // techH's numbers are UNCHANGED on BOTH pages; techJ inherited nothing
+        assert_same($before, $fullRow($techHName), 'full page: techH resolved/SLA/MTTR unchanged after reopen + reassign');
+        assert_same($before, $ovRow($techHName), 'overview mini: techH unchanged AND still agrees with the full page');
+        assert_same(0, $fullRow($techJName)['resolved'], 'techJ never gains a close it did not do');
+        assert_same(0, $ovRow($techJName)['resolved'], 'techJ not credited on the overview either');
     } finally {
         lin_pdo()->prepare("DELETE FROM notifications WHERE related_type = 'ticket' AND related_id = ?")->execute([$ticketId]);
         lin_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);

@@ -54,7 +54,7 @@ test('reports: a backwards resolved_at/first_response_at → all duration metric
         assert_same('-', $exKpis['เวลาซ่อมเฉลี่ย (ชม.)']['value_label'], 'Executive MTTR = "-" (backwards resolved_at excluded, not -1.0)');
         assert_true((int) $exKpis['ปิดงาน']['value_label'] >= 1, 'completion still counts the status-resolved ticket');
 
-        // Technician: MTTR + first response "-"
+        // Technician: MTTR "-" (backwards resolve excluded from the resolver cohort)
         $tech = null;
         foreach (dbt_service()->getTechnicianPerformanceReportPage($admin, ['department_id' => $deptId])['rows'] as $r) {
             if ($r['full_name'] === "DBT Tech $rid") {
@@ -64,7 +64,6 @@ test('reports: a backwards resolved_at/first_response_at → all duration metric
         }
         assert_true($tech !== null, 'technician appears');
         assert_same('-', $tech['mttr_hours_label'], 'technician MTTR = "-", not -1.0');
-        assert_same('-', $tech['first_response_hours_label'], 'technician first-response = "-", not -2.0');
 
         // Trend: the backwards ticket is excluded from the resolved bucket → MTTR "-"
         $jul = ttr_period(dbt_service()->getTicketTrendReportPage($admin, ['granularity' => 'month', 'from_date' => '2020-07-01', 'to_date' => '2020-07-31']), '2020-07');
@@ -164,6 +163,15 @@ test('reports: a valid on-time resolution still counts as SLA 100% / "อยู�
             "INSERT INTO tickets (ticket_no, title, description, requester_id, requester_department_id, location_id, ticket_category_id, priority_id, assigned_technician_id, status, requested_at, resolved_at, resolution_due_at, first_response_at, response_due_at)
              VALUES (?, 'x', 'x', 1, ?, 1, 1, 1, ?, 'resolved', '2020-07-15 09:00:00', '2020-07-15 10:00:00', '2020-07-15 12:00:00', '2020-07-15 09:15:00', '2020-07-15 09:30:00')"
         )->execute(["DBTW-$rid", $deptId, $techId]);
+        $tid = (int) dbt_pdo()->lastInsertId();
+        // technician SLA is now as-reported: the resolve event + the frozen cycle target (10:00 <= 12:00 → on time)
+        dbt_pdo()->prepare(
+            "INSERT INTO ticket_activity_logs (ticket_id, actor_id, action, from_status, to_status, created_at)
+             VALUES (?, ?, 'ticket_resolved', 'in_progress', 'resolved', '2020-07-15 10:00:00')"
+        )->execute([$tid, $techId]);
+        dbt_pdo()->prepare(
+            "INSERT INTO ticket_sla_tracks (ticket_id, metric_type, cycle, target_at, status) VALUES (?, 'resolution', 1, '2020-07-15 12:00:00', 'met')"
+        )->execute([$tid]);
 
         $tech = null;
         foreach (dbt_service()->getTechnicianPerformanceReportPage($admin, ['department_id' => $deptId])['rows'] as $r) {
@@ -225,7 +233,6 @@ test('reports: a valid same-minute resolution still reads 0.0, not "-" (round-6 
         }
         assert_true($tech !== null, 'technician appears');
         assert_same('0.0', $tech['mttr_hours_label'], 'same-minute resolve → MTTR 0.0 (valid, boundary included)');
-        assert_same('0.0', $tech['first_response_hours_label'], 'same-minute first response → 0.0');
     } finally {
         dbt_pdo()->prepare('DELETE FROM tickets WHERE requester_department_id = ?')->execute([$deptId]);
         dbt_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$techId]);

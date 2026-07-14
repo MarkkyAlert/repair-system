@@ -512,55 +512,15 @@ class ReportRepository
         }
     }
 
-    /**
-     * ผลงานช่างเทคนิคต่อคน — query เดียว fan-out-free (work_orders/ticket_ratings เป็น UNIQUE(ticket_id)
-     * 1:1 → AVG(rating)/SUM(labor) ถูกต้อง). SLA ไม่รวมที่นี่ (sla_tracks 2:1 = fan-out; ดู SLA panel).
-     */
-    public function getTechnicianPerformance(array $viewer, array $filters, int $limit = 50): array
-    {
-        $params = [];
-        $conditions = [$this->visibilityClause($viewer, $params)];
-        $this->applyReportFilters($conditions, $filters, $params);
-        $whereClause = implode(' AND ', $conditions);
-        $limit = max(1, min($limit, 200));
-        $resolvedStatuses = ticket_resolved_statuses_sql();
-
-        $stmt = $this->db->prepare(
-            "SELECT
-                u.id,
-                u.full_name,
-                COUNT(t.id) AS assigned,
-                SUM(CASE WHEN t.status IN ($resolvedStatuses) THEN 1 ELSE 0 END) AS resolved,
-                SUM(CASE WHEN t.status IN ('assigned', 'accepted', 'in_progress', 'on_hold') THEN 1 ELSE 0 END) AS open_count,
-                ROUND(AVG(CASE WHEN t.resolved_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at) ELSE NULL END), 1) AS mttr_minutes,
-                SUM(CASE WHEN t.resolved_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN 1 ELSE 0 END) AS resolution_base, -- base for MTTR (has a real close time); status='resolved' with NULL resolved_at must not read as 0.0
-                ROUND(COALESCE(AVG(tr.score), 0), 2) AS avg_rating,
-                COUNT(tr.score) AS rating_count,
-                COALESCE(SUM(wo.labor_minutes), 0) AS labor_minutes
-             FROM users u
-             INNER JOIN tickets t ON t.assigned_technician_id = u.id
-             LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id AND {$this->latestRatingCycleClause('tr')}
-             LEFT JOIN work_orders wo ON wo.ticket_id = t.id
-             WHERE u.role = 'technician' AND $whereClause
-             GROUP BY u.id, u.full_name
-             ORDER BY resolved DESC, assigned DESC
-             LIMIT " . $limit
-        );
-        $stmt->execute($params);
-
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    }
 
     /**
-     * ผลงานช่างในช่วงที่กรอง (Technician Performance Report) — เหมือน getTechnicianPerformance แต่เพิ่ม
-     * เวลาตอบรับเฉลี่ย + SLA ตรงเวลาต่อคน (คิด ticket-level จาก resolution_due_at → ไม่ fan-out กับ
-     * ratings/work_orders 1:1). date-filtered ตาม applyReportFilters. คง getTechnicianPerformance เดิม
-     * (panel /reports ใช้อยู่) ไม่แตะ.
+     * ผลงานช่างในช่วงที่กรอง — one fan-out-free query (ratings/work_orders 1:1). date-filtered ตาม applyReportFilters.
      *
-     * NOTE (Phase 2): the report surfaces resolved + MTTR **as-reported** — attributed to the resolve-event
-     * actor via getTechnicianResolverStats(), which the service overlays. The `resolved`/`mttr_minutes`/
-     * `resolution_base` columns HERE stay the assignment-keyed figures (COUNT of assigned tickets whose
-     * status is resolved) and are what the row-base/"no LIMIT drops a technician" contract is proven against.
+     * NOTE (Phase 2 + R13): the technician report now surfaces EVERY performance metric **as-reported** from the
+     * resolve-event actor (getTechnicianResolverStats overlays resolved/MTTR/SLA/CSAT). The service reads ONLY the
+     * `assigned` column from here (the current-workload "รับ" count); the assignment-keyed resolved/mttr/sla/rating
+     * columns below are no longer surfaced but stay computed (harmless, and the "no LIMIT drops a technician"
+     * row-base contract is proven against this query's one-row-per-tech shape).
      */
     public function getTechnicianPeriodStats(array $viewer, array $filters): array
     {
@@ -601,12 +561,16 @@ class ReportRepository
     }
 
     /**
-     * As-reported resolver attribution (Phase 2) — resolved งาน + MTTR ต่อ "ช่างที่ปิดงานจริง" (actor ของ event
-     * `ticket_resolved`) ไม่ใช่ t.assigned_technician_id (reassign หลังปิดจะย้ายเครดิตออกจากคนปิด). ยุบแต่ละ
-     * (resolver, ticket) เหลือ resolve ตัวแทน = MAX(created_at) → ปิดซ้ำ (resolve→reopen→resolve) โดยคนเดิม
-     * นับครั้งเดียว. window บน event.created_at (immutable) ; dept/category + visibility บน ticket ; ตัด backwards
-     * timestamp (resolve < requested_at) ทิ้งเหมือน trend เพื่อไม่ให้ MTTR ติดลบ. key = resolver id → service เอาไป
-     * overlay ทับแถวช่าง. resolved == resolution_base (event-sourced resolve มีเวลาปิดจริงเสมอ).
+     * As-reported resolver attribution (Phase 2, extended R13) — ผลงานช่างแบบ **immutable** ต่อ "ช่างที่ปิดงานจริง"
+     * (actor ของ event `ticket_resolved`) ไม่ใช่ t.assigned_technician_id: resolved + MTTR + SLA ตรงเวลา + CSAT
+     * คิดจาก "งานที่ช่างคนนั้นปิดจริงในช่วง" ทั้งหมด จึง **ไม่เปลี่ยนย้อนหลัง** เมื่อ reopen/reassign (คนปิดยังได้
+     * เครดิต, SLA/คะแนนอ่านจากรอบที่ปิดจริง ไม่ใช่สถานะปัจจุบัน). โครงเดียวกับ getTicketTrendResolved:
+     *   - cycle = ROW_NUMBER ของ resolve event ในแต่ละ ticket (created_at,id) → ตรงกับที่ reopen ไล่เลข cycle
+     *   - dedup ตัวแทนต่อ (ticket, resolver) = resolve ล่าสุด (ปิดซ้ำโดยคนเดิมนับครั้งเดียว)
+     *   - SLA on-time = resolved_at ตัวแทน <= target_at ของ "รอบนั้น" (frozen ใน ticket_sla_tracks.cycle ไม่ใช่
+     *     resolution_due_at ปัจจุบันที่ reopen ทับ) ; CSAT อ่านจาก ticket_ratings.cycle
+     * window บน event.created_at (numbering ก่อน filter → cycle ordinal นิ่ง) ; dept/category + visibility บน ticket ;
+     * ตัด backwards timestamp. key = resolver id → service overlay ทับแถวช่าง. resolved == resolution_base.
      */
     public function getTechnicianResolverStats(array $viewer, array $filters): array
     {
@@ -619,13 +583,15 @@ class ReportRepository
         $this->applyTrendDimensionFilters($conditions, $filters, $params); // dept/category (บน t) ไม่มี date/status
         $whereClause = implode(' AND ', $conditions);
 
-        $reWin = '';
+        // window applies AFTER cycle numbering (bounds ord.resolved_at) so the cycle ordinal is stable even when an
+        // earlier cycle resolved outside the window — identical rule to getTicketTrendResolved.
+        $reBounds = '';
         if ($from !== '') {
-            $reWin .= ' AND r.created_at >= :tech_res_from';
+            $reBounds .= ' AND ord.resolved_at >= :tech_res_from';
             $params['tech_res_from'] = $from;
         }
         if ($to !== '') {
-            $reWin .= ' AND r.created_at <= :tech_res_to';
+            $reBounds .= ' AND ord.resolved_at <= :tech_res_to';
             $params['tech_res_to'] = $to;
         }
 
@@ -634,14 +600,37 @@ class ReportRepository
                 rep.actor_id AS id,
                 COUNT(*) AS resolved,
                 ROUND(AVG(TIMESTAMPDIFF(MINUTE, t.requested_at, rep.resolved_at)), 1) AS mttr_minutes,
-                COUNT(*) AS resolution_base
+                COUNT(*) AS resolution_base,
+                SUM(CASE WHEN ts.id IS NOT NULL THEN 1 ELSE 0 END) AS sla_base,
+                SUM(CASE WHEN ts.id IS NOT NULL AND rep.resolved_at <= ts.target_at THEN 1 ELSE 0 END) AS sla_on_time,
+                COALESCE(SUM(tr.score), 0) AS rating_sum,
+                SUM(CASE WHEN tr.score IS NOT NULL THEN 1 ELSE 0 END) AS rating_count
              FROM (
-                SELECT r.ticket_id AS ticket_id, r.actor_id AS actor_id, MAX(r.created_at) AS resolved_at
-                FROM ticket_activity_logs r
-                WHERE r.action = 'ticket_resolved' AND r.actor_id IS NOT NULL{$reWin}
-                GROUP BY r.ticket_id, r.actor_id
+                SELECT dedup.ticket_id AS ticket_id, dedup.actor_id AS actor_id, dedup.resolved_at AS resolved_at, dedup.cycle AS cycle
+                FROM (
+                    SELECT
+                        ord.ticket_id AS ticket_id,
+                        ord.actor_id AS actor_id,
+                        ord.resolved_at AS resolved_at,
+                        ord.cycle AS cycle,
+                        ROW_NUMBER() OVER (PARTITION BY ord.ticket_id, ord.actor_id ORDER BY ord.resolved_at DESC, ord.id DESC) AS rep_rank
+                    FROM (
+                        SELECT
+                            r.ticket_id AS ticket_id,
+                            r.actor_id AS actor_id,
+                            r.created_at AS resolved_at,
+                            r.id AS id,
+                            ROW_NUMBER() OVER (PARTITION BY r.ticket_id ORDER BY r.created_at, r.id) AS cycle
+                        FROM ticket_activity_logs r
+                        WHERE r.action = 'ticket_resolved' AND r.actor_id IS NOT NULL
+                    ) ord
+                    WHERE 1 = 1{$reBounds}
+                ) dedup
+                WHERE dedup.rep_rank = 1
              ) rep
              INNER JOIN tickets t ON t.id = rep.ticket_id
+             LEFT JOIN ticket_sla_tracks ts ON ts.ticket_id = rep.ticket_id AND ts.metric_type = 'resolution' AND ts.cycle = rep.cycle
+             LEFT JOIN ticket_ratings tr ON tr.ticket_id = rep.ticket_id AND tr.cycle = rep.cycle
              WHERE $whereClause
              GROUP BY rep.actor_id"
         );

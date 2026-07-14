@@ -17,6 +17,15 @@ function tp_service(): ReportService
     return tvm_container()->get(ReportService::class);
 }
 
+/** Seed the immutable ticket_resolved event that every technician performance metric now reads (R13). */
+function tp_resolve_event(int $ticketId, int $actorId, string $createdAt): void
+{
+    tp_pdo()->prepare(
+        "INSERT INTO ticket_activity_logs (ticket_id, actor_id, action, from_status, to_status, created_at)
+         VALUES (?, ?, 'ticket_resolved', 'in_progress', 'resolved', ?)"
+    )->execute([$ticketId, $actorId, $createdAt]);
+}
+
 test('technician performance: per-tech aggregates + no fan-out from rating/work_order joins', function (): void {
     $admin = ['id' => 4, 'role' => 'admin'];
     $rid = bin2hex(random_bytes(4));
@@ -38,6 +47,7 @@ test('technician performance: per-tech aggregates + no fan-out from rating/work_
              VALUES (?, 'tp', 'x', 1, 1, 1, 1, ?, 'resolved', ?, ?)"
         )->execute(["TPT-$rid-1", $techId, $req, $res]);
         $t1 = (int) tp_pdo()->lastInsertId();
+        tp_resolve_event($t1, $techId, $res); // as-reported: resolved/MTTR/rating read the resolve event (R13)
         tp_pdo()->prepare('INSERT INTO ticket_ratings (ticket_id, requester_id, score) VALUES (?, 1, 4)')->execute([$t1]);
         tp_pdo()->prepare(
             "INSERT INTO work_orders (work_order_no, ticket_id, technician_id, assigned_by, status, labor_minutes) VALUES (?, ?, ?, 4, 'completed', 60)"
@@ -64,12 +74,12 @@ test('technician performance: per-tech aggregates + no fan-out from rating/work_
 
         assert_true($me !== null, 'technician appears in the performance table');
         assert_same(2, $me['assigned'], 'assigned = 2 tickets (no fan-out: T1 has BOTH a rating AND a work_order)');
-        assert_same(1, $me['resolved'], 'resolved = 1');
-        assert_same(1, $me['open'], 'open = 1');
-        assert_false(isset($me['completion_label']), 'no per-tech completion % (removed R12 — non-immutable people-eval metric)');
+        assert_same(1, $me['resolved'], 'resolved = 1 (as-reported resolve event)');
+        assert_same(1, $me['open_now'], 'open_now = 1 (live: T2 in_progress)');
+        assert_false(isset($me['completion_label']), 'no per-tech completion % (removed R12)');
+        assert_false(isset($me['labor_hours_label']), 'no per-tech labor hours (removed R13 — not immutable)');
         assert_same('2.0', $me['mttr_hours_label'], 'MTTR 120min = 2.0 hrs');
-        assert_same('4.0', $me['avg_rating_label'], 'avg rating = 4.0 (only T1 rated)');
-        assert_same('1.5', $me['labor_hours_label'], 'labor 60+30 = 90min = 1.5 hrs');
+        assert_same('4.0', $me['avg_rating_label'], 'avg rating = 4.0 (only T1 rated, resolver-cohort)');
     } finally {
         foreach ([$t1, $t2] as $ticketId) {
             if ($ticketId > 0) {
@@ -102,8 +112,10 @@ test('technician performance: MTTR rounds to hours the same way the summary avg 
             tp_pdo()->prepare(
                 "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, assigned_technician_id, status, requested_at, resolved_at)
                  VALUES (?, 'tp', 'x', 1, 1, 1, 1, ?, 'resolved', ?, ?)"
-            )->execute(["TPR-$rid-$i", $techId, date('Y-m-d H:i:s', time() - $minutes * 60), date('Y-m-d H:i:s')]);
-            ${'t' . ($i + 1)} = (int) tp_pdo()->lastInsertId();
+            )->execute(["TPR-$rid-$i", $techId, date('Y-m-d H:i:s', time() - $minutes * 60), $res = date('Y-m-d H:i:s')]);
+            $newId = (int) tp_pdo()->lastInsertId();
+            ${'t' . ($i + 1)} = $newId;
+            tp_resolve_event($newId, $techId, $res); // as-reported MTTR reads the resolve event (R13)
         }
 
         $rows = tp_service()->getReportPageData($admin, [])['technicianPerformance'];
