@@ -286,13 +286,16 @@ class AssetsController
             $rows = $this->importer->parseUploadedFile($_FILES['csv'] ?? []);
             $preview = $this->importer->validateRows($rows);
 
-            Session::put('asset_import_valid_rows', $preview['valid']);
+            // Token-scope the batch so a second preview in another tab can't hijack this tab's confirm. (F3)
+            $token = bin2hex(random_bytes(16));
+            Session::put('asset_import_batch', ['token' => $token, 'rows' => $preview['valid']]);
 
             Response::view('assets/import', [
                 'title' => 'ตรวจสอบก่อนนำเข้าทรัพย์สิน',
                 'pageHeading' => 'ตรวจสอบก่อนนำเข้า',
                 'currentUser' => $viewer,
                 'preview' => $preview,
+                'importToken' => $token,
                 'errorMessage' => null,
             ]);
         } catch (DomainException|RuntimeException $exception) {
@@ -309,13 +312,21 @@ class AssetsController
 
         try {
             csrf_validate();
-            $validRows = Session::get('asset_import_valid_rows', []);
+            $batch = Session::get('asset_import_batch', []);
+            $sessionToken = is_array($batch) ? (string) ($batch['token'] ?? '') : '';
+            $submittedToken = (string) ($_POST['import_token'] ?? '');
+            if ($sessionToken === '' || $submittedToken === '' || !hash_equals($sessionToken, $submittedToken)) {
+                Session::forget('asset_import_batch');
+                throw new DomainException('การยืนยันนำเข้าไม่ตรงกับไฟล์ที่เพิ่งตรวจสอบ (อาจเปิดไว้หลายแท็บ) กรุณาอัปโหลดและตรวจสอบใหม่');
+            }
+
+            $validRows = is_array($batch) ? ($batch['rows'] ?? []) : [];
             if (!is_array($validRows) || $validRows === []) {
                 throw new DomainException('ไม่พบข้อมูลที่ผ่านการตรวจสอบ กรุณาเริ่มกระบวนการนำเข้าใหม่');
             }
 
             $result = $this->importer->executeImport($validRows, $viewer);
-            Session::forget('asset_import_valid_rows');
+            Session::forget('asset_import_batch');
 
             $skipped = count($result['skipped'] ?? []);
             $summary = 'นำเข้า ' . (int) $result['imported'] . ' รายการ';

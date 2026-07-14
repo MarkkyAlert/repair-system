@@ -171,6 +171,7 @@ $total = (int) ($preview['total'] ?? 0);
 
                 <form method="post" action="<?= e(url('/asset-registry/import/execute')) ?>" data-loading-submit data-confirm-submit="ยืนยันนำเข้า <?= count($valid) ?> รายการ? ระบบจะสร้าง asset + QR token ใน DB ทันที">
                     <?= csrf_field() ?>
+                    <input type="hidden" name="import_token" value="<?= e($importToken ?? '') ?>">
                     <div class="button-row">
                         <?= render_partial('partials/components/button', [
                             'type' => 'submit',

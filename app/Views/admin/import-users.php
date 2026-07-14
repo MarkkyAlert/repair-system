@@ -148,6 +148,8 @@ $total = (int) ($preview['total'] ?? 0);
 
                 <form method="post" action="<?= e(url('/admin/users/import/execute')) ?>" data-loading-submit data-confirm-submit="ยืนยันนำเข้า <?= count($valid) ?> ผู้ใช้?">
                     <?= csrf_field() ?>
+                    <input type="hidden" name="import_token" value="<?= e($importToken ?? '') ?>">
+
                     <div class="button-row">
                         <?= render_partial('partials/components/button', [
                             'type' => 'submit',

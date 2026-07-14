@@ -43,13 +43,18 @@ class UserImportController
             $rows = $this->userImporter->parseUploadedFile($_FILES['csv'] ?? []);
             $preview = $this->userImporter->validateRows($rows);
 
-            Session::put('user_import_valid_rows', $preview['valid']);
+            // Scope this previewed batch to a one-time token embedded in the confirm form, so opening a second
+            // preview in another tab cannot make the first tab's "confirm" import the second tab's rows.
+            // (logic-review F3)
+            $token = bin2hex(random_bytes(16));
+            Session::put('user_import_batch', ['token' => $token, 'rows' => $preview['valid']]);
 
             Response::view('admin/import-users', [
                 'title' => 'ตรวจสอบก่อนนำเข้าผู้ใช้',
                 'pageHeading' => 'ตรวจสอบก่อนนำเข้า',
                 'currentUser' => $viewer,
                 'preview' => $preview,
+                'importToken' => $token,
                 'errorMessage' => null,
             ]);
         } catch (DomainException|RuntimeException $exception) {
@@ -67,13 +72,23 @@ class UserImportController
         try {
             csrf_validate();
 
-            $validRows = Session::get('user_import_valid_rows', []);
+            $batch = Session::get('user_import_batch', []);
+            $sessionToken = is_array($batch) ? (string) ($batch['token'] ?? '') : '';
+            $submittedToken = (string) ($_POST['import_token'] ?? '');
+            // Confirm the submitted token matches the previewed batch — a mismatch means the session was
+            // replaced by a newer preview (another tab); refuse rather than import the wrong rows. (F3)
+            if ($sessionToken === '' || $submittedToken === '' || !hash_equals($sessionToken, $submittedToken)) {
+                Session::forget('user_import_batch');
+                throw new DomainException('การยืนยันนำเข้าไม่ตรงกับไฟล์ที่เพิ่งตรวจสอบ (อาจเปิดไว้หลายแท็บ) กรุณาอัปโหลดและตรวจสอบใหม่');
+            }
+
+            $validRows = is_array($batch) ? ($batch['rows'] ?? []) : [];
             if (!is_array($validRows) || $validRows === []) {
                 throw new DomainException('ไม่พบข้อมูลที่ผ่านการตรวจสอบ กรุณาเริ่มกระบวนการนำเข้าใหม่');
             }
 
             $result = $this->userImporter->executeImport($validRows);
-            Session::forget('user_import_valid_rows');
+            Session::forget('user_import_batch');
 
             $skipped = count($result['skipped'] ?? []);
             $summary = 'นำเข้า ' . (int) $result['imported'] . ' ผู้ใช้';
