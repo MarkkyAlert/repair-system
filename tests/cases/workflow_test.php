@@ -18,6 +18,11 @@ function wf_service(): TicketWorkflowService
     return tvm_container()->get(TicketWorkflowService::class);
 }
 
+function wf_repo(): App\Repositories\TicketRepository
+{
+    return tvm_container()->get(App\Repositories\TicketRepository::class);
+}
+
 function wf_insert_ticket(array $overrides): int
 {
     $cols = array_merge([
@@ -381,6 +386,41 @@ test('workflow(neg): mid-work reassign without a reason is rejected — accepted
         } finally {
             wf_cleanup($id);
         }
+    }
+});
+
+test('workflow(concurrency): a transition branches on the LOCKED status, not a stale pre-lock snapshot (F2b)', function (): void {
+    // The service reads the ticket WITHOUT a lock, then passes that status to the repo. If a concurrent
+    // accept/start slips in before the repo's FOR UPDATE lock, the repo must still branch on the REAL locked
+    // status — otherwise a genuine mid-work reassign (actual = accepted) looks like a first assign (stale =
+    // approved): it would skip the response-SLA reset and write a wrong from_status to the audit log. We
+    // reproduce the race deterministically by calling the repo with a STALE currentStatus while the DB row
+    // actually sits at 'accepted'.
+    $rid = bin2hex(random_bytes(4));
+    wf_pdo()->prepare("INSERT INTO users (username, email, password_hash, full_name, role, is_active) VALUES (?, ?, 'x', ?, 'technician', 1)")
+        ->execute(["wf2b_$rid", "wf2b_$rid@example.com", "WF2b Tech $rid"]);
+    $tech2 = (int) wf_pdo()->lastInsertId();
+    $id = wf_insert_ticket(['status' => 'pending_approval', 'approval_status' => 'pending', 'requester_id' => 1]);
+
+    try {
+        $admin = ['id' => 4, 'role' => 'admin'];
+        $tech = ['id' => 3, 'role' => 'technician'];
+        wf_service()->approveTicket($id, $admin, ['note' => '']);
+        wf_service()->assignTechnician($id, $admin, ['technician_id' => 3, 'instructions' => '']);
+        wf_service()->acceptAssignedWork($id, $tech, ['accept_note' => '']);
+        assert_same('accepted', wf_state($id)['status'], 'precondition: the DB row actually sits at accepted');
+
+        // Simulate the race: caller believes the ticket is still 'approved' (its pre-lock read) and reassigns.
+        wf_repo()->assignTechnician($id, 4, $tech2, 'WF2b Tech', 'ช่างเดิมไม่ว่าง', 'approved');
+
+        $fromStatus = (string) wf_pdo()->query(
+            "SELECT from_status FROM ticket_activity_logs WHERE ticket_id=$id AND action='technician_assigned' ORDER BY id DESC LIMIT 1"
+        )->fetchColumn();
+        assert_same('accepted', $fromStatus, 'the audit log records the LOCKED status (accepted), not the stale snapshot (approved)');
+        assert_same($tech2, (int) wf_state($id)['assigned_technician_id'], 'the reassign still lands on the new technician');
+    } finally {
+        wf_cleanup($id);
+        wf_pdo()->prepare('DELETE FROM users WHERE id=?')->execute([$tech2]);
     }
 });
 

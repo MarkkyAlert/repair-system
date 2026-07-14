@@ -300,10 +300,13 @@ class TicketRepository
 
         try {
             $this->db->beginTransaction();
-            // accepted/in_progress: mid-work reassign when the technician became unavailable (logic-review F2)
-            $this->lockTicketForTransition($ticketId, ['approved', 'assigned', 'accepted', 'in_progress'], 'approved');
+            // accepted/in_progress: mid-work reassign when the technician became unavailable (logic-review F2).
+            // Branch on the LOCKED status, not the pre-lock snapshot passed by the caller — a concurrent
+            // accept/start between the service's read and this lock must not make a reassign look like a first
+            // assign (which would skip the response-SLA reset and log a wrong from_status). (logic-review F2b)
+            $lockedStatus = $this->lockTicketForTransition($ticketId, ['approved', 'assigned', 'accepted', 'in_progress'], 'approved');
 
-            $isReassign = in_array($currentStatus, ['assigned', 'accepted', 'in_progress'], true);
+            $isReassign = in_array($lockedStatus, ['assigned', 'accepted', 'in_progress'], true);
             $existingResponseDueAt = '';
             if ($isReassign) {
                 // Refresh response_due_at within the locked row so the SLA reset uses the current target.
@@ -426,7 +429,7 @@ class TicketRepository
                 $details .= ' พร้อมคำสั่งงาน: ' . $instructions;
             }
 
-            $this->insertActivityLog($ticketId, $actorId, 'technician_assigned', $currentStatus, 'assigned', $details);
+            $this->insertActivityLog($ticketId, $actorId, 'technician_assigned', $lockedStatus, 'assigned', $details);
 
             if ($isReassign && $existingResponseDueAt !== '') {
                 // Reassigning a ticket invalidates the previous technician's first response;
@@ -1081,13 +1084,20 @@ class TicketRepository
         }
     }
 
+    /**
+     * Lock the ticket row FOR UPDATE and verify it is in an allowed state, then RETURN its real locked status.
+     * Callers must branch on the returned value — never on a status read before the lock — so a concurrent
+     * transition that lands the row on a different (still-allowed) status cannot drive stale branch logic
+     * (e.g. reassign's SLA reset / audit from_status). The lock only guarantees the transition is valid; the
+     * returned status is what makes the *consequences* match reality.
+     */
     private function lockTicketForTransition(
         int $ticketId,
         array $allowedStatuses,
         ?string $expectedApprovalStatus = null,
         ?string $ownerColumn = null,
         ?int $ownerId = null
-    ): void {
+    ): string {
         $allowedOwnerColumns = ['assigned_technician_id', 'requester_id'];
         if ($ownerColumn !== null && !in_array($ownerColumn, $allowedOwnerColumns, true)) {
             throw new RuntimeException('ไม่สามารถตรวจสอบผู้ดำเนินการของ Ticket ได้');
@@ -1116,6 +1126,8 @@ class TicketRepository
         if (!$valid) {
             throw new RuntimeException('สถานะ Ticket ถูกเปลี่ยนแล้ว กรุณารีเฟรชหน้าแล้วลองอีกครั้ง');
         }
+
+        return (string) ($ticket['status'] ?? '');
     }
 
     private function insertActivityLog(int $ticketId, int $actorId, string $action, ?string $fromStatus, ?string $toStatus, string $details): void
