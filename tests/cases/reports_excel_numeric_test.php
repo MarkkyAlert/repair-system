@@ -115,7 +115,10 @@ test('reports: XLSX preserves user text while keeping ticket ratings numeric (au
         rxn_pdo()->prepare('INSERT INTO ticket_ratings (ticket_id, requester_id, score) VALUES (?, 1, 5)')
             ->execute([$ticketId]);
 
-        $filters = ['department_id' => $departmentId, 'from_date' => date('Y-m-d'), 'to_date' => date('Y-m-d')];
+        // Window from the ticket's OWN requested_at date (not today): a fixture created time()-3600 falls on
+        // yesterday when the suite runs in the 00:00–01:00 window, and a hard-coded date('Y-m-d') from_date
+        // would exclude it → flaky red across midnight. Deriving the bound from $requestedAt makes it stable.
+        $filters = ['department_id' => $departmentId, 'from_date' => substr($requestedAt, 0, 10), 'to_date' => date('Y-m-d')];
         $screenRows = rxn_service()->getReportPageData($admin, $filters)['rows'];
         $screen = $screenRows[0] ?? [];
         assert_same(
