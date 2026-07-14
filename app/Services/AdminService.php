@@ -174,7 +174,9 @@ class AdminService
                 ['label' => 'ยกเลิก Ticket ของตนเองก่อนเริ่มงาน', 'roles' => ['requester', 'manager', 'technician', 'admin']],
                 ['label' => 'อนุมัติ/ปฏิเสธ Ticket ที่รออนุมัติ', 'roles' => ['manager', 'admin']],
                 ['label' => 'มอบหมายช่างและจัดคิวงานซ่อม', 'roles' => ['manager', 'admin']],
-                ['label' => 'รับงาน เริ่มงาน และปิดงานซ่อม', 'roles' => ['technician', 'admin']],
+                // Hands-on technician work (accept/start/resolve) is technician-only — TicketPolicy::canTechnicianWork
+                // requires the assigned technician; an admin manages/assigns but does not do the repair. (logic-review F5)
+                ['label' => 'รับงาน เริ่มงาน และปิดงานซ่อม', 'roles' => ['technician']],
                 ['label' => 'เพิ่ม/แก้ไขความคิดเห็นและโน้ตภายในตามสิทธิ์ Ticket', 'roles' => ['requester', 'manager', 'technician', 'admin']],
                 ['label' => 'จัดการทรัพย์สินและแผ่น QR', 'roles' => ['manager', 'admin']],
                 ['label' => 'ดูรายงานและส่งออก Excel/PDF/CSV', 'roles' => ['manager', 'admin']],
