@@ -5,6 +5,7 @@ namespace App\Services;
 
 use App\Repositories\TicketReadRepository;
 use App\Repositories\TicketRepository;
+use Throwable;
 
 class SlaService
 {
@@ -36,7 +37,15 @@ class SlaService
             }
 
             $processed++;
-            $this->notifications->notifySlaBreached($ticketId, $metricType);
+            // Best-effort notify: the breach is already committed (single-statement UPDATE), and this cron
+            // processes a BATCH. A failed notification for one ticket must not abort the loop — otherwise the
+            // remaining breaches go unmarked/unnotified this run and this ticket's own notify is never retried
+            // (next run it is no longer "pending"). Log and carry on.
+            try {
+                $this->notifications->notifySlaBreached($ticketId, $metricType);
+            } catch (Throwable $exception) {
+                log_caught_exception('sla.breach.notify', $exception, ['ticket_id' => $ticketId, 'metric' => $metricType]);
+            }
             $notifiedTickets[] = [
                 'ticket_id' => $ticketId,
                 'ticket_no' => (string) ($track['ticket_no'] ?? ''),

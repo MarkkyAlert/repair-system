@@ -313,3 +313,43 @@ test('comment(idempotency): the same submission_token twice creates only one com
         cm_cleanup($ticketId);
     }
 });
+
+// F3 (logic review): notifications after a successful mutation must be best-effort — a failing
+// notification must NOT surface as an error to a user whose comment already saved. createComment and
+// deleteComment already wrap the notify; updateComment did not (its exception propagated past the commit).
+test('comment(resilience): updateComment persists even when the notification throws (F3)', function (): void {
+    $ticketId = cm_seed_ticket();
+    try {
+        [$cId, $ver] = cm_seed_comment($ticketId, 1, 'before edit');
+
+        $throwingNotifier = new class extends \App\Services\NotificationService {
+            public function __construct()
+            {
+            }
+
+            public function notifyCommentEvent(int $ticketId, int $commentId, int $actorId, bool $isInternal, string $body, string $action): void
+            {
+                throw new \RuntimeException('notification backend down');
+            }
+        };
+        $service = new \App\Services\CommentService(
+            tvm_container()->get(\App\Repositories\CommentRepository::class),
+            tvm_container()->get(\App\Repositories\TicketReadRepository::class),
+            $throwingNotifier,
+            tvm_container()->get(\App\Services\AttachmentService::class),
+            tvm_container()->get(PDO::class),
+        );
+
+        $threw = false;
+        try {
+            $service->updateComment($ticketId, $cId, cm_owner(), ['body' => 'after edit', 'original_version' => $ver]);
+        } catch (\Throwable) {
+            $threw = true;
+        }
+
+        assert_false($threw, 'a notification failure must not propagate to the caller');
+        assert_same('after edit', cm_body($cId), 'the edit is persisted despite the notification failure');
+    } finally {
+        cm_cleanup($ticketId);
+    }
+});

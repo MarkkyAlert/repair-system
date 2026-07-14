@@ -231,6 +231,41 @@ test('sla: markSlaBreachedById is the idempotency backstop — false for unknown
     }
 });
 
+// F3 (logic review): the cron processes a BATCH, and each breach is already committed before notifying. A
+// failing notification for one ticket must not abort the loop — otherwise the remaining breaches go unmarked
+// this run and the failed one is never retried (next run it is no longer "pending"). Notify is now best-effort.
+test('sla(resilience): a failing notification does not abort the batch — every overdue track is still breached (F3)', function (): void {
+    $userId = sla_seed_user();
+    $ticketId = sla_seed_ticket($userId);
+    $t1 = sla_seed_track($ticketId, 'response', -3600);
+    $t2 = sla_seed_track($ticketId, 'resolution', -1800);
+    try {
+        $throwingNotifier = new class extends \App\Services\NotificationService {
+            public function __construct()
+            {
+            }
+
+            public function notifySlaBreached(int $ticketId, string $metricType): void
+            {
+                throw new \RuntimeException('notification backend down');
+            }
+        };
+        $service = new \App\Services\SlaService(
+            sla_repo(),
+            tvm_container()->get(\App\Repositories\TicketReadRepository::class),
+            $throwingNotifier,
+        );
+
+        $service->processOverdueBreaches(); // must NOT throw even though every notify fails
+
+        $status = static fn (int $id): string => (string) sla_pdo()->query("SELECT status FROM ticket_sla_tracks WHERE id = $id")->fetchColumn();
+        assert_same('breached', $status($t1), 'the first overdue track is breached even though its notification threw');
+        assert_same('breached', $status($t2), 'the batch CONTINUED past the first failure and breached the second track too');
+    } finally {
+        sla_cleanup([$ticketId], [$userId]);
+    }
+});
+
 // ── fixture teardown: undo everything this file did to shared state ──
 
 test('sla(fixture): restore seed SLA tracks + purge notifications created during this run', function (): void {

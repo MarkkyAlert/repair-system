@@ -92,7 +92,13 @@ class CommentService
         }
 
         $this->comments->updateComment($commentId, $body, $isInternal, $originalVersion);
-        $this->notifications->notifyCommentEvent($ticketId, $commentId, (int) ($viewer['id'] ?? 0), $isInternal, $body, 'updated');
+        // Best-effort notify (matching createComment/deleteComment): the edit is already persisted, so a
+        // notification failure must not surface as an error to the user who successfully saved the comment.
+        try {
+            $this->notifications->notifyCommentEvent($ticketId, $commentId, (int) ($viewer['id'] ?? 0), $isInternal, $body, 'updated');
+        } catch (\Throwable $exception) {
+            log_caught_exception('comment.update.notify', $exception, ['comment' => $commentId]);
+        }
 
         return [
             'id' => $commentId,
