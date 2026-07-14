@@ -459,6 +459,33 @@ test('workflow(concurrency): the mandatory-reason rule is re-checked under the l
     }
 });
 
+test('workflow(concurrency): start + resolve log the LOCKED status, not a stale pre-lock snapshot (F5)', function (): void {
+    // startAssignedWork ([assigned,accepted]) and resolveAssignedWork ([accepted,in_progress]) lock multiple
+    // statuses but used to log from_status from the caller's pre-lock snapshot. A concurrent accept/start could
+    // then record a wrong from_status. Reproduce deterministically by calling the repo with a STALE currentStatus.
+    $id = wf_insert_ticket(['status' => 'pending_approval', 'approval_status' => 'pending', 'requester_id' => 1]);
+    try {
+        $admin = ['id' => 4, 'role' => 'admin'];
+        $tech = ['id' => 3, 'role' => 'technician'];
+        wf_service()->approveTicket($id, $admin, ['note' => '']);
+        wf_service()->assignTechnician($id, $admin, ['technician_id' => 3, 'instructions' => '']);
+        wf_service()->acceptAssignedWork($id, $tech, ['accept_note' => '']);
+        assert_same('accepted', wf_state($id)['status'], 'precondition: row sits at accepted');
+
+        // caller believes it is still 'assigned' (stale) — start must log the LOCKED 'accepted'
+        wf_repo()->startAssignedWork($id, 3, '', 'assigned');
+        $startFrom = (string) wf_pdo()->query("SELECT from_status FROM ticket_activity_logs WHERE ticket_id=$id AND action='work_started' ORDER BY id DESC LIMIT 1")->fetchColumn();
+        assert_same('accepted', $startFrom, 'work_started logs the locked status (accepted), not the stale snapshot (assigned)');
+
+        // now at in_progress; caller believes 'accepted' (stale) — resolve must log the LOCKED 'in_progress'
+        wf_repo()->resolveAssignedWork($id, 3, 'd', 'r', 30, 'accepted');
+        $resolveFrom = (string) wf_pdo()->query("SELECT from_status FROM ticket_activity_logs WHERE ticket_id=$id AND action='ticket_resolved' ORDER BY id DESC LIMIT 1")->fetchColumn();
+        assert_same('in_progress', $resolveFrom, 'ticket_resolved logs the locked status (in_progress), not the stale snapshot (accepted)');
+    } finally {
+        wf_cleanup($id);
+    }
+});
+
 test('workflow(neg): reassign stays impossible once resolved/completed (F2 boundary)', function (): void {
     foreach (['resolved', 'completed'] as $status) {
         $id = wf_insert_ticket(['status' => $status, 'approval_status' => 'approved', 'requester_id' => 1, 'assigned_technician_id' => 3]);
