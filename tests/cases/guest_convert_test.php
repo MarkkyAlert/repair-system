@@ -237,6 +237,41 @@ test('guest convert: converted ticket does not inherit the converter\'s departme
     }
 });
 
+// F2 (logic review): a guest request originates from a QR scan, so the converted ticket must record
+// channel = qr — the repo used to hard-code 'web' for every ticket, mislabelling the work source in the
+// ticket detail. requester_id/department are covered by the F3 test above; this pins the channel.
+test('guest convert: the converted ticket records channel = qr (F2)', function (): void {
+    $requestId = gc_insert_request();
+    $ticketId = 0;
+    try {
+        $ticketId = gc_service()->convertToTicket($requestId, ['id' => 4, 'role' => 'admin'], 1, 1, gc_tickets());
+        $channel = (string) gc_pdo()->query("SELECT channel FROM tickets WHERE id = $ticketId")->fetchColumn();
+        assert_same('qr', $channel, 'a QR-originated guest request converts to a qr-channel ticket, not web');
+    } finally {
+        gc_cleanup($requestId, $ticketId > 0 ? [$ticketId] : []);
+    }
+});
+
+// F4 (logic review): "[จาก Guest: <name>] <title>" can exceed the 200-char ticket-title limit (name ≤150 +
+// title ≤200), so a successfully-submitted request could fail to convert. The composed title is capped at 200
+// and the FULL original title is preserved in the description.
+test('guest convert: a long name + max-length title still converts; the original title is preserved (F4)', function (): void {
+    $longName = str_repeat('น', 140);   // within guest_name VARCHAR(150)
+    $longTitle = str_repeat('ก', 200);  // the maximum ticket title
+    $requestId = gc_insert_request(['guest_name' => $longName, 'title' => $longTitle]);
+    $ticketId = 0;
+    try {
+        $ticketId = gc_service()->convertToTicket($requestId, ['id' => 4, 'role' => 'admin'], 1, 1, gc_tickets());
+        assert_true($ticketId > 0, 'the oversized composed title did not block conversion');
+
+        $row = gc_pdo()->query("SELECT title, description FROM tickets WHERE id = $ticketId")->fetch();
+        assert_true(mb_strlen((string) $row['title']) <= 200, 'the stored title is within the 200-char limit');
+        assert_true(str_contains((string) $row['description'], $longTitle), 'the FULL original title survives in the description');
+    } finally {
+        gc_cleanup($requestId, $ticketId > 0 ? [$ticketId] : []);
+    }
+});
+
 test('guest convert: missing priority/category is rejected in the service before any lock/DB work', function (): void {
     // The required-input rule lives in convertToTicket (moved out of GuestRequestController) so it holds
     // for every caller and short-circuits before acquireConvertLock — the request must stay 'new'.

@@ -163,13 +163,21 @@ class GuestTicketService
             }
 
             $contact = trim(((string) $request['guest_email']) . ' ' . ((string) $request['guest_phone']));
-            $titlePrefix = '[จาก Guest: ' . (string) $request['guest_name'] . '] ';
+            $originalTitle = (string) $request['title'];
+            // The composed "[จาก Guest: name] {title}" can exceed the 200-char ticket-title limit (name ≤150 +
+            // title ≤200), which would make a successfully-submitted guest request fail to convert. Cap the
+            // title at 200 and keep the FULL original in the description so nothing is lost. (logic-review F4)
+            $composedTitle = '[จาก Guest: ' . (string) $request['guest_name'] . '] ' . $originalTitle;
+            if (mb_strlen($composedTitle) > 200) {
+                $composedTitle = mb_substr($composedTitle, 0, 200);
+            }
             $descriptionPrefix = "ผู้แจ้ง (Guest): " . (string) $request['guest_name'] . "\n"
                 . "ติดต่อ: " . ($contact !== '' ? $contact : '-') . "\n"
-                . "Request No: " . (string) $request['request_no'] . "\n\n";
+                . "Request No: " . (string) $request['request_no'] . "\n"
+                . "หัวข้อเดิม: " . $originalTitle . "\n\n";
 
             $ticketInput = [
-                'title' => $titlePrefix . (string) $request['title'],
+                'title' => $composedTitle,
                 'description' => $descriptionPrefix . (string) $request['description'],
                 'priority_id' => $priorityId,
                 'ticket_category_id' => $categoryId,
@@ -177,6 +185,8 @@ class GuestTicketService
                 'asset_id' => (int) ($request['asset_id'] ?? 0) > 0 ? (int) $request['asset_id'] : '',
                 'impact_level' => 'medium',
                 'urgency_level' => 'medium',
+                // origin came from a QR scan → keep the channel accurate on the ticket (logic-review F2)
+                'channel' => 'qr',
                 'submission_token' => bin2hex(random_bytes(32)),
             ];
 

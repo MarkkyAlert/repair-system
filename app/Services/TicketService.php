@@ -421,6 +421,12 @@ class TicketService
         $assetId = strict_int($input['asset_id'] ?? null, 'Asset ');
         $impactLevel = strtolower(trim((string) ($input['impact_level'] ?? 'medium')));
         $urgencyLevel = strtolower(trim((string) ($input['urgency_level'] ?? 'medium')));
+        // Origin channel — an internal contract, not a public web-form field: callers may set it (guest QR
+        // conversion → 'qr'); anything unrecognised falls back to 'web' so a bad value can't reach the enum. (F2)
+        $channel = strtolower(trim((string) ($input['channel'] ?? 'web')));
+        if (!in_array($channel, ['web', 'qr', 'phone', 'email', 'walk_in'], true)) {
+            $channel = 'web';
+        }
         $submissionToken = $this->submissionToken((string) ($input['submission_token'] ?? ''), false);
 
         if ($title === '' || $description === '') {
@@ -489,6 +495,7 @@ class TicketService
                 'asset_id' => is_array($asset) ? (int) ($asset['id'] ?? 0) : null,
                 'ticket_category_id' => $categoryId,
                 'priority_id' => $priorityId,
+                'channel' => $channel,
                 'impact_level' => $impactLevel,
                 'urgency_level' => $urgencyLevel,
                 'requested_at' => $requestedAt,

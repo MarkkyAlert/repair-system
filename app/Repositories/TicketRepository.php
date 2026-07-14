@@ -129,7 +129,7 @@ class TicketRepository
                     'assigned_technician_id' => null,
                     'approval_status' => 'pending',
                     'status' => 'pending_approval',
-                    'channel' => 'web',
+                    'channel' => $payload['channel'] ?? 'web',
                     'impact_level' => $payload['impact_level'],
                     'urgency_level' => $payload['urgency_level'],
                     'requested_at' => $requestedAt,
@@ -520,7 +520,9 @@ class TicketRepository
 
         try {
             $this->db->beginTransaction();
-            $this->lockTicketForTransition($ticketId, ['assigned', 'accepted'], 'approved', 'assigned_technician_id', $actorId);
+            // multi-status lock → log from the LOCKED status, not the caller's pre-lock snapshot, so a concurrent
+            // accept between the service read and this lock can't record a wrong from_status. (logic-review F5)
+            $lockedStatus = $this->lockTicketForTransition($ticketId, ['assigned', 'accepted'], 'approved', 'assigned_technician_id', $actorId);
 
             $ticketStmt = $this->db->prepare(
                 'UPDATE tickets
@@ -559,7 +561,7 @@ class TicketRepository
             }
 
             $this->markSlaAchieved($ticketId, 'response', $startedAt);
-            $this->insertActivityLog($ticketId, $actorId, 'work_started', $currentStatus, 'in_progress', $note !== '' ? $note : 'ช่างเทคนิคเริ่มดำเนินงานตามที่ได้รับมอบหมาย');
+            $this->insertActivityLog($ticketId, $actorId, 'work_started', $lockedStatus, 'in_progress', $note !== '' ? $note : 'ช่างเทคนิคเริ่มดำเนินงานตามที่ได้รับมอบหมาย');
 
             $this->db->commit();
         } catch (Throwable $exception) {
@@ -577,7 +579,8 @@ class TicketRepository
 
         try {
             $this->db->beginTransaction();
-            $this->lockTicketForTransition($ticketId, ['accepted', 'in_progress'], 'approved', 'assigned_technician_id', $actorId);
+            // multi-status lock → log from the LOCKED status, not the caller's pre-lock snapshot. (logic-review F5)
+            $lockedStatus = $this->lockTicketForTransition($ticketId, ['accepted', 'in_progress'], 'approved', 'assigned_technician_id', $actorId);
 
             $ticketStmt = $this->db->prepare(
                 'UPDATE tickets
@@ -635,7 +638,7 @@ class TicketRepository
                 $details .= ' | ใช้เวลา ' . $laborMinutes . ' นาที';
             }
 
-            $this->insertActivityLog($ticketId, $actorId, 'ticket_resolved', $currentStatus, 'resolved', $details);
+            $this->insertActivityLog($ticketId, $actorId, 'ticket_resolved', $lockedStatus, 'resolved', $details);
 
             $this->db->commit();
         } catch (Throwable $exception) {
