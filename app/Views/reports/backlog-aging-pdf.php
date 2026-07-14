@@ -18,8 +18,8 @@
         .report-table th, .report-table td { border-bottom: 1px solid #d9e5e8; padding: 5px 6px; vertical-align: top; text-align: left; }
         .report-table th { background: #0f766e; color: #ffffff; font-size: 8px; font-weight: 700; }
         .report-table tr:nth-child(even) td { background: #f7fafb; }
-        .summary-grid { width: 100%; margin-top: 10px; }
-        .summary-item { display: inline-block; width: 19%; margin-right: .6%; padding: 8px; border: 1px solid #d9e5e8; border-top: 3px solid #14b8a6; box-sizing: border-box; }
+        .summary-grid { width: 100%; margin-top: 10px; border-collapse: separate; border-spacing: 5px 0; table-layout: fixed; }
+        .summary-item { padding: 8px; border: 1px solid #d9e5e8; border-top: 3px solid #14b8a6; box-sizing: border-box; vertical-align: top; }
         .summary-item.warning { border-top-color: #f59e0b; }
         .summary-item.danger { border-top-color: #ef4444; }
         .summary-title { font-size: 8px; color: #607783; }
@@ -42,28 +42,30 @@
     </tr>
 </table>
 
-<div class="stack summary-grid">
-    <div class="summary-item">
-        <div class="summary-title">งานค้างทั้งหมด</div>
-        <div class="summary-value"><?= e((string) ($summary['total'] ?? 0)) ?></div>
-    </div>
-    <div class="summary-item">
-        <div class="summary-title">ค้าง 0-2 วัน</div>
-        <div class="summary-value"><?= e((string) ($summary['bucket_0_3'] ?? 0)) ?></div>
-    </div>
-    <div class="summary-item">
-        <div class="summary-title">ค้าง 3-6 วัน</div>
-        <div class="summary-value"><?= e((string) ($summary['bucket_3_7'] ?? 0)) ?></div>
-    </div>
-    <div class="summary-item warning">
-        <div class="summary-title">ค้าง 7-29 วัน</div>
-        <div class="summary-value"><?= e((string) ($summary['bucket_7_30'] ?? 0)) ?></div>
-    </div>
-    <div class="summary-item danger">
-        <div class="summary-title">ค้าง ≥30 วัน</div>
-        <div class="summary-value"><?= e((string) ($summary['bucket_30_plus'] ?? 0)) ?></div>
-    </div>
-</div>
+<table class="stack summary-grid">
+    <tr>
+        <td class="summary-item">
+            <div class="summary-title">งานค้างทั้งหมด</div>
+            <div class="summary-value"><?= e((string) ($summary['total'] ?? 0)) ?></div>
+        </td>
+        <td class="summary-item">
+            <div class="summary-title">ค้าง 0-2 วัน</div>
+            <div class="summary-value"><?= e((string) ($summary['bucket_0_3'] ?? 0)) ?></div>
+        </td>
+        <td class="summary-item">
+            <div class="summary-title">ค้าง 3-6 วัน</div>
+            <div class="summary-value"><?= e((string) ($summary['bucket_3_7'] ?? 0)) ?></div>
+        </td>
+        <td class="summary-item warning">
+            <div class="summary-title">ค้าง 7-29 วัน</div>
+            <div class="summary-value"><?= e((string) ($summary['bucket_7_30'] ?? 0)) ?></div>
+        </td>
+        <td class="summary-item danger">
+            <div class="summary-title">ค้าง ≥30 วัน</div>
+            <div class="summary-value"><?= e((string) ($summary['bucket_30_plus'] ?? 0)) ?></div>
+        </td>
+    </tr>
+</table>
 
 <table class="report-table">
     <thead>

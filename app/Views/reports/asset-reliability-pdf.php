@@ -18,8 +18,8 @@
         .report-table th, .report-table td { border-bottom: 1px solid #d9e5e8; padding: 5px 6px; vertical-align: top; text-align: left; }
         .report-table th { background: #0f766e; color: #ffffff; font-size: 8px; font-weight: 700; }
         .report-table tr:nth-child(even) td { background: #f7fafb; }
-        .summary-grid { width: 100%; margin-top: 10px; }
-        .summary-item { display: inline-block; width: 19%; margin-right: .6%; padding: 8px; border: 1px solid #d9e5e8; border-top: 3px solid #14b8a6; box-sizing: border-box; }
+        .summary-grid { width: 100%; margin-top: 10px; border-collapse: separate; border-spacing: 5px 0; table-layout: fixed; }
+        .summary-item { padding: 8px; border: 1px solid #d9e5e8; border-top: 3px solid #14b8a6; box-sizing: border-box; vertical-align: top; }
         .summary-title { font-size: 8px; color: #607783; }
         .summary-value { font-size: 17px; font-weight: 700; margin-top: 3px; color: #0a2233; }
         .num { text-align: right; }
@@ -49,28 +49,30 @@
     </tr>
 </table>
 
-<div class="stack summary-grid">
-    <div class="summary-item">
-        <div class="summary-title">ทรัพย์สินที่แจ้งซ่อม</div>
-        <div class="summary-value"><?= e((string) ($summary['assets'] ?? 0)) ?></div>
-    </div>
-    <div class="summary-item">
-        <div class="summary-title">ควรเปลี่ยน</div>
-        <div class="summary-value"><?= e((string) ($summary['replace'] ?? 0)) ?></div>
-    </div>
-    <div class="summary-item">
-        <div class="summary-title">เฝ้าระวัง</div>
-        <div class="summary-value"><?= e((string) ($summary['watch'] ?? 0)) ?></div>
-    </div>
-    <div class="summary-item">
-        <div class="summary-title">Downtime รวม (ชม.)</div>
-        <div class="summary-value"><?= e((string) ($summary['downtimeHoursLabel'] ?? '0')) ?></div>
-    </div>
-    <div class="summary-item">
-        <div class="summary-title">ชม.แรงงานรวม</div>
-        <div class="summary-value"><?= e((string) ($summary['laborHoursLabel'] ?? '0')) ?></div>
-    </div>
-</div>
+<table class="stack summary-grid">
+    <tr>
+        <td class="summary-item">
+            <div class="summary-title">ทรัพย์สินที่แจ้งซ่อม</div>
+            <div class="summary-value"><?= e((string) ($summary['assets'] ?? 0)) ?></div>
+        </td>
+        <td class="summary-item">
+            <div class="summary-title">ควรเปลี่ยน</div>
+            <div class="summary-value"><?= e((string) ($summary['replace'] ?? 0)) ?></div>
+        </td>
+        <td class="summary-item">
+            <div class="summary-title">เฝ้าระวัง</div>
+            <div class="summary-value"><?= e((string) ($summary['watch'] ?? 0)) ?></div>
+        </td>
+        <td class="summary-item">
+            <div class="summary-title">Downtime รวม (ชม.)</div>
+            <div class="summary-value"><?= e((string) ($summary['downtimeHoursLabel'] ?? '0')) ?></div>
+        </td>
+        <td class="summary-item">
+            <div class="summary-title">ชม.แรงงานรวม</div>
+            <div class="summary-value"><?= e((string) ($summary['laborHoursLabel'] ?? '0')) ?></div>
+        </td>
+    </tr>
+</table>
 
 <table class="report-table">
     <thead>
