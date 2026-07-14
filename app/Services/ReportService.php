@@ -2922,21 +2922,21 @@ class ReportService
                 'รายงาน Ticket',
                 $headers,
                 array_map(fn (array $row): array => [
-                    $row['ticket_no'],
-                    $row['title'],
-                    $row['requester_name'],
-                    $row['department_name'],
-                    $row['category_name'],
-                    $row['technician_name'],
-                    $row['priority_label'],
+                    $this->txt($row['ticket_no']),
+                    $this->txt($row['title']),
+                    $this->txt($row['requester_name']),
+                    $this->txt($row['department_name']),
+                    $this->txt($row['category_name']),
+                    $this->txt($row['technician_name']),
+                    $this->txt($row['priority_label']),
                     $row['status_label'],
                     $row['requested_at'],
                     $row['resolved_at'],
                     $row['resolution_hours_label'],
                     $row['sla_overdue_label'],
                     $row['sla_label'],
-                    $row['rating_label'],
-                    $row['location_name'],
+                    $row['rating_value'], // typed int → numeric (average/pivot); '-' when unrated (R19)
+                    $this->txt($row['location_name']),
                 ], $rows)
             );
 
@@ -3024,9 +3024,9 @@ class ReportService
                 'headers' => ['เลขที่', 'หัวข้อ', 'ผู้แจ้ง', 'แผนก', 'หมวดหมู่', 'ช่างเทคนิค', 'ความสำคัญ', 'สถานะ', 'วันที่แจ้ง', 'วันที่แก้ไข', 'เวลาแก้ไข (ชม.)', 'เกิน SLA', 'สถานะ SLA', 'คะแนน', 'สถานที่'],
                 'rows' => array_map(fn ($row): array => [
                     $this->txt($row['ticket_no']), $this->txt($row['title']), $this->txt($row['requester_name']), $this->txt($row['department_name']),
-                    $this->txt($row['category_name']), $this->txt($row['technician_name']), $row['priority_label'], $row['status_label'],
+                    $this->txt($row['category_name']), $this->txt($row['technician_name']), $this->txt($row['priority_label']), $row['status_label'],
                     $row['requested_at'], $row['resolved_at'], $row['resolution_hours_label'],
-                    $row['sla_overdue_label'], $row['sla_label'], $this->txt($row['rating_label']), $this->txt($row['location_name']),
+                    $row['sla_overdue_label'], $row['sla_label'], $row['rating_value'], $this->txt($row['location_name']),
                 ], $rows),
             ];
             $content = $this->exporter->buildCsvSections(array_merge(
@@ -3056,7 +3056,7 @@ class ReportService
         ]];
         foreach (($analytics['slaCompliance']['byPriority'] ?? []) as $p) {
             $slaRows[] = [
-                $p['priority_name'], $p['response']['met'], $p['response']['breached'], $p['response']['pct_label'],
+                $this->txt($p['priority_name']), $p['response']['met'], $p['response']['breached'], $p['response']['pct_label'],
                 $p['resolution']['met'], $p['resolution']['breached'], $p['resolution']['pct_label'],
             ];
         }
@@ -3284,6 +3284,8 @@ class ReportService
             'sla_overdue_label' => $isOverdue ? 'ใช่' : 'ไม่ใช่',
             'rating_score' => $ratingScore,
             'rating_label' => $ratingScore > 0 ? (string) $ratingScore : '-',
+            // typed rating for exports: a real int so Excel can average/pivot it (or '-' text when unrated) (R19)
+            'rating_value' => $ratingScore > 0 ? $ratingScore : '-',
             'location_name' => (string) ($row['location_name'] ?? '-'),
             'detail_url' => '/tickets/' . (int) ($row['id'] ?? 0),
         ];
