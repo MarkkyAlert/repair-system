@@ -12,7 +12,7 @@ $dimensionLabel = (string) ($filters['dimensionLabel'] ?? 'ระดับคว
 
     <div class="action-bar">
         <div class="action-bar-left">
-            <span class="helper-text">"งานค้าง >30 วัน" คือกลุ่มที่ควรรีบเคลียร์ก่อน — เรียงขึ้นบนสุดให้แล้ว</span>
+            <span class="helper-text">"งานค้าง ≥30 วัน" คือกลุ่มที่ควรรีบเคลียร์ก่อน — เรียงขึ้นบนสุดให้แล้ว</span>
         </div>
         <div class="action-bar-right">
             <?= render_partial('partials/components/button', ['label' => 'กลับไปรายงานรวม', 'variant' => 'ghost', 'href' => '/reports', 'icon' => 'chevron-left']) ?>
@@ -69,25 +69,25 @@ $dimensionLabel = (string) ($filters['dimensionLabel'] ?? 'ระดับคว
             'tone' => 'default',
         ]) ?>
         <?= render_partial('partials/components/card', [
-            'title' => 'ค้าง 0-3 วัน',
+            'title' => 'ค้าง 0-2 วัน',
             'value' => (string) ($summary['bucket_0_3'] ?? 0),
             'meta' => 'งานใหม่ อยู่ในกำหนดปกติ',
             'tone' => 'success',
         ]) ?>
         <?= render_partial('partials/components/card', [
-            'title' => 'ค้าง 3-7 วัน',
+            'title' => 'ค้าง 3-6 วัน',
             'value' => (string) ($summary['bucket_3_7'] ?? 0),
             'meta' => 'เริ่มค้าง ควรติดตาม',
             'tone' => 'default',
         ]) ?>
         <?= render_partial('partials/components/card', [
-            'title' => 'ค้าง 7-30 วัน',
+            'title' => 'ค้าง 7-29 วัน',
             'value' => (string) ($summary['bucket_7_30'] ?? 0),
             'meta' => 'ค้างนาน เสี่ยงบานปลาย',
             'tone' => 'warning',
         ]) ?>
         <?= render_partial('partials/components/card', [
-            'title' => 'ค้าง >30 วัน',
+            'title' => 'ค้าง ≥30 วัน',
             'value' => (string) ($summary['bucket_30_plus'] ?? 0),
             'meta' => 'ค้างเรื้อรัง ต้องเคลียร์ด่วน',
             'tone' => 'danger',
@@ -151,7 +151,7 @@ $dimensionLabel = (string) ($filters['dimensionLabel'] ?? 'ระดับคว
         <div class="panel-head">
             <div>
                 <h2 class="panel-title">งานค้างตามอายุ แยกตาม<?= e($dimensionLabel) ?></h2>
-                <p class="field-hint">แต่ละแถวคือจำนวนงานค้างในแต่ละช่วงอายุ — เรียงกลุ่มที่ค้าง >30 วันมากสุดขึ้นบน</p>
+                <p class="field-hint">แต่ละแถวคือจำนวนงานค้างในแต่ละช่วงอายุ — เรียงกลุ่มที่ค้าง ≥30 วันมากสุดขึ้นบน</p>
             </div>
             <?php if (!empty($rows)): ?>
                 <span class="badge badge-default"><?= e((string) count($rows)) ?> รายการ</span>
@@ -165,9 +165,9 @@ $dimensionLabel = (string) ($filters['dimensionLabel'] ?? 'ระดับคว
                     <thead>
                     <tr>
                         <th data-sort-col="0"><?= e($dimensionLabel) ?></th>
-                        <th data-sort-col="1" data-sort-type="number">0-3 วัน</th>
-                        <th data-sort-col="2" data-sort-type="number">3-7 วัน</th>
-                        <th data-sort-col="3" data-sort-type="number">7-30 วัน</th>
+                        <th data-sort-col="1" data-sort-type="number">0-2 วัน</th>
+                        <th data-sort-col="2" data-sort-type="number">3-6 วัน</th>
+                        <th data-sort-col="3" data-sort-type="number">7-29 วัน</th>
                         <th data-sort-col="4" data-sort-type="number">&gt;30 วัน</th>
                         <th data-sort-col="5" data-sort-type="number">รวม</th>
                         <th data-sort-col="6" data-sort-type="number">เก่าสุด (วัน)</th>

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 use App\Services\ReportService;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 // Tests for the Executive KPI Summary (/reports/executive). Focus: the elapsed-to-date period math
@@ -576,6 +577,72 @@ test('executive: the rating KPI exposes its review count (Finding F4)', function
         foreach ($ids as $id) {
             exs_pdo()->prepare('DELETE FROM ticket_ratings WHERE ticket_id = ?')->execute([$id]);
             exs_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
+        }
+    }
+});
+
+test('executive export: count KPI values are numeric cells for pivot and sum (audit power-proof)', function (): void {
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $rid = bin2hex(random_bytes(4));
+    $departmentId = 0;
+    $ticketIds = [];
+    $baselineJobId = (int) exs_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM export_jobs')->fetchColumn();
+    $tmp = tempnam(sys_get_temp_dir(), 'exnum_') . '.xlsx';
+    $filters = [
+        'preset' => 'custom',
+        'from_date' => '2020-05-01',
+        'to_date' => '2020-05-31',
+    ];
+
+    try {
+        exs_pdo()->prepare('INSERT INTO departments (code, name) VALUES (?, ?)')
+            ->execute(["EXNUM-$rid", "Executive Numeric $rid"]);
+        $departmentId = (int) exs_pdo()->lastInsertId();
+        $filters['department_id'] = $departmentId;
+
+        foreach (['2020-05-10 09:00:00', '2020-05-20 09:00:00', '2020-04-15 09:00:00'] as $i => $requestedAt) {
+            $resolvedAt = date('Y-m-d H:i:s', strtotime($requestedAt) + 3600);
+            exs_pdo()->prepare(
+                "INSERT INTO tickets (ticket_no, title, description, requester_id, requester_department_id, location_id, ticket_category_id, priority_id, status, requested_at, resolved_at)
+                 VALUES (?, 'x', 'x', 1, ?, 1, 1, 1, 'resolved', ?, ?)"
+            )->execute(["EXNUM-$rid-$i", $departmentId, $requestedAt, $resolvedAt]);
+            $ticketIds[] = (int) exs_pdo()->lastInsertId();
+        }
+
+        $screen = [];
+        foreach (exs_service()->getExecutiveSummaryPage($admin, $filters)['kpis'] as $kpi) {
+            $screen[$kpi['label']] = $kpi;
+        }
+        assert_same('2', $screen['แจ้งซ่อมทั้งหมด']['value_label'] ?? null, 'screen current total = 2');
+        assert_same('1', $screen['แจ้งซ่อมทั้งหมด']['prev_value_label'] ?? null, 'screen previous total = 1');
+        assert_same('2', $screen['ปิดงาน']['value_label'] ?? null, 'screen current resolved = 2');
+        assert_same('1', $screen['ปิดงาน']['prev_value_label'] ?? null, 'screen previous resolved = 1');
+        assert_same('0', $screen['เกิน SLA']['value_label'] ?? null, 'screen current breached count = 0');
+        assert_same('0', $screen['เกิน SLA']['prev_value_label'] ?? null, 'screen previous breached count = 0');
+
+        file_put_contents($tmp, (string) exs_service()->exportExecutiveSummaryExcel($admin, $filters)['content']);
+        $book = IOFactory::createReader('Xlsx')->load($tmp);
+        $sheet = $book->getActiveSheet();
+        $rows = [];
+        for ($row = 2; $row <= $sheet->getHighestDataRow(); $row++) {
+            $rows[(string) $sheet->getCell("A$row")->getValue()] = $row;
+        }
+
+        foreach (['แจ้งซ่อมทั้งหมด', 'ปิดงาน', 'เกิน SLA'] as $label) {
+            $row = $rows[$label] ?? 0;
+            assert_true($row > 0, "$label KPI appears in XLSX");
+            assert_same(DataType::TYPE_NUMERIC, $sheet->getCell("B$row")->getDataType(), "$label current value is numeric, not text");
+            assert_same(DataType::TYPE_NUMERIC, $sheet->getCell("C$row")->getDataType(), "$label previous value is numeric, not text");
+        }
+        $book->disconnectWorksheets();
+    } finally {
+        @unlink($tmp);
+        exs_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
+        foreach ($ticketIds as $ticketId) {
+            exs_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+        }
+        if ($departmentId > 0) {
+            exs_pdo()->prepare('DELETE FROM departments WHERE id = ?')->execute([$departmentId]);
         }
     }
 });

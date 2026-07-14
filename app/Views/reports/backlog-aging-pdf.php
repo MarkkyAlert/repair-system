@@ -48,15 +48,15 @@
         <div class="summary-value"><?= e((string) ($summary['total'] ?? 0)) ?></div>
     </div>
     <div class="summary-item">
-        <div class="summary-title">ค้าง 0-3 วัน</div>
+        <div class="summary-title">ค้าง 0-2 วัน</div>
         <div class="summary-value"><?= e((string) ($summary['bucket_0_3'] ?? 0)) ?></div>
     </div>
     <div class="summary-item">
-        <div class="summary-title">ค้าง 3-7 วัน</div>
+        <div class="summary-title">ค้าง 3-6 วัน</div>
         <div class="summary-value"><?= e((string) ($summary['bucket_3_7'] ?? 0)) ?></div>
     </div>
     <div class="summary-item warning">
-        <div class="summary-title">ค้าง 7-30 วัน</div>
+        <div class="summary-title">ค้าง 7-29 วัน</div>
         <div class="summary-value"><?= e((string) ($summary['bucket_7_30'] ?? 0)) ?></div>
     </div>
     <div class="summary-item danger">
@@ -69,9 +69,9 @@
     <thead>
     <tr>
         <th><?= e((string) ($dimensionLabel ?? 'ระดับความสำคัญ')) ?></th>
-        <th class="num">0-3 วัน</th>
-        <th class="num">3-7 วัน</th>
-        <th class="num">7-30 วัน</th>
+        <th class="num">0-2 วัน</th>
+        <th class="num">3-6 วัน</th>
+        <th class="num">7-29 วัน</th>
         <th class="num">&gt;30 วัน</th>
         <th class="num">รวม</th>
         <th class="num">เก่าสุด (วัน)</th>

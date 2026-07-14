@@ -1589,15 +1589,22 @@ class ReportService
         // เป็น true เสมอ (0 คือค่าจริง) จึงยังเป็นตัวเลข. single source → หน้าจอ + CSV/XLSX/PDF อ่านค่านี้เหมือนกัน.
         $prevLabel = $prevHasData ? number_format($prevVal, $decimals) . $unit : '-';
 
+        // Typed export values so the XLSX cell is a real number, not text (R20): a COUNT KPI (no unit, no decimals —
+        // total/resolved/breach) exports as a typed int so Excel can SUM/pivot it; rate/avg labels ("75.0%", "5.0")
+        // stay as their formatted string (the exporter's %/decimal handling keeps those numeric); "-" (no base) → text.
+        $isCount = $unit === '' && $decimals === 0;
+        $valueExport = !$thisHasData ? '-' : ($isCount ? (int) round($thisVal) : $valueLabel);
+        $prevExport = !$prevHasData ? '-' : ($isCount ? (int) round($prevVal) : $prevLabel);
+
         // งวดปัจจุบันไม่มี base (rate/avg ที่ตัวหารเป็น 0) → ห้ามปั้นค่า 0% หรือเดลต้าหลอก (template-review F/Finding A).
         // ต่างจาก count ที่ 0 คือค่าจริง — ตัว count ส่ง hasData=true เสมอ. sample_label = ฐานที่ค่าตั้งอยู่ (F4).
         if (!$thisHasData) {
-            return ['label' => $label, 'value_label' => '-', 'prev_value_label' => $prevLabel, 'delta_label' => '—', 'pct_label' => '—', 'tone' => 'default', 'sample_label' => $sampleLabel];
+            return ['label' => $label, 'value_label' => '-', 'prev_value_label' => $prevLabel, 'value_export' => $valueExport, 'prev_value_export' => $prevExport, 'delta_label' => '—', 'pct_label' => '—', 'tone' => 'default', 'sample_label' => $sampleLabel];
         }
 
         // งวดก่อนไม่มี base → เทียบไม่ได้: โชว์ค่างวดนี้ แต่ไม่ปั้นเดลต้า/ทิศ (เลียนแบบ trendMetricCard).
         if (!$prevHasData) {
-            return ['label' => $label, 'value_label' => $valueLabel, 'prev_value_label' => $prevLabel, 'delta_label' => '—', 'pct_label' => '—', 'tone' => 'default', 'sample_label' => $sampleLabel];
+            return ['label' => $label, 'value_label' => $valueLabel, 'prev_value_label' => $prevLabel, 'value_export' => $valueExport, 'prev_value_export' => $prevExport, 'delta_label' => '—', 'pct_label' => '—', 'tone' => 'default', 'sample_label' => $sampleLabel];
         }
 
         $delta = round($thisVal - $prevVal, $decimals);
@@ -1613,6 +1620,8 @@ class ReportService
             'label' => $label,
             'value_label' => $valueLabel,
             'prev_value_label' => $prevLabel,
+            'value_export' => $valueExport,
+            'prev_value_export' => $prevExport,
             'delta_label' => $delta === 0.0 ? 'เท่าเดิม' : $arrow . ' ' . ($delta > 0 ? '+' : '') . number_format($delta, $decimals) . $unit,
             'pct_label' => $pct === null ? '—' : ($pct > 0 ? '+' : '') . number_format($pct, 1) . '%',
             'tone' => $tone,
@@ -1627,8 +1636,9 @@ class ReportService
 
     private function execExportRow(array $kpi): array
     {
-        // 'ฐานตัวอย่าง' = sample_label (เช่น "จาก N รีวิว") ให้ export ตรงกับจอ/PDF (F4) ; KPI อื่นเว้นว่าง
-        return [$kpi['label'], $kpi['value_label'], $kpi['prev_value_label'], $kpi['delta_label'], $kpi['pct_label'], (string) ($kpi['sample_label'] ?? '')];
+        // 'ฐานตัวอย่าง' = sample_label (เช่น "จาก N รีวิว") ให้ export ตรงกับจอ/PDF (F4) ; KPI อื่นเว้นว่าง.
+        // value/prev = typed export values so a COUNT KPI is a real number in Excel, not text (R20).
+        return [$kpi['label'], $kpi['value_export'] ?? $kpi['value_label'], $kpi['prev_value_export'] ?? $kpi['prev_value_label'], $kpi['delta_label'], $kpi['pct_label'], (string) ($kpi['sample_label'] ?? '')];
     }
 
     public function exportExecutiveSummaryCsv(array $viewer, array $filters = []): array
@@ -1739,7 +1749,7 @@ class ReportService
         ];
     }
 
-    /** ดึง + map + เรียงงานค้าง >30 วันมากสุดขึ้นบน. ใช้ร่วมทั้งหน้าจอ + export. */
+    /** ดึง + map + เรียงงานค้าง ≥30 วันมากสุดขึ้นบน. ใช้ร่วมทั้งหน้าจอ + export. */
     private function collectBacklogAgingRows(array $viewer, array $normalizedFilters): array
     {
         $rows = array_map(
@@ -1823,7 +1833,7 @@ class ReportService
 
     private function backlogExportHeaders(string $dimension): array
     {
-        return [$this->backlogDimensionLabel($dimension), '0-3 วัน', '3-7 วัน', '7-30 วัน', '>30 วัน', 'รวม', 'เก่าสุด (วัน)'];
+        return [$this->backlogDimensionLabel($dimension), '0-2 วัน', '3-6 วัน', '7-29 วัน', '≥30 วัน', 'รวม', 'เก่าสุด (วัน)'];
     }
 
     private function backlogExportRow(array $row): array

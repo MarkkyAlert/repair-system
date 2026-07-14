@@ -151,20 +151,29 @@ test('backlog aging: bucket boundaries land on the correct side at exactly 3 / 7
     $ids = [];
 
     try {
-        $ids[] = bla_ticket("BLB-$rid-2", $locId, 2);    // 0-3
-        $ids[] = bla_ticket("BLB-$rid-3", $locId, 3);    // 3-7 (edge: 3 is NOT 0-3)
-        $ids[] = bla_ticket("BLB-$rid-6", $locId, 6);    // 3-7
-        $ids[] = bla_ticket("BLB-$rid-7", $locId, 7);    // 7-30 (edge: 7 is NOT 3-7)
-        $ids[] = bla_ticket("BLB-$rid-29", $locId, 29);  // 7-30
-        $ids[] = bla_ticket("BLB-$rid-30", $locId, 30);  // >30 (edge: 30 is NOT 7-30)
+        $ids[] = bla_ticket("BLB-$rid-2", $locId, 2);    // 0-2
+        $ids[] = bla_ticket("BLB-$rid-3", $locId, 3);    // 3-6 (edge: 3 is NOT 0-2)
+        $ids[] = bla_ticket("BLB-$rid-6", $locId, 6);    // 3-6
+        $ids[] = bla_ticket("BLB-$rid-7", $locId, 7);    // 7-29 (edge: 7 is NOT 3-6)
+        $ids[] = bla_ticket("BLB-$rid-29", $locId, 29);  // 7-29
+        $ids[] = bla_ticket("BLB-$rid-30", $locId, 30);  // >=30 (inclusive lower edge)
 
         $row = bla_row('location', $locName);
         assert_true($row !== null, 'location appears');
-        assert_same(1, $row['bucket_0_3'], '0-3 holds only the 2-day ticket (3 days crosses out)');
-        assert_same(2, $row['bucket_3_7'], '3-7 holds 3 and 6 days (3 is the inclusive lower edge; 7 is not)');
-        assert_same(2, $row['bucket_7_30'], '7-30 holds 7 and 29 days (7 inclusive; 30 is not)');
-        assert_same(1, $row['bucket_30_plus'], '>30 holds only 30 days (inclusive lower edge)');
+        assert_same(1, $row['bucket_0_3'], '0-2 holds only the 2-day ticket (3 days crosses out)');
+        assert_same(2, $row['bucket_3_7'], '3-6 holds 3 and 6 days (3 is the inclusive lower edge; 7 is not)');
+        assert_same(2, $row['bucket_7_30'], '7-29 holds 7 and 29 days (7 inclusive; 30 is not)');
+        assert_same(1, $row['bucket_30_plus'], '>=30 holds the 30-day ticket (inclusive lower edge)');
         assert_same(6, $row['total'], 'each of the 6 edge tickets is counted once');
+
+        $method = new ReflectionMethod(ReportService::class, 'backlogExportHeaders');
+        $method->setAccessible(true);
+        $headers = $method->invoke(bla_service(), 'location');
+        assert_same(
+            ['0-2 วัน', '3-6 วัน', '7-29 วัน', '≥30 วัน'],
+            array_slice($headers, 1, 4),
+            'bucket labels must state the exact non-overlapping integer ranges implemented by the query'
+        );
     } finally {
         foreach ($ids as $id) {
             bla_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
@@ -341,7 +350,7 @@ test('backlog aging: export xlsx (1 sheet + dimension header) / pdf %PDF- / csv 
         assert_same(1, $book->getSheetCount(), 'single sheet');
         assert_same('งานค้างตามอายุ', $book->getSheetNames()[0], 'sheet title');
         assert_same('สถานะ', (string) $book->getActiveSheet()->getCell('A1')->getValue(), 'first header = dimension label (status)');
-        assert_same('>30 วัน', (string) $book->getActiveSheet()->getCell('E1')->getValue(), '>30 bucket column');
+        assert_same('≥30 วัน', (string) $book->getActiveSheet()->getCell('E1')->getValue(), '≥30 bucket column (label matches the query boundary, R20-F2)');
         $book->disconnectWorksheets();
 
         $pdf = bla_service()->exportBacklogAgingPdf($admin, ['dimension' => 'priority']);
