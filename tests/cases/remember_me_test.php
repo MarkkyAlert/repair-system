@@ -318,6 +318,29 @@ test('remember-me(security): a password CHANGE from a device without the cookie 
     }
 });
 
+// F1 (logic-review round 3): clearCurrent (logout) trusted the cookie's claimed user_id and NULLed THAT
+// user's token — so anyone could revoke another user's persistent login by forging a cookie "<victimId>|<junk>".
+// The clear must key on the token HASH, so a forged cookie matches no row and touches nothing.
+test('remember-me(security): a forged cookie with another user\'s id cannot revoke that user\'s token (F1)', function (): void {
+    [$victimId] = rm_seed_user_with_password('victim-pass');
+    [$attackerId] = rm_seed_user_with_password('attacker-pass');
+    try {
+        @rm_service()->issueFor($victimId);
+        $victimTokenBefore = rm_token_of($victimId);
+        assert_true($victimTokenBefore !== null, 'precondition: the victim has a stored remember token');
+
+        // attacker forges a cookie carrying the VICTIM's id + a bogus 64-hex token, then hits logout
+        $_COOKIE[RememberMeService::COOKIE_NAME] = $victimId . '|' . str_repeat('a', 64);
+        @rm_service()->clearCurrent();
+
+        assert_same($victimTokenBefore, rm_token_of($victimId), "the victim's remember token is untouched by a forged cookie");
+    } finally {
+        unset($_COOKIE[RememberMeService::COOKIE_NAME]);
+        rm_cleanup($victimId);
+        rm_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$attackerId]);
+    }
+});
+
 test('remember-me: attemptRestore short-circuits to true when already authenticated (cookie untouched)', function (): void {
     $userId = rm_seed_user();
     try {

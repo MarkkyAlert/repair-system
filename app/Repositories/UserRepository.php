@@ -184,6 +184,26 @@ class UserRepository
         ]);
     }
 
+    /**
+     * Clear the remember token ONLY for the row whose stored hash equals $tokenHash. Used on logout so a caller
+     * cannot revoke someone else's persistent login by forging a cookie with another user's id — a mismatched
+     * (or forged) hash matches no row and clears nothing. (logic-review F1)
+     */
+    public function clearRememberTokenByHash(string $tokenHash): void
+    {
+        if ($tokenHash === '') {
+            return;
+        }
+
+        $stmt = $this->db->prepare(
+            'UPDATE users SET remember_token = NULL, remember_token_expires_at = NULL, updated_at = :updated_at WHERE remember_token = :token'
+        );
+        $stmt->execute([
+            'updated_at' => date('Y-m-d H:i:s'),
+            'token' => $tokenHash,
+        ]);
+    }
+
     public function findActiveUserIds(?string $role = null): array
     {
         $sql = 'SELECT id FROM users WHERE is_active = 1';
