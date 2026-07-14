@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 use App\Repositories\TicketReadRepository;
+use App\Services\AdminService;
 use App\Services\ReportService;
 use App\Services\TicketService;
 use App\Services\TicketWorkflowService;
@@ -482,6 +483,7 @@ test('technician performance survives the resolver being deactivated or demoted 
     $ov = static fn (): ?array => $pick(lin_reports()->getReportPageData($admin, [])['technicianPerformance']);
 
     $baselineJobId = (int) lin_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM export_jobs')->fetchColumn();
+    $baselineAuditId = (int) lin_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM audit_logs')->fetchColumn();
     $ref = tvm_container()->get(TicketReadRepository::class)->getCreateFormReferenceData();
     $ticketId = lin_tickets()->createTicket($requester, [
         'submission_token' => bin2hex(random_bytes(32)),
@@ -503,21 +505,44 @@ test('technician performance survives the resolver being deactivated or demoted 
         lin_wf()->completeResolvedTicket($ticketId, $requester, ['score' => 5, 'closure_note' => '', 'feedback' => 'ดี']);
 
         $before = $full();
+        $techniciansBefore = (int) lin_reports()->getTechnicianPerformanceReportPage($admin, [])['summary']['technicians'];
         assert_same(['resolved' => 1, 'sla' => '100.0%', 'rating' => '5.0'], $before, 'active resolver shows resolved/SLA/rating');
         assert_same($before, $ov(), 'overview agrees while active');
 
         // DEACTIVATE — the leaver drops off the active-technician roster
-        lin_pdo()->prepare('UPDATE users SET is_active = 0 WHERE id = ?')->execute([$tech]);
+        tvm_container()->get(AdminService::class)->updateUser($tech, $admin, [
+            'full_name' => $techName,
+            'email' => "linl_$rid@example.com",
+            'phone' => '',
+            'role' => 'technician',
+            'department_id' => '',
+            'is_active' => '0',
+        ]);
         assert_same($before, $full(), 'deactivated resolver keeps its full-page performance (not erased)');
         assert_same($before, $ov(), 'deactivated resolver keeps its overview performance');
         $csv = (string) lin_reports()->exportTechnicianPerformanceCsv($admin, [])['content'];
         assert_true(str_contains($csv, $techName), 'the departed resolver is still in the CSV export');
 
         // DEMOTE — role changed away from technician
-        lin_pdo()->prepare("UPDATE users SET is_active = 1, role = 'requester' WHERE id = ?")->execute([$tech]);
+        tvm_container()->get(AdminService::class)->updateUser($tech, $admin, [
+            'full_name' => $techName,
+            'email' => "linl_$rid@example.com",
+            'phone' => '',
+            'role' => 'requester',
+            'department_id' => '',
+            'is_active' => '1',
+        ]);
         assert_same($before, $full(), 'demoted resolver still shows their past performance');
+
+        // AUDIT POWER-PROOF (intentionally red until fixed): the card is labelled "active technicians" in the
+        // view, so retaining this historical resolver in the detail rows must not retain them in that headcount.
+        // Current code sets summary.technicians = count(active technicians UNION historical resolvers), so this
+        // assertion exposes the semantic overcount without weakening the immutable-history guarantee above.
+        $techniciansAfter = (int) lin_reports()->getTechnicianPerformanceReportPage($admin, [])['summary']['technicians'];
+        assert_same($techniciansBefore - 1, $techniciansAfter, 'active-technician card drops a deactivated/demoted resolver while their historical row remains');
     } finally {
         lin_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
+        lin_pdo()->prepare('DELETE FROM audit_logs WHERE id > ?')->execute([$baselineAuditId]);
         lin_pdo()->prepare("DELETE FROM notifications WHERE related_type = 'ticket' AND related_id = ?")->execute([$ticketId]);
         lin_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
         lin_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$tech]);

@@ -51,6 +51,13 @@ class ReportExporter
                 $decimals = $dotPos === false ? 0 : strlen($string) - $dotPos - 1;
                 $sheet->setCellValueExplicit($coord, (float) str_replace(',', '', $string), DataType::TYPE_NUMERIC);
                 $sheet->getStyle($coord)->getNumberFormat()->setFormatCode('#,##0' . ($decimals > 0 ? '.' . str_repeat('0', $decimals) : ''));
+            } elseif (preg_match('/^-?\d+$/', $string) === 1) {
+                // a plain (optionally negative) integer is a value, not a formula → store numeric so Excel can
+                // sum/pivot and it stays byte-equal to the screen; a leading-minus number must not get the
+                // injection quote (audit F2: a negative trend net was becoming text "'-1").
+                $sheet->setCellValueExplicit($coord, (int) $string, DataType::TYPE_NUMERIC);
+            } elseif (preg_match('/^-?\d+\.\d+$/', $string) === 1) {
+                $sheet->setCellValueExplicit($coord, (float) $string, DataType::TYPE_NUMERIC);
             } else {
                 $sheet->setCellValue($coord, sanitize_export_cell($value));
             }

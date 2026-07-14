@@ -91,7 +91,13 @@ function sanitize_export_cell(mixed $value): string
     $cell = (string) $value;
     $trimmed = ltrim($cell);
 
-    if ($trimmed !== '' && in_array($trimmed[0], ['=', '+', '-', '@'], true)) {
+    // A NEGATIVE pure number ("-1", "-1.5", "-1,234.0") is a legitimate typed value that a spreadsheet renders as a
+    // number, not a formula — so it must stay numeric + byte-equal to the screen (Excel sum/pivot). Only a leading
+    // "-" followed by anything else (e.g. "-2+3") is a formula-injection risk. Leading "+ = @" are ALWAYS formula
+    // triggers in a spreadsheet (even "+1234" = a formula), so those stay neutralised. (audit F2: negative net.)
+    $isNegativeNumber = preg_match('/^-(\d+|\d{1,3}(,\d{3})+)(\.\d+)?$/', $trimmed) === 1;
+
+    if (!$isNegativeNumber && $trimmed !== '' && in_array($trimmed[0], ['=', '+', '-', '@'], true)) {
         return "'" . $cell;
     }
 

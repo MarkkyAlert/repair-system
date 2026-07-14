@@ -672,6 +672,9 @@ class ReportService
             // raw counts (ใช้ทั้ง summary team SLA + แสดง base ต่อแถว)
             'sla_base' => $slaBase,
             'sla_on_time' => $slaOnTime,
+            // true = ยังเป็นช่างที่ active (มีแถวใน live roster); false = อดีตช่าง (deactivated/demoted) ที่เก็บไว้เพื่อ
+            // ประวัติผลงาน. ใช้แยกนับหัว "ช่างที่ยังใช้งาน" ไม่ให้รวมอดีตช่าง (R14-F1 headcount).
+            'is_active_tech' => $live !== [],
         ];
     }
 
@@ -682,7 +685,9 @@ class ReportService
         $slaRate = $slaBase > 0 ? round($slaOnTime / $slaBase * 100, 1) : null;
 
         return [
-            'technicians' => count($rows),
+            // headcount card = "ช่างที่ยังใช้งานในระบบ" → count ONLY active technicians (live roster), not the
+            // historical resolvers kept in the detail rows for their immutable past performance (R14-F1).
+            'technicians' => count(array_filter($rows, static fn (array $r): bool => (bool) ($r['is_active_tech'] ?? false))),
             'open_now' => (int) array_sum(array_column($rows, 'open_now')),
             'resolved' => (int) array_sum(array_column($rows, 'resolved')),
             'sla_on_time_label' => $slaRate === null ? '-' : number_format($slaRate, 1) . '%',

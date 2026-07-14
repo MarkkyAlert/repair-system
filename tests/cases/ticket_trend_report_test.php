@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 use App\Services\ReportService;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 // Tests for the Ticket Trend report (/reports/trend). The defining behaviour is FLOW-based bucketing:
@@ -289,6 +290,53 @@ test('ticket trend: XLSX export cells reconcile with the screen period — SLA% 
         assert_same((float) rtrim($screen['sla_pct_label'], '%') / 100, (float) $xlsxRow[4], 'XLSX SLA ตรงเวลา = screen SLA as a real number (1.0)');
         assert_same((int) $screen['sla_base'], (int) $xlsxRow[5], 'XLSX งาน SLA base numeric = screen');
     } finally {
+        ttr_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
+        if ($ticketId > 0) {
+            ttr_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+        }
+    }
+});
+
+test('ticket trend export: a negative net stays numeric and byte-equal to the screen (audit power-proof)', function (): void {
+    // Resolve one ticket in May that was requested in April: May created=0, resolved=1, net=-1. The shared
+    // formula-injection guard currently prefixes every leading minus, so XLSX/CSV receive "'-1" as text even
+    // though this is a legitimate numeric metric. This assertion is intentionally red until typed numerics are
+    // distinguished from untrusted formula-like strings.
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $rid = bin2hex(random_bytes(4));
+    $ticketId = 0;
+    $baselineJobId = (int) ttr_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM export_jobs')->fetchColumn();
+    $tmp = tempnam(sys_get_temp_dir(), 'ttrneg_') . '.xlsx';
+
+    try {
+        ttr_pdo()->prepare(
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at, resolved_at)
+             VALUES (?, 'x', 'x', 1, 1, 1, 1, 'resolved', '2020-04-30 09:00:00', '2020-05-10 10:00:00')"
+        )->execute(["TTRN-$rid"]);
+        $ticketId = (int) ttr_pdo()->lastInsertId();
+        ttr_resolve_log($ticketId, '2020-05-10 10:00:00');
+
+        $filters = ['granularity' => 'month', 'from_date' => '2020-05-01', 'to_date' => '2020-05-31'];
+        $screen = ttr_period(ttr_service()->getTicketTrendReportPage($admin, $filters), '2020-05');
+        assert_true($screen !== null, 'the May period appears');
+        assert_same(-1, $screen['net'], 'screen net = 0 created - 1 resolved = -1');
+
+        file_put_contents($tmp, (string) ttr_service()->exportTicketTrendExcel($admin, $filters)['content']);
+        $sheet = IOFactory::createReader('Xlsx')->load($tmp)->getActiveSheet();
+        $csv = (string) ttr_service()->exportTicketTrendCsv($admin, $filters)['content'];
+        $lines = preg_split('/\R/', trim(substr($csv, 3))) ?: [];
+        $csvRow = str_getcsv((string) ($lines[1] ?? ''));
+        assert_same(
+            ['xlsx_type' => DataType::TYPE_NUMERIC, 'xlsx_value' => -1, 'csv_value' => '-1'],
+            [
+                'xlsx_type' => $sheet->getCell('D2')->getDataType(),
+                'xlsx_value' => $sheet->getCell('D2')->getValue(),
+                'csv_value' => $csvRow[3] ?? null,
+            ],
+            'negative net stays numeric in XLSX and byte-equal to the screen in CSV'
+        );
+    } finally {
+        @unlink($tmp);
         ttr_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
         if ($ticketId > 0) {
             ttr_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
