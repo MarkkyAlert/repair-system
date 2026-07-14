@@ -124,7 +124,6 @@
             <th class="num">มอบหมาย</th>
             <th class="num">ปิดงาน</th>
             <th class="num">ค้าง</th>
-            <th class="num">อัตราปิดงาน</th>
             <th class="num">เวลาซ่อมเฉลี่ย (ชม.)</th>
             <th class="num">คะแนนเฉลี่ย</th>
             <th class="num">ชม.แรงงาน</th>
@@ -137,7 +136,6 @@
                 <td class="num"><?= e((string) ($t['assigned'] ?? 0)) ?></td>
                 <td class="num"><?= e((string) ($t['resolved'] ?? 0)) ?></td>
                 <td class="num"><?= e((string) ($t['open'] ?? 0)) ?></td>
-                <td class="num"><?= e((string) ($t['completion_label'] ?? '-')) ?></td>
                 <td class="num"><?= e((string) ($t['mttr_hours_label'] ?? '-')) ?></td>
                 <td class="num"><?= e((string) ($t['avg_rating_label'] ?? '-')) ?></td>
                 <td class="num"><?= e((string) ($t['labor_hours_label'] ?? '-')) ?></td>

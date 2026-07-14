@@ -572,15 +572,15 @@ class ReportService
         // ticket with a NULL resolved_at has no close time to average and must show '-' not 0.0 (F1).
         $resolutionBase = (int) ($row['resolution_base'] ?? 0);
         $laborMinutes = (int) ($row['labor_minutes'] ?? 0);
-        $completionPct = $assigned > 0 ? round($resolved / $assigned * 100, 1) : null;
 
         return [
             'full_name' => (string) ($row['full_name'] ?? '-'),
             'assigned' => $assigned,
             'resolved' => $resolved,
             'open' => (int) ($row['open_count'] ?? 0),
-            'completion_label' => $completionPct === null ? '-' : number_format($completionPct, 1) . '%',
-            'completion_tone' => $this->completionTone($completionPct),
+            // NOTE: no "อัตราปิดงาน %" — a completion rate needs an "assigned" base keyed on the CURRENT assignee
+            // + CURRENT status, which restates a past period when a ticket is reopened/reassigned (R12). Removed as
+            // a people-evaluation metric; the immutable resolved-event credit (resolved) + MTTR carry productivity.
             'mttr_hours_label' => $resolutionBase > 0 ? number_format(round($mttrMinutes / 60, 1), 1) : '-',
             'avg_rating_label' => $ratingCount > 0 ? number_format($avgRating, 1) : '-',
             'avg_rating_tone' => $ratingCount === 0 ? 'default' : $this->csatTone($avgRating),
@@ -658,12 +658,11 @@ class ReportService
         $slaBase = (int) ($period['sla_base'] ?? 0);
         $slaOnTime = (int) ($period['sla_on_time'] ?? 0);
 
-        // completion = ปิด(ตามสถานะ)ในช่วง ÷ งานที่รับในช่วง — ทั้งคู่ windowed บน requested_at (period stats) →
-        // ตัวตั้ง ⊆ ตัวหาร (0–100%) และ **นิ่งย้อนหลัง**: ค่าเดือนเก่าไม่ขยับเมื่อ backlog ปัจจุบันเปลี่ยน. อย่าเอา
-        // live open_now (ไม่ windowed) มาปนในตัวหารของ rate ย้อนหลัง — งวด ม.ค. จะเพี้ยนเมื่อช่างมีงานค้างวันนี้ (R11-F1;
-        // แก้จาก R10 ที่ใช้ resolved+open_now). resolver-credit (as-reported) ยังโชว์แยกในคอลัมน์ "ปิดงาน" ($resolved).
-        $periodResolved = (int) ($period['resolved'] ?? 0);
-        $completionPct = $assigned > 0 ? round($periodResolved / $assigned * 100, 1) : null;
+        // No "อัตราปิดงาน %": a completion rate divides by an "assigned" base keyed on the CURRENT assignee +
+        // CURRENT status, so a reopen/reassign restates a PAST period (A loses credit, B shows 0% for work it
+        // never did) — wrong for a people-evaluation report, and it can't be made immutable without recording the
+        // assignee per assignment event. Removed (R12, owner decision). Productivity is the immutable resolved-event
+        // credit ($resolved) + MTTR; efficiency is the immutable SLA-on-time / CSAT already shown.
         $slaRate = $slaBase > 0 ? round($slaOnTime / $slaBase * 100, 1) : null;
         $sharePct = $totalOpenNow > 0 ? round($openNow / $totalOpenNow * 100, 1) : null;
         $oldestAge = $this->daysSince($live['oldest_open_at'] ?? null);
@@ -684,11 +683,9 @@ class ReportService
             'workload_tone' => $workloadTone,
             'oldest_open_age_label' => $oldestAge === null ? '-' : number_format($oldestAge, 0) . ' วัน',
             'oldest_open_age_export' => $oldestAge === null ? '-' : number_format($oldestAge, 0), // bare number for Excel (F3)
-            // performance ในช่วง
+            // performance ในช่วง (ไม่มี "อัตราปิดงาน %" — ดูหมายเหตุด้านบน R12)
             'assigned' => $assigned,
             'resolved' => $resolved,
-            'completion_label' => $completionPct === null ? '-' : number_format($completionPct, 1) . '%',
-            'completion_tone' => $this->completionTone($completionPct),
             'sla_on_time_label' => $slaRate === null ? '-' : number_format($slaRate, 1) . '%',
             'sla_on_time_tone' => $this->slaComplianceTone($slaRate),
             'first_response_hours_label' => (int) ($period['first_response_count'] ?? 0) > 0 ? number_format(round($firstRespMinutes / 60, 1), 1) : '-',
@@ -736,7 +733,7 @@ class ReportService
     private function technicianPerformanceExportHeaders(): array
     {
         return [
-            'ช่าง', 'งานค้างปัจจุบัน', 'สัดส่วนโหลด', 'ค้างเก่าสุด (วัน)', 'รับ', 'ปิดงาน', 'อัตราปิดงาน',
+            'ช่าง', 'งานค้างปัจจุบัน', 'สัดส่วนโหลด', 'ค้างเก่าสุด (วัน)', 'รับ', 'ปิดงาน',
             'SLA ตรงเวลา', 'งาน SLA', 'เวลาตอบรับ (ชม.)', 'เวลาซ่อมเฉลี่ย (ชม.)', 'คะแนน', 'จำนวนรีวิว', 'ชม.แรงงาน',
         ];
     }
@@ -746,7 +743,7 @@ class ReportService
         // 'งาน SLA' และ 'จำนวนรีวิว' = base ของอัตรา/คะแนน — ให้ export บอก sample size เหมือนหน้าจอ (Finding B)
         return [
             $row['full_name'], $row['open_now'], $row['workload_share_label'], $row['oldest_open_age_export'],
-            $row['assigned'], $row['resolved'], $row['completion_label'], $row['sla_on_time_label'], $row['sla_base'],
+            $row['assigned'], $row['resolved'], $row['sla_on_time_label'], $row['sla_base'],
             $row['first_response_hours_label'], $row['mttr_hours_label'], $row['avg_rating_label'], $row['rating_count'], $row['labor_hours_label'],
         ];
     }
@@ -2211,16 +2208,6 @@ class ReportService
         return $pct >= 90 ? 'success' : ($pct >= 75 ? 'warning' : 'danger');
     }
 
-    /** tone อัตราปิดงาน: ≥80% เขียว · ≥60% เหลือง · ต่ำกว่าแดง (ยิ่งสูงยิ่งดี). null = ยังไม่มีข้อมูล → default. */
-    private function completionTone(?float $pct): string
-    {
-        if ($pct === null) {
-            return 'default';
-        }
-
-        return $pct >= 80 ? 'success' : ($pct >= 60 ? 'warning' : 'danger');
-    }
-
     private function buildCsatSummary(array $rows): array
     {
         $count = (int) array_sum(array_column($rows, 'rating_count'));
@@ -3085,7 +3072,7 @@ class ReportService
 
         return [
             ['title' => 'SLA ตรงตามกำหนด', 'headers' => ['ระดับความสำคัญ', 'ตอบรับ ตรง', 'ตอบรับ เกิน', 'ตอบรับ %', 'แก้ไข ตรง', 'แก้ไข เกิน', 'แก้ไข %'], 'rows' => $slaRows],
-            ['title' => 'ผลงานช่างเทคนิค', 'headers' => ['ช่าง', 'มอบหมาย', 'ปิดงาน', 'ค้าง', 'อัตราปิดงาน', 'เวลาซ่อมเฉลี่ย (ชม.)', 'คะแนนเฉลี่ย', 'ชม.แรงงาน'], 'rows' => array_map(static fn (array $t): array => [$t['full_name'], $t['assigned'], $t['resolved'], $t['open'], $t['completion_label'], $t['mttr_hours_label'], $t['avg_rating_label'], $t['labor_hours_label']], $analytics['technicianPerformance'] ?? [])],
+            ['title' => 'ผลงานช่างเทคนิค', 'headers' => ['ช่าง', 'มอบหมาย', 'ปิดงาน', 'ค้าง', 'เวลาซ่อมเฉลี่ย (ชม.)', 'คะแนนเฉลี่ย', 'ชม.แรงงาน'], 'rows' => array_map(static fn (array $t): array => [$t['full_name'], $t['assigned'], $t['resolved'], $t['open'], $t['mttr_hours_label'], $t['avg_rating_label'], $t['labor_hours_label']], $analytics['technicianPerformance'] ?? [])],
             ['title' => 'ชั่วโมงแรงงาน', 'headers' => ['หมวดหมู่งาน', 'จำนวนงาน', 'งานที่บันทึกแรงงาน', 'รวมชั่วโมง', 'เฉลี่ย/งาน (ชม.)'], 'rows' => array_map(static fn (array $c): array => [$c['category_name'], $c['tickets'], $c['labored_tickets'], $c['labor_hours_label'], $c['avg_hours_label']], $analytics['laborEffort']['byCategory'] ?? [])],
             ['title' => 'ทรัพย์สินเสียบ่อย', 'headers' => ['รหัส', 'ชื่อ', 'หมวดหมู่', 'สถานที่', 'สถานะ', 'จำนวนครั้ง', 'ครั้งล่าสุด', 'เวลาซ่อมเฉลี่ย (ชม.)', 'ชม.แรงงาน'], 'rows' => array_map(static fn (array $a): array => [$a['asset_code'], $a['name'], $a['category_name'], $a['location_name'], $a['status_label'], $a['failure_count'], $a['last_failure'], $a['avg_resolution_hours_label'], $a['labor_hours_label']], $analytics['assetReliability'] ?? [])],
         ];

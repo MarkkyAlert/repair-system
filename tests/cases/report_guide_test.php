@@ -7,8 +7,8 @@ use App\Services\ReportService;
 // uses to read a report ("SLA ≥90% = เขียว", "%เปิดซ้ำ ≥20% = แดง", ...). If those numbers silently drift
 // from what the reports actually colour, the guide becomes wrong — worse than no guide. This test pins BOTH
 // sides to one canonical set of cutoffs:
-//   (1) the code — every tone comes from a single-source method (slaComplianceTone / completionTone /
-//       csatTone / reopenTone / breachTone) or a named risk-score constant; asserted at each boundary.
+//   (1) the code — every tone comes from a single-source method (slaComplianceTone / csatTone /
+//       reopenTone / breachTone) or a named risk-score constant; asserted at each boundary.
 //   (2) the guide file — asserts app/Views/reports/guide.php still prints those same cutoff tokens.
 // Change a cutoff in the code and (1) goes red; change it in the guide and (2) goes red — either way you are
 // forced to update the other. (BI-review #3: interpretability / guide-vs-code drift.)
@@ -29,12 +29,7 @@ test('report guide: code tone thresholds match the documented cutoffs (drift loc
     assert_same('warning', $tone('slaComplianceTone', 75.0), 'SLA ≥75% = เหลือง');
     assert_same('danger', $tone('slaComplianceTone', 74.99), 'SLA ต่ำกว่า 75 = แดง');
 
-    // อัตราปิดงาน (completion) — สูง = ดี: ≥80 เขียว · ≥60 เหลือง · ต่ำกว่าแดง
-    assert_same('default', $tone('completionTone', null), 'completion null = ยังไม่มีข้อมูล');
-    assert_same('success', $tone('completionTone', 80.0), 'completion ≥80% = เขียว');
-    assert_same('warning', $tone('completionTone', 79.99), 'completion ต่ำกว่า 80 = เหลือง');
-    assert_same('warning', $tone('completionTone', 60.0), 'completion ≥60% = เหลือง');
-    assert_same('danger', $tone('completionTone', 59.99), 'completion ต่ำกว่า 60 = แดง');
+    // (no completionTone — the technician completion % was removed as a non-immutable people-eval metric, R12)
 
     // คะแนนความพึงพอใจ / คะแนนช่าง (CSAT) — สูง = ดี: ≥4.0 เขียว · ≥3.0 เหลือง · ต่ำกว่าแดง
     assert_same('success', $tone('csatTone', 4.0), 'CSAT ≥4.0 = เขียว');
@@ -68,7 +63,6 @@ test('report guide: /reports/guide still prints the same cutoff tokens (drift lo
     // each token below is the on-page cutoff that must equal the code assertions above
     $tokens = [
         '≥ 90%',                // SLA green
-        '≥ 80%',                // completion green
         '≥ 4.0',                // CSAT green
         '≥ 20%',                // reopen red
         '≥ 25%',                // breach red
@@ -115,8 +109,9 @@ test('report guide: documents the net-is-not-backlog + completion-denominator ca
 
     assert_contains_str('สุทธิ (net)', $guide, 'guide defines the "net" metric');
     assert_contains_str('ยังไม่หักงานที่ยกเลิก/ปฏิเสธ', $guide, 'guide warns net does not subtract cancel/reject (not an exact backlog change)');
-    assert_contains_str('ปิด ÷ งานที่รับในช่วง', $guide, 'guide states the technician completion denominator (assigned-in-window, one windowed cohort)');
-    assert_contains_str('อย่านำ % ข้ามสองหน้ามาเทียบกันตรง ๆ', $guide, 'guide warns the two completion %s are not directly comparable');
+    // R12: the guide must state completion is executive-only and explain WHY the technician page has no per-tech %
+    assert_contains_str('เฉพาะสรุปผู้บริหาร', $guide, 'guide scopes the completion % to the executive report only');
+    assert_contains_str('รายงานผลงานช่าง "ไม่มี" อัตราปิดงานรายคน', $guide, 'guide explains the technician report has no per-tech completion %');
     // R10-F1: the guide must also state the three "resolved" counts use different grains on purpose
     assert_contains_str('ยอดปิดงาน — นับต่างกันตามหน้า', $guide, 'guide documents the executive/trend/technician resolved-count grain difference');
 });

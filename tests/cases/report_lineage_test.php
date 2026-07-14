@@ -281,10 +281,9 @@ test('lineage(e2e): resolved counts reconcile across executive/trend/technician 
     //   • technician report = per-RESOLVER credit (two people each closed it once → +1 each)
     // so after one ticket is closed by tech 3, reopened, reassigned, and re-closed by tech 2 IN THE SAME bucket,
     // executive moves +1 and trend moves +1, but the technician report moves +2 (one credit per resolver). This
-    // test drives that whole path through the REAL services and locks the three deltas to their grains. Completion
-    // is a windowed rate (period.resolved ÷ period.assigned) that never exceeds 100%; a resolver reassigned away
-    // holds nothing in the window so its completion reads "-" (its close is still credited in the resolved column).
-    // (R10-F1 grain lock; completion formula corrected in R11-F1 — see the historical-stability test below.)
+    // test drives that whole path through the REAL services and locks the three deltas to their grains. The
+    // technician report exposes no per-tech completion % (removed R12 as a non-immutable people-eval metric — see
+    // the resolved-credit invariance test below).
     $admin = ['id' => 4, 'role' => 'admin'];
     $requester = ['id' => 1, 'role' => 'requester'];
     $rid = bin2hex(random_bytes(4));
@@ -366,15 +365,11 @@ test('lineage(e2e): resolved counts reconcile across executive/trend/technician 
         assert_same(1, $techResolved($techBName), 'technician (per resolver): techB credited for its close (fresh tech, baseline 0)');
         // → executive +1, trend +1, but the per-resolver total is +2: the documented grain difference
 
-        // ── completion is a windowed rate that never exceeds 100% (techA reassigned away → "-"; both appear) ──
+        // ── both resolvers appear; the report exposes no per-tech completion % (removed R12) ──
         foreach ([$techAName, $techBName] as $name) {
             $row = $techRow($name);
             assert_true($row !== null, "$name appears in the technician report");
-            $label = (string) $row['completion_label'];
-            if ($label !== '-') {
-                $pct = (float) rtrim($label, '%');
-                assert_true($pct >= 0.0 && $pct <= 100.0, "$name completion is within 0–100%: $label");
-            }
+            assert_false(isset($row['completion_label']), "$name row has no completion % (removed as a non-immutable metric)");
         }
     } finally {
         lin_pdo()->prepare("DELETE FROM notifications WHERE related_type = 'ticket' AND related_id = ?")->execute([$ticketId]);
@@ -384,59 +379,72 @@ test('lineage(e2e): resolved counts reconcile across executive/trend/technician 
     }
 });
 
-test('technician completion is a windowed rate — a current open ticket outside the period does not move a past period (R11-F1)', function (): void {
-    // A historical completion % must depend ONLY on that period's assigned/resolved (both windowed on requested_at),
-    // never on the technician's CURRENT backlog. The R10 formula divided by (resolved + live open_now), blending a
-    // windowed numerator with an un-windowed denominator — so a Jan-2020 report changed the instant the tech gained a
-    // current open ticket. Now completion = period.resolved ÷ period.assigned (fully windowed, historically stable).
-    // Power-proof: the R10 formula flips this window from 100% to 50% when the current open ticket is added.
+test('technician resolved credit is immutable through reopen + reassign (R12 historical invariance)', function (): void {
+    // Why the per-tech completion % was removed: its base restated on reopen/reassign. This locks that the metrics
+    // that REMAIN on the technician report (the resolved-event credit + MTTR) do NOT restate — driven through the
+    // REAL workflow: techH resolves → snapshot → reopen + reassign to techJ (no re-resolve) → techH keeps its close
+    // credit for that window and techJ never inherits it. Power-proof: computing "resolved" from the mutable current
+    // status/assignee (instead of the immutable resolve event) makes techH drop to 0 after the reopen → reddens.
     $admin = ['id' => 4, 'role' => 'admin'];
+    $requester = ['id' => 1, 'role' => 'requester'];
     $rid = bin2hex(random_bytes(4));
-    $window = ['from_date' => '2020-01-01', 'to_date' => '2020-01-31'];
+    $window = ['from_date' => date('Y-m-01'), 'to_date' => date('Y-m-d')];
 
     lin_pdo()->prepare("INSERT INTO users (username, email, password_hash, full_name, role, is_active) VALUES (?, ?, 'x', ?, 'technician', 1)")
-        ->execute(["linh_$rid", "linh_$rid@example.com", "LIN R11 TechH $rid"]);
+        ->execute(["linh_$rid", "linh_$rid@example.com", "LIN R12 TechH $rid"]);
     $techH = (int) lin_pdo()->lastInsertId();
-    $techHName = "LIN R11 TechH $rid";
+    $techHName = "LIN R12 TechH $rid";
+    $techHv = ['id' => $techH, 'role' => 'technician'];
+    lin_pdo()->prepare("INSERT INTO users (username, email, password_hash, full_name, role, is_active) VALUES (?, ?, 'x', ?, 'technician', 1)")
+        ->execute(["linj_$rid", "linj_$rid@example.com", "LIN R12 TechJ $rid"]);
+    $techJ = (int) lin_pdo()->lastInsertId();
+    $techJName = "LIN R12 TechJ $rid";
 
-    $completion = static function () use ($admin, $window, $techHName): ?string {
+    $resolved = static function (string $name) use ($admin, $window): int {
         foreach (lin_reports()->getTechnicianPerformanceReportPage($admin, $window)['rows'] as $r) {
-            if ($r['full_name'] === $techHName) {
-                return (string) $r['completion_label'];
+            if ($r['full_name'] === $name) {
+                return (int) $r['resolved'];
             }
         }
 
-        return null;
+        return 0;
     };
 
-    $ids = [];
+    $ref = tvm_container()->get(TicketReadRepository::class)->getCreateFormReferenceData();
+    $ticketId = lin_tickets()->createTicket($requester, [
+        'submission_token' => bin2hex(random_bytes(32)),
+        'title' => "LIN R12 invariance $rid",
+        'description' => 'historical invariance probe',
+        'priority_id' => (int) $ref['priorities'][0]['id'],
+        'ticket_category_id' => (int) $ref['categories'][0]['id'],
+        'location_id' => (int) $ref['locations'][0]['id'],
+        'impact_level' => 'medium',
+        'urgency_level' => 'medium',
+    ], []);
+
     try {
-        // one ticket requested + resolved inside Jan 2020, currently assigned to techH, status resolved
-        lin_pdo()->prepare(
-            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, assigned_technician_id, status, requested_at, resolved_at)
-             VALUES (?, 'x', 'x', 1, 1, 1, 1, ?, 'resolved', '2020-01-10 10:00:00', '2020-01-10 12:00:00')"
-        )->execute(["LINH-$rid", $techH]);
-        $hist = (int) lin_pdo()->lastInsertId();
-        $ids[] = $hist;
-        // the immutable resolve event in Jan 2020 (so the old formula also has a resolver credit to divide)
-        lin_pdo()->prepare("INSERT INTO ticket_activity_logs (ticket_id, actor_id, action, created_at) VALUES (?, ?, 'ticket_resolved', '2020-01-10 12:00:00')")
-            ->execute([$hist, $techH]);
+        // techH resolves through the real workflow
+        lin_wf()->approveTicket($ticketId, $admin, ['note' => '']);
+        lin_wf()->assignTechnician($ticketId, $admin, ['technician_id' => $techH, 'instructions' => '']);
+        lin_wf()->acceptAssignedWork($ticketId, $techHv, ['accept_note' => '']);
+        lin_wf()->startAssignedWork($ticketId, $techHv, ['start_note' => '']);
+        lin_wf()->resolveAssignedWork($ticketId, $techHv, ['diagnosis_summary' => 'd', 'resolution_summary' => 'r', 'labor_minutes' => '30']);
 
-        assert_same('100.0%', $completion(), 'Jan 2020: 1 resolved of 1 assigned = 100%');
+        assert_same(1, $resolved($techHName), 'techH is credited with the close');
+        assert_same(0, $resolved($techJName), 'techJ has no close yet');
 
-        // add a CURRENT open ticket assigned to techH (requested now → OUTSIDE the Jan 2020 window)
-        lin_pdo()->prepare(
-            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, assigned_technician_id, status, requested_at)
-             VALUES (?, 'x', 'x', 1, 1, 1, 1, ?, 'assigned', NOW())"
-        )->execute(["LINH2-$rid", $techH]);
-        $ids[] = (int) lin_pdo()->lastInsertId();
+        // reopen + reassign to techJ (NO re-resolve) through the real workflow
+        lin_wf()->reopenTicket($ticketId, $requester, ['reopen_note' => 'ตรวจซ้ำ']);
+        lin_wf()->assignTechnician($ticketId, $admin, ['technician_id' => $techJ, 'instructions' => '']);
 
-        assert_same('100.0%', $completion(), 'a current open ticket outside the window must NOT change Jan 2020 completion');
+        // the window's credit for techH is UNCHANGED (immutable resolve event); techJ did not inherit it
+        assert_same(1, $resolved($techHName), 'techH keeps its close credit after the ticket is reopened + reassigned');
+        assert_same(0, $resolved($techJName), 'techJ never gains a close it did not do');
     } finally {
-        foreach ($ids as $id) {
-            lin_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
-        }
+        lin_pdo()->prepare("DELETE FROM notifications WHERE related_type = 'ticket' AND related_id = ?")->execute([$ticketId]);
+        lin_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
         lin_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$techH]);
+        lin_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$techJ]);
     }
 });
 

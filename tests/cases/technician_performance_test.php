@@ -66,7 +66,7 @@ test('technician performance: per-tech aggregates + no fan-out from rating/work_
         assert_same(2, $me['assigned'], 'assigned = 2 tickets (no fan-out: T1 has BOTH a rating AND a work_order)');
         assert_same(1, $me['resolved'], 'resolved = 1');
         assert_same(1, $me['open'], 'open = 1');
-        assert_same('50.0%', $me['completion_label'], 'completion 1/2 = 50%');
+        assert_false(isset($me['completion_label']), 'no per-tech completion % (removed R12 — non-immutable people-eval metric)');
         assert_same('2.0', $me['mttr_hours_label'], 'MTTR 120min = 2.0 hrs');
         assert_same('4.0', $me['avg_rating_label'], 'avg rating = 4.0 (only T1 rated)');
         assert_same('1.5', $me['labor_hours_label'], 'labor 60+30 = 90min = 1.5 hrs');

@@ -217,7 +217,7 @@ $isCapped = !empty($rowsMeta['capped']);
         <div class="panel-head">
             <div>
                 <h2 class="panel-title">ผลงานช่างเทคนิค</h2>
-                <p class="field-hint">สรุปผลงานช่างในช่วงที่กรอง — ปริมาณงาน · อัตราปิดงาน · เวลาซ่อมเฉลี่ย (MTTR) · คะแนน · ชั่วโมงแรงงาน</p>
+                <p class="field-hint">สรุปผลงานช่างในช่วงที่กรอง — ปริมาณงาน · เวลาซ่อมเฉลี่ย (MTTR) · คะแนน · ชั่วโมงแรงงาน</p>
             </div>
             <?php if (!empty($technicianPerformance)): ?>
                 <span class="badge badge-default"><?= e((string) count($technicianPerformance)) ?> คน</span>
@@ -234,10 +234,9 @@ $isCapped = !empty($rowsMeta['capped']);
                         <th data-sort-col="1" data-sort-type="number">มอบหมาย</th>
                         <th data-sort-col="2" data-sort-type="number">ปิดงาน</th>
                         <th data-sort-col="3" data-sort-type="number">ค้าง</th>
-                        <th data-sort-col="4" data-sort-type="number">อัตราปิดงาน</th>
-                        <th data-sort-col="5" data-sort-type="number">เวลาซ่อมเฉลี่ย (ชม.)</th>
-                        <th data-sort-col="6" data-sort-type="number">คะแนนเฉลี่ย</th>
-                        <th data-sort-col="7" data-sort-type="number">ชม.แรงงาน</th>
+                        <th data-sort-col="4" data-sort-type="number">เวลาซ่อมเฉลี่ย (ชม.)</th>
+                        <th data-sort-col="5" data-sort-type="number">คะแนนเฉลี่ย</th>
+                        <th data-sort-col="6" data-sort-type="number">ชม.แรงงาน</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -247,7 +246,6 @@ $isCapped = !empty($rowsMeta['capped']);
                             <td><?= e((string) $tech['assigned']) ?></td>
                             <td><?= e((string) $tech['resolved']) ?></td>
                             <td><?= e((string) $tech['open']) ?></td>
-                            <td><span class="badge badge-<?= e($tech['completion_tone']) ?>"><?= e($tech['completion_label']) ?></span></td>
                             <td><?= e($tech['mttr_hours_label']) ?></td>
                             <td><span class="badge badge-<?= e($tech['avg_rating_tone']) ?>"><?= e($tech['avg_rating_label']) ?></span></td>
                             <td><?= e($tech['labor_hours_label']) ?></td>

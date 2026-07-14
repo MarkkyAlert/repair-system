@@ -212,13 +212,13 @@ test('technician performance: CSV export cells reconcile with the on-screen row 
         }
         assert_true($exportRow !== null, 'the same technician appears as a CSV row');
 
-        // cell-by-cell vs the export header order (…, ปิดงาน, อัตราปิดงาน, SLA ตรงเวลา, งาน SLA, …, คะแนน, จำนวนรีวิว, …)
+        // cell-by-cell vs the export header order (…, ปิดงาน, SLA ตรงเวลา, งาน SLA, …, คะแนน, จำนวนรีวิว, …)
+        // NOTE: no "อัตราปิดงาน" column — removed as a non-immutable people-eval metric (R12)
         assert_same((string) $screen['resolved'], $exportRow[5], 'CSV ปิดงาน = screen resolved');
-        assert_same($screen['completion_label'], $exportRow[6], 'CSV อัตราปิดงาน = screen completion_label');
-        assert_same($screen['sla_on_time_label'], $exportRow[7], 'CSV SLA ตรงเวลา = screen sla_on_time_label (100.0%)');
-        assert_same((string) $screen['sla_base'], $exportRow[8], 'CSV งาน SLA = screen sla_base (sample behind the rate)');
-        assert_same($screen['avg_rating_label'], $exportRow[11], 'CSV คะแนน = screen avg_rating_label (5.0)');
-        assert_same((string) $screen['rating_count'], $exportRow[12], 'CSV จำนวนรีวิว = screen rating_count');
+        assert_same($screen['sla_on_time_label'], $exportRow[6], 'CSV SLA ตรงเวลา = screen sla_on_time_label (100.0%)');
+        assert_same((string) $screen['sla_base'], $exportRow[7], 'CSV งาน SLA = screen sla_base (sample behind the rate)');
+        assert_same($screen['avg_rating_label'], $exportRow[10], 'CSV คะแนน = screen avg_rating_label (5.0)');
+        assert_same((string) $screen['rating_count'], $exportRow[11], 'CSV จำนวนรีวิว = screen rating_count');
 
         // XLSX parity — % columns as real numbers (screen_pct/100), rating/counts numeric
         $xlsxTmp = tempnam(sys_get_temp_dir(), 'tprx_') . '.xlsx';
@@ -234,10 +234,9 @@ test('technician performance: CSV export cells reconcile with the on-screen row 
         }
         assert_true($xlsxRow !== null, 'the same technician appears as an XLSX row');
         assert_same((int) $screen['resolved'], (int) $xlsxRow[5], 'XLSX ปิดงาน numeric = screen');
-        assert_same((float) rtrim($screen['completion_label'], '%') / 100, (float) $xlsxRow[6], 'XLSX อัตราปิดงาน = screen completion as a real number');
-        assert_same((float) rtrim($screen['sla_on_time_label'], '%') / 100, (float) $xlsxRow[7], 'XLSX SLA ตรงเวลา = screen rate as a real number');
-        assert_same((float) $screen['avg_rating_label'], (float) $xlsxRow[11], 'XLSX คะแนน numeric = screen avg_rating');
-        assert_same((int) $screen['rating_count'], (int) $xlsxRow[12], 'XLSX จำนวนรีวิว numeric = screen');
+        assert_same((float) rtrim($screen['sla_on_time_label'], '%') / 100, (float) $xlsxRow[6], 'XLSX SLA ตรงเวลา = screen rate as a real number');
+        assert_same((float) $screen['avg_rating_label'], (float) $xlsxRow[10], 'XLSX คะแนน numeric = screen avg_rating');
+        assert_same((int) $screen['rating_count'], (int) $xlsxRow[11], 'XLSX จำนวนรีวิว numeric = screen');
     } finally {
         tpr_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
         tpr_pdo()->prepare('DELETE FROM ticket_ratings WHERE technician_id = ?')->execute([$techId]);
@@ -411,7 +410,7 @@ test('technician performance: idle technician still appears (base = all active t
         assert_true($row !== null, 'idle technician with zero tickets still appears');
         assert_same(0, $row['open_now'], 'idle tech open_now = 0');
         assert_same(0, $row['assigned'], 'idle tech assigned = 0');
-        assert_same('-', $row['completion_label'], 'idle tech completion = -');
+        assert_false(isset($row['completion_label']), 'no per-tech completion % (removed R12)');
         assert_same('-', $row['sla_on_time_label'], 'idle tech SLA = -');
     } finally {
         tpr_cleanup($techId);
