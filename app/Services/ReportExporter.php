@@ -40,26 +40,30 @@ class ReportExporter
         foreach (array_values($row) as $value) {
             $coord = Coordinate::stringFromColumnIndex($colIndex) . $rowNumber;
             $string = (string) $value;
-            if (preg_match('/^[+-]?\d+(\.\d+)?%$/', $string) === 1) {
+            if (is_int($value) || is_float($value)) {
+                // a TYPED number (count, delta, negative net, bare-number metric) → numeric; it is provably a value,
+                // never a formula or an identifier. Callers pass metrics typed and identifiers as strings (below).
+                $sheet->setCellValueExplicit($coord, $value, DataType::TYPE_NUMERIC);
+            } elseif (preg_match('/^[+-]?\d+(\.\d+)?%$/', $string) === 1) {
                 $sheet->setCellValueExplicit($coord, (float) rtrim($string, '%') / 100, DataType::TYPE_NUMERIC);
                 $sheet->getStyle($coord)->getNumberFormat()->setFormatCode('0.0%');
             } elseif (preg_match('/^[+-]?\d{1,3}(,\d{3})+(\.\d+)?$/', $string) === 1) {
                 // thousands-formatted number ("1,234.0" from number_format ≥ 1000) → a real number with a
-                // grouped display, so Excel can sum/pivot it instead of leaving it as text (round-8 F2). It is
-                // provably numeric so the formula-injection guard is not needed (a numeric cell can't be a formula).
+                // grouped display, so Excel can sum/pivot it instead of leaving it as text (round-8 F2).
                 $dotPos = strpos($string, '.');
                 $decimals = $dotPos === false ? 0 : strlen($string) - $dotPos - 1;
                 $sheet->setCellValueExplicit($coord, (float) str_replace(',', '', $string), DataType::TYPE_NUMERIC);
                 $sheet->getStyle($coord)->getNumberFormat()->setFormatCode('#,##0' . ($decimals > 0 ? '.' . str_repeat('0', $decimals) : ''));
-            } elseif (preg_match('/^-?\d+$/', $string) === 1) {
-                // a plain (optionally negative) integer is a value, not a formula → store numeric so Excel can
-                // sum/pivot and it stays byte-equal to the screen; a leading-minus number must not get the
-                // injection quote (audit F2: a negative trend net was becoming text "'-1").
-                $sheet->setCellValueExplicit($coord, (int) $string, DataType::TYPE_NUMERIC);
             } elseif (preg_match('/^-?\d+\.\d+$/', $string) === 1) {
+                // a formatted DECIMAL metric label ("5.0", "9.0") — a decimal string is never a leading-zero
+                // identifier, so it is safe to store numeric for pivot/sum.
                 $sheet->setCellValueExplicit($coord, (float) $string, DataType::TYPE_NUMERIC);
             } else {
-                $sheet->setCellValue($coord, sanitize_export_cell($value));
+                // EVERYTHING else is text — INCLUDING a digit-only identifier string (asset_code "0028712749",
+                // ticket_no): stored explicitly as text so leading zeros survive and long codes keep precision.
+                // Never let PhpSpreadsheet's default value binder coerce an identifier string to a number (audit F3).
+                // The formula-injection guard still applies. (A plain-integer METRIC must be passed typed, above.)
+                $sheet->setCellValueExplicit($coord, sanitize_export_cell($value), DataType::TYPE_STRING);
             }
             $colIndex++;
         }

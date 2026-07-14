@@ -209,9 +209,10 @@ class ReportService
             'labor_hours_label' => $laborMinutes > 0 ? number_format(round($laborMinutes / 60, 1), 1) : '-',
             'age_label' => $ageYears !== null ? number_format($ageYears, 1) . ' ปี' : '-',
             // raw numerics for Excel export (the label carries a Thai unit → text in Excel; the export header
-            // already states the unit, so the sheet gets a bare number the manager can pivot/sum) (BI-review F3)
-            'mtbf_days_export' => $mtbfDays !== null ? number_format(round($mtbfDays, 0), 0) : '-',
-            'age_years_export' => $ageYears !== null ? number_format($ageYears, 1) : '-',
+            // already states the unit, so the sheet gets a bare number the manager can pivot/sum). TYPED int/float
+            // so the exporter writes them numeric — a number_format string would now be treated as text (R16). (F3)
+            'mtbf_days_export' => $mtbfDays !== null ? (int) round($mtbfDays) : '-',
+            'age_years_export' => $ageYears !== null ? round($ageYears, 1) : '-',
             'warranty_label' => $warranty['label'],
             'warranty_tone' => $warranty['tone'],
             'health_score' => $health['score'],
@@ -659,7 +660,7 @@ class ReportService
             'workload_share_label' => $sharePct === null ? '-' : number_format($sharePct, 1) . '%',
             'workload_tone' => $workloadTone,
             'oldest_open_age_label' => $oldestAge === null ? '-' : number_format($oldestAge, 0) . ' วัน',
-            'oldest_open_age_export' => $oldestAge === null ? '-' : number_format($oldestAge, 0), // bare number for Excel (F3)
+            'oldest_open_age_export' => $oldestAge === null ? '-' : (int) round($oldestAge), // bare TYPED number for Excel (F3/R16)
             // performance ในช่วง — ทุกตัว as-reported/immutable จาก resolver cohort (ไม่มี %ปิดงาน/รับ/เวลาตอบรับ/แรงงาน — R12/R13/R14)
             'resolved' => $resolved,
             'sla_on_time_label' => $slaRate === null ? '-' : number_format($slaRate, 1) . '%',

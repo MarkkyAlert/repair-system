@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 use App\Services\ReportService;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 // Tests for the standalone Asset Reliability Report (/reports/asset-reliability): heuristic health
@@ -407,5 +408,64 @@ test('asset reliability: export xlsx (1 sheet + header) / pdf %PDF- / csv raw wi
     } finally {
         @unlink($tmp);
         arr_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
+    }
+});
+
+test('asset reliability export: a leading-zero asset code stays text and matches screen/CSV (audit power-proof)', function (): void {
+    // Asset codes are identifiers (VARCHAR), not quantities. The shared XLSX writer currently coerces every
+    // digit-only string to an integer, so a valid code such as "00123456" becomes 123456 in Excel even though
+    // the screen and CSV retain the exact code. This assertion is intentionally red until numeric coercion
+    // distinguishes typed metrics from identifier strings.
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $rid = bin2hex(random_bytes(4));
+    $assetCode = '00' . (string) random_int(10000000, 99999999);
+    $locationId = 0;
+    $assetId = 0;
+    $ticketId = 0;
+    $baselineJobId = (int) arr_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM export_jobs')->fetchColumn();
+    $tmp = tempnam(sys_get_temp_dir(), 'arrzero_') . '.xlsx';
+
+    try {
+        arr_pdo()->prepare('INSERT INTO locations (code, name) VALUES (?, ?)')
+            ->execute(["ARRZL-$rid", "ARR Leading Zero $rid"]);
+        $locationId = (int) arr_pdo()->lastInsertId();
+
+        arr_pdo()->prepare("INSERT INTO assets (asset_code, name, asset_category_id, location_id, status) VALUES (?, 'Leading-zero asset', 1, ?, 'active')")
+            ->execute([$assetCode, $locationId]);
+        $assetId = (int) arr_pdo()->lastInsertId();
+
+        arr_pdo()->prepare(
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, asset_id, status, requested_at)
+             VALUES (?, 'x', 'x', 1, ?, 1, 1, ?, 'submitted', NOW())"
+        )->execute(["ARRZLT-$rid", $locationId, $assetId]);
+        $ticketId = (int) arr_pdo()->lastInsertId();
+
+        $filters = ['location_id' => $locationId];
+        $screenRows = arr_service()->getAssetReliabilityReportPage($admin, $filters)['rows'];
+        assert_same($assetCode, (string) ($screenRows[0]['asset_code'] ?? ''), 'screen retains the exact leading-zero asset code');
+
+        file_put_contents($tmp, (string) arr_service()->exportAssetReliabilityExcel($admin, $filters)['content']);
+        $cell = IOFactory::createReader('Xlsx')->load($tmp)->getActiveSheet()->getCell('A2');
+        $csv = (string) arr_service()->exportAssetReliabilityCsv($admin, $filters)['content'];
+        $lines = preg_split('/\R/', trim(substr($csv, 3))) ?: [];
+        $csvRow = str_getcsv((string) ($lines[1] ?? ''));
+
+        assert_same(
+            ['xlsx_type' => DataType::TYPE_STRING, 'xlsx_value' => $assetCode, 'csv_value' => $assetCode],
+            ['xlsx_type' => $cell->getDataType(), 'xlsx_value' => $cell->getValue(), 'csv_value' => $csvRow[0] ?? null],
+            'identifier is byte-equal across screen/CSV/XLSX and remains text in Excel'
+        );
+    } finally {
+        @unlink($tmp);
+        arr_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
+        if ($ticketId > 0) {
+            arr_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+        }
+        if ($assetId > 0) {
+            arr_pdo()->prepare('DELETE FROM assets WHERE id = ?')->execute([$assetId]);
+        }
+        if ($locationId > 0) {
+            arr_pdo()->prepare('DELETE FROM locations WHERE id = ?')->execute([$locationId]);
+        }
     }
 });
