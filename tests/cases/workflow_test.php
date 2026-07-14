@@ -331,6 +331,74 @@ test('workflow(neg): a requester cannot cancel once work has started — assigne
     }
 });
 
+// ── mid-work reassign (logic-review F2, business-confirmed) ──
+// Before this rule, once a technician ACCEPTED a ticket no role (admin included) could move the work to
+// another technician, and the requester could no longer cancel — a sick/resigned technician left the ticket
+// stuck in accepted/in_progress forever. Manager/admin may now reassign mid-work, but must give a reason.
+
+test('workflow: manager reassigns an in_progress ticket to another technician with a reason (F2)', function (): void {
+    $rid = bin2hex(random_bytes(4));
+    wf_pdo()->prepare("INSERT INTO users (username, email, password_hash, full_name, role, is_active) VALUES (?, ?, 'x', ?, 'technician', 1)")
+        ->execute(["wf2_$rid", "wf2_$rid@example.com", "WF2 Tech $rid"]);
+    $tech2 = (int) wf_pdo()->lastInsertId();
+    $id = wf_insert_ticket(['status' => 'pending_approval', 'approval_status' => 'pending', 'requester_id' => 1]);
+
+    try {
+        $admin = ['id' => 4, 'role' => 'admin'];
+        $tech = ['id' => 3, 'role' => 'technician'];
+        wf_service()->approveTicket($id, $admin, ['note' => '']);
+        wf_service()->assignTechnician($id, $admin, ['technician_id' => 3, 'instructions' => '']);
+        wf_service()->acceptAssignedWork($id, $tech, ['accept_note' => '']);
+        wf_service()->startAssignedWork($id, $tech, ['start_note' => '']);
+        assert_same('in_progress', wf_state($id)['status']);
+
+        wf_service()->assignTechnician($id, ['id' => 2, 'role' => 'manager'], ['technician_id' => $tech2, 'instructions' => 'ช่างเดิมลาป่วยยาว']);
+
+        $t = wf_state($id);
+        assert_same('assigned', $t['status'], 'mid-work reassign sends the ticket back to assigned for the new technician');
+        assert_same($tech2, (int) $t['assigned_technician_id'], 'ticket now belongs to the new technician');
+        $wo = wf_pdo()->query("SELECT technician_id, status, accepted_at, started_at FROM work_orders WHERE ticket_id=$id")->fetch();
+        assert_same($tech2, (int) $wo['technician_id'], 'work order moved to the new technician');
+        assert_same('assigned', (string) $wo['status'], 'work order back to assigned');
+        assert_true($wo['accepted_at'] === null && $wo['started_at'] === null, 'work order accept/start reset for the new technician');
+        $logged = (int) wf_pdo()->query("SELECT COUNT(*) FROM ticket_activity_logs WHERE ticket_id=$id AND action='technician_assigned' AND details LIKE '%ลาป่วยยาว%'")->fetchColumn();
+        assert_same(1, $logged, 'the reassign reason is recorded in the activity log');
+    } finally {
+        wf_cleanup($id);
+        wf_pdo()->prepare('DELETE FROM users WHERE id=?')->execute([$tech2]);
+    }
+});
+
+test('workflow(neg): mid-work reassign without a reason is rejected — accepted and in_progress (F2)', function (): void {
+    foreach (['accepted', 'in_progress'] as $status) {
+        $id = wf_insert_ticket(['status' => $status, 'approval_status' => 'approved', 'requester_id' => 1, 'assigned_technician_id' => 3]);
+        try {
+            wf_reject(
+                fn () => wf_service()->assignTechnician($id, ['id' => 4, 'role' => 'admin'], ['technician_id' => 3, 'instructions' => '']),
+                $id,
+                "reassign $status without reason"
+            );
+        } finally {
+            wf_cleanup($id);
+        }
+    }
+});
+
+test('workflow(neg): reassign stays impossible once resolved/completed (F2 boundary)', function (): void {
+    foreach (['resolved', 'completed'] as $status) {
+        $id = wf_insert_ticket(['status' => $status, 'approval_status' => 'approved', 'requester_id' => 1, 'assigned_technician_id' => 3]);
+        try {
+            wf_reject(
+                fn () => wf_service()->assignTechnician($id, ['id' => 4, 'role' => 'admin'], ['technician_id' => 3, 'instructions' => 'ย้ายงาน']),
+                $id,
+                "reassign $status"
+            );
+        } finally {
+            wf_cleanup($id);
+        }
+    }
+});
+
 // ── happy path for the three transitions not yet covered ──
 
 test('workflow: completeResolvedTicket resolved → completed + rating stored', function (): void {

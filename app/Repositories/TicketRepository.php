@@ -300,9 +300,10 @@ class TicketRepository
 
         try {
             $this->db->beginTransaction();
-            $this->lockTicketForTransition($ticketId, ['approved', 'assigned'], 'approved');
+            // accepted/in_progress: mid-work reassign when the technician became unavailable (logic-review F2)
+            $this->lockTicketForTransition($ticketId, ['approved', 'assigned', 'accepted', 'in_progress'], 'approved');
 
-            $isReassign = $currentStatus === 'assigned';
+            $isReassign = in_array($currentStatus, ['assigned', 'accepted', 'in_progress'], true);
             $existingResponseDueAt = '';
             if ($isReassign) {
                 // Refresh response_due_at within the locked row so the SLA reset uses the current target.

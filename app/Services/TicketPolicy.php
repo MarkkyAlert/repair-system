@@ -38,8 +38,12 @@ class TicketPolicy
             return false;
         }
 
+        // accepted/in_progress included so a manager/admin can REASSIGN work whose technician became
+        // unavailable (sick leave / resignation) — otherwise the ticket is stuck forever: only the assigned
+        // technician could resolve it and the requester can no longer cancel (logic-review F2,
+        // business-confirmed). A mid-work reassign requires a reason (enforced in TicketWorkflowService).
         return (string) ($ticket['approval_status'] ?? '') === 'approved'
-            && in_array((string) ($ticket['status'] ?? ''), ['approved', 'assigned'], true);
+            && in_array((string) ($ticket['status'] ?? ''), ['approved', 'assigned', 'accepted', 'in_progress'], true);
     }
 
     public function canTechnicianWork(array $ticket, array $viewer): bool

@@ -113,6 +113,12 @@ class TicketWorkflowService
 
         $instructions = trim((string) ($input['instructions'] ?? ''));
 
+        // Mid-work reassign (technician already accepted/started) is an exceptional action — require a
+        // reason so the activity log records WHY the work moved (logic-review F2, business-confirmed).
+        if (in_array((string) ($ticket['status'] ?? ''), ['accepted', 'in_progress'], true) && $instructions === '') {
+            throw new DomainException('กรุณาระบุเหตุผลในการย้ายงานที่ช่างรับไปแล้ว');
+        }
+
         $this->tickets->assignTechnician(
             $ticketId,
             (int) ($viewer['id'] ?? 0),
