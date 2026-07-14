@@ -168,7 +168,7 @@ $dimensionLabel = (string) ($filters['dimensionLabel'] ?? 'ระดับคว
                         <th data-sort-col="1" data-sort-type="number">0-2 วัน</th>
                         <th data-sort-col="2" data-sort-type="number">3-6 วัน</th>
                         <th data-sort-col="3" data-sort-type="number">7-29 วัน</th>
-                        <th data-sort-col="4" data-sort-type="number">&gt;30 วัน</th>
+                        <th data-sort-col="4" data-sort-type="number">≥30 วัน</th>
                         <th data-sort-col="5" data-sort-type="number">รวม</th>
                         <th data-sort-col="6" data-sort-type="number">เก่าสุด (วัน)</th>
                     </tr>

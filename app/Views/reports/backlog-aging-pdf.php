@@ -60,7 +60,7 @@
         <div class="summary-value"><?= e((string) ($summary['bucket_7_30'] ?? 0)) ?></div>
     </div>
     <div class="summary-item danger">
-        <div class="summary-title">ค้าง &gt;30 วัน</div>
+        <div class="summary-title">ค้าง ≥30 วัน</div>
         <div class="summary-value"><?= e((string) ($summary['bucket_30_plus'] ?? 0)) ?></div>
     </div>
 </div>
@@ -72,7 +72,7 @@
         <th class="num">0-2 วัน</th>
         <th class="num">3-6 วัน</th>
         <th class="num">7-29 วัน</th>
-        <th class="num">&gt;30 วัน</th>
+        <th class="num">≥30 วัน</th>
         <th class="num">รวม</th>
         <th class="num">เก่าสุด (วัน)</th>
     </tr>

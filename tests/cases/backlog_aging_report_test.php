@@ -1,8 +1,10 @@
 <?php
 declare(strict_types=1);
 
+use App\Core\View;
 use App\Services\ReportService;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use Smalot\PdfParser\Parser;
 
 // Tests for the Backlog & Aging report (/reports/backlog-aging): open (non-terminal) tickets bucketed by
 // age (DATEDIFF(NOW(), requested_at)) into 0-3 / 3-7 / 7-30 / >30 days, pivoted by dimension. Proves the
@@ -179,6 +181,28 @@ test('backlog aging: bucket boundaries land on the correct side at exactly 3 / 7
             bla_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
         }
         bla_pdo()->prepare('DELETE FROM locations WHERE id = ?')->execute([$locId]);
+    }
+});
+
+test('backlog aging: screen states the inclusive >=30 boundary used by the query', function (): void {
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $page = bla_service()->getBacklogAgingReportPage($admin, ['dimension' => 'priority']);
+    $html = View::capture('reports/backlog-aging', $page);
+    assert_true(str_contains($html, '≥30 วัน'), 'screen states the inclusive >=30 boundary');
+    assert_false(str_contains($html, '&gt;30 วัน'), 'screen must not exclude an exactly-30-day ticket in its table label');
+});
+
+test('backlog aging: PDF states the inclusive >=30 boundary used by the query', function (): void {
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $baselineJobId = (int) bla_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM export_jobs')->fetchColumn();
+
+    try {
+        $pdf = (string) bla_service()->exportBacklogAgingPdf($admin, ['dimension' => 'priority'])['content'];
+        $text = (new Parser())->parseContent($pdf)->getText();
+        assert_true(str_contains($text, '≥30 วัน'), 'PDF states the same inclusive >=30 boundary as the query and export headers');
+        assert_false(str_contains($text, '>30 วัน'), 'PDF must not describe the inclusive bucket as strictly greater than 30');
+    } finally {
+        bla_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
     }
 });
 
