@@ -5,6 +5,7 @@ namespace App\Services;
 
 use App\Core\View;
 use App\Repositories\ReportRepository;
+use App\Support\ExportText;
 use DomainException;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -424,6 +425,18 @@ class ReportService
         ];
     }
 
+    /**
+     * Mark a USER-DEFINED text cell (dimension label, entity name, free-text feedback, code) so the XLSX writer
+     * stores it verbatim as text and never number-infers a numeric-looking value (e.g. a location named
+     * "00970705.25") — keeping the file byte-equal to the screen/CSV (audit R18). Metric cells stay unwrapped
+     * (they are legitimately numeric). System enum labels (status/health/warranty) are fixed Thai strings and
+     * need no wrap, but wrapping is harmless.
+     */
+    private function txt(mixed $value): ExportText
+    {
+        return new ExportText((string) $value);
+    }
+
     /** header ของ export (ใช้ร่วม CSV/Excel/PDF ให้คอลัมน์ตรงกัน). */
     private function assetReportExportHeaders(): array
     {
@@ -436,9 +449,9 @@ class ReportService
     private function assetReportExportRow(array $row): array
     {
         return [
-            // asset_code is a VARCHAR identifier — force text so Excel never number-infers it (e.g. "00547790.25") (R17)
-            new \App\Support\ExportText((string) $row['asset_code']), $row['name'], $row['category_name'], $row['location_name'], $row['status_label'],
-            $row['health_label'], $row['health_reason'], $row['failure_count'], $row['last_failure'],
+            // user-defined text (code/name/category/location) → force text so Excel never number-infers it (R17/R18)
+            $this->txt($row['asset_code']), $this->txt($row['name']), $this->txt($row['category_name']), $this->txt($row['location_name']), $row['status_label'],
+            $row['health_label'], $this->txt($row['health_reason']), $row['failure_count'], $row['last_failure'],
             $row['mtbf_days_export'], $row['avg_resolution_hours_label'], $row['downtime_hours_label'],
             $row['labor_hours_label'], $row['age_years_export'], $row['warranty_label'],
         ];
@@ -723,7 +736,7 @@ class ReportService
     {
         // 'งาน SLA' และ 'จำนวนรีวิว' = base ของอัตรา/คะแนน — ให้ export บอก sample size เหมือนหน้าจอ (Finding B)
         return [
-            $row['full_name'], $row['open_now'], $row['workload_share_label'], $row['oldest_open_age_export'],
+            $this->txt($row['full_name']), $row['open_now'], $row['workload_share_label'], $row['oldest_open_age_export'],
             $row['resolved'], $row['sla_on_time_label'], $row['sla_base'],
             $row['mttr_hours_label'], $row['avg_rating_label'], $row['rating_count'],
         ];
@@ -988,7 +1001,7 @@ class ReportService
     private function hotspotExportRow(array $row): array
     {
         return [
-            $row['label'], $row['hotspot_label'], $row['hotspot_reason'], $row['ticket_count'], $row['open_count'],
+            $this->txt($row['label']), $row['hotspot_label'], $this->txt($row['hotspot_reason']), $row['ticket_count'], $row['open_count'],
             $row['overdue_count'], $row['overdue_rate_label'], $row['avg_resolution_hours_label'], $row['labor_hours_label'],
         ];
     }
@@ -1816,7 +1829,7 @@ class ReportService
     private function backlogExportRow(array $row): array
     {
         return [
-            $row['label'], $row['bucket_0_3'], $row['bucket_3_7'], $row['bucket_7_30'],
+            $this->txt($row['label']), $row['bucket_0_3'], $row['bucket_3_7'], $row['bucket_7_30'],
             $row['bucket_30_plus'], $row['total'], $row['oldest_days'],
         ];
     }
@@ -2017,7 +2030,7 @@ class ReportService
 
     private function reopenExportRow(array $row): array
     {
-        return [$row['label'], $row['resolved'], $row['reopened'], $row['reopen_rate_label'], $row['ftf_label']];
+        return [$this->txt($row['label']), $row['resolved'], $row['reopened'], $row['reopen_rate_label'], $row['ftf_label']];
     }
 
     public function exportReopenRateCsv(array $viewer, array $filters = []): array
@@ -2299,7 +2312,7 @@ class ReportService
 
     private function csatExportRow(array $row): array
     {
-        return [$row['label'], $row['avg_label'], $row['rating_count'], $row['satisfied_pct_label'], $row['dissatisfied_pct_label']];
+        return [$this->txt($row['label']), $row['avg_label'], $row['rating_count'], $row['satisfied_pct_label'], $row['dissatisfied_pct_label']];
     }
 
     private function csatFeedbackExportHeaders(): array
@@ -2309,7 +2322,7 @@ class ReportService
 
     private function csatFeedbackExportRow(array $row): array
     {
-        return [$row['ticket_no'], $row['score'], $row['feedback'], $row['technician_name'], $row['category_name'], $row['created_at']];
+        return [$this->txt($row['ticket_no']), $row['score'], $this->txt($row['feedback']), $this->txt($row['technician_name']), $this->txt($row['category_name']), $row['created_at']];
     }
 
     /**
@@ -2731,7 +2744,7 @@ class ReportService
     private function slaBreachExportRow(array $row): array
     {
         return [
-            $row['label'],
+            $this->txt($row['label']),
             $row['response']['breached'],
             $row['resolution']['breached'],
             $row['total_breached'],
@@ -3010,10 +3023,10 @@ class ReportService
             $ticketSection = [
                 'headers' => ['เลขที่', 'หัวข้อ', 'ผู้แจ้ง', 'แผนก', 'หมวดหมู่', 'ช่างเทคนิค', 'ความสำคัญ', 'สถานะ', 'วันที่แจ้ง', 'วันที่แก้ไข', 'เวลาแก้ไข (ชม.)', 'เกิน SLA', 'สถานะ SLA', 'คะแนน', 'สถานที่'],
                 'rows' => array_map(fn ($row): array => [
-                    $row['ticket_no'], $row['title'], $row['requester_name'], $row['department_name'],
-                    $row['category_name'], $row['technician_name'], $row['priority_label'], $row['status_label'],
+                    $this->txt($row['ticket_no']), $this->txt($row['title']), $this->txt($row['requester_name']), $this->txt($row['department_name']),
+                    $this->txt($row['category_name']), $this->txt($row['technician_name']), $row['priority_label'], $row['status_label'],
                     $row['requested_at'], $row['resolved_at'], $row['resolution_hours_label'],
-                    $row['sla_overdue_label'], $row['sla_label'], $row['rating_label'], $row['location_name'],
+                    $row['sla_overdue_label'], $row['sla_label'], $this->txt($row['rating_label']), $this->txt($row['location_name']),
                 ], $rows),
             ];
             $content = $this->exporter->buildCsvSections(array_merge(
@@ -3050,9 +3063,9 @@ class ReportService
 
         return [
             ['title' => 'SLA ตรงตามกำหนด', 'headers' => ['ระดับความสำคัญ', 'ตอบรับ ตรง', 'ตอบรับ เกิน', 'ตอบรับ %', 'แก้ไข ตรง', 'แก้ไข เกิน', 'แก้ไข %'], 'rows' => $slaRows],
-            ['title' => 'ผลงานช่างเทคนิค', 'headers' => ['ช่าง', 'ปิดงาน', 'ค้าง', 'เวลาซ่อมเฉลี่ย (ชม.)', 'คะแนนเฉลี่ย'], 'rows' => array_map(static fn (array $t): array => [$t['full_name'], $t['resolved'], $t['open_now'], $t['mttr_hours_label'], $t['avg_rating_label']], $analytics['technicianPerformance'] ?? [])],
-            ['title' => 'ชั่วโมงแรงงาน', 'headers' => ['หมวดหมู่งาน', 'จำนวนงาน', 'งานที่บันทึกแรงงาน', 'รวมชั่วโมง', 'เฉลี่ย/งาน (ชม.)'], 'rows' => array_map(static fn (array $c): array => [$c['category_name'], $c['tickets'], $c['labored_tickets'], $c['labor_hours_label'], $c['avg_hours_label']], $analytics['laborEffort']['byCategory'] ?? [])],
-            ['title' => 'ทรัพย์สินเสียบ่อย', 'headers' => ['รหัส', 'ชื่อ', 'หมวดหมู่', 'สถานที่', 'สถานะ', 'จำนวนครั้ง', 'ครั้งล่าสุด', 'เวลาซ่อมเฉลี่ย (ชม.)', 'ชม.แรงงาน'], 'rows' => array_map(static fn (array $a): array => [$a['asset_code'], $a['name'], $a['category_name'], $a['location_name'], $a['status_label'], $a['failure_count'], $a['last_failure'], $a['avg_resolution_hours_label'], $a['labor_hours_label']], $analytics['assetReliability'] ?? [])],
+            ['title' => 'ผลงานช่างเทคนิค', 'headers' => ['ช่าง', 'ปิดงาน', 'ค้าง', 'เวลาซ่อมเฉลี่ย (ชม.)', 'คะแนนเฉลี่ย'], 'rows' => array_map(fn (array $t): array => [$this->txt($t['full_name']), $t['resolved'], $t['open_now'], $t['mttr_hours_label'], $t['avg_rating_label']], $analytics['technicianPerformance'] ?? [])],
+            ['title' => 'ชั่วโมงแรงงาน', 'headers' => ['หมวดหมู่งาน', 'จำนวนงาน', 'งานที่บันทึกแรงงาน', 'รวมชั่วโมง', 'เฉลี่ย/งาน (ชม.)'], 'rows' => array_map(fn (array $c): array => [$this->txt($c['category_name']), $c['tickets'], $c['labored_tickets'], $c['labor_hours_label'], $c['avg_hours_label']], $analytics['laborEffort']['byCategory'] ?? [])],
+            ['title' => 'ทรัพย์สินเสียบ่อย', 'headers' => ['รหัส', 'ชื่อ', 'หมวดหมู่', 'สถานที่', 'สถานะ', 'จำนวนครั้ง', 'ครั้งล่าสุด', 'เวลาซ่อมเฉลี่ย (ชม.)', 'ชม.แรงงาน'], 'rows' => array_map(fn (array $a): array => [$this->txt($a['asset_code']), $this->txt($a['name']), $this->txt($a['category_name']), $this->txt($a['location_name']), $a['status_label'], $a['failure_count'], $a['last_failure'], $a['avg_resolution_hours_label'], $a['labor_hours_label']], $analytics['assetReliability'] ?? [])],
         ];
     }
 

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 use App\Services\ReportService;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 // Tests for the Department/Location Problem Hotspot report (/reports/problem-hotspot). Proves: "เกิน SLA"
@@ -271,5 +272,77 @@ test('problem hotspot: export xlsx (1 sheet + dimension header) / pdf %PDF- / cs
     } finally {
         @unlink($tmp);
         phs_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
+    }
+});
+
+test('problem hotspot export: a decimal-looking dimension label stays text and matches screen/CSV (audit power-proof)', function (): void {
+    // Location names are user-managed dimension labels, not metrics. The shared XLSX writer must not infer a
+    // number from their syntax: "001234.25" must remain byte-equal to the screen/CSV, including leading zeros.
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $rid = bin2hex(random_bytes(4));
+    $locationName = '00' . (string) random_int(100000, 999999) . '.25';
+    $locationId = 0;
+    $ticketId = 0;
+    $baselineJobId = (int) phs_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM export_jobs')->fetchColumn();
+    $tmp = tempnam(sys_get_temp_dir(), 'phsdim_') . '.xlsx';
+
+    try {
+        phs_pdo()->prepare('INSERT INTO locations (code, name) VALUES (?, ?)')
+            ->execute(["PHSDIM-$rid", $locationName]);
+        $locationId = (int) phs_pdo()->lastInsertId();
+
+        phs_pdo()->prepare(
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at)
+             VALUES (?, 'x', 'x', 1, ?, 1, 1, 'in_progress', NOW())"
+        )->execute(["PHSDIMT-$rid", $locationId]);
+        $ticketId = (int) phs_pdo()->lastInsertId();
+
+        $filters = ['dimension' => 'location', 'from_date' => date('Y-m-d'), 'to_date' => date('Y-m-d')];
+        $screenRows = phs_service()->getProblemHotspotReportPage($admin, $filters)['rows'];
+        $screenRow = null;
+        foreach ($screenRows as $row) {
+            if (($row['label'] ?? null) === $locationName) {
+                $screenRow = $row;
+                break;
+            }
+        }
+        assert_true($screenRow !== null, 'screen retains the exact location label');
+
+        file_put_contents($tmp, (string) phs_service()->exportProblemHotspotExcel($admin, $filters)['content']);
+        $sheet = IOFactory::createReader('Xlsx')->load($tmp)->getActiveSheet();
+        $cell = null;
+        for ($rowNumber = 2; $rowNumber <= $sheet->getHighestDataRow(); $rowNumber++) {
+            $candidate = $sheet->getCell('A' . $rowNumber);
+            if ($candidate->getValue() === $locationName || $candidate->getValue() === (float) $locationName) {
+                $cell = $candidate;
+                break;
+            }
+        }
+        assert_true($cell !== null, 'target location appears in XLSX, whether preserved or numerically coerced');
+        $csv = (string) phs_service()->exportProblemHotspotCsv($admin, $filters)['content'];
+        $lines = preg_split('/\R/', trim(substr($csv, 3))) ?: [];
+        $csvValue = null;
+        foreach (array_slice($lines, 1) as $line) {
+            $csvRow = str_getcsv((string) $line);
+            if (($csvRow[0] ?? null) === $locationName) {
+                $csvValue = $csvRow[0];
+                break;
+            }
+        }
+
+        assert_same(
+            ['xlsx_type' => DataType::TYPE_STRING, 'xlsx_value' => $locationName, 'csv_value' => $locationName],
+            ['xlsx_type' => $cell->getDataType(), 'xlsx_value' => $cell->getValue(), 'csv_value' => $csvValue],
+            'user-defined dimension label is byte-equal across screen/CSV/XLSX and remains text in Excel'
+        );
+    } finally {
+        @unlink($tmp);
+        phs_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
+        if ($ticketId > 0) {
+            phs_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+        }
+        if ($locationId > 0) {
+            phs_pdo()->prepare('DELETE FROM locations WHERE id = ?')->execute([$locationId]);
+        }
     }
 });
