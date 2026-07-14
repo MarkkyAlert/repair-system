@@ -240,10 +240,10 @@ class AuthService
             throw new DomainException('รหัสผ่านใหม่ต้องไม่เหมือนรหัสผ่านปัจจุบัน');
         }
 
+        // updatePassword NULLs the remember token atomically (in the same UPDATE), so the DB-side revocation
+        // cannot be left undone if a later call fails. revokeAllForUser then drops THIS device's cookie (and
+        // re-NULLs defensively). Together: every remembered device — including the acting one — is kicked out.
         $this->users->updatePassword($userId, password_hash($password, PASSWORD_BCRYPT));
-        // Password change revokes ALL remember-me sessions for this user (every device), not just the acting
-        // one — otherwise a change made from a plain session left a remembered device (possibly an attacker's)
-        // still able to restore. clearCurrent() only cleared the token when the ACTING device held a cookie.
         $this->rememberMe->revokeAllForUser($userId);
         Session::regenerate();
 

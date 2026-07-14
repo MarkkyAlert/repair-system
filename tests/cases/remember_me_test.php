@@ -273,6 +273,26 @@ test('remember-me(security): a password RESET revokes the remember token — a p
     }
 });
 
+// F1 atomicity (logic-review round 2): the remember-token revocation must live IN the password UPDATE, not a
+// separate call that could fail after the password already changed. UserRepository::updatePassword alone must
+// leave the token NULL — proving the two are one atomic statement.
+test('remember-me(security): updatePassword clears the remember token in the same statement (atomic revoke) (F1)', function (): void {
+    [$userId] = rm_seed_user_with_password('atomic-old');
+    try {
+        @rm_service()->issueFor($userId);
+        assert_true(rm_token_of($userId) !== null, 'precondition: a remember token is stored');
+
+        // ONLY the password write — no separate revoke call. The token must already be gone.
+        $ok = tvm_container()->get(App\Repositories\UserRepository::class)
+            ->updatePassword($userId, password_hash('atomic-new', PASSWORD_BCRYPT));
+
+        assert_true($ok, 'the password update ran');
+        assert_true(rm_token_of($userId) === null, 'updatePassword itself NULLs the remember token (revocation is atomic with the password change)');
+    } finally {
+        rm_cleanup($userId);
+    }
+});
+
 test('remember-me(security): a password CHANGE from a device without the cookie still revokes a remembered device (F1)', function (): void {
     [$userId] = rm_seed_user_with_password('old-pass-123');
     try {
