@@ -436,7 +436,8 @@ class ReportService
     private function assetReportExportRow(array $row): array
     {
         return [
-            $row['asset_code'], $row['name'], $row['category_name'], $row['location_name'], $row['status_label'],
+            // asset_code is a VARCHAR identifier — force text so Excel never number-infers it (e.g. "00547790.25") (R17)
+            new \App\Support\ExportText((string) $row['asset_code']), $row['name'], $row['category_name'], $row['location_name'], $row['status_label'],
             $row['health_label'], $row['health_reason'], $row['failure_count'], $row['last_failure'],
             $row['mtbf_days_export'], $row['avg_resolution_hours_label'], $row['downtime_hours_label'],
             $row['labor_hours_label'], $row['age_years_export'], $row['warranty_label'],

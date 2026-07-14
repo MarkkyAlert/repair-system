@@ -40,7 +40,10 @@ class ReportExporter
         foreach (array_values($row) as $value) {
             $coord = Coordinate::stringFromColumnIndex($colIndex) . $rowNumber;
             $string = (string) $value;
-            if (is_int($value) || is_float($value)) {
+            if ($value instanceof \App\Support\ExportText) {
+                // an explicit textual identifier (asset_code, ticket_no) → verbatim text, never number-inferred (R17)
+                $sheet->setCellValueExplicit($coord, sanitize_export_cell($string), DataType::TYPE_STRING);
+            } elseif (is_int($value) || is_float($value)) {
                 // a TYPED number (count, delta, negative net, bare-number metric) → numeric; it is provably a value,
                 // never a formula or an identifier. Callers pass metrics typed and identifiers as strings (below).
                 $sheet->setCellValueExplicit($coord, $value, DataType::TYPE_NUMERIC);

@@ -469,3 +469,62 @@ test('asset reliability export: a leading-zero asset code stays text and matches
         }
     }
 });
+
+test('asset reliability export: a decimal-looking asset code stays text and matches screen/CSV (audit power-proof)', function (): void {
+    // The R16 fix protects digit-only identifiers, but the shared writer still infers numeric type from DECIMAL
+    // string syntax. Asset codes are unrestricted VARCHAR identifiers, so "001234.25" is valid and must not be
+    // coerced to 1234.25. This assertion is intentionally red until ALL strings are text unless the export row
+    // explicitly supplies a typed numeric metric (or equivalent column metadata).
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $rid = bin2hex(random_bytes(4));
+    $assetCode = '00' . (string) random_int(100000, 999999) . '.25';
+    $locationId = 0;
+    $assetId = 0;
+    $ticketId = 0;
+    $baselineJobId = (int) arr_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM export_jobs')->fetchColumn();
+    $tmp = tempnam(sys_get_temp_dir(), 'arrdecimal_') . '.xlsx';
+
+    try {
+        arr_pdo()->prepare('INSERT INTO locations (code, name) VALUES (?, ?)')
+            ->execute(["ARRDL-$rid", "ARR Decimal Code $rid"]);
+        $locationId = (int) arr_pdo()->lastInsertId();
+
+        arr_pdo()->prepare("INSERT INTO assets (asset_code, name, asset_category_id, location_id, status) VALUES (?, 'Decimal-looking code', 1, ?, 'active')")
+            ->execute([$assetCode, $locationId]);
+        $assetId = (int) arr_pdo()->lastInsertId();
+
+        arr_pdo()->prepare(
+            "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, asset_id, status, requested_at)
+             VALUES (?, 'x', 'x', 1, ?, 1, 1, ?, 'submitted', NOW())"
+        )->execute(["ARRDLT-$rid", $locationId, $assetId]);
+        $ticketId = (int) arr_pdo()->lastInsertId();
+
+        $filters = ['location_id' => $locationId];
+        $screenRows = arr_service()->getAssetReliabilityReportPage($admin, $filters)['rows'];
+        assert_same($assetCode, (string) ($screenRows[0]['asset_code'] ?? ''), 'screen retains the exact decimal-looking asset code');
+
+        file_put_contents($tmp, (string) arr_service()->exportAssetReliabilityExcel($admin, $filters)['content']);
+        $cell = IOFactory::createReader('Xlsx')->load($tmp)->getActiveSheet()->getCell('A2');
+        $csv = (string) arr_service()->exportAssetReliabilityCsv($admin, $filters)['content'];
+        $lines = preg_split('/\R/', trim(substr($csv, 3))) ?: [];
+        $csvRow = str_getcsv((string) ($lines[1] ?? ''));
+
+        assert_same(
+            ['xlsx_type' => DataType::TYPE_STRING, 'xlsx_value' => $assetCode, 'csv_value' => $assetCode],
+            ['xlsx_type' => $cell->getDataType(), 'xlsx_value' => $cell->getValue(), 'csv_value' => $csvRow[0] ?? null],
+            'decimal-looking identifier is byte-equal across screen/CSV/XLSX and remains text in Excel'
+        );
+    } finally {
+        @unlink($tmp);
+        arr_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
+        if ($ticketId > 0) {
+            arr_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+        }
+        if ($assetId > 0) {
+            arr_pdo()->prepare('DELETE FROM assets WHERE id = ?')->execute([$assetId]);
+        }
+        if ($locationId > 0) {
+            arr_pdo()->prepare('DELETE FROM locations WHERE id = ?')->execute([$locationId]);
+        }
+    }
+});
