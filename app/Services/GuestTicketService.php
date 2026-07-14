@@ -180,12 +180,18 @@ class GuestTicketService
                 'submission_token' => bin2hex(random_bytes(32)),
             ];
 
+            // ผู้แจ้งตัวจริงคือ guest (ไม่มีบัญชี/แผนก) — ห้ามให้ ticket สืบทอด "แผนก" ของคนที่กดแปลง
+            // ไม่งั้นรายงานมิติแผนกผู้แจ้งจะนับงานคนนอกเข้าแผนกของ admin/manager (logic-review F3,
+            // business-confirmed). requester_id ยังเป็นผู้กดแปลงโดยตั้งใจ (ต้องมีคนภายในถือสิทธิ์ปิดงาน).
+            $converterWithoutDepartment = $viewer;
+            unset($converterWithoutDepartment['department_id']);
+
             // Atomic: create ticket + claim/link ในทรานแซกชันเดียว. createTicket ตรวจ inTransaction() แล้ว
             // participate (ไม่ commit/notify เอง) → ถ้า claimAndLink ล้มหรือคืน false ให้ rollback ทั้งคู่
             // จึง "ได้ทั้งคู่ หรือไม่ได้เลย" ไม่มี ticket กำพร้า (สร้างแล้วแต่ request ยังไม่ถูก mark converted).
             $this->db->beginTransaction();
             try {
-                $ticketId = $tickets->createTicket($viewer, $ticketInput, []);
+                $ticketId = $tickets->createTicket($converterWithoutDepartment, $ticketInput, []);
                 if (!$this->requests->claimAndLink($requestId, $ticketId, (int) ($viewer['id'] ?? 0))) {
                     throw new RuntimeException('เชื่อมโยง Ticket กับ guest request ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
                 }

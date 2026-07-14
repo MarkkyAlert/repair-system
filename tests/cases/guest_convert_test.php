@@ -215,6 +215,28 @@ test('guest convert: a claim/link failure AFTER the ticket is created rolls it b
     }
 });
 
+// F3 (logic review, business-confirmed): the real requester is the GUEST (no account, no department), so the
+// converted ticket must NOT inherit the converter's department — otherwise the "แผนกผู้แจ้ง" report dimension
+// counts outside-world tickets against the admin/manager's own department and skews per-department analytics.
+// requester_id staying on the converter is deliberate (someone internal must hold the closure rights).
+test('guest convert: converted ticket does not inherit the converter\'s department (F3)', function (): void {
+    $requestId = gc_insert_request();
+    $ticketId = 0;
+    $converterDept = (int) gc_pdo()->query('SELECT id FROM departments ORDER BY id LIMIT 1')->fetchColumn();
+    assert_true($converterDept > 0, 'a department exists to make the inheritance scenario real');
+
+    try {
+        $converter = ['id' => 4, 'role' => 'admin', 'department_id' => $converterDept];
+        $ticketId = gc_service()->convertToTicket($requestId, $converter, 1, 1, gc_tickets());
+
+        $row = gc_pdo()->query("SELECT requester_id, requester_department_id FROM tickets WHERE id = $ticketId")->fetch();
+        assert_same(4, (int) $row['requester_id'], 'converter keeps the closure rights (requester_id, by design)');
+        assert_true($row['requester_department_id'] === null, 'guest ticket reports as "ไม่ระบุแผนก" — never the converter\'s department');
+    } finally {
+        gc_cleanup($requestId, $ticketId > 0 ? [$ticketId] : []);
+    }
+});
+
 test('guest convert: missing priority/category is rejected in the service before any lock/DB work', function (): void {
     // The required-input rule lives in convertToTicket (moved out of GuestRequestController) so it holds
     // for every caller and short-circuits before acquireConvertLock — the request must stay 'new'.
