@@ -224,6 +224,80 @@ test('remember-me: malformed / unknown / empty cookies are rejected and cleared;
     }
 });
 
+// F1 (logic review): a password reset/change must revoke EVERY remember-me session, not just the acting
+// device's. Before the fix, resetPasswordUsingToken never touched remember_token and changePassword's
+// clearCurrent() only cleared it when the acting device held a cookie — so a stolen/stale remember cookie kept
+// logging in after the owner reset (via email link, no cookie) or changed the password from another device.
+
+function rm_reset_repo(): App\Repositories\PasswordResetRepository
+{
+    return tvm_container()->get(App\Repositories\PasswordResetRepository::class);
+}
+
+function rm_auth_service(): App\Services\AuthService
+{
+    return tvm_container()->get(App\Services\AuthService::class);
+}
+
+function rm_seed_user_with_password(string $plain): array
+{
+    $s = bin2hex(random_bytes(4));
+    rm_pdo()->prepare('INSERT INTO users (username, email, password_hash, full_name, role, is_active, created_at, updated_at) VALUES (?, ?, ?, "RM User", "requester", 1, NOW(), NOW())')
+        ->execute(["rm_$s", "rm_$s@x.t", password_hash($plain, PASSWORD_BCRYPT)]);
+
+    return [(int) rm_pdo()->lastInsertId(), "rm_$s@x.t"];
+}
+
+test('remember-me(security): a password RESET revokes the remember token — a pre-reset cookie can no longer restore (F1)', function (): void {
+    [$userId, $email] = rm_seed_user_with_password('irrelevant-old');
+    try {
+        @rm_service()->issueFor($userId);
+        $preResetCookie = (string) $_COOKIE[RememberMeService::COOKIE_NAME];
+        assert_true(rm_token_of($userId) !== null, 'precondition: a remember token is stored');
+
+        // owner resets via the email link (NO session, NO cookie present on this request)
+        $raw = bin2hex(random_bytes(16));
+        rm_reset_repo()->create($email, hash('sha256', $raw), date('Y-m-d H:i:s', time() + 3600));
+        $result = rm_reset_repo()->resetPasswordUsingToken($email, hash('sha256', $raw), password_hash('brand-new-pass', PASSWORD_BCRYPT));
+        assert_same('success', $result, 'the reset succeeded');
+
+        assert_true(rm_token_of($userId) === null, 'the reset NULLs the remember token for the whole account');
+
+        // an attacker still holding the pre-reset cookie replays it → must be rejected
+        rm_auth()->logout();
+        $_COOKIE[RememberMeService::COOKIE_NAME] = $preResetCookie;
+        assert_false(@rm_service()->attemptRestore(), 'a cookie issued before the reset can no longer log in');
+    } finally {
+        rm_pdo()->prepare('DELETE FROM password_resets WHERE email = ?')->execute([$email]);
+        rm_cleanup($userId);
+    }
+});
+
+test('remember-me(security): a password CHANGE from a device without the cookie still revokes a remembered device (F1)', function (): void {
+    [$userId] = rm_seed_user_with_password('old-pass-123');
+    try {
+        // device A is "remembered": token stored, cookie held by A
+        @rm_service()->issueFor($userId);
+        $deviceACookie = (string) $_COOKIE[RememberMeService::COOKIE_NAME];
+        assert_true(rm_token_of($userId) !== null, 'precondition: device A has a stored remember token');
+
+        // owner changes the password from device B — a plain session with NO remember cookie
+        unset($_COOKIE[RememberMeService::COOKIE_NAME]);
+        $viewer = ['id' => $userId, 'role' => 'requester', 'full_name' => 'RM User', 'email' => 'rm@x.t'];
+        rm_auth()->login($viewer);
+        @rm_auth_service()->changePassword($viewer, 'old-pass-123', 'new-pass-456', 'new-pass-456');
+
+        assert_true(rm_token_of($userId) === null, 'the change revokes the remember token for every device, not just the acting one');
+
+        // device A replays its still-held cookie → must be rejected
+        rm_auth()->logout();
+        $_COOKIE[RememberMeService::COOKIE_NAME] = $deviceACookie;
+        assert_false(@rm_service()->attemptRestore(), "device A's cookie can no longer restore after the password change");
+    } finally {
+        rm_cleanup($userId);
+    }
+});
+
 test('remember-me: attemptRestore short-circuits to true when already authenticated (cookie untouched)', function (): void {
     $userId = rm_seed_user();
     try {

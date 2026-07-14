@@ -44,6 +44,19 @@ class RememberMeService
         $this->deleteCookie();
     }
 
+    /**
+     * Revoke EVERY remember-me session for a user, regardless of which device is calling. Used on a password
+     * change: NULLing the single stored token invalidates any outstanding cookie (its hash can no longer
+     * match), then the current device's cookie is dropped so it does not immediately try to restore. Unlike
+     * clearCurrent(), this does not depend on the acting device holding a remember cookie — so a password
+     * change from a plain (non-remembered) session still kicks out a remembered device elsewhere.
+     */
+    public function revokeAllForUser(int $userId): void
+    {
+        $this->users->updateRememberToken($userId, null);
+        $this->deleteCookie();
+    }
+
     public function attemptRestore(): bool
     {
         if ($this->auth->check()) {

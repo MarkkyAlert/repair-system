@@ -241,8 +241,10 @@ class AuthService
         }
 
         $this->users->updatePassword($userId, password_hash($password, PASSWORD_BCRYPT));
-        // Password change revokes all remember-me sessions on this device.
-        $this->rememberMe->clearCurrent();
+        // Password change revokes ALL remember-me sessions for this user (every device), not just the acting
+        // one — otherwise a change made from a plain session left a remembered device (possibly an attacker's)
+        // still able to restore. clearCurrent() only cleared the token when the ACTING device held a cookie.
+        $this->rememberMe->revokeAllForUser($userId);
         Session::regenerate();
 
         // Re-issue the current session with the new password stamp so this device stays logged in

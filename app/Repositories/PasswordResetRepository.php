@@ -109,10 +109,15 @@ class PasswordResetRepository
                 return 'invalid';
             }
 
+            // Revoke every remember-me session in the same transaction: a reset is the "I lost control of this
+            // account" path, so any outstanding remember cookie (possibly the attacker's) must stop working the
+            // instant the password changes — NULL token means findByRememberToken can never match again.
             $userStmt = $this->db->prepare(
                 'UPDATE users
                  SET password_hash = :password_hash,
                      password_changed_at = :password_changed_at,
+                     remember_token = NULL,
+                     remember_token_expires_at = NULL,
                      updated_at = :updated_at
                  WHERE email = :email
                  LIMIT 1'
