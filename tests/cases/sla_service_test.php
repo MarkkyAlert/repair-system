@@ -240,7 +240,7 @@ test('sla(resilience): a failing notification does not abort the batch — every
     $t1 = sla_seed_track($ticketId, 'response', -3600);
     $t2 = sla_seed_track($ticketId, 'resolution', -1800);
     try {
-        $throwingNotifier = new class extends \App\Services\NotificationService {
+        $throwingNotifier = new class () extends \App\Services\NotificationService {
             public function __construct()
             {
             }

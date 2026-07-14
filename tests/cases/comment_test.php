@@ -322,7 +322,7 @@ test('comment(resilience): updateComment persists even when the notification thr
     try {
         [$cId, $ver] = cm_seed_comment($ticketId, 1, 'before edit');
 
-        $throwingNotifier = new class extends \App\Services\NotificationService {
+        $throwingNotifier = new class () extends \App\Services\NotificationService {
             public function __construct()
             {
             }
