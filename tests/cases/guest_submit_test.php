@@ -193,3 +193,39 @@ test('guestSubmit: an unknown QR token is rejected; a valid one creates a guest 
         gsub_cleanup($okName, $ipOk);
     }
 });
+
+// F4 (logic review, business-confirmed): a QR whose asset is retired/disposed must NOT accept guest reports —
+// findActiveAssetByToken checked only qr.is_active, so a decommissioned asset's still-printed sticker kept
+// taking requests. active/maintenance still accept; retired/disposed are treated as an unknown QR.
+test('guestSubmit(F4): a retired asset rejects the scan; the same asset accepts once active again', function (): void {
+    $name = 'GS retired ' . bin2hex(random_bytes(3));
+    $ip = '198.51.100.' . random_int(1, 254);
+    $pdo = gsub_pdo();
+    $pdo->prepare("INSERT INTO assets (asset_code, name, asset_category_id, location_id, status) VALUES (?, 'GS F4 Asset', 1, 1, 'retired')")
+        ->execute(['GSF4-' . bin2hex(random_bytes(4))]);
+    $assetId = (int) $pdo->lastInsertId();
+    $token = bin2hex(random_bytes(16)); // CHAR(32)
+    $pdo->prepare('INSERT INTO asset_qr_tokens (asset_id, token, is_active, created_at) VALUES (?, ?, 1, NOW())')->execute([$assetId, $token]);
+
+    try {
+        // retired → rejected as an unknown QR (before any request row / rate hit)
+        $threw = false;
+        try {
+            gsub_service()->submitGuestRequest($token, gsub_valid_input($name), $ip);
+        } catch (DomainException $e) {
+            $threw = str_contains($e->getMessage(), 'ไม่พบ QR');
+        }
+        assert_true($threw, 'a retired asset does not accept a guest request');
+        assert_same(0, gsub_count_by_name($name), 'no request row was created for the retired asset');
+
+        // reinstate the asset → the SAME token now works (proves it was the status gate, not the token)
+        $pdo->prepare("UPDATE assets SET status = 'active' WHERE id = ?")->execute([$assetId]);
+        $result = gsub_service()->submitGuestRequest($token, gsub_valid_input($name), $ip);
+        assert_true((string) ($result['request_no'] ?? '') !== '', 'the reinstated (active) asset accepts the scan');
+        assert_same(1, gsub_count_by_name($name), 'exactly one request row once the asset is active');
+    } finally {
+        gsub_cleanup($name, $ip);
+        $pdo->prepare('DELETE FROM asset_qr_tokens WHERE asset_id = ?')->execute([$assetId]);
+        $pdo->prepare('DELETE FROM assets WHERE id = ?')->execute([$assetId]);
+    }
+});

@@ -471,6 +471,7 @@ class AssetRepository
              INNER JOIN asset_categories ac ON ac.id = a.asset_category_id
              INNER JOIN locations l ON l.id = a.location_id
              WHERE qr.token = :token AND qr.is_active = 1
+               AND a.status IN ('active', 'maintenance')
              LIMIT 1"
         );
         $stmt->execute(['token' => $token]);
