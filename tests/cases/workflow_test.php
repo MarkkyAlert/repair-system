@@ -424,6 +424,41 @@ test('workflow(concurrency): a transition branches on the LOCKED status, not a s
     }
 });
 
+test('workflow(concurrency): the mandatory-reason rule is re-checked under the lock — a stale snapshot cannot skip it (F2c)', function (): void {
+    // The service requires a reason for a mid-work reassign, but it checks BEFORE the lock. If a concurrent
+    // accept/start moves the ticket to accepted/in_progress after that check, the reason must still be enforced.
+    // We reproduce the race: the DB row actually sits at 'accepted', but the caller passes a stale 'approved'
+    // (which the service would treat as a first assign, no reason needed) with EMPTY instructions.
+    $rid = bin2hex(random_bytes(4));
+    wf_pdo()->prepare("INSERT INTO users (username, email, password_hash, full_name, role, is_active) VALUES (?, ?, 'x', ?, 'technician', 1)")
+        ->execute(["wf2c_$rid", "wf2c_$rid@example.com", "WF2c Tech $rid"]);
+    $tech2 = (int) wf_pdo()->lastInsertId();
+    $id = wf_insert_ticket(['status' => 'pending_approval', 'approval_status' => 'pending', 'requester_id' => 1]);
+
+    try {
+        $admin = ['id' => 4, 'role' => 'admin'];
+        $tech = ['id' => 3, 'role' => 'technician'];
+        wf_service()->approveTicket($id, $admin, ['note' => '']);
+        wf_service()->assignTechnician($id, $admin, ['technician_id' => 3, 'instructions' => '']);
+        wf_service()->acceptAssignedWork($id, $tech, ['accept_note' => '']);
+        assert_same('accepted', wf_state($id)['status'], 'precondition: the row actually sits at accepted');
+        $techBefore = (int) wf_state($id)['assigned_technician_id'];
+
+        // stale snapshot 'approved' + empty reason → the repo must reject under the lock
+        $threw = false;
+        try {
+            wf_repo()->assignTechnician($id, 4, $tech2, 'WF2c Tech', '', 'approved');
+        } catch (DomainException $e) {
+            $threw = str_contains($e->getMessage(), 'เหตุผลในการย้ายงาน');
+        }
+        assert_true($threw, 'a mid-work reassign with no reason is rejected even when the caller passed a stale status');
+        assert_same($techBefore, (int) wf_state($id)['assigned_technician_id'], 'the ticket was NOT reassigned (guard fired before any mutation)');
+    } finally {
+        wf_cleanup($id);
+        wf_pdo()->prepare('DELETE FROM users WHERE id=?')->execute([$tech2]);
+    }
+});
+
 test('workflow(neg): reassign stays impossible once resolved/completed (F2 boundary)', function (): void {
     foreach (['resolved', 'completed'] as $status) {
         $id = wf_insert_ticket(['status' => $status, 'approval_status' => 'approved', 'requester_id' => 1, 'assigned_technician_id' => 3]);

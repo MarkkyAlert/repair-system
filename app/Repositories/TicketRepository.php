@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Repositories;
 
+use DomainException;
 use PDO;
 use RuntimeException;
 use Throwable;
@@ -307,6 +308,15 @@ class TicketRepository
             $lockedStatus = $this->lockTicketForTransition($ticketId, ['approved', 'assigned', 'accepted', 'in_progress'], 'approved');
 
             $isReassign = in_array($lockedStatus, ['assigned', 'accepted', 'in_progress'], true);
+
+            // Authoritative under-lock re-check of the mid-work-reassign reason rule. The service checks this
+            // BEFORE the lock, but a concurrent accept/start could move the ticket into a mid-work state after
+            // that check — enforce it here on the LOCKED status so a reason can never be skipped by a race.
+            // (logic-review F2c)
+            if (in_array($lockedStatus, ['accepted', 'in_progress'], true) && $instructions === '') {
+                throw new DomainException('กรุณาระบุเหตุผลในการย้ายงานที่ช่างรับไปแล้ว');
+            }
+
             $existingResponseDueAt = '';
             if ($isReassign) {
                 // Refresh response_due_at within the locked row so the SLA reset uses the current target.
