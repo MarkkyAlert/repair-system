@@ -271,9 +271,7 @@ class AuthService
             throw new DomainException('กรุณากรอกชื่อ-นามสกุลและอีเมลให้ครบถ้วน');
         }
 
-        if (mb_strlen($fullName) > 200) {
-            throw new DomainException('ชื่อ-นามสกุลยาวเกินกำหนด');
-        }
+        require_max_length($fullName, 150, 'ชื่อ-นามสกุล'); // users.full_name VARCHAR(150) (was 200 → DB error) (F6)
 
         if (!is_valid_email($email)) {
             throw new DomainException('รูปแบบอีเมลไม่ถูกต้อง');

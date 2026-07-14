@@ -396,6 +396,13 @@ class AssetService
             throw new DomainException('รหัสหรือชื่อ Asset ยาวเกินกว่าที่ระบบรองรับ');
         }
 
+        // Optional text fields — bound to their columns so an over-long value is a friendly message, not a
+        // raw DB error under strict mode (serial/brand/model VARCHAR(100), vendor VARCHAR(150)). (F6)
+        require_max_length($serialNumber, 100, 'Serial Number');
+        require_max_length($brand, 100, 'ยี่ห้อ');
+        require_max_length($model, 100, 'รุ่น');
+        require_max_length($vendor, 150, 'ผู้จำหน่าย');
+
         if (!in_array($status, asset_status_values(), true)) {
             throw new DomainException('สถานะของ Asset ไม่ถูกต้อง');
         }

@@ -68,6 +68,11 @@ test('createUser: validation branches each reject with the right message', funct
     au_reject_create(['password_confirmation' => 'Mismatch123'], 'ยืนยันรหัสผ่านไม่ตรงกัน', 'password confirmation mismatch');
     au_reject_create(['password' => 'short7', 'password_confirmation' => 'short7'], 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร', 'password too short');
     au_reject_create(['department_id' => 999999999], 'Department ที่เลือกไม่ถูกต้อง', 'non-existent department');
+
+    // F6: bound to the DB columns so over-long values give a friendly message, not a strict-mode DB error.
+    au_reject_create(['full_name' => str_repeat('ก', 151)], 'ชื่อผู้ใช้งานยาวเกินกำหนด (ไม่เกิน 150 ตัวอักษร)', 'full_name over users.full_name(150)');
+    au_reject_create(['phone' => str_repeat('0', 31)], 'เบอร์โทรยาวเกินกำหนด (ไม่เกิน 30 ตัวอักษร)', 'phone over users.phone(30)');
+    au_reject_create(['email' => str_repeat('a', 185) . '@x.test'], 'รูปแบบอีเมลผู้ใช้งานไม่ถูกต้อง', 'email over *_email(190) rejected by length-bounded is_valid_email');
 });
 
 test('createUser: happy path stores a hashed password (not plaintext) + correct fields', function (): void {

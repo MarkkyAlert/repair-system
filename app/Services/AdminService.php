@@ -77,6 +77,9 @@ class AdminService
             throw new DomainException('กรุณากรอกชื่อและอีเมลผู้ใช้งานให้ครบถ้วน');
         }
 
+        require_max_length($fullName, 150, 'ชื่อผู้ใช้งาน'); // users.full_name VARCHAR(150) (F6)
+        require_max_length(trim((string) ($input['phone'] ?? '')), 30, 'เบอร์โทร'); // users.phone VARCHAR(30) (F6)
+
         if (!is_valid_email($email)) {
             throw new DomainException('รูปแบบอีเมลผู้ใช้งานไม่ถูกต้อง');
         }
@@ -119,6 +122,9 @@ class AdminService
         if ($username === '' || $fullName === '' || $email === '' || $password === '' || $passwordConfirmation === '') {
             throw new DomainException('กรุณากรอกชื่อผู้ใช้ ชื่อ อีเมล และรหัสผ่านให้ครบถ้วน');
         }
+
+        require_max_length($fullName, 150, 'ชื่อผู้ใช้งาน'); // users.full_name VARCHAR(150) (F6)
+        require_max_length(trim((string) ($input['phone'] ?? '')), 30, 'เบอร์โทร'); // users.phone VARCHAR(30) (F6)
 
         if (!is_valid_username($username)) {
             throw new DomainException('ชื่อผู้ใช้ต้องมี 3-50 ตัวอักษร และใช้ได้เฉพาะ a-z, 0-9, จุด, ขีดกลาง และขีดล่าง');

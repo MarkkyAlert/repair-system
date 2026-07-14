@@ -217,7 +217,7 @@ class ReferenceDataService
 
     // --- Payload builders ----------------------------------------------------
 
-    private function buildMasterPayload(array $input, string $label): array
+    private function buildMasterPayload(array $input, string $label, int $nameMax = 150): array
     {
         $code = strtoupper(trim((string) ($input['code'] ?? '')));
         $name = trim((string) ($input['name'] ?? ''));
@@ -225,6 +225,11 @@ class ReferenceDataService
         if ($code === '' || $name === '') {
             throw new DomainException('กรุณากรอกรหัสและชื่อ' . $label . 'ให้ครบถ้วน');
         }
+
+        // Bound to the DB columns (code VARCHAR(50); name VARCHAR(150), categories VARCHAR(100)) so an
+        // over-long value is a friendly message, not a raw strict-mode DB error. (logic-review F6)
+        require_max_length($code, 50, 'รหัส' . $label);
+        require_max_length($name, $nameMax, 'ชื่อ' . $label);
 
         return [
             'code' => $code,
@@ -236,7 +241,8 @@ class ReferenceDataService
 
     private function buildCategoryPayload(array $input, string $label): array
     {
-        return array_merge($this->buildMasterPayload($input, $label), [
+        // category name column is VARCHAR(100), narrower than the 150 default (F6)
+        return array_merge($this->buildMasterPayload($input, $label, 100), [
             'sort_order' => max(1, strict_int($input['sort_order'] ?? null, 'ลำดับการแสดง', 1)),
         ]);
     }
@@ -256,11 +262,18 @@ class ReferenceDataService
     private function buildLocationPayload(array $input): array
     {
         $payload = $this->buildMasterPayload($input, 'สถานที่');
+        $building = trim((string) ($input['building'] ?? ''));
+        $floor = trim((string) ($input['floor'] ?? ''));
+        $room = trim((string) ($input['room'] ?? ''));
+        // locations.building VARCHAR(150), floor/room VARCHAR(50) (F6)
+        require_max_length($building, 150, 'อาคาร');
+        require_max_length($floor, 50, 'ชั้น');
+        require_max_length($room, 50, 'ห้อง');
 
         return array_merge($payload, [
-            'building' => trim((string) ($input['building'] ?? '')),
-            'floor' => trim((string) ($input['floor'] ?? '')),
-            'room' => trim((string) ($input['room'] ?? '')),
+            'building' => $building,
+            'floor' => $floor,
+            'room' => $room,
         ]);
     }
 

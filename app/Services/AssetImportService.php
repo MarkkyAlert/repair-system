@@ -67,6 +67,12 @@ class AssetImportService
             if (strlen($name) > 200) {
                 $errors[] = 'name ยาวเกิน 200 ตัวอักษร';
             }
+            // optional text fields bound to their columns (serial/brand/model VARCHAR(100), vendor VARCHAR(150)) (F6)
+            foreach (['serial_number' => 100, 'brand' => 100, 'model' => 100, 'vendor' => 150] as $field => $limit) {
+                if (mb_strlen(trim((string) ($row[$field] ?? ''))) > $limit) {
+                    $errors[] = $field . ' ยาวเกิน ' . $limit . ' ตัวอักษร';
+                }
+            }
             if ($assetCode !== '' && isset($seenCodes[$assetCode])) {
                 $errors[] = 'asset_code ซ้ำกับแถวอื่นในไฟล์';
             }

@@ -444,3 +444,33 @@ test('auth: a saturated IP does not lock out a different IP (no global lockout)'
         auth_cleanup(null, [$login]);
     }
 });
+
+// F6: profile update fields are bound to their DB columns (users.full_name VARCHAR(150), email 190-bounded via
+// is_valid_email) so over-long input gives a friendly message, not a raw strict-mode DB error.
+test('updateProfile(F6): full_name over 150 and an over-190 email are rejected with a friendly message', function (): void {
+    $seeded = auth_seed_user();
+    $userId = (int) $seeded['id'];
+    $viewer = ['id' => $userId, 'role' => 'requester'];
+
+    try {
+        $threw = false;
+        try {
+            auth_service()->updateProfile($viewer, ['full_name' => str_repeat('ก', 151), 'email' => $seeded['email'], 'phone' => '']);
+        } catch (DomainException $e) {
+            $threw = str_contains($e->getMessage(), 'ยาวเกินกำหนด');
+        }
+        assert_true($threw, 'full_name over users.full_name(150) is rejected');
+
+        $threw2 = false;
+        try {
+            auth_service()->updateProfile($viewer, ['full_name' => 'OK Name', 'email' => str_repeat('a', 185) . '@x.test', 'phone' => '']);
+        } catch (DomainException $e) {
+            $threw2 = str_contains($e->getMessage(), 'อีเมล');
+        }
+        assert_true($threw2, 'an email longer than 190 is rejected (length-bounded is_valid_email)');
+
+        assert_same('Auth Test', (string) auth_pdo()->query("SELECT full_name FROM users WHERE id = $userId")->fetchColumn(), 'no mutation on a rejected profile update');
+    } finally {
+        auth_cleanup($userId);
+    }
+});

@@ -169,7 +169,22 @@ function log_caught_exception(string $marker, \Throwable $exception, array $cont
 /** Format-only validators (callers keep their own required/empty guards and error messages). */
 function is_valid_email(string $email): bool
 {
-    return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
+    // Length-bounded to the users.email / *_email column (VARCHAR(190)) so a syntactically valid but
+    // over-long address is rejected with a friendly message instead of a raw DB error (strict mode). (F6)
+    return (function_exists('mb_strlen') ? mb_strlen($email) : strlen($email)) <= 190
+        && filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
+}
+
+/**
+ * Reject a value longer than its DB column so the user sees a clear message, not a raw
+ * "Data too long" error under MySQL strict mode. No-op for values within the limit. (logic-review F6)
+ */
+function require_max_length(string $value, int $max, string $label): void
+{
+    $length = function_exists('mb_strlen') ? mb_strlen($value) : strlen($value);
+    if ($length > $max) {
+        throw new \DomainException($label . 'ยาวเกินกำหนด (ไม่เกิน ' . $max . ' ตัวอักษร)');
+    }
 }
 
 /** Username format: 3–50 chars of a-z, 0-9, dot, dash, underscore. Shared by admin create + CSV import. */

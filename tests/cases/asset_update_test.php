@@ -128,6 +128,26 @@ test('asset(permission): requester/technician cannot create, update or regenerat
     }
 });
 
+test('asset(validation F6): optional text fields over their DB column length are rejected with a friendly message', function (): void {
+    [$id, $base] = aupd_seed();
+    $admin = ['id' => 4, 'role' => 'admin'];
+
+    try {
+        foreach (['brand' => 100, 'model' => 100, 'serial_number' => 100, 'vendor' => 150] as $field => $limit) {
+            $threw = false;
+            try {
+                aupd_service()->updateAsset($id, $admin, array_merge($base, ['original_version' => 1, $field => str_repeat('x', $limit + 1)]));
+            } catch (DomainException $e) {
+                $threw = str_contains($e->getMessage(), 'ยาวเกินกำหนด');
+            }
+            assert_true($threw, "$field over $limit is rejected with a friendly message");
+        }
+        assert_same('Original Name', (string) aupd_pdo()->query("SELECT name FROM assets WHERE id = $id")->fetchColumn(), 'no mutation happened on any rejected update');
+    } finally {
+        aupd_pdo()->prepare('DELETE FROM assets WHERE id = ?')->execute([$id]);
+    }
+});
+
 test('assetUpdate(optimistic-lock): a fresh update succeeds; a stale one is rejected and does not overwrite', function (): void {
     [$id, $base] = aupd_seed();
 

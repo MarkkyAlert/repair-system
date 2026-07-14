@@ -72,7 +72,10 @@ class UserImportService
                 $errors[] = 'username ต้องมี 3-50 ตัว และใช้ a-z, 0-9, ., -, _';
             }
             if ($email !== '' && !is_valid_email($email)) {
-                $errors[] = 'email format ไม่ถูกต้อง';
+                $errors[] = 'email format ไม่ถูกต้อง หรือยาวเกิน 190 ตัว';
+            }
+            if (mb_strlen($fullName) > 150) { // users.full_name VARCHAR(150) (F6)
+                $errors[] = 'full_name ยาวเกิน 150 ตัว';
             }
             if (!in_array($role, valid_roles(), true)) {
                 $errors[] = 'role ต้องเป็น: ' . implode(', ', valid_roles());
