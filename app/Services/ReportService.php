@@ -583,45 +583,54 @@ class ReportService
      */
     private function collectTechnicianPerformanceRows(array $viewer, array $normalizedFilters): array
     {
-        $period = [];
-        foreach ($this->reports->getTechnicianPeriodStats($viewer, $normalizedFilters) as $row) {
-            $period[(int) $row['id']] = $row;
-        }
-
-        // As-reported (Phase 2): resolved + MTTR are attributed to the resolve-event actor, keyed by resolver id,
-        // and overlaid onto the technician row — independent of who the ticket is currently assigned to.
+        // As-reported (Phase 2 + R13): every performance metric is attributed to the resolve-event actor, keyed by
+        // resolver id — independent of who the ticket is currently assigned to. The resolver query carries full_name.
         $resolver = [];
         foreach ($this->reports->getTechnicianResolverStats($viewer, $normalizedFilters) as $row) {
             $resolver[(int) $row['id']] = $row;
         }
 
-        $live = $this->reports->getTechnicianLiveWorkload($viewer);
+        $live = [];
         $totalOpenNow = 0;
-        foreach ($live as $row) {
+        foreach ($this->reports->getTechnicianLiveWorkload($viewer) as $row) {
+            $live[(int) $row['id']] = $row;
             $totalOpenNow += (int) ($row['open_now'] ?? 0);
         }
         $teamSize = count($live);
 
-        $rows = array_map(
-            fn (array $l): array => $this->mapTechnicianPerformanceRow($period[(int) $l['id']] ?? [], $resolver[(int) $l['id']] ?? [], $l, $totalOpenNow, $teamSize),
-            $live
-        );
+        // Row base = the UNION of currently-active technicians (live) AND everyone who RESOLVED in the window
+        // (resolver). A technician later deactivated or demoted is no longer in `live`, but their immutable past
+        // performance still shows because they remain in `resolver` — otherwise closing an account would erase a
+        // person's whole history + shrink team totals (R14-F1). Live-only techs get zeroed performance; resolver-
+        // only (departed) techs get zeroed live workload.
+        $names = [];
+        foreach ($live as $id => $row) {
+            $names[$id] = (string) ($row['full_name'] ?? '-');
+        }
+        foreach ($resolver as $id => $row) {
+            $names[$id] ??= (string) ($row['full_name'] ?? '-');
+        }
+
+        $rows = [];
+        foreach ($names as $id => $name) {
+            $rows[] = $this->mapTechnicianPerformanceRow($name, $resolver[$id] ?? [], $live[$id] ?? [], $totalOpenNow, $teamSize);
+        }
 
         usort($rows, static fn (array $a, array $b): int => [$b['open_now'], $b['resolved']] <=> [$a['open_now'], $a['resolved']]);
 
         return $rows;
     }
 
-    private function mapTechnicianPerformanceRow(array $period, array $resolver, array $live, int $totalOpenNow, int $teamSize): array
+    private function mapTechnicianPerformanceRow(string $fullName, array $resolver, array $live, int $totalOpenNow, int $teamSize): array
     {
         $openNow = (int) ($live['open_now'] ?? 0);
-        // "รับ" (assigned) is a CURRENT-workload column (current assignee) — grouped with the live snapshot below.
-        $assigned = (int) ($period['assigned'] ?? 0);
         // As-reported (Phase 2 + R13): EVERY performance metric comes from the resolve-event actor
         // (getTechnicianResolverStats) over "the tickets this tech actually closed in the window" — resolved + MTTR
         // + SLA-on-time (vs the FROZEN per-cycle target) + CSAT (per-cycle rating). So a later reopen/reassign never
         // restates a past period, and the /reports overview + full page read the SAME immutable rows (R13). The
-        // per-tech completion %, first-response time, and labor hours were removed (can't be made immutable — R12/R13).
+        // per-tech completion %, first-response time, labor hours, and the date-filtered "รับ"(assigned) column were
+        // removed — none can be a clean immutable/current metric (R12/R13/R14). $live may be empty for a departed
+        // resolver (deactivated/demoted) → current-workload columns read 0/'-', but the performance columns still show.
         $resolved = (int) ($resolver['resolved'] ?? 0);
         $mttrMinutes = (float) ($resolver['mttr_minutes'] ?? 0);
         // MTTR presence = tickets with a real resolve event (resolution_base), not the status-resolved count (F1)
@@ -644,15 +653,14 @@ class ReportService
         }
 
         return [
-            'full_name' => (string) ($live['full_name'] ?? '-'),
+            'full_name' => $fullName,
             // live snapshot (ไม่ขึ้นกับ date filter)
             'open_now' => $openNow,
             'workload_share_label' => $sharePct === null ? '-' : number_format($sharePct, 1) . '%',
             'workload_tone' => $workloadTone,
             'oldest_open_age_label' => $oldestAge === null ? '-' : number_format($oldestAge, 0) . ' วัน',
             'oldest_open_age_export' => $oldestAge === null ? '-' : number_format($oldestAge, 0), // bare number for Excel (F3)
-            // performance ในช่วง — ทุกตัว as-reported/immutable จาก resolver cohort (ไม่มี %ปิดงาน/เวลาตอบรับ/แรงงาน — R12/R13)
-            'assigned' => $assigned,
+            // performance ในช่วง — ทุกตัว as-reported/immutable จาก resolver cohort (ไม่มี %ปิดงาน/รับ/เวลาตอบรับ/แรงงาน — R12/R13/R14)
             'resolved' => $resolved,
             'sla_on_time_label' => $slaRate === null ? '-' : number_format($slaRate, 1) . '%',
             'sla_on_time_tone' => $this->slaComplianceTone($slaRate),
@@ -699,7 +707,7 @@ class ReportService
     private function technicianPerformanceExportHeaders(): array
     {
         return [
-            'ช่าง', 'งานค้างปัจจุบัน', 'สัดส่วนโหลด', 'ค้างเก่าสุด (วัน)', 'รับ', 'ปิดงาน',
+            'ช่าง', 'งานค้างปัจจุบัน', 'สัดส่วนโหลด', 'ค้างเก่าสุด (วัน)', 'ปิดงาน',
             'SLA ตรงเวลา', 'งาน SLA', 'เวลาซ่อมเฉลี่ย (ชม.)', 'คะแนน', 'จำนวนรีวิว',
         ];
     }
@@ -709,7 +717,7 @@ class ReportService
         // 'งาน SLA' และ 'จำนวนรีวิว' = base ของอัตรา/คะแนน — ให้ export บอก sample size เหมือนหน้าจอ (Finding B)
         return [
             $row['full_name'], $row['open_now'], $row['workload_share_label'], $row['oldest_open_age_export'],
-            $row['assigned'], $row['resolved'], $row['sla_on_time_label'], $row['sla_base'],
+            $row['resolved'], $row['sla_on_time_label'], $row['sla_base'],
             $row['mttr_hours_label'], $row['avg_rating_label'], $row['rating_count'],
         ];
     }
@@ -3035,7 +3043,7 @@ class ReportService
 
         return [
             ['title' => 'SLA ตรงตามกำหนด', 'headers' => ['ระดับความสำคัญ', 'ตอบรับ ตรง', 'ตอบรับ เกิน', 'ตอบรับ %', 'แก้ไข ตรง', 'แก้ไข เกิน', 'แก้ไข %'], 'rows' => $slaRows],
-            ['title' => 'ผลงานช่างเทคนิค', 'headers' => ['ช่าง', 'มอบหมาย', 'ปิดงาน', 'ค้าง', 'เวลาซ่อมเฉลี่ย (ชม.)', 'คะแนนเฉลี่ย'], 'rows' => array_map(static fn (array $t): array => [$t['full_name'], $t['assigned'], $t['resolved'], $t['open_now'], $t['mttr_hours_label'], $t['avg_rating_label']], $analytics['technicianPerformance'] ?? [])],
+            ['title' => 'ผลงานช่างเทคนิค', 'headers' => ['ช่าง', 'ปิดงาน', 'ค้าง', 'เวลาซ่อมเฉลี่ย (ชม.)', 'คะแนนเฉลี่ย'], 'rows' => array_map(static fn (array $t): array => [$t['full_name'], $t['resolved'], $t['open_now'], $t['mttr_hours_label'], $t['avg_rating_label']], $analytics['technicianPerformance'] ?? [])],
             ['title' => 'ชั่วโมงแรงงาน', 'headers' => ['หมวดหมู่งาน', 'จำนวนงาน', 'งานที่บันทึกแรงงาน', 'รวมชั่วโมง', 'เฉลี่ย/งาน (ชม.)'], 'rows' => array_map(static fn (array $c): array => [$c['category_name'], $c['tickets'], $c['labored_tickets'], $c['labor_hours_label'], $c['avg_hours_label']], $analytics['laborEffort']['byCategory'] ?? [])],
             ['title' => 'ทรัพย์สินเสียบ่อย', 'headers' => ['รหัส', 'ชื่อ', 'หมวดหมู่', 'สถานที่', 'สถานะ', 'จำนวนครั้ง', 'ครั้งล่าสุด', 'เวลาซ่อมเฉลี่ย (ชม.)', 'ชม.แรงงาน'], 'rows' => array_map(static fn (array $a): array => [$a['asset_code'], $a['name'], $a['category_name'], $a['location_name'], $a['status_label'], $a['failure_count'], $a['last_failure'], $a['avg_resolution_hours_label'], $a['labor_hours_label']], $analytics['assetReliability'] ?? [])],
         ];

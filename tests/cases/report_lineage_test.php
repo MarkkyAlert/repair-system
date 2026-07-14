@@ -454,6 +454,76 @@ test('technician performance is immutable through reopen + reassign — every me
     }
 });
 
+test('technician performance survives the resolver being deactivated or demoted (R14-F1)', function (): void {
+    // Closing an account (a leaver) or changing a role must NOT erase a person's past performance or shrink team
+    // totals. The row base is live-technicians ∪ resolvers, so a resolver keeps their immutable numbers even once
+    // they drop off the active-technician roster. Driven through the REAL workflow (resolve + complete + rate),
+    // then deactivated and, separately, demoted. Power-proof: a live-only row base drops the row after deactivation.
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $requester = ['id' => 1, 'role' => 'requester'];
+    $rid = bin2hex(random_bytes(4));
+
+    lin_pdo()->prepare("INSERT INTO users (username, email, password_hash, full_name, role, is_active) VALUES (?, ?, 'x', ?, 'technician', 1)")
+        ->execute(["linl_$rid", "linl_$rid@example.com", "LIN R14 Tech $rid"]);
+    $tech = (int) lin_pdo()->lastInsertId();
+    $techName = "LIN R14 Tech $rid";
+    $techv = ['id' => $tech, 'role' => 'technician'];
+
+    $pick = static function (array $rows) use ($techName): ?array {
+        foreach ($rows as $r) {
+            if (($r['full_name'] ?? null) === $techName) {
+                return ['resolved' => (int) $r['resolved'], 'sla' => (string) $r['sla_on_time_label'], 'rating' => (string) $r['avg_rating_label']];
+            }
+        }
+
+        return null;
+    };
+    $full = static fn (): ?array => $pick(lin_reports()->getTechnicianPerformanceReportPage($admin, [])['rows']);
+    $ov = static fn (): ?array => $pick(lin_reports()->getReportPageData($admin, [])['technicianPerformance']);
+
+    $baselineJobId = (int) lin_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM export_jobs')->fetchColumn();
+    $ref = tvm_container()->get(TicketReadRepository::class)->getCreateFormReferenceData();
+    $ticketId = lin_tickets()->createTicket($requester, [
+        'submission_token' => bin2hex(random_bytes(32)),
+        'title' => "LIN R14 leaver $rid",
+        'description' => 'departed-resolver probe',
+        'priority_id' => (int) $ref['priorities'][0]['id'],
+        'ticket_category_id' => (int) $ref['categories'][0]['id'],
+        'location_id' => (int) $ref['locations'][0]['id'],
+        'impact_level' => 'medium',
+        'urgency_level' => 'medium',
+    ], []);
+
+    try {
+        lin_wf()->approveTicket($ticketId, $admin, ['note' => '']);
+        lin_wf()->assignTechnician($ticketId, $admin, ['technician_id' => $tech, 'instructions' => '']);
+        lin_wf()->acceptAssignedWork($ticketId, $techv, ['accept_note' => '']);
+        lin_wf()->startAssignedWork($ticketId, $techv, ['start_note' => '']);
+        lin_wf()->resolveAssignedWork($ticketId, $techv, ['diagnosis_summary' => 'd', 'resolution_summary' => 'r', 'labor_minutes' => '30']);
+        lin_wf()->completeResolvedTicket($ticketId, $requester, ['score' => 5, 'closure_note' => '', 'feedback' => 'ดี']);
+
+        $before = $full();
+        assert_same(['resolved' => 1, 'sla' => '100.0%', 'rating' => '5.0'], $before, 'active resolver shows resolved/SLA/rating');
+        assert_same($before, $ov(), 'overview agrees while active');
+
+        // DEACTIVATE — the leaver drops off the active-technician roster
+        lin_pdo()->prepare('UPDATE users SET is_active = 0 WHERE id = ?')->execute([$tech]);
+        assert_same($before, $full(), 'deactivated resolver keeps its full-page performance (not erased)');
+        assert_same($before, $ov(), 'deactivated resolver keeps its overview performance');
+        $csv = (string) lin_reports()->exportTechnicianPerformanceCsv($admin, [])['content'];
+        assert_true(str_contains($csv, $techName), 'the departed resolver is still in the CSV export');
+
+        // DEMOTE — role changed away from technician
+        lin_pdo()->prepare("UPDATE users SET is_active = 1, role = 'requester' WHERE id = ?")->execute([$tech]);
+        assert_same($before, $full(), 'demoted resolver still shows their past performance');
+    } finally {
+        lin_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
+        lin_pdo()->prepare("DELETE FROM notifications WHERE related_type = 'ticket' AND related_id = ?")->execute([$ticketId]);
+        lin_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+        lin_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$tech]);
+    }
+});
+
 test('lineage(e2e): a full reopen cycle freezes the first cycle SLA snapshot + appends per-cycle rating (F1 Phase 2 Part B)', function (): void {
     // The per-cycle as-reported guarantee, proven through the REAL services end to end:
     // resolve (cycle 1) → reopen → reassign → re-resolve (cycle 2) → complete+rate. The first cycle's

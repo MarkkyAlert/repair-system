@@ -121,7 +121,6 @@
         <thead>
         <tr>
             <th>ช่าง</th>
-            <th class="num">มอบหมาย</th>
             <th class="num">ปิดงาน</th>
             <th class="num">ค้าง</th>
             <th class="num">เวลาซ่อมเฉลี่ย (ชม.)</th>
@@ -132,7 +131,6 @@
         <?php foreach ($techs as $t): ?>
             <tr>
                 <td><?= e((string) ($t['full_name'] ?? '-')) ?></td>
-                <td class="num"><?= e((string) ($t['assigned'] ?? 0)) ?></td>
                 <td class="num"><?= e((string) ($t['resolved'] ?? 0)) ?></td>
                 <td class="num"><?= e((string) ($t['open_now'] ?? 0)) ?></td>
                 <td class="num"><?= e((string) ($t['mttr_hours_label'] ?? '-')) ?></td>

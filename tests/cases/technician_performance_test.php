@@ -73,13 +73,15 @@ test('technician performance: per-tech aggregates + no fan-out from rating/work_
         }
 
         assert_true($me !== null, 'technician appears in the performance table');
-        assert_same(2, $me['assigned'], 'assigned = 2 tickets (no fan-out: T1 has BOTH a rating AND a work_order)');
-        assert_same(1, $me['resolved'], 'resolved = 1 (as-reported resolve event)');
+        assert_false(isset($me['assigned']), 'no per-tech "รับ" column (removed R14)');
+        // resolved = 1 (one resolve event) even though T1 has BOTH a rating AND a work_order — the resolver query's
+        // per-cycle LEFT JOINs (UNIQUE ticket,cycle) must not fan the count out
+        assert_same(1, $me['resolved'], 'resolved = 1 (as-reported resolve event, no fan-out from rating/work_order)');
         assert_same(1, $me['open_now'], 'open_now = 1 (live: T2 in_progress)');
         assert_false(isset($me['completion_label']), 'no per-tech completion % (removed R12)');
         assert_false(isset($me['labor_hours_label']), 'no per-tech labor hours (removed R13 — not immutable)');
         assert_same('2.0', $me['mttr_hours_label'], 'MTTR 120min = 2.0 hrs');
-        assert_same('4.0', $me['avg_rating_label'], 'avg rating = 4.0 (only T1 rated, resolver-cohort)');
+        assert_same('4.0', $me['avg_rating_label'], 'avg rating = 4.0 (only T1 rated, resolver-cohort, no fan-out)');
     } finally {
         foreach ([$t1, $t2] as $ticketId) {
             if ($ticketId > 0) {

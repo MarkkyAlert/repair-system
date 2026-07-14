@@ -75,10 +75,10 @@ function tpr_cleanup(int $techId): void
     }
 }
 
-test('technician performance: more than 200 technicians are all counted, none dropped by a LIMIT (round-2 #2)', function (): void {
-    // getTechnicianPeriodStats had LIMIT 200 with no ORDER BY, so with >200 technicians some were dropped
-    // arbitrarily — they showed assigned/resolved 0 on a people-evaluation report and the team total was
-    // undercounted. The result is one row per technician (bounded), so the limit is removed. (round-2 #2.)
+test('technician performance: more than 200 resolvers are all counted, none dropped by a LIMIT (round-2 #2)', function (): void {
+    // A people-evaluation report must not silently cap the roster. The resolved credit + its base now come from
+    // getTechnicianResolverStats (one row per resolver, no LIMIT). Seed 201 technicians who each resolve one ticket
+    // (a real ticket_resolved event) and assert all 201 appear with the team total intact.
     $rid = bin2hex(random_bytes(4));
     $repo = tvm_container()->get(\App\Repositories\ReportRepository::class);
     $admin = ['id' => 4, 'role' => 'admin'];
@@ -98,11 +98,12 @@ test('technician performance: more than 200 technicians are all counted, none dr
             $userStmt->execute(["tprb_{$rid}_{$i}", "tprb_{$rid}_{$i}@example.com", "TPRB Tech $rid $i"]);
             $techId = (int) tpr_pdo()->lastInsertId();
             $ticketStmt->execute(["TPRBT-{$rid}-{$i}", $deptId, $techId]);
+            tpr_resolve_event((int) tpr_pdo()->lastInsertId(), $techId, date('Y-m-d H:i:s'));
         }
 
-        // scope to the fresh department so period stats = exactly our 201 technicians (one resolved each)
-        $stats = $repo->getTechnicianPeriodStats($admin, ['department_id' => $deptId]);
-        assert_same($count, count($stats), 'all 201 technicians-with-tickets are returned (not capped at 200)');
+        // scope to the fresh department so the resolver roster = exactly our 201 technicians (one resolve each)
+        $stats = $repo->getTechnicianResolverStats($admin, ['department_id' => $deptId]);
+        assert_same($count, count($stats), 'all 201 resolvers are returned (not capped at 200)');
         assert_same($count, (int) array_sum(array_column($stats, 'resolved')), 'team resolved total = 201, not silently capped at 200');
     } finally {
         tpr_pdo()->prepare('DELETE FROM tickets WHERE requester_department_id = ?')->execute([$deptId]);
@@ -139,7 +140,7 @@ test('technician performance: per-tech SLA on-time rate (as-reported, from the f
 
         $row = tpr_row($fullName);
         assert_true($row !== null, 'technician appears');
-        assert_same(2, $row['assigned'], 'assigned = 2');
+        assert_false(isset($row['assigned']), 'no per-tech "รับ" column (removed R14 — date-filtered current assignee)');
         assert_same(2, $row['resolved'], 'resolved = 2 (as-reported: the technician resolved both, via the resolve events)');
         assert_same('50.0%', $row['sla_on_time_label'], 'SLA on-time = 1 of 2 = 50% (A on time, B late vs the frozen target)');
         assert_same(2, $row['sla_base'], 'sla_base = 2 (both resolves have a cycle track)');
@@ -222,11 +223,11 @@ test('technician performance: CSV export cells reconcile with the on-screen row 
 
         // cell-by-cell vs the export header order (…, ปิดงาน, SLA ตรงเวลา, งาน SLA, …, คะแนน, จำนวนรีวิว, …)
         // NOTE: no "อัตราปิดงาน" column — removed as a non-immutable people-eval metric (R12)
-        assert_same((string) $screen['resolved'], $exportRow[5], 'CSV ปิดงาน = screen resolved');
-        assert_same($screen['sla_on_time_label'], $exportRow[6], 'CSV SLA ตรงเวลา = screen sla_on_time_label (100.0%)');
-        assert_same((string) $screen['sla_base'], $exportRow[7], 'CSV งาน SLA = screen sla_base (sample behind the rate)');
-        assert_same($screen['avg_rating_label'], $exportRow[9], 'CSV คะแนน = screen avg_rating_label (5.0)');
-        assert_same((string) $screen['rating_count'], $exportRow[10], 'CSV จำนวนรีวิว = screen rating_count');
+        assert_same((string) $screen['resolved'], $exportRow[4], 'CSV ปิดงาน = screen resolved');
+        assert_same($screen['sla_on_time_label'], $exportRow[5], 'CSV SLA ตรงเวลา = screen sla_on_time_label (100.0%)');
+        assert_same((string) $screen['sla_base'], $exportRow[6], 'CSV งาน SLA = screen sla_base (sample behind the rate)');
+        assert_same($screen['avg_rating_label'], $exportRow[8], 'CSV คะแนน = screen avg_rating_label (5.0)');
+        assert_same((string) $screen['rating_count'], $exportRow[9], 'CSV จำนวนรีวิว = screen rating_count');
 
         // XLSX parity — % columns as real numbers (screen_pct/100), rating/counts numeric
         $xlsxTmp = tempnam(sys_get_temp_dir(), 'tprx_') . '.xlsx';
@@ -241,10 +242,10 @@ test('technician performance: CSV export cells reconcile with the on-screen row 
             }
         }
         assert_true($xlsxRow !== null, 'the same technician appears as an XLSX row');
-        assert_same((int) $screen['resolved'], (int) $xlsxRow[5], 'XLSX ปิดงาน numeric = screen');
-        assert_same((float) rtrim($screen['sla_on_time_label'], '%') / 100, (float) $xlsxRow[6], 'XLSX SLA ตรงเวลา = screen rate as a real number');
-        assert_same((float) $screen['avg_rating_label'], (float) $xlsxRow[9], 'XLSX คะแนน numeric = screen avg_rating');
-        assert_same((int) $screen['rating_count'], (int) $xlsxRow[10], 'XLSX จำนวนรีวิว numeric = screen');
+        assert_same((int) $screen['resolved'], (int) $xlsxRow[4], 'XLSX ปิดงาน numeric = screen');
+        assert_same((float) rtrim($screen['sla_on_time_label'], '%') / 100, (float) $xlsxRow[5], 'XLSX SLA ตรงเวลา = screen rate as a real number');
+        assert_same((float) $screen['avg_rating_label'], (float) $xlsxRow[8], 'XLSX คะแนน numeric = screen avg_rating');
+        assert_same((int) $screen['rating_count'], (int) $xlsxRow[9], 'XLSX จำนวนรีวิว numeric = screen');
     } finally {
         tpr_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
         tpr_pdo()->prepare('DELETE FROM ticket_ratings WHERE technician_id = ?')->execute([$techId]);
@@ -403,7 +404,7 @@ test('technician performance: live workload is a NOW snapshot, ignores date filt
         assert_true($row !== null, 'technician appears even with a period that matches no tickets');
         assert_same(1, $row['open_now'], 'open_now = 1 (in_progress counted, closed excluded, ignores date filter)');
         assert_same('10 วัน', $row['oldest_open_age_label'], 'oldest open age = 10 days');
-        assert_same(0, $row['assigned'], 'period assigned = 0 under the future window');
+        assert_false(isset($row['assigned']), 'no per-tech "รับ" column (removed R14 — it was a date-filtered current-assignee hybrid)');
     } finally {
         tpr_cleanup($techId);
     }
@@ -417,7 +418,7 @@ test('technician performance: idle technician still appears (base = all active t
         $row = tpr_row($fullName);
         assert_true($row !== null, 'idle technician with zero tickets still appears');
         assert_same(0, $row['open_now'], 'idle tech open_now = 0');
-        assert_same(0, $row['assigned'], 'idle tech assigned = 0');
+        assert_false(isset($row['assigned']), 'no per-tech "รับ" column (removed R14)');
         assert_false(isset($row['completion_label']), 'no per-tech completion % (removed R12)');
         assert_same('-', $row['sla_on_time_label'], 'idle tech SLA = -');
     } finally {

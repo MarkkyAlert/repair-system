@@ -231,18 +231,16 @@ $isCapped = !empty($rowsMeta['capped']);
                     <thead>
                     <tr>
                         <th data-sort-col="0">ช่าง</th>
-                        <th data-sort-col="1" data-sort-type="number">มอบหมาย</th>
-                        <th data-sort-col="2" data-sort-type="number">ปิดงาน</th>
-                        <th data-sort-col="3" data-sort-type="number">ค้าง</th>
-                        <th data-sort-col="4" data-sort-type="number">เวลาซ่อมเฉลี่ย (ชม.)</th>
-                        <th data-sort-col="5" data-sort-type="number">คะแนนเฉลี่ย</th>
+                        <th data-sort-col="1" data-sort-type="number">ปิดงาน</th>
+                        <th data-sort-col="2" data-sort-type="number">ค้าง</th>
+                        <th data-sort-col="3" data-sort-type="number">เวลาซ่อมเฉลี่ย (ชม.)</th>
+                        <th data-sort-col="4" data-sort-type="number">คะแนนเฉลี่ย</th>
                     </tr>
                     </thead>
                     <tbody>
                     <?php foreach ($technicianPerformance as $tech): ?>
                         <tr>
                             <td><?= e($tech['full_name']) ?></td>
-                            <td><?= e((string) $tech['assigned']) ?></td>
                             <td><?= e((string) $tech['resolved']) ?></td>
                             <td><?= e((string) $tech['open_now']) ?></td>
                             <td><?= e($tech['mttr_hours_label']) ?></td>

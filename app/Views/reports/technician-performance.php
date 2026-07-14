@@ -162,11 +162,10 @@ $filterState = $filters['selected'] ?? [];
                         <th data-sort-col="1" data-sort-type="number">งานค้างปัจจุบัน</th>
                         <th data-sort-col="2" data-sort-type="number">สัดส่วนโหลด</th>
                         <th data-sort-col="3" data-sort-type="number">ค้างเก่าสุด</th>
-                        <th data-sort-col="4" data-sort-type="number">รับ</th>
-                        <th data-sort-col="5" data-sort-type="number">ปิดงาน</th>
-                        <th data-sort-col="6" data-sort-type="number">SLA ตรงเวลา</th>
-                        <th data-sort-col="7" data-sort-type="number">เวลาซ่อมเฉลี่ย (ชม.)</th>
-                        <th data-sort-col="8" data-sort-type="number">คะแนน</th>
+                        <th data-sort-col="4" data-sort-type="number">ปิดงาน</th>
+                        <th data-sort-col="5" data-sort-type="number">SLA ตรงเวลา</th>
+                        <th data-sort-col="6" data-sort-type="number">เวลาซ่อมเฉลี่ย (ชม.)</th>
+                        <th data-sort-col="7" data-sort-type="number">คะแนน</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -176,7 +175,6 @@ $filterState = $filters['selected'] ?? [];
                             <td><span class="badge badge-<?= e((string) $tech['workload_tone']) ?>"><?= e((string) $tech['open_now']) ?></span></td>
                             <td><?= e((string) $tech['workload_share_label']) ?></td>
                             <td><?= e((string) $tech['oldest_open_age_label']) ?></td>
-                            <td><?= e((string) $tech['assigned']) ?></td>
                             <td><?= e((string) $tech['resolved']) ?></td>
                             <td><span class="badge badge-<?= e((string) $tech['sla_on_time_tone']) ?>"><?= e((string) $tech['sla_on_time_label']) ?></span><?php if ((int) ($tech['sla_base'] ?? 0) > 0): ?> <small title="จำนวนงานที่นับ SLA (ฐานของอัตรานี้)">(<?= e((string) $tech['sla_base']) ?>)</small><?php endif; ?></td>
                             <td><?= e((string) $tech['mttr_hours_label']) ?></td>

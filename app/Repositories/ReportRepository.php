@@ -512,56 +512,8 @@ class ReportRepository
         }
     }
 
-
     /**
-     * ผลงานช่างในช่วงที่กรอง — one fan-out-free query (ratings/work_orders 1:1). date-filtered ตาม applyReportFilters.
-     *
-     * NOTE (Phase 2 + R13): the technician report now surfaces EVERY performance metric **as-reported** from the
-     * resolve-event actor (getTechnicianResolverStats overlays resolved/MTTR/SLA/CSAT). The service reads ONLY the
-     * `assigned` column from here (the current-workload "รับ" count); the assignment-keyed resolved/mttr/sla/rating
-     * columns below are no longer surfaced but stay computed (harmless, and the "no LIMIT drops a technician"
-     * row-base contract is proven against this query's one-row-per-tech shape).
-     */
-    public function getTechnicianPeriodStats(array $viewer, array $filters): array
-    {
-        $params = [];
-        $conditions = [$this->visibilityClause($viewer, $params)];
-        $this->applyReportFilters($conditions, $filters, $params);
-        $whereClause = implode(' AND ', $conditions);
-        $resolvedStatuses = ticket_resolved_statuses_sql();
-
-        $stmt = $this->db->prepare(
-            "SELECT
-                u.id,
-                u.full_name,
-                COUNT(t.id) AS assigned,
-                SUM(CASE WHEN t.status IN ($resolvedStatuses) THEN 1 ELSE 0 END) AS resolved,
-                ROUND(AVG(CASE WHEN t.resolved_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at) ELSE NULL END), 1) AS mttr_minutes,
-                SUM(CASE WHEN t.resolved_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN 1 ELSE 0 END) AS resolution_base, -- base for MTTR (has a real close time); status='resolved' with NULL resolved_at must not read as 0.0
-                ROUND(AVG(CASE WHEN t.first_response_at IS NOT NULL AND t.first_response_at >= t.requested_at THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.first_response_at) ELSE NULL END), 1) AS first_response_minutes,
-                SUM(CASE WHEN t.first_response_at IS NOT NULL AND t.first_response_at >= t.requested_at THEN 1 ELSE 0 END) AS first_response_count,
-                SUM(CASE WHEN t.resolved_at IS NOT NULL AND t.resolution_due_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN 1 ELSE 0 END) AS sla_base,
-                SUM(CASE WHEN t.resolved_at IS NOT NULL AND t.resolution_due_at IS NOT NULL AND t.resolved_at >= t.requested_at AND t.resolved_at <= t.resolution_due_at THEN 1 ELSE 0 END) AS sla_on_time,
-                ROUND(COALESCE(AVG(tr.score), 0), 2) AS avg_rating,
-                COUNT(tr.score) AS rating_count,
-                COALESCE(SUM(wo.labor_minutes), 0) AS labor_minutes
-             FROM users u
-             INNER JOIN tickets t ON t.assigned_technician_id = u.id
-             LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id AND {$this->latestRatingCycleClause('tr')}
-             LEFT JOIN work_orders wo ON wo.ticket_id = t.id
-             WHERE u.role = 'technician' AND $whereClause
-             GROUP BY u.id, u.full_name"
-            // no LIMIT: GROUP BY u.id yields exactly one row per technician (bounded by the technician count),
-            // matching the unbounded getTechnicianLiveWorkload base. A LIMIT here silently dropped technicians
-            // on a people-evaluation report and undercounted team totals when there were >200 of them.
-        );
-        $stmt->execute($params);
-
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    }
-
-    /**
-     * As-reported resolver attribution (Phase 2, extended R13) — ผลงานช่างแบบ **immutable** ต่อ "ช่างที่ปิดงานจริง"
+     * As-reported resolver attribution (Phase 2, extended R13/R14) — ผลงานช่างแบบ **immutable** ต่อ "ช่างที่ปิดงานจริง"
      * (actor ของ event `ticket_resolved`) ไม่ใช่ t.assigned_technician_id: resolved + MTTR + SLA ตรงเวลา + CSAT
      * คิดจาก "งานที่ช่างคนนั้นปิดจริงในช่วง" ทั้งหมด จึง **ไม่เปลี่ยนย้อนหลัง** เมื่อ reopen/reassign (คนปิดยังได้
      * เครดิต, SLA/คะแนนอ่านจากรอบที่ปิดจริง ไม่ใช่สถานะปัจจุบัน). โครงเดียวกับ getTicketTrendResolved:
@@ -598,6 +550,7 @@ class ReportRepository
         $stmt = $this->db->prepare(
             "SELECT
                 rep.actor_id AS id,
+                u.full_name AS full_name,
                 COUNT(*) AS resolved,
                 ROUND(AVG(TIMESTAMPDIFF(MINUTE, t.requested_at, rep.resolved_at)), 1) AS mttr_minutes,
                 COUNT(*) AS resolution_base,
@@ -629,10 +582,11 @@ class ReportRepository
                 WHERE dedup.rep_rank = 1
              ) rep
              INNER JOIN tickets t ON t.id = rep.ticket_id
+             INNER JOIN users u ON u.id = rep.actor_id
              LEFT JOIN ticket_sla_tracks ts ON ts.ticket_id = rep.ticket_id AND ts.metric_type = 'resolution' AND ts.cycle = rep.cycle
              LEFT JOIN ticket_ratings tr ON tr.ticket_id = rep.ticket_id AND tr.cycle = rep.cycle
              WHERE $whereClause
-             GROUP BY rep.actor_id"
+             GROUP BY rep.actor_id, u.full_name"
         );
         $stmt->execute($params);
 

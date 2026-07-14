@@ -67,7 +67,6 @@
         <th class="num">งานค้าง</th>
         <th class="num">สัดส่วนโหลด</th>
         <th class="num">ค้างเก่าสุด</th>
-        <th class="num">รับ</th>
         <th class="num">ปิดงาน</th>
         <th class="num">SLA ตรงเวลา</th>
         <th class="num">เวลาซ่อมเฉลี่ย (ชม.)</th>
@@ -81,7 +80,6 @@
             <td class="num"><?= e((string) ($row['open_now'] ?? 0)) ?></td>
             <td class="num"><?= e((string) ($row['workload_share_label'] ?? '-')) ?></td>
             <td class="num"><?= e((string) ($row['oldest_open_age_label'] ?? '-')) ?></td>
-            <td class="num"><?= e((string) ($row['assigned'] ?? 0)) ?></td>
             <td class="num"><?= e((string) ($row['resolved'] ?? 0)) ?></td>
             <td class="num"><?= e((string) ($row['sla_on_time_label'] ?? '-')) ?><?php if ((int) ($row['sla_base'] ?? 0) > 0): ?> <small>(<?= e((string) $row['sla_base']) ?>)</small><?php endif; ?></td>
             <td class="num"><?= e((string) ($row['mttr_hours_label'] ?? '-')) ?></td>
