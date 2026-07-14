@@ -17,6 +17,52 @@ function le_service(): ReportService
     return tvm_container()->get(ReportService::class);
 }
 
+// F1 (logic review): reopen used to ZERO work_orders.labor_minutes and resolve REPLACED it, so the first
+// repair's labor vanished from every labor metric (main-report ชั่วโมงแรงงาน, asset ชม.แรงงาน, hotspot) the
+// moment a ticket was reopened. Labor already spent is real paid effort — as-reported, same principle as the
+// frozen SLA/rating cycles: reopen must keep it and the next resolve must ADD its minutes on top.
+// Driven through the REAL services (create → approve → assign → accept → start → resolve → reopen → resolve),
+// never a raw UPDATE, so the guarantee holds for the actual flow.
+test('labor effort: labor survives a reopen — resolve 30 then resolve 20 accumulate to 50 (F1)', function (): void {
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $tech = ['id' => 3, 'role' => 'technician'];
+    $requester = ['id' => 1, 'role' => 'requester'];
+    $tickets = tvm_container()->get(App\Services\TicketService::class);
+    $wf = tvm_container()->get(App\Services\TicketWorkflowService::class);
+    $ref = tvm_container()->get(App\Repositories\TicketReadRepository::class)->getCreateFormReferenceData();
+
+    $ticketId = $tickets->createTicket($requester, [
+        'submission_token' => bin2hex(random_bytes(32)),
+        'title' => 'LE reopen labor ' . bin2hex(random_bytes(3)),
+        'description' => 'labor-across-reopen probe',
+        'priority_id' => (int) $ref['priorities'][0]['id'],
+        'ticket_category_id' => (int) $ref['categories'][0]['id'],
+        'location_id' => (int) $ref['locations'][0]['id'],
+        'impact_level' => 'medium',
+        'urgency_level' => 'medium',
+    ], []);
+
+    try {
+        $wf->approveTicket($ticketId, $admin, ['note' => '']);
+        $wf->assignTechnician($ticketId, $admin, ['technician_id' => 3, 'instructions' => '']);
+        $wf->acceptAssignedWork($ticketId, $tech, ['accept_note' => '']);
+        $wf->startAssignedWork($ticketId, $tech, ['start_note' => '']);
+        $wf->resolveAssignedWork($ticketId, $tech, ['diagnosis_summary' => 'd1', 'resolution_summary' => 'r1', 'labor_minutes' => '30']);
+        assert_same(30, (int) le_pdo()->query("SELECT labor_minutes FROM work_orders WHERE ticket_id = $ticketId")->fetchColumn(), 'first resolve records 30 minutes');
+
+        $wf->reopenTicket($ticketId, $requester, ['reopen_note' => 'ยังไม่หาย ขอให้แก้อีกรอบ']);
+        assert_same(30, (int) le_pdo()->query("SELECT labor_minutes FROM work_orders WHERE ticket_id = $ticketId")->fetchColumn(), 'reopen must NOT erase the labor already spent');
+
+        $wf->acceptAssignedWork($ticketId, $tech, ['accept_note' => '']);
+        $wf->startAssignedWork($ticketId, $tech, ['start_note' => '']);
+        $wf->resolveAssignedWork($ticketId, $tech, ['diagnosis_summary' => 'd2', 'resolution_summary' => 'r2', 'labor_minutes' => '20']);
+        assert_same(50, (int) le_pdo()->query("SELECT labor_minutes FROM work_orders WHERE ticket_id = $ticketId")->fetchColumn(), 'second resolve ADDS its 20 minutes (30 + 20 = 50) — total real labor across cycles');
+    } finally {
+        le_pdo()->prepare("DELETE FROM notifications WHERE related_type = 'ticket' AND related_id = ?")->execute([$ticketId]);
+        le_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]); // cascades work_orders / sla_tracks / logs
+    }
+});
+
 test('labor effort: asset reliability labor column + no fan-out on failure_count + by-category', function (): void {
     $admin = ['id' => 4, 'role' => 'admin'];
     $rid = bin2hex(random_bytes(4));

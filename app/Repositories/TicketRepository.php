@@ -593,7 +593,7 @@ class TicketRepository
                      completed_at = :completed_at,
                      diagnosis_summary = :diagnosis_summary,
                      resolution_summary = :resolution_summary,
-                     labor_minutes = :labor_minutes,
+                     labor_minutes = labor_minutes + :labor_minutes,
                      updated_at = :updated_at
                  WHERE ticket_id = :ticket_id'
             );
@@ -712,6 +712,9 @@ class TicketRepository
                 'ticket_id' => $ticketId,
             ]);
 
+            // labor_minutes is intentionally NOT reset here: labor already spent on earlier cycles is real,
+            // paid effort (as-reported — same principle as the frozen SLA/rating cycles below). The next
+            // resolve ADDS its minutes on top, so a reopen never erases recorded labor from the reports.
             $workOrderStmt = $this->db->prepare(
                 'UPDATE work_orders
                  SET status = :status,
@@ -721,7 +724,6 @@ class TicketRepository
                      completed_at = NULL,
                      diagnosis_summary = NULL,
                      resolution_summary = NULL,
-                     labor_minutes = 0,
                      updated_at = :updated_at
                  WHERE ticket_id = :ticket_id'
             );
