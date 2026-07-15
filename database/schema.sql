@@ -400,8 +400,10 @@ CREATE TABLE notifications (
     payload LONGTEXT NULL,
     related_type VARCHAR(100) NULL,
     related_id BIGINT UNSIGNED NULL,
+    submission_token CHAR(64) NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
+    UNIQUE KEY uq_notifications_submission_token (submission_token),
     KEY idx_notifications_type (type),
     KEY idx_notifications_related (related_type, related_id),
     KEY idx_notifications_created_at (created_at, id)

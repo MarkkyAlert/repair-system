@@ -60,6 +60,7 @@ $initialCount = (int) ($counts[$oldRoleFilter] ?? 0);
         <form id="broadcast-form" method="post" action="<?= e(url('/admin/broadcast')) ?>" class="stack-md"
               data-loading-submit data-warn-unsaved>
             <?= csrf_field() ?>
+            <input type="hidden" name="submission_token" value="<?= e(bin2hex(random_bytes(32))) ?>">
 
             <div class="field-group">
                 <label class="field-label" for="broadcast_title">หัวข้อ <span class="required">*</span></label>

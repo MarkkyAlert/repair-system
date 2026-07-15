@@ -41,11 +41,19 @@ class BroadcastService
             throw new DomainException('Role filter ไม่ถูกต้อง');
         }
 
+        // One-time idempotency token from the form — a retry / second tab replays it and is deduped so the
+        // org isn't broadcast to twice. (safety-review R8-F2)
+        $submissionToken = strtolower(trim((string) ($input['submission_token'] ?? '')));
+        if (!is_submission_token($submissionToken)) {
+            throw new DomainException('แบบฟอร์มหมดอายุ กรุณารีเฟรชหน้าแล้วส่งใหม่');
+        }
+
         $result = $this->notifications->notifySystemAnnouncement(
             $title,
             $message,
             (int) ($viewer['id'] ?? 0),
-            $roleFilter !== '' ? $roleFilter : null
+            $roleFilter !== '' ? $roleFilter : null,
+            $submissionToken
         );
 
         $this->audit->record($viewer, 'broadcast.sent', 'system', null, [

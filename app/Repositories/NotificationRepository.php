@@ -12,6 +12,18 @@ class NotificationRepository
     {
     }
 
+    /** True if a broadcast with this idempotency token was already sent (retry / second-tab guard, R8-F2). */
+    public function broadcastTokenExists(string $submissionToken): bool
+    {
+        if ($submissionToken === '') {
+            return false;
+        }
+        $stmt = $this->db->prepare('SELECT EXISTS(SELECT 1 FROM notifications WHERE submission_token = :token)');
+        $stmt->execute(['token' => $submissionToken]);
+
+        return (bool) $stmt->fetchColumn();
+    }
+
     public function createNotification(array $payload, array $recipientIds): int
     {
         $createdAt = date('Y-m-d H:i:s');
@@ -20,8 +32,8 @@ class NotificationRepository
             $this->db->beginTransaction();
 
             $notificationStmt = $this->db->prepare(
-                'INSERT INTO notifications (type, title, message, payload, related_type, related_id, created_at)
-                 VALUES (:type, :title, :message, :payload, :related_type, :related_id, :created_at)'
+                'INSERT INTO notifications (type, title, message, payload, related_type, related_id, submission_token, created_at)
+                 VALUES (:type, :title, :message, :payload, :related_type, :related_id, :submission_token, :created_at)'
             );
             $notificationStmt->execute([
                 'type' => $payload['type'],
@@ -30,6 +42,8 @@ class NotificationRepository
                 'payload' => $payload['payload'] ?? null,
                 'related_type' => $payload['related_type'] ?? null,
                 'related_id' => $payload['related_id'] ?? null,
+                // idempotency token (broadcasts only); NULL for everything else — nullable UNIQUE allows many NULLs
+                'submission_token' => ($payload['submission_token'] ?? '') !== '' ? $payload['submission_token'] : null,
                 'created_at' => $createdAt,
             ]);
 

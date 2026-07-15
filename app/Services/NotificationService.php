@@ -269,8 +269,15 @@ class NotificationService
         }
     }
 
-    public function notifySystemAnnouncement(string $title, string $message, int $actorId, ?string $roleFilter = null): array
+    public function notifySystemAnnouncement(string $title, string $message, int $actorId, ?string $roleFilter = null, string $submissionToken = ''): array
     {
+        // Idempotency: a retry after a network hiccup, or a second tab, re-POSTs the same one-time token —
+        // return a no-op so the whole org isn't re-notified (in-app + email). The nullable UNIQUE column is the
+        // race backstop; this pre-check covers the common sequential retry. (safety-review R8-F2)
+        if ($submissionToken !== '' && $this->notifications->broadcastTokenExists($submissionToken)) {
+            return ['in_app_count' => 0, 'email_count' => 0, 'duplicate' => true];
+        }
+
         $recipientIds = $this->users->findActiveUserIds($roleFilter);
         $recipientIds = $this->filterRecipientIds($recipientIds, $actorId);
 
@@ -291,6 +298,7 @@ class NotificationService
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             'related_type' => 'system',
             'related_id' => null,
+            'submission_token' => $submissionToken,
         ], $inAppRecipients);
 
         try {
