@@ -73,18 +73,13 @@ class UserImportController
             csrf_validate();
 
             $batch = Session::get('user_import_batch', []);
-            $sessionToken = is_array($batch) ? (string) ($batch['token'] ?? '') : '';
-            $submittedToken = (string) ($_POST['import_token'] ?? '');
-            // Confirm the submitted token matches the previewed batch — a mismatch means the session was
-            // replaced by a newer preview (another tab); refuse rather than import the wrong rows. (F3)
-            if ($sessionToken === '' || $submittedToken === '' || !hash_equals($sessionToken, $submittedToken)) {
+            try {
+                // token must match the previewed batch — a mismatch means a newer preview (another tab)
+                // replaced the session; refuse rather than import the wrong rows. (F3)
+                $validRows = verified_import_rows($batch, (string) ($_POST['import_token'] ?? ''));
+            } catch (DomainException $exception) {
                 Session::forget('user_import_batch');
-                throw new DomainException('การยืนยันนำเข้าไม่ตรงกับไฟล์ที่เพิ่งตรวจสอบ (อาจเปิดไว้หลายแท็บ) กรุณาอัปโหลดและตรวจสอบใหม่');
-            }
-
-            $validRows = is_array($batch) ? ($batch['rows'] ?? []) : [];
-            if (!is_array($validRows) || $validRows === []) {
-                throw new DomainException('ไม่พบข้อมูลที่ผ่านการตรวจสอบ กรุณาเริ่มกระบวนการนำเข้าใหม่');
+                throw $exception;
             }
 
             $result = $this->userImporter->executeImport($validRows);

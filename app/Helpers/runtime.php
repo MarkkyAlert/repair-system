@@ -176,6 +176,31 @@ function is_valid_email(string $email): bool
 }
 
 /**
+ * Return the previewed import rows ONLY when the submitted one-time token matches the batch stored in the
+ * session — so opening a second preview in another tab (which replaces the session batch + token) cannot make
+ * the first tab's confirm import the second tab's rows. Pure (no session/HTTP), so it is directly testable;
+ * the controller owns Session::get/forget. Throws DomainException on a token mismatch or an empty batch.
+ * (logic-review R3-F3 / security-review coverage gap)
+ *
+ * @param mixed $batch The session batch: ['token' => string, 'rows' => array<int, mixed>]
+ * @return array<int, mixed>
+ */
+function verified_import_rows(mixed $batch, string $submittedToken): array
+{
+    $sessionToken = is_array($batch) ? (string) ($batch['token'] ?? '') : '';
+    if ($sessionToken === '' || $submittedToken === '' || !hash_equals($sessionToken, $submittedToken)) {
+        throw new \DomainException('การยืนยันนำเข้าไม่ตรงกับไฟล์ที่เพิ่งตรวจสอบ (อาจเปิดไว้หลายแท็บ) กรุณาอัปโหลดและตรวจสอบใหม่');
+    }
+
+    $rows = is_array($batch) ? ($batch['rows'] ?? []) : [];
+    if (!is_array($rows) || $rows === []) {
+        throw new \DomainException('ไม่พบข้อมูลที่ผ่านการตรวจสอบ กรุณาเริ่มกระบวนการนำเข้าใหม่');
+    }
+
+    return $rows;
+}
+
+/**
  * Reject a value longer than its DB column so the user sees a clear message, not a raw
  * "Data too long" error under MySQL strict mode. No-op for values within the limit. (logic-review F6)
  */

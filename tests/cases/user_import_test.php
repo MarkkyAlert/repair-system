@@ -329,4 +329,31 @@ namespace {
             ui_delete_users([$row['username']]);
         }
     });
+
+    // R3-F3 / security-review coverage gap: the import confirm is scoped to a one-time token so a second preview
+    // in another tab (which replaces the session batch) can't make the first tab's confirm import the wrong rows.
+    // verified_import_rows() is the pure guard both import controllers delegate to.
+    test('import token (R3-F3): rows returned only when the submitted token matches the previewed batch', function (): void {
+        $rows = [['username' => 'u1'], ['username' => 'u2']];
+        $batch = ['token' => 'batch-token-abc', 'rows' => $rows];
+
+        // allow — the exact previewed rows come back for the matching token
+        assert_same($rows, verified_import_rows($batch, 'batch-token-abc'), 'a matching token returns the previewed rows');
+
+        // deny — every wrong shape refuses and never returns rows
+        $deny = static function (mixed $b, string $token, string $ctx): void {
+            $threw = false;
+            try {
+                verified_import_rows($b, $token);
+            } catch (DomainException $e) {
+                $threw = str_contains($e->getMessage(), 'ไม่ตรงกับไฟล์') || str_contains($e->getMessage(), 'ไม่พบข้อมูล');
+            }
+            assert_true($threw, $ctx);
+        };
+        $deny($batch, 'WRONG-TOKEN', 'a mismatched token (a second tab replaced the batch) is rejected');
+        $deny($batch, '', 'an empty submitted token is rejected');
+        $deny(['token' => '', 'rows' => $rows], 'batch-token-abc', 'a batch with no token is rejected');
+        $deny(['token' => 'batch-token-abc', 'rows' => []], 'batch-token-abc', 'an empty batch is rejected');
+        $deny([], 'batch-token-abc', 'a missing/non-array batch is rejected');
+    });
 }
