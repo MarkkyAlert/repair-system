@@ -241,9 +241,16 @@ class ReferenceDataService
 
     private function buildCategoryPayload(array $input, string $label): array
     {
-        // category name column is VARCHAR(100), narrower than the 150 default (F6)
-        return array_merge($this->buildMasterPayload($input, $label, 100), [
-            'sort_order' => max(1, strict_int($input['sort_order'] ?? null, 'ลำดับการแสดง', 1)),
+        // ticket_categories.name / asset_categories.name are VARCHAR(150) — the buildMasterPayload default.
+        // (An earlier round wrongly capped this at 100, rejecting valid 101–150 names.) sort_order is
+        // SMALLINT UNSIGNED (≤65535). (logic-review R4-F2)
+        $sortOrder = max(1, strict_int($input['sort_order'] ?? null, 'ลำดับการแสดง', 1));
+        if ($sortOrder > 65535) {
+            throw new DomainException('ลำดับการแสดงต้องไม่เกิน 65535');
+        }
+
+        return array_merge($this->buildMasterPayload($input, $label), [
+            'sort_order' => $sortOrder,
         ]);
     }
 
@@ -304,6 +311,11 @@ class ReferenceDataService
             throw new DomainException('กรุณากรอกชื่อ Priority');
         }
 
+        // Bound to the priorities columns (name VARCHAR(100), color VARCHAR(30), sort_order TINYINT ≤255) so a
+        // crafted over-length value gives a friendly message, not a raw strict-mode DB error. (logic-review R4-F2)
+        require_max_length($name, 100, 'ชื่อ Priority');
+        require_max_length($color, 30, 'สี');
+
         if (!is_numeric($responseHoursRaw) || !is_numeric($resolutionHoursRaw)) {
             throw new DomainException('SLA ต้องเป็นตัวเลขชั่วโมง');
         }
@@ -314,12 +326,17 @@ class ReferenceDataService
             throw new DomainException('SLA ต้องไม่ติดลบ');
         }
 
+        $sortOrder = max(1, strict_int($input['sort_order'] ?? null, 'ลำดับการแสดง', 1));
+        if ($sortOrder > 255) {
+            throw new DomainException('ลำดับการแสดงต้องไม่เกิน 255');
+        }
+
         return [
             'name' => $name,
             'color' => $color,
             'response_time_minutes' => (int) round($responseHours * 60),
             'resolution_time_minutes' => (int) round($resolutionHours * 60),
-            'sort_order' => max(1, strict_int($input['sort_order'] ?? null, 'ลำดับการแสดง', 1)),
+            'sort_order' => $sortOrder,
             'is_active' => truthy_input($input['is_active'] ?? '0'),
         ];
     }

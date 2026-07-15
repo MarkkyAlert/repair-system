@@ -87,6 +87,51 @@ test('reference data: a non-numeric SLA hours on a ticket category is rejected, 
     assert_true($threw, 'a non-numeric response_hours must be rejected, not stored as a 0-minute SLA');
 });
 
+// R4-F2: server bounds must match the DB columns — category name is VARCHAR(150) (an earlier round wrongly
+// capped it at 100), and priority name/color/sort had NO bound so a crafted over-length value hit a DB error.
+test('reference data(R4-F2): category name allows 150 but rejects 151; priority bounds name100/color30/sort255', function (): void {
+    rd_bind_request();
+    $code = 'RDC' . strtoupper(bin2hex(random_bytes(3)));
+    $catId = 0;
+    try {
+        // a 150-char category name matches ticket_categories.name VARCHAR(150) → must be accepted
+        rd_service()->createTicketCategory(rd_admin(), [
+            'code' => $code, 'name' => str_repeat('ก', 150),
+            'response_hours' => '2', 'resolution_hours' => '8', 'sort_order' => 5, 'is_active' => '1',
+        ]);
+        $catId = (int) rd_pdo()->query('SELECT id FROM ticket_categories WHERE code = ' . rd_pdo()->quote($code))->fetchColumn();
+        assert_true($catId > 0, 'a 150-char category name is accepted (matches VARCHAR(150))');
+
+        // 151 must be rejected before the DB, with a friendly message
+        $threw = false;
+        try {
+            rd_service()->createTicketCategory(rd_admin(), [
+                'code' => 'RDC' . strtoupper(bin2hex(random_bytes(3))), 'name' => str_repeat('ก', 151),
+                'response_hours' => '2', 'resolution_hours' => '8', 'sort_order' => 5, 'is_active' => '1',
+            ]);
+        } catch (DomainException $e) {
+            $threw = str_contains($e->getMessage(), 'ยาวเกินกำหนด');
+        }
+        assert_true($threw, 'a 151-char category name is rejected');
+
+        // priority: name ≤100, color ≤30, sort_order ≤255 — each crafted over-bound value throws before the DB
+        foreach ([['name' => str_repeat('x', 101)], ['color' => str_repeat('a', 31)], ['sort_order' => 256]] as $bad) {
+            $t = false;
+            try {
+                rd_service()->createPriority(rd_admin(), rd_valid_priority($bad));
+            } catch (DomainException) {
+                $t = true;
+            }
+            assert_true($t, 'priority over-bound ' . array_key_first($bad) . ' is rejected before the DB');
+        }
+    } finally {
+        if ($catId > 0) {
+            rd_pdo()->prepare("DELETE FROM system_settings WHERE setting_key = ?")->execute(['category_sla_' . $catId]);
+            rd_pdo()->prepare('DELETE FROM ticket_categories WHERE id = ?')->execute([$catId]);
+        }
+    }
+});
+
 // ── shared validation (code + name) — one entity is enough (buildMasterPayload is shared) ──
 
 test('reference data: shared code+name validation (via department)', function (): void {
