@@ -317,6 +317,19 @@ class TicketRepository
                 throw new DomainException('กรุณาระบุเหตุผลในการย้ายงานที่ช่างรับไปแล้ว');
             }
 
+            // Lock the chosen technician's row and re-verify role+active INSIDE the transaction. The service
+            // checks this BEFORE the lock, but a concurrent admin deactivate/role-change (which locks the user
+            // row + rechecks open work under its own lock) could otherwise interleave: the deactivate sees no
+            // open work yet (this assign uncommitted) and disables the account, then this assign commits →
+            // is_active=0 + status=assigned, work stuck on a dead account. Locking the user row here serialises
+            // the two flows so exactly one wins. (logic-review R7-F1)
+            $techStmt = $this->db->prepare('SELECT role, is_active FROM users WHERE id = :id LIMIT 1 FOR UPDATE');
+            $techStmt->execute(['id' => $technicianId]);
+            $tech = $techStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+            if ($tech === null || (string) $tech['role'] !== 'technician' || (int) $tech['is_active'] !== 1) {
+                throw new DomainException('ช่างที่เลือกไม่พร้อมใช้งาน (อาจถูกปิดบัญชีหรือเปลี่ยนบทบาท) กรุณาเลือกช่างคนอื่น');
+            }
+
             $existingResponseDueAt = '';
             if ($isReassign) {
                 // Refresh response_due_at within the locked row so the SLA reset uses the current target.

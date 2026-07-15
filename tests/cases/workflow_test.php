@@ -459,6 +459,32 @@ test('workflow(concurrency): the mandatory-reason rule is re-checked under the l
     }
 });
 
+test('workflow(concurrency R7-F1): assign re-checks the technician is active under the lock — a deactivated tech is refused', function (): void {
+    // Reproduces the cross-flow race outcome deterministically: a concurrent admin deactivate has already
+    // committed (tech is_active=0), and the assign — whose service-level active check passed BEFORE the lock —
+    // reaches the repo. The under-lock re-check must refuse, so the ticket is never bound to a dead account.
+    $rid = bin2hex(random_bytes(4));
+    wf_pdo()->prepare("INSERT INTO users (username, email, password_hash, full_name, role, is_active) VALUES (?, ?, 'x', ?, 'technician', 0)")
+        ->execute(["wf7_$rid", "wf7_$rid@example.com", "WF7 Tech $rid"]);
+    $deadTech = (int) wf_pdo()->lastInsertId();
+    $id = wf_insert_ticket(['status' => 'approved', 'approval_status' => 'approved', 'requester_id' => 1]);
+
+    try {
+        $threw = false;
+        try {
+            wf_repo()->assignTechnician($id, 4, $deadTech, 'WF7 Tech', 'go', 'approved');
+        } catch (DomainException $e) {
+            $threw = str_contains($e->getMessage(), 'ไม่พร้อมใช้งาน');
+        }
+        assert_true($threw, 'assigning a deactivated technician is refused by the under-lock re-check');
+        assert_same(0, (int) (wf_state($id)['assigned_technician_id'] ?? 0), 'the ticket was NOT bound to the dead account');
+        assert_same('approved', wf_state($id)['status'], 'the ticket stays approved (no mutation on the rejected assign)');
+    } finally {
+        wf_cleanup($id);
+        wf_pdo()->prepare('DELETE FROM users WHERE id=?')->execute([$deadTech]);
+    }
+});
+
 test('workflow(concurrency): start + resolve log the LOCKED status, not a stale pre-lock snapshot (F5)', function (): void {
     // startAssignedWork ([assigned,accepted]) and resolveAssignedWork ([accepted,in_progress]) lock multiple
     // statuses but used to log from_status from the caller's pre-lock snapshot. A concurrent accept/start could
