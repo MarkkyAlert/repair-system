@@ -62,66 +62,7 @@ class SetupController
                 throw new DomainException('ชื่อระบบยาวเกินกำหนด');
             }
 
-            // Serialize concurrent first-run setups with a DB named lock, then RE-CHECK admin/flag INSIDE the
-            // lock: without it, two POSTs on a fresh DB both pass the pre-lock guard and each create an admin
-            // (the unique keys are per username/email, not "only one admin"). (logic-review R6-F1)
-            $this->acquireSetupLock();
-            $demoSummary = null;
-
-            try {
-                if ($this->isSetupCompleted() || $this->adminExists()) {
-                    // the other request in the race already finished setup — do not create a second admin
-                    throw new DomainException('ระบบถูกตั้งค่าเรียบร้อยแล้ว กรุณาเข้าสู่ระบบ');
-                }
-
-                $username = strtolower(trim((string) ($_POST['admin_username'] ?? '')));
-                $email = strtolower(trim((string) ($_POST['admin_email'] ?? '')));
-                $fullName = trim((string) ($_POST['admin_full_name'] ?? ''));
-                $password = (string) ($_POST['admin_password'] ?? '');
-
-                if ($username === '' || $email === '' || $fullName === '' || $password === '') {
-                    throw new DomainException('กรุณากรอกข้อมูลผู้ดูแลระบบให้ครบถ้วน');
-                }
-                if (!is_valid_username($username)) {
-                    throw new DomainException('ชื่อผู้ใช้ต้องมี 3-50 ตัว (a-z, 0-9, จุด, ขีดกลาง, ขีดล่าง)');
-                }
-                if (!is_valid_email($email)) {
-                    throw new DomainException('รูปแบบอีเมลผู้ดูแลระบบไม่ถูกต้อง');
-                }
-                if (strlen($password) < 8) {
-                    throw new DomainException('รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร');
-                }
-
-                // ห่อ write ทั้งชุด (app_name → admin → demo → setup_completed) ใน transaction เดียว
-                // → first-run all-or-nothing; ถ้าพังกลางทาง rollback หมด retry ได้จาก state สะอาด.
-                // NOTE (consistency): จัดการ transaction ในตัว controller ตรงนี้เป็น "ข้อยกเว้น bootstrap โดยตั้งใจ" —
-                // one-time first-run orchestration; ที่อื่นทั้งหมด transaction อยู่ใน service. อย่าใช้ pattern นี้ซ้ำ.
-                $this->db->beginTransaction();
-                $this->settings->upsert('app_name', $appName, 'string', true, 0);
-
-                $adminId = $this->admin->createUser([
-                    'username' => $username,
-                    'email' => $email,
-                    'password_hash' => password_hash($password, PASSWORD_BCRYPT),
-                    'full_name' => $fullName,
-                    'phone' => '',
-                    'role' => 'admin',
-                    'department_id' => null,
-                    'is_active' => true,
-                ]);
-
-                // Demo data (optional) — gated on ALLOW_DEMO_DATA so a disabled install skips it cleanly here
-                // instead of letting load() throw mid-transaction and roll back the whole setup.
-                $loadDemo = truthy_input($_POST['load_demo'] ?? '0');
-                if ($loadDemo && config('app.allow_demo_data', false)) {
-                    $demoSummary = $this->demoData->load($adminId);
-                }
-
-                $this->settings->upsert('setup_completed', '1', 'bool', false, $adminId);
-                $this->db->commit();
-            } finally {
-                $this->releaseSetupLock();
-            }
+            $demoSummary = $this->runFirstRunSetup($appName, $_POST);
 
             $message = 'ตั้งค่าระบบเสร็จสมบูรณ์';
             if ($demoSummary !== null) {
@@ -147,6 +88,80 @@ class SetupController
             log_caught_exception('setup.execute', $exception);
             flash('error', 'ไม่สามารถตั้งค่าระบบได้ กรุณาตรวจสอบ log');
             Response::redirect('/setup');
+        }
+    }
+
+    /**
+     * Provision the first-run state (app name → first admin → optional demo → completed flag) atomically,
+     * serialised by a DB named lock with an admin/flag RE-CHECK INSIDE the lock so two concurrent setups can
+     * never each create an admin (unique keys are per username/email, not "only one admin"). No HTTP/redirect,
+     * so it is directly testable. Throws DomainException if setup is already done (the race loser) or the admin
+     * input is invalid; returns the demo summary (or null). (logic-review R6-F1)
+     *
+     * @param array<string, mixed> $input raw admin_* / load_demo fields
+     * @return array<string, mixed>|null
+     */
+    public function runFirstRunSetup(string $appName, array $input): ?array
+    {
+        $this->acquireSetupLock();
+
+        try {
+            if ($this->isSetupCompleted() || $this->adminExists()) {
+                // the other request in the race already finished setup — do not create a second admin
+                throw new DomainException('ระบบถูกตั้งค่าเรียบร้อยแล้ว กรุณาเข้าสู่ระบบ');
+            }
+
+            $username = strtolower(trim((string) ($input['admin_username'] ?? '')));
+            $email = strtolower(trim((string) ($input['admin_email'] ?? '')));
+            $fullName = trim((string) ($input['admin_full_name'] ?? ''));
+            $password = (string) ($input['admin_password'] ?? '');
+
+            if ($username === '' || $email === '' || $fullName === '' || $password === '') {
+                throw new DomainException('กรุณากรอกข้อมูลผู้ดูแลระบบให้ครบถ้วน');
+            }
+            if (!is_valid_username($username)) {
+                throw new DomainException('ชื่อผู้ใช้ต้องมี 3-50 ตัว (a-z, 0-9, จุด, ขีดกลาง, ขีดล่าง)');
+            }
+            if (!is_valid_email($email)) {
+                throw new DomainException('รูปแบบอีเมลผู้ดูแลระบบไม่ถูกต้อง');
+            }
+            if (strlen($password) < 8) {
+                throw new DomainException('รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร');
+            }
+
+            try {
+                // all-or-nothing first-run write (bootstrap exception to the "transactions live in services" rule)
+                $this->db->beginTransaction();
+                $this->settings->upsert('app_name', $appName, 'string', true, 0);
+
+                $adminId = $this->admin->createUser([
+                    'username' => $username,
+                    'email' => $email,
+                    'password_hash' => password_hash($password, PASSWORD_BCRYPT),
+                    'full_name' => $fullName,
+                    'phone' => '',
+                    'role' => 'admin',
+                    'department_id' => null,
+                    'is_active' => true,
+                ]);
+
+                $demoSummary = null;
+                if (truthy_input($input['load_demo'] ?? '0') && config('app.allow_demo_data', false)) {
+                    $demoSummary = $this->demoData->load($adminId);
+                }
+
+                $this->settings->upsert('setup_completed', '1', 'bool', false, $adminId);
+                $this->db->commit();
+
+                return $demoSummary;
+            } catch (Throwable $exception) {
+                if ($this->db->inTransaction()) {
+                    $this->db->rollBack();
+                }
+                throw $exception;
+            }
+        } finally {
+            $this->releaseSetupLock();
         }
     }
 

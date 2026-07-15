@@ -68,3 +68,29 @@ test('setup gate: seed/admin deploy is NOT sent to /setup (no loop); fresh insta
         }
     }
 });
+
+// R6-F1 (security-review coverage gap): the concurrency fix rechecks admin/flag INSIDE the setup lock, so a
+// second setup that races in after the first created an admin creates NOTHING. The seeded test DB already has
+// an active admin, which is exactly the "race loser" state — runFirstRunSetup must refuse and add no admin.
+test('setup(R6-F1): runFirstRunSetup refuses to create a second admin when one already exists', function (): void {
+    $controller = tvm_container()->get(SetupController::class);
+    $adminCount = static fn (): int => (int) sg_pdo()->query("SELECT COUNT(*) FROM users WHERE role='admin' AND is_active=1")->fetchColumn();
+    $before = $adminCount();
+    assert_true($before >= 1, 'precondition: the seeded DB already has an active admin (the race-loser state)');
+
+    $threw = false;
+    try {
+        $controller->runFirstRunSetup('Race Test App', [
+            'admin_username' => 'raceadmin' . bin2hex(random_bytes(3)),
+            'admin_email' => 'race_' . bin2hex(random_bytes(3)) . '@x.test',
+            'admin_full_name' => 'Race Admin',
+            'admin_password' => 'ValidPass123',
+            'load_demo' => '0',
+        ]);
+    } catch (DomainException $e) {
+        $threw = str_contains($e->getMessage(), 'ตั้งค่าเรียบร้อยแล้ว');
+    }
+
+    assert_true($threw, 'a setup run while an admin exists is refused by the under-lock recheck');
+    assert_same($before, $adminCount(), 'no second admin was created');
+});
