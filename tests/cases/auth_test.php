@@ -359,7 +359,10 @@ test('auth(anti-enumeration): password reset creates a token+email ONLY for an a
             auth_delete_resets($em);
             auth_pdo()->prepare('DELETE FROM email_queue WHERE to_email = ?')->execute([$em]);
             auth_rate_limiter()->clear('pwreset:' . sha1($em . '|' . $ip));
+            auth_rate_limiter()->clear('pwreset-email:' . sha1($em)); // R6-F2 bucket — clear so it can't accumulate across the persistent file
         }
+        // the fixed IP hits the shared pwreset-ip bucket 3x/run; clear it or repeated runs eventually trip the cap
+        auth_rate_limiter()->clear('pwreset-ip:' . sha1($ip));
         auth_cleanup($active['id']);
         auth_cleanup($inactive['id']);
     }
