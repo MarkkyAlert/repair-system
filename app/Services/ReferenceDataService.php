@@ -256,14 +256,36 @@ class ReferenceDataService
 
     private function encodeSlaPayload(array $input): string
     {
-        // strict_float so a non-numeric "abc" is rejected, not silently coerced to a 0-minute SLA (round F1)
-        $responseHours = max(0, strict_float($input['response_hours'] ?? null, 'เวลาตอบรับ (SLA) '));
-        $resolutionHours = max(0, strict_float($input['resolution_hours'] ?? null, 'เวลาแก้ไข (SLA) '));
+        // strict_float so a non-numeric "abc" is rejected, not silently coerced to a 0-minute SLA (round F1).
+        // A negative value used to be clamped to 0 silently — now rejected. is_numeric() also accepts "1e999"
+        // (→ INF → (int) 0 minutes) and finite values that overflow INT UNSIGNED, both guarded below. (R5-F1)
+        $responseHours = strict_float($input['response_hours'] ?? null, 'เวลาตอบรับ (SLA) ');
+        $resolutionHours = strict_float($input['resolution_hours'] ?? null, 'เวลาแก้ไข (SLA) ');
+        if ($responseHours < 0 || $resolutionHours < 0) {
+            throw new DomainException('เวลา SLA ต้องไม่ติดลบ');
+        }
 
         return json_encode([
-            'response_minutes' => (int) round($responseHours * 60),
-            'resolution_minutes' => (int) round($resolutionHours * 60),
+            'response_minutes' => $this->slaMinutes($responseHours, 'เวลาตอบรับ (SLA) '),
+            'resolution_minutes' => $this->slaMinutes($resolutionHours, 'เวลาแก้ไข (SLA) '),
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '{}';
+    }
+
+    /**
+     * Convert a validated SLA hours value to whole minutes, rejecting non-finite input (is_numeric() lets
+     * "1e999" through as INF, which casts to 0 minutes) and any value that would overflow the
+     * response_time_minutes / resolution_time_minutes INT UNSIGNED column (max 4294967295). (logic-review R5-F1)
+     */
+    private function slaMinutes(float $hours, string $label): int
+    {
+        if (!is_finite($hours)) {
+            throw new DomainException($label . 'ต้องเป็นตัวเลขที่ถูกต้อง');
+        }
+        if ($hours * 60 > 4294967295) {
+            throw new DomainException($label . 'มากเกินช่วงที่ระบบรองรับ');
+        }
+
+        return (int) round($hours * 60);
     }
 
     private function buildLocationPayload(array $input): array
@@ -325,6 +347,10 @@ class ReferenceDataService
         if ($responseHours < 0 || $resolutionHours < 0) {
             throw new DomainException('SLA ต้องไม่ติดลบ');
         }
+        // is_numeric() accepts "1e999" (→ INF → 0 minutes) and finite values that overflow the INT UNSIGNED
+        // minute columns — slaMinutes rejects both before the cast/DB. (logic-review R5-F1)
+        $responseMinutes = $this->slaMinutes($responseHours, 'เวลาตอบรับ (SLA) ');
+        $resolutionMinutes = $this->slaMinutes($resolutionHours, 'เวลาแก้ไข (SLA) ');
 
         $sortOrder = max(1, strict_int($input['sort_order'] ?? null, 'ลำดับการแสดง', 1));
         if ($sortOrder > 255) {
@@ -334,8 +360,8 @@ class ReferenceDataService
         return [
             'name' => $name,
             'color' => $color,
-            'response_time_minutes' => (int) round($responseHours * 60),
-            'resolution_time_minutes' => (int) round($resolutionHours * 60),
+            'response_time_minutes' => $responseMinutes,
+            'resolution_time_minutes' => $resolutionMinutes,
             'sort_order' => $sortOrder,
             'is_active' => truthy_input($input['is_active'] ?? '0'),
         ];

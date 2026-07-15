@@ -132,6 +132,43 @@ test('reference data(R4-F2): category name allows 150 but rejects 151; priority 
     }
 });
 
+// R5-F1: is_numeric() accepts "1e999" (→ INF → (int) 0 minutes, a silent always-breach SLA) and finite values
+// that overflow the INT UNSIGNED minute columns (→ DB error). Category also used to clamp a negative to 0.
+test('reference data(R5-F1): category SLA rejects negative, non-finite (1e999) and INT-overflow hours', function (): void {
+    rd_bind_request();
+    foreach (['-1', '1e999', '100000000'] as $bad) { // negative · INF · finite overflow (6e9 min > 4.29e9)
+        foreach (['response_hours', 'resolution_hours'] as $field) {
+            $code = 'RDS' . strtoupper(bin2hex(random_bytes(3)));
+            $threw = false;
+            try {
+                rd_service()->createTicketCategory(rd_admin(), array_merge([
+                    'code' => $code, 'name' => 'RD SLA Cat',
+                    'response_hours' => '2', 'resolution_hours' => '8', 'sort_order' => 5, 'is_active' => '1',
+                ], [$field => $bad]));
+            } catch (DomainException) {
+                $threw = true;
+            }
+            assert_true($threw, "category $field=$bad is rejected");
+            assert_same(0, (int) rd_pdo()->query('SELECT COUNT(*) FROM ticket_categories WHERE code = ' . rd_pdo()->quote($code))->fetchColumn(), "no category row created for $field=$bad");
+        }
+    }
+});
+
+test('reference data(R5-F1): priority SLA rejects non-finite (1e999) and INT-overflow hours', function (): void {
+    rd_bind_request();
+    foreach (['1e999', '100000000'] as $bad) {
+        foreach (['response_hours', 'resolution_hours'] as $field) {
+            $threw = false;
+            try {
+                rd_service()->createPriority(rd_admin(), rd_valid_priority([$field => $bad]));
+            } catch (DomainException) {
+                $threw = true;
+            }
+            assert_true($threw, "priority $field=$bad is rejected before the DB");
+        }
+    }
+});
+
 // ── shared validation (code + name) — one entity is enough (buildMasterPayload is shared) ──
 
 test('reference data: shared code+name validation (via department)', function (): void {
