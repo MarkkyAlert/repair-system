@@ -558,3 +558,47 @@ test('rate-limiter(R6): a stale key is dropped on the next write (file cannot gr
         @unlink($file);
     }
 });
+
+// R8-F1: profile edits and admin edits write the SAME user row, so profile must share the admin's version
+// contract (R7-F3). Otherwise a profile save (or a second tab) silently overwrites a newer change. Tested at
+// the repo (pure DB, no auth->refresh) + the cross-flow: a stale admin form after a profile save is rejected.
+test('updateProfile(R8-F1): version CAS rejects a stale profile save + a stale admin edit after a profile change', function (): void {
+    $users = tvm_container()->get(App\Repositories\UserRepository::class);
+    $seeded = auth_seed_user(); // version starts at 1
+    $userId = (int) $seeded['id'];
+    $ver = static fn (): int => (int) auth_pdo()->query("SELECT version FROM users WHERE id = $userId")->fetchColumn();
+    $name = static fn (): string => (string) auth_pdo()->query("SELECT full_name FROM users WHERE id = $userId")->fetchColumn();
+
+    try {
+        // profile save #1 at version 1 → succeeds, version → 2
+        $users->updateProfile($userId, ['full_name' => 'Profile V2', 'email' => $seeded['email'], 'phone' => '', 'original_version' => 1]);
+        assert_same('Profile V2', $name(), 'profile save applied');
+        assert_same(2, $ver(), 'version bumped to 2');
+
+        // a STALE profile save (still version 1) → rejected, no overwrite
+        $threw = false;
+        try {
+            $users->updateProfile($userId, ['full_name' => 'Stale Profile', 'email' => $seeded['email'], 'phone' => '', 'original_version' => 1]);
+        } catch (DomainException $e) {
+            $threw = str_contains($e->getMessage(), 'แก้ไขจากอุปกรณ์อื่น');
+        }
+        assert_true($threw, 'a stale profile save is rejected');
+        assert_same('Profile V2', $name(), 'the stale profile save did not overwrite');
+
+        // cross-flow: an ADMIN form built at version 1 (before the profile save) now saves → rejected by the
+        // shared CAS (proves profile and admin participate in ONE version contract).
+        tvm_container()->instance(App\Core\Request::class, App\Core\Request::capture()); // AuditLogger needs a Request
+        $threw2 = false;
+        try {
+            tvm_container()->get(App\Services\AdminService::class)->updateUser($userId, ['id' => 4, 'role' => 'admin'], [
+                'full_name' => 'Admin Stale', 'email' => $seeded['email'], 'role' => 'requester', 'is_active' => '1', 'original_version' => 1,
+            ]);
+        } catch (DomainException $e) {
+            $threw2 = str_contains($e->getMessage(), 'ถูกแก้ไขโดยผู้ใช้อื่น');
+        }
+        assert_true($threw2, 'a stale admin edit after a profile change is rejected via the shared version');
+        assert_same('Profile V2', $name(), 'the stale admin save did not overwrite either');
+    } finally {
+        auth_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$userId]);
+    }
+});

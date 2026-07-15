@@ -9,7 +9,7 @@ use PDOException;
 
 class UserRepository
 {
-    private const SELECT_COLUMNS = 'id, username, email, password_hash, password_changed_at, full_name, phone, role, department_id, avatar, is_active, remember_token, last_login_at, created_at, updated_at';
+    private const SELECT_COLUMNS = 'id, username, email, password_hash, password_changed_at, full_name, phone, role, department_id, avatar, is_active, version, remember_token, last_login_at, created_at, updated_at';
 
     public function __construct(private PDO $db)
     {
@@ -291,23 +291,29 @@ class UserRepository
 
     public function updateProfile(int $userId, array $data): bool
     {
+        // Same optimistic-lock contract as the admin user edit (R7-F3): profile and admin write the SAME row,
+        // so profile must also bump version WHERE it still matches — otherwise a profile save (or a second tab)
+        // silently overwrites a newer admin change, and vice versa. (safety-review R8-F1)
         $stmt = $this->db->prepare(
             'UPDATE users
              SET full_name = :full_name,
                  email = :email,
                  phone = :phone,
+                 version = version + 1,
                  updated_at = :updated_at
              WHERE id = :id
+               AND version = :original_version
              LIMIT 1'
         );
 
         try {
-            return $stmt->execute([
+            $stmt->execute([
                 'id' => $userId,
                 'full_name' => (string) ($data['full_name'] ?? ''),
                 'email' => (string) ($data['email'] ?? ''),
                 'phone' => (string) ($data['phone'] ?? ''),
                 'updated_at' => date('Y-m-d H:i:s'),
+                'original_version' => (int) ($data['original_version'] ?? 0),
             ]);
         } catch (PDOException $exception) {
             if (is_duplicate_key_error($exception)) {
@@ -318,6 +324,12 @@ class UserRepository
             }
             throw $exception;
         }
+
+        if ($stmt->rowCount() === 0) {
+            throw new DomainException('ข้อมูลโปรไฟล์ถูกแก้ไขจากอุปกรณ์อื่นแล้ว กรุณารีเฟรชหน้าแล้วลองอีกครั้ง');
+        }
+
+        return true;
     }
 
     public function emailExistsForOtherUser(string $email, int $excludeUserId): bool

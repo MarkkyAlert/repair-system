@@ -76,6 +76,7 @@ $lastLoginLabel = !empty($profile['last_login_at']) ? human_date((string) $profi
 
         <form method="post" action="<?= e(url('/profile')) ?>" class="stack-md" data-loading-submit data-warn-unsaved>
             <?= csrf_field() ?>
+            <input type="hidden" name="original_version" value="<?= e((string) ($profile['version'] ?? 1)) ?>">
             <div class="field-group">
                 <label for="full_name" class="field-label">ชื่อ-นามสกุล <span class="required" aria-hidden="true">*</span></label>
                 <input id="full_name" name="full_name" type="text" class="input" required aria-required="true" autocomplete="name" maxlength="200" value="<?= e($profile['full_name'] ?? '') ?>">

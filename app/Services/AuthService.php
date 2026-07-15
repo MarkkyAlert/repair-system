@@ -314,6 +314,7 @@ class AuthService
             'full_name' => $fullName,
             'email' => $email,
             'phone' => $phone,
+            'original_version' => strict_int($input['original_version'] ?? null, 'เวอร์ชันข้อมูล'), // optimistic lock (R8-F1)
         ]);
 
         $this->auth->refresh();
