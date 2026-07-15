@@ -62,23 +62,18 @@ class SetupController
                 throw new DomainException('ชื่อระบบยาวเกินกำหนด');
             }
 
-            $hasAdmin = $this->adminExists();
-            $adminId = 0;
+            // Serialize concurrent first-run setups with a DB named lock, then RE-CHECK admin/flag INSIDE the
+            // lock: without it, two POSTs on a fresh DB both pass the pre-lock guard and each create an admin
+            // (the unique keys are per username/email, not "only one admin"). (logic-review R6-F1)
+            $this->acquireSetupLock();
+            $demoSummary = null;
 
-            // ห่อ write ทั้งชุด (app_name → admin → demo → setup_completed) ใน transaction เดียว
-            // → first-run all-or-nothing; ถ้าพังกลางทาง rollback หมด retry ได้จาก state สะอาด.
-            // (createUser/upsert plain INSERT, demoData->load เป็น transaction-aware → participate)
-            // NOTE (consistency): จัดการ transaction ในตัว controller ตรงนี้เป็น "ข้อยกเว้น bootstrap โดยตั้งใจ" —
-            // เป็น one-time first-run orchestration ที่ประสาน settings/admin/demo หลาย repo ให้ atomic ก่อนระบบ
-            // มี service สำหรับ flow นี้ ที่อื่นทั้งหมด transaction อยู่ใน service (ReferenceData/GuestTicket/…).
-            // อย่าใช้ pattern "beginTransaction ใน controller" นี้ซ้ำในโค้ดปกติ.
-            $this->db->beginTransaction();
+            try {
+                if ($this->isSetupCompleted() || $this->adminExists()) {
+                    // the other request in the race already finished setup — do not create a second admin
+                    throw new DomainException('ระบบถูกตั้งค่าเรียบร้อยแล้ว กรุณาเข้าสู่ระบบ');
+                }
 
-            // Step 1: app name
-            $this->settings->upsert('app_name', $appName, 'string', true, 0);
-
-            // Step 2: create admin if needed
-            if (!$hasAdmin) {
                 $username = strtolower(trim((string) ($_POST['admin_username'] ?? '')));
                 $email = strtolower(trim((string) ($_POST['admin_email'] ?? '')));
                 $fullName = trim((string) ($_POST['admin_full_name'] ?? ''));
@@ -97,6 +92,13 @@ class SetupController
                     throw new DomainException('รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร');
                 }
 
+                // ห่อ write ทั้งชุด (app_name → admin → demo → setup_completed) ใน transaction เดียว
+                // → first-run all-or-nothing; ถ้าพังกลางทาง rollback หมด retry ได้จาก state สะอาด.
+                // NOTE (consistency): จัดการ transaction ในตัว controller ตรงนี้เป็น "ข้อยกเว้น bootstrap โดยตั้งใจ" —
+                // one-time first-run orchestration; ที่อื่นทั้งหมด transaction อยู่ใน service. อย่าใช้ pattern นี้ซ้ำ.
+                $this->db->beginTransaction();
+                $this->settings->upsert('app_name', $appName, 'string', true, 0);
+
                 $adminId = $this->admin->createUser([
                     'username' => $username,
                     'email' => $email,
@@ -107,23 +109,19 @@ class SetupController
                     'department_id' => null,
                     'is_active' => true,
                 ]);
-            } else {
-                $adminUser = $this->users->firstActiveAdmin();
-                $adminId = (int) ($adminUser['id'] ?? 0);
+
+                // Demo data (optional) — gated on ALLOW_DEMO_DATA so a disabled install skips it cleanly here
+                // instead of letting load() throw mid-transaction and roll back the whole setup.
+                $loadDemo = truthy_input($_POST['load_demo'] ?? '0');
+                if ($loadDemo && config('app.allow_demo_data', false)) {
+                    $demoSummary = $this->demoData->load($adminId);
+                }
+
+                $this->settings->upsert('setup_completed', '1', 'bool', false, $adminId);
+                $this->db->commit();
+            } finally {
+                $this->releaseSetupLock();
             }
-
-            // Step 3: load demo data (optional). Gated on ALLOW_DEMO_DATA so a disabled install skips it
-            // cleanly here instead of letting load() throw mid-transaction and roll back the whole setup.
-            $loadDemo = truthy_input($_POST['load_demo'] ?? '0');
-            $demoSummary = null;
-            if ($loadDemo && config('app.allow_demo_data', false)) {
-                $demoSummary = $this->demoData->load($adminId);
-            }
-
-            // Step 4: mark completed
-            $this->settings->upsert('setup_completed', '1', 'bool', false, $adminId);
-
-            $this->db->commit();
 
             $message = 'ตั้งค่าระบบเสร็จสมบูรณ์';
             if ($demoSummary !== null) {
@@ -189,5 +187,25 @@ class SetupController
     private function adminExists(): bool
     {
         return self::hasActiveAdmin($this->db);
+    }
+
+    /** Connection-scoped named lock serialising first-run setup (auto-released on connection close). */
+    private function acquireSetupLock(): void
+    {
+        $stmt = $this->db->prepare('SELECT GET_LOCK(:name, 10)');
+        $stmt->execute(['name' => 'maintenance-first-run-setup']);
+        if ((int) $stmt->fetchColumn() !== 1) {
+            throw new RuntimeException('ระบบกำลังตั้งค่าอยู่ กรุณาลองใหม่อีกครั้ง');
+        }
+    }
+
+    private function releaseSetupLock(): void
+    {
+        try {
+            $stmt = $this->db->prepare('SELECT RELEASE_LOCK(:name)');
+            $stmt->execute(['name' => 'maintenance-first-run-setup']);
+        } catch (Throwable) {
+            // releasing a connection-scoped lock must not mask the setup result
+        }
     }
 }
