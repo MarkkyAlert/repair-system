@@ -185,8 +185,6 @@ class GuestTicketService
                 'asset_id' => (int) ($request['asset_id'] ?? 0) > 0 ? (int) $request['asset_id'] : '',
                 'impact_level' => 'medium',
                 'urgency_level' => 'medium',
-                // origin came from a QR scan → keep the channel accurate on the ticket (logic-review F2)
-                'channel' => 'qr',
                 'submission_token' => bin2hex(random_bytes(32)),
             ];
 
@@ -201,7 +199,8 @@ class GuestTicketService
             // จึง "ได้ทั้งคู่ หรือไม่ได้เลย" ไม่มี ticket กำพร้า (สร้างแล้วแต่ request ยังไม่ถูก mark converted).
             $this->db->beginTransaction();
             try {
-                $ticketId = $tickets->createTicket($converterWithoutDepartment, $ticketInput, []);
+                // channel='qr' as a trusted argument — the origin was a QR scan (logic-review R4-F1/F2)
+                $ticketId = $tickets->createTicket($converterWithoutDepartment, $ticketInput, [], 'qr');
                 if (!$this->requests->claimAndLink($requestId, $ticketId, (int) ($viewer['id'] ?? 0))) {
                     throw new RuntimeException('เชื่อมโยง Ticket กับ guest request ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
                 }

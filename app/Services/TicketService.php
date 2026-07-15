@@ -407,7 +407,7 @@ class TicketService
         ];
     }
 
-    public function createTicket(array $viewer, array $input, array $files = []): int
+    public function createTicket(array $viewer, array $input, array $files = [], string $channel = 'web'): int
     {
         $validatedFiles = $this->attachments->validateUploads($files);
         $reference = $this->reads->getCreateFormReferenceData();
@@ -421,12 +421,10 @@ class TicketService
         $assetId = strict_int($input['asset_id'] ?? null, 'Asset ');
         $impactLevel = strtolower(trim((string) ($input['impact_level'] ?? 'medium')));
         $urgencyLevel = strtolower(trim((string) ($input['urgency_level'] ?? 'medium')));
-        // Origin channel — an internal contract, not a public web-form field: callers may set it (guest QR
-        // conversion → 'qr'); anything unrecognised falls back to 'web' so a bad value can't reach the enum. (F2)
-        $channel = strtolower(trim((string) ($input['channel'] ?? 'web')));
-        if (!in_array($channel, ['web', 'qr', 'phone', 'email', 'walk_in'], true)) {
-            $channel = 'web';
-        }
+        // Origin channel is a TRUSTED ARGUMENT set by the caller (web controller → default 'web'; guest QR
+        // convert → 'qr'), NEVER read from user $input — otherwise a crafted web POST could spoof the source
+        // (channel=phone/email/walk_in) and skew the origin in the detail/reports. (logic-review R4-F1)
+        $channel = in_array($channel, ['web', 'qr', 'phone', 'email', 'walk_in'], true) ? $channel : 'web';
         $submissionToken = $this->submissionToken((string) ($input['submission_token'] ?? ''), false);
 
         if ($title === '' || $description === '') {

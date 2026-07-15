@@ -67,6 +67,21 @@ test('ticketCreate: a malformed numeric reference ("1junk") is rejected, not coe
     }
 });
 
+// R4-F1: channel is a TRUSTED ARGUMENT, never read from user input — a web user crafting channel=phone in the
+// POST must NOT be able to spoof the ticket's origin. The web path (default arg) always records 'web'.
+test('ticketCreate(security): a crafted channel in the web input cannot override the origin (R4-F1)', function (): void {
+    $ref = tc_ref();
+    $ticketId = 0;
+    try {
+        // a malicious web POST tries to masquerade as a phone/walk-in intake
+        $ticketId = tc_service()->createTicket(tc_requester(), tc_valid_input($ref, ['channel' => 'phone']), []);
+        assert_true($ticketId > 0, 'the ticket was created');
+        assert_same('web', (string) tc_pdo()->query("SELECT channel FROM tickets WHERE id = $ticketId")->fetchColumn(), 'the injected channel is ignored — a web ticket stays channel=web');
+    } finally {
+        tc_cleanup($ticketId);
+    }
+});
+
 /** Assert createTicket($valid + overrides) throws exactly $message. Rejects throw before any insert. */
 function tc_reject(array $ref, array $overrides, string $message, string $ctx): void
 {
