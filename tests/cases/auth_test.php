@@ -474,3 +474,84 @@ test('updateProfile(F6): full_name over 150 and an over-190 email are rejected w
         auth_cleanup($userId);
     }
 });
+
+// R6-F2: empty-credential logins used to hit only the (login,IP) pair, so rotating the login from one IP
+// never tripped any cap (and spawned a key each time). The IP bucket is now hit on the empty path too.
+test('auth(rate-limit R6): empty-credential logins from one IP trip the IP cap (rotating login cannot evade)', function (): void {
+    $ip = '203.0.113.' . random_int(1, 254);
+    $logins = [];
+    try {
+        for ($i = 0; $i < 20; $i++) { // IP_ATTEMPT_CAP = 20 empty attempts, each a UNIQUE login → each hits the IP bucket
+            $login = 'rl' . $i . '_' . bin2hex(random_bytes(2));
+            $logins[] = $login;
+            assert_true(str_contains(auth_login_error($login, '', $ip), 'ครบถ้วน'), "attempt $i is the empty-credentials error");
+        }
+        $login = 'rlover_' . bin2hex(random_bytes(2)); // the 21st fresh login is now blocked by the IP bucket
+        $logins[] = $login;
+        assert_true(str_contains(auth_login_error($login, '', $ip), 'เกินกำหนด'), 'the 21st empty attempt from the same IP is rate-limited');
+    } finally {
+        auth_rate_limiter()->clear('login-ip:' . sha1($ip));
+        foreach ($logins as $l) {
+            auth_rate_limiter()->clear('login:' . sha1(strtolower($l) . '|' . $ip));
+            auth_pdo()->prepare('DELETE FROM login_attempts WHERE attempted_login = ?')->execute([$l]);
+        }
+    }
+});
+
+// R6-F2: password reset now has an IP-only bucket so one source cannot fan out reset emails across many
+// different addresses (queue abuse / bombing many inboxes) without tripping a cap.
+test('auth(rate-limit R6): password reset is capped per-IP across many different emails', function (): void {
+    $ip = '203.0.113.' . random_int(1, 254);
+    $prevIp = $_SERVER['REMOTE_ADDR'] ?? null;
+    $_SERVER['REMOTE_ADDR'] = $ip;
+    $emails = [];
+    try {
+        for ($i = 0; $i < 10; $i++) { // IP bucket cap = 10/15m; unknown emails → no token/email side effect
+            $email = 'reset' . $i . '_' . bin2hex(random_bytes(2)) . '@none.test';
+            $emails[] = $email;
+            auth_service()->createPasswordReset($email);
+        }
+        $threw = false;
+        try {
+            $email = 'resetover_' . bin2hex(random_bytes(2)) . '@none.test';
+            $emails[] = $email;
+            auth_service()->createPasswordReset($email);
+        } catch (DomainException $e) {
+            $threw = str_contains($e->getMessage(), 'บ่อยเกินไป');
+        }
+        assert_true($threw, 'the 11th reset from the same IP (a different email) is blocked by the IP bucket');
+    } finally {
+        if ($prevIp === null) {
+            unset($_SERVER['REMOTE_ADDR']);
+        } else {
+            $_SERVER['REMOTE_ADDR'] = $prevIp;
+        }
+        auth_rate_limiter()->clear('pwreset-ip:' . sha1($ip));
+        foreach ($emails as $e) {
+            auth_rate_limiter()->clear('pwreset-email:' . sha1($e));
+            auth_rate_limiter()->clear('pwreset:' . sha1($e . '|' . $ip));
+        }
+    }
+});
+
+// R6-F2: a key whose attempts have all aged out used to linger forever (only clear() removed one), so the
+// JSON file grew unbounded. Every write now sweeps keys with no attempt inside the global window.
+test('rate-limiter(R6): a stale key is dropped on the next write (file cannot grow unbounded)', function (): void {
+    $file = tempnam(sys_get_temp_dir(), 'rl_') . '.json';
+    $limiter = new LoginRateLimiter($file);
+    try {
+        $limiter->hit('fresh-key', 900);
+        // plant a key whose only attempt is older than the global max age (3600s)
+        $data = json_decode((string) file_get_contents($file), true);
+        $data['stale-key'] = [time() - 4000];
+        file_put_contents($file, json_encode($data));
+
+        $limiter->hit('fresh-key', 900); // any write triggers the global sweep
+
+        $after = json_decode((string) file_get_contents($file), true);
+        assert_false(array_key_exists('stale-key', $after), 'a key with no attempt within the global window is dropped');
+        assert_true(array_key_exists('fresh-key', $after), 'an active key is kept');
+    } finally {
+        @unlink($file);
+    }
+});

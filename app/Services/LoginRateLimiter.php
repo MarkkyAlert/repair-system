@@ -5,6 +5,11 @@ namespace App\Services;
 
 class LoginRateLimiter
 {
+    // Any key untouched for longer than this is beyond every decay window in use (login/reset 900s, guest
+    // 600s), so it can be dropped on the next write — otherwise a key per unique (login|IP) accumulates
+    // forever (only clear() ever removed one) and the JSON file grows unbounded. (logic-review R6-F2)
+    private const GLOBAL_MAX_AGE_SECONDS = 3600;
+
     private string $filePath;
 
     public function __construct(?string $filePath = null)
@@ -97,6 +102,7 @@ class LoginRateLimiter
             rewind($handle);
             $payload = $this->decode((string) stream_get_contents($handle));
             $payload = $callback($payload);
+            $payload = $this->dropStaleKeys($payload);
 
             rewind($handle);
             ftruncate($handle, 0);
@@ -117,6 +123,21 @@ class LoginRateLimiter
         $decoded = json_decode($contents, true);
 
         return is_array($decoded) ? $decoded : [];
+    }
+
+    /** Drop keys whose newest attempt is older than every decay window — bounds the file to active keys. */
+    private function dropStaleKeys(array $payload): array
+    {
+        foreach ($payload as $key => $attempts) {
+            $kept = is_array($attempts) ? $this->prune($attempts, self::GLOBAL_MAX_AGE_SECONDS) : [];
+            if ($kept === []) {
+                unset($payload[$key]);
+            } else {
+                $payload[$key] = $kept;
+            }
+        }
+
+        return $payload;
     }
 
     private function prune(array $attempts, int $decaySeconds): array

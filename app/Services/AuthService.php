@@ -49,7 +49,10 @@ class AuthService
         }
 
         if ($login === '' || $password === '') {
+            // hit the IP bucket too — otherwise rotating the login value with an empty password from one IP
+            // makes a new (login,IP) pair every time, never tripping any cap while spawning keys. (R6-F2)
             $this->rateLimiter->hit($limiterKey);
+            $this->rateLimiter->hit($ipKey, self::ATTEMPT_DECAY_SECONDS);
             $this->logAttempt($login, null, $ipAddress, $userAgent, false, 'empty_credentials');
             throw new DomainException('กรุณากรอกชื่อผู้ใช้หรืออีเมล และรหัสผ่านให้ครบถ้วน');
         }
@@ -140,14 +143,23 @@ class AuthService
             throw new DomainException('กรุณากรอกอีเมล');
         }
 
-        // Throttle reset requests to prevent email bombing / queue abuse.
-        // Keyed on email+ip and hit unconditionally so it never reveals whether the email exists.
+        // Throttle reset requests on three dimensions, all hit unconditionally so none reveals whether the
+        // email exists: the (email,IP) pair (3/15m), an IP-only bucket (10/15m — caps one source fanning out
+        // across many different emails), and an email-only bucket (5/1h — caps bombing ONE inbox from many
+        // IPs). (logic-review R6-F2)
         $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
-        $limiterKey = 'pwreset:' . sha1($email . '|' . ($ip !== '' ? $ip : 'unknown'));
-        if ($this->rateLimiter->tooManyAttempts($limiterKey, 3, 900)) {
+        $normalizedIp = $ip !== '' ? $ip : 'unknown';
+        $pairKey = 'pwreset:' . sha1($email . '|' . $normalizedIp);
+        $ipKey = 'pwreset-ip:' . sha1($normalizedIp);
+        $emailKey = 'pwreset-email:' . sha1($email);
+        if ($this->rateLimiter->tooManyAttempts($pairKey, 3, 900)
+            || $this->rateLimiter->tooManyAttempts($ipKey, 10, 900)
+            || $this->rateLimiter->tooManyAttempts($emailKey, 5, 3600)) {
             throw new DomainException('คุณขอรีเซ็ตรหัสผ่านบ่อยเกินไป กรุณาลองใหม่ในภายหลัง');
         }
-        $this->rateLimiter->hit($limiterKey, 900);
+        $this->rateLimiter->hit($pairKey, 900);
+        $this->rateLimiter->hit($ipKey, 900);
+        $this->rateLimiter->hit($emailKey, 3600);
 
         $user = $this->users->findByEmail($email);
         if (!$user || !(bool) $user['is_active']) {
