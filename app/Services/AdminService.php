@@ -102,6 +102,7 @@ class AdminService
             'role' => $role,
             'department_id' => $departmentId > 0 ? $departmentId : null,
             'is_active' => truthy_input($input['is_active'] ?? '0'),
+            'original_version' => strict_int($input['original_version'] ?? null, 'เวอร์ชันข้อมูล'), // optimistic lock (F3)
         ];
         $this->admin->updateUser($userId, $payload);
         $this->recordAudit($viewer, 'user.updated', 'user', $userId, $payload);

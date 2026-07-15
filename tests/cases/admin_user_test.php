@@ -133,11 +133,40 @@ test('updateUser: rejects bad input, then updates real fields on the happy path'
 
         // happy path — values actually change
         au_bind_request();
-        au_service()->updateUser($userId, au_admin(), ['full_name' => 'After Name', 'email' => "after_$suffix@example.com", 'role' => 'manager', 'is_active' => '1']);
+        au_service()->updateUser($userId, au_admin(), ['full_name' => 'After Name', 'email' => "after_$suffix@example.com", 'role' => 'manager', 'is_active' => '1', 'original_version' => 1]);
         $row = au_pdo()->query("SELECT full_name, email, role FROM users WHERE id = $userId")->fetch(PDO::FETCH_ASSOC);
         assert_same('After Name', $row['full_name'], 'full_name updated');
         assert_same("after_$suffix@example.com", $row['email'], 'email updated');
         assert_same('manager', $row['role'], 'role updated');
+    } finally {
+        au_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$userId]);
+    }
+});
+
+// R7-F3: the admin user form carries a hidden original_version; a save from a STALE snapshot (Admin B still
+// on an old page after Admin A saved) must be rejected by the version CAS, not silently overwrite A's change.
+test('updateUser(R7-F3): a stale full-form save is rejected by the version lock; the newer value survives', function (): void {
+    $suffix = bin2hex(random_bytes(4));
+    au_pdo()->prepare('INSERT INTO users (username, email, password_hash, full_name, role, is_active, created_at, updated_at) VALUES (?, ?, "x", "V1", "requester", 1, NOW(), NOW())')
+        ->execute(["ver_$suffix", "ver_$suffix@example.com"]);
+    $userId = (int) au_pdo()->lastInsertId();
+    au_bind_request();
+
+    try {
+        // both admins opened the form at version 1. Admin A saves first → version → 2.
+        au_service()->updateUser($userId, au_admin(), ['full_name' => 'By Admin A', 'email' => "ver_$suffix@example.com", 'role' => 'requester', 'is_active' => '1', 'original_version' => 1]);
+        assert_same('By Admin A', (string) au_pdo()->query("SELECT full_name FROM users WHERE id = $userId")->fetchColumn(), 'Admin A saved');
+        assert_same(2, (int) au_pdo()->query("SELECT version FROM users WHERE id = $userId")->fetchColumn(), 'version bumped to 2');
+
+        // Admin B submits their still-open form (original_version 1) → rejected, A's value untouched.
+        $threw = false;
+        try {
+            au_service()->updateUser($userId, au_admin(), ['full_name' => 'By Admin B (stale)', 'email' => "ver_$suffix@example.com", 'role' => 'requester', 'is_active' => '1', 'original_version' => 1]);
+        } catch (DomainException $e) {
+            $threw = str_contains($e->getMessage(), 'ถูกแก้ไขโดยผู้ใช้อื่น');
+        }
+        assert_true($threw, 'the stale (version 1) save is rejected');
+        assert_same('By Admin A', (string) au_pdo()->query("SELECT full_name FROM users WHERE id = $userId")->fetchColumn(), "Admin A's newer value survives — no silent overwrite");
     } finally {
         au_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$userId]);
     }
@@ -259,10 +288,36 @@ test('updateUser(last-admin): with a second active admin, demoting one is allowe
             'email' => "admin2_$suffix@example.com",
             'role' => 'requester',
             'is_active' => '1',
+            'original_version' => 1,
         ]);
         $role = (string) au_pdo()->query("SELECT role FROM users WHERE id = $tempId")->fetchColumn();
         assert_same('requester', $role, 'with two admins present, demoting one succeeds');
     } finally {
         au_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$tempId]);
     }
+});
+
+// R7-F4 (owner-confirmed best-effort): every caller records the audit AFTER the primary mutation/side-effect,
+// so a failing audit insert must NOT propagate (the user would think the action failed and retry). AuditLogger
+// swallows + logs the failure and returns normally.
+test('audit(R7-F4): a failing audit-log insert is best-effort — record() does not throw', function (): void {
+    $throwingRepo = new class () extends \App\Repositories\AuditLogRepository {
+        public function __construct()
+        {
+        }
+
+        public function record(array $payload): void
+        {
+            throw new \RuntimeException('audit backend down');
+        }
+    };
+    $logger = new \App\Services\AuditLogger($throwingRepo);
+
+    $threw = false;
+    try {
+        $logger->record(['id' => 4, 'role' => 'admin'], 'user.updated', 'user', 1, ['x' => 'y']);
+    } catch (\Throwable) {
+        $threw = true;
+    }
+    assert_false($threw, 'a failed audit insert is swallowed (logged), never surfaced to the caller');
 });

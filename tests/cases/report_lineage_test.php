@@ -517,6 +517,7 @@ test('technician performance survives the resolver being deactivated or demoted 
             'role' => 'technician',
             'department_id' => '',
             'is_active' => '0',
+            'original_version' => (int) lin_pdo()->query("SELECT version FROM users WHERE id = $tech")->fetchColumn(),
         ]);
         assert_same($before, $full(), 'deactivated resolver keeps its full-page performance (not erased)');
         assert_same($before, $ov(), 'deactivated resolver keeps its overview performance');
@@ -531,6 +532,7 @@ test('technician performance survives the resolver being deactivated or demoted 
             'role' => 'requester',
             'department_id' => '',
             'is_active' => '1',
+            'original_version' => (int) lin_pdo()->query("SELECT version FROM users WHERE id = $tech")->fetchColumn(),
         ]);
         assert_same($before, $full(), 'demoted resolver still shows their past performance');
 

@@ -17,7 +17,7 @@ class AdminRepository
     public function getUsers(): array
     {
         $stmt = $this->db->query(
-            "SELECT u.id, u.username, u.email, u.full_name, u.phone, u.role, u.department_id, u.is_active, d.name AS department_name
+            "SELECT u.id, u.username, u.email, u.full_name, u.phone, u.role, u.department_id, u.is_active, u.version, d.name AS department_name
              FROM users u
              LEFT JOIN departments d ON d.id = u.department_id
              ORDER BY u.full_name ASC, u.id ASC"
@@ -166,6 +166,8 @@ class AdminRepository
                 throw new DomainException('ผู้ใช้นี้ยังมี Ticket ที่เป็นผู้แจ้ง กรุณาปิดงานให้เรียบร้อยก่อนปิดบัญชี');
             }
 
+            // Optimistic lock (R7-F3): bump version only when it still matches the form's snapshot, so a stale
+            // full-form save (Admin B editing an old page) cannot silently overwrite Admin A's newer change.
             $stmt = $this->db->prepare(
                 'UPDATE users
                  SET full_name = :full_name,
@@ -174,8 +176,10 @@ class AdminRepository
                      role = :role,
                      department_id = :department_id,
                      is_active = :is_active,
+                     version = version + 1,
                      updated_at = :updated_at
-                 WHERE id = :id'
+                 WHERE id = :id
+                   AND version = :original_version'
             );
 
             try {
@@ -188,6 +192,7 @@ class AdminRepository
                     'is_active' => $newIsActive ? 1 : 0,
                     'updated_at' => date('Y-m-d H:i:s'),
                     'id' => $userId,
+                    'original_version' => (int) ($payload['original_version'] ?? 0),
                 ]);
             } catch (PDOException $exception) {
                 if (is_duplicate_key_error($exception)) {
@@ -200,6 +205,12 @@ class AdminRepository
                     }
                 }
                 throw $exception;
+            }
+
+            // The row was locked FOR UPDATE above (so it exists); 0 rows changed means only the version
+            // predicate failed → the submitted form was built from a stale snapshot. Reject, don't overwrite.
+            if ($stmt->rowCount() === 0) {
+                throw new DomainException('ข้อมูลผู้ใช้ถูกแก้ไขโดยผู้ใช้อื่นแล้ว กรุณารีเฟรชหน้าแล้วลองอีกครั้ง');
             }
 
             $this->db->commit();

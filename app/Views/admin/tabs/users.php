@@ -124,6 +124,7 @@
                         <div class="collapsible-body">
                             <form method="post" action="<?= e(url('/admin/users/' . $userId)) ?>" class="stack-md">
                                 <?= csrf_field() ?>
+                                <input type="hidden" name="original_version" value="<?= e((string) ($user['version'] ?? 1)) ?>">
                                 <div class="content-grid">
                                     <div class="field-group">
                                         <label class="field-label" for="full_name_<?= $userId ?>">ชื่อ-นามสกุล <span class="required">*</span></label>
