@@ -60,3 +60,32 @@ test('F1: ticket/auth flows log the operational RuntimeException instead of flas
         'no ticket handler catches DomainException|RuntimeException together and aborts 404 (operational → 500 + logged)'
     );
 });
+
+// error-review-6 F3: sendResetLink() (request a reset link) caught DomainException|RuntimeException together and
+// only flashed — but createPasswordReset() writes the reset row then RENDERS the email template, and a missing
+// template throws a RuntimeException. That operational failure left no server trace. It must now be logged (with
+// a reference, and without leaking the raw email/token). Drives the real controller in a subprocess with a
+// service stub that throws RuntimeException (Response::redirect exits, so this can't run in-process).
+test('F3 (auth): sendResetLink logs an operational RuntimeException with a reference, without leaking the email', function (): void {
+    $bootstrap = dirname(__DIR__, 2) . '/bootstrap.php';
+    $parts = [
+        '$_SERVER["REQUEST_METHOD"]="POST";',
+        '$_SERVER["HTTP_ACCEPT"]="text/html";',
+        'require ' . var_export($bootstrap, true) . ';',
+        '$logtmp = tempnam(sys_get_temp_dir(),"arl").".log";',
+        'ini_set("error_log",$logtmp);',
+        'register_shutdown_function(function() use ($logtmp){ echo "\n===LOG===\n".@file_get_contents($logtmp); @unlink($logtmp); });',
+        '$_SESSION["_csrf_token"]="tok"; $_POST["_csrf"]="tok"; $_POST["email"]="probe@example.com";',
+        '$stub = new class() extends \App\Services\AuthService { public function __construct(){} public function createPasswordReset(string $e): ?string { throw new \RuntimeException("email template render failed"); } };',
+        '$ctrl = new \App\Controllers\AuthController($stub, app(\App\Repositories\NotificationPreferenceRepository::class), app(\App\Repositories\UserRepository::class), app(\App\Services\RememberMeService::class));',
+        '$ctrl->sendResetLink();',
+        'echo "REACHED_END";',
+    ];
+    $out = (string) shell_exec(escapeshellarg(PHP_BINARY) . ' -r ' . escapeshellarg(implode("\n", $parts)) . ' 2>/dev/null');
+
+    assert_contains_str('[auth.reset.request]', $out, 'the operational RuntimeException is logged under the auth.reset.request marker');
+    assert_true(preg_match('/\[req:[a-f0-9]{8}]/', $out) === 1, 'the log carries a request reference for correlation');
+    assert_contains_str('RuntimeException', $out, 'the exception class is recorded');
+    assert_true(!str_contains($out, 'REACHED_END'), 'the action stops (flash + redirect) — it never reports success after the failure');
+    assert_true(!str_contains($out, 'probe@example.com'), 'the raw email is NOT written to the log (no PII leak)');
+});

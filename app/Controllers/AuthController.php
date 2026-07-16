@@ -115,6 +115,13 @@ class AuthController
         } catch (\PDOException $__infra) {
             throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
         } catch (DomainException|RuntimeException $exception) {
+            // DomainException = expected (bad email, over the rate limit) → flash only. A RuntimeException is an
+            // operational failure (e.g. the reset row was written but the email template/render failed) that was
+            // flashed with no trace; log it so the user's "couldn't request a reset" report is debuggable, without
+            // leaking the raw email/token. (error-review-6 F3)
+            if ($exception instanceof RuntimeException) {
+                log_caught_exception('auth.reset.request', $exception);
+            }
             with_old_input(['email' => $email]);
             flash('error', $exception->getMessage());
         }
