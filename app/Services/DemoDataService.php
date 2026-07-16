@@ -265,8 +265,11 @@ class DemoDataService
                 ]);
                 $assetIds[$spec['code']] = $assetId;
                 $count++;
-            } catch (Throwable) {
-                // Duplicate asset_code/serial — skip
+            } catch (DomainException) {
+                // Duplicate asset_code/serial (or QR-token exhaustion) — an EXPECTED, skippable condition.
+                // A RuntimeException/PDOException is a real failure: let it propagate so load()'s transaction
+                // rolls the whole seed back and the caller sees the error, instead of a silent partial seed.
+                // (error-review-4 F4)
             }
         }
 
