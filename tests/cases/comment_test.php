@@ -353,3 +353,84 @@ test('comment(resilience): updateComment persists even when the notification thr
         cm_cleanup($ticketId);
     }
 });
+
+/** A CommentService whose notifier always throws — for the best-effort notify resilience + logging tests. */
+function cm_throwing_notifier_service(): \App\Services\CommentService
+{
+    $throwingNotifier = new class () extends \App\Services\NotificationService {
+        public function __construct()
+        {
+        }
+
+        public function notifyCommentEvent(int $ticketId, int $commentId, int $actorId, bool $isInternal, string $body, string $action): void
+        {
+            throw new \RuntimeException('notification backend down');
+        }
+    };
+
+    return new \App\Services\CommentService(
+        tvm_container()->get(\App\Repositories\CommentRepository::class),
+        tvm_container()->get(\App\Repositories\TicketReadRepository::class),
+        $throwingNotifier,
+        tvm_container()->get(\App\Services\AttachmentService::class),
+        tvm_container()->get(PDO::class),
+    );
+}
+
+// error-review F2: createComment/deleteComment already keep a notify failure from surfacing to the user, but
+// they SWALLOWED it silently (empty catch) — a broken notifier left no trace. They must log_caught_exception.
+test('comment(resilience+log): createComment persists AND records the swallowed notify failure (error-review F2)', function (): void {
+    $ticketId = cm_seed_ticket();
+    $tmp = tempnam(sys_get_temp_dir(), 'cnotify_') . '.log';
+    $originalLog = (string) ini_get('error_log');
+    $pdo = tvm_container()->get(PDO::class);
+
+    try {
+        $before = (int) $pdo->query("SELECT COUNT(*) FROM ticket_comments WHERE ticket_id = $ticketId")->fetchColumn();
+
+        ini_set('error_log', $tmp);
+        $threw = false;
+        try {
+            cm_throwing_notifier_service()->createComment($ticketId, cm_owner(), ['body' => 'saved despite a broken notifier', 'submission_token' => cm_token()]);
+        } catch (\Throwable) {
+            $threw = true;
+        }
+        ini_set('error_log', $originalLog);
+
+        assert_false($threw, 'a notification failure must not propagate to the caller');
+        $after = (int) $pdo->query("SELECT COUNT(*) FROM ticket_comments WHERE ticket_id = $ticketId")->fetchColumn();
+        assert_same($before + 1, $after, 'the comment is persisted despite the notification failure');
+        assert_contains_str('[comment.create.notify]', (string) @file_get_contents($tmp), 'the swallowed create-notify failure is now logged (was silent)');
+    } finally {
+        ini_set('error_log', $originalLog);
+        @unlink($tmp);
+        cm_cleanup($ticketId);
+    }
+});
+
+test('comment(resilience+log): deleteComment persists AND records the swallowed notify failure (error-review F2)', function (): void {
+    $ticketId = cm_seed_ticket();
+    $tmp = tempnam(sys_get_temp_dir(), 'dnotify_') . '.log';
+    $originalLog = (string) ini_get('error_log');
+
+    try {
+        [$cId] = cm_seed_comment($ticketId, 1, 'to be deleted');
+
+        ini_set('error_log', $tmp);
+        $threw = false;
+        try {
+            cm_throwing_notifier_service()->deleteComment($ticketId, $cId, cm_owner());
+        } catch (\Throwable) {
+            $threw = true;
+        }
+        ini_set('error_log', $originalLog);
+
+        assert_false($threw, 'a notification failure must not propagate to the caller');
+        assert_same(null, cm_body($cId), 'the comment is deleted despite the notification failure');
+        assert_contains_str('[comment.delete.notify]', (string) @file_get_contents($tmp), 'the swallowed delete-notify failure is now logged (was silent)');
+    } finally {
+        ini_set('error_log', $originalLog);
+        @unlink($tmp);
+        cm_cleanup($ticketId);
+    }
+});

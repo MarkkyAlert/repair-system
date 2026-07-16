@@ -70,7 +70,10 @@ class CommentService
         if ($created) {
             try {
                 $this->notifications->notifyCommentEvent($ticketId, $commentId, (int) ($viewer['id'] ?? 0), $isInternal, $body, 'created');
-            } catch (Throwable) {
+            } catch (Throwable $exception) {
+                // best-effort notify — must not fail the already-created comment, but the failure must be
+                // visible (was silently swallowed, so a broken notifier left no trace). (error-review F2)
+                log_caught_exception('comment.create.notify', $exception, ['ticket' => $ticketId, 'comment' => $commentId]);
             }
         }
     }
@@ -142,7 +145,9 @@ class CommentService
                 (string) ($comment['body'] ?? ''),
                 'deleted'
             );
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            // best-effort notify — the delete already committed; surface the failure instead of swallowing it. (error-review F2)
+            log_caught_exception('comment.delete.notify', $exception, ['ticket' => $ticketId, 'comment' => $commentId]);
         }
     }
 
