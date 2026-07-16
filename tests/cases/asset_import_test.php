@@ -226,6 +226,26 @@ test('assetImport.executeImport(resilience): a row colliding at insert is skippe
     }
 });
 
+test('query-count(asset import): each imported row costs 2 queries (insert + token) — no per-row token SELECT', function (): void {
+    // perf-review F9: createAsset relied on the UNIQUE(token) constraint as the collision backstop instead of
+    // a SELECT-per-token existence probe, dropping the per-row cost from 3 queries to 2 (asset INSERT + token
+    // INSERT). Skip-on-duplicate semantics are unchanged (each row is still its own transaction).
+    $ref = ai_ref();
+    $one = [ai_exec_row($ref)];
+    $three = [ai_exec_row($ref), ai_exec_row($ref), ai_exec_row($ref)];
+    $codes = array_map(static fn (array $r): string => (string) $r['asset_code'], array_merge($one, $three));
+
+    try {
+        $q1 = count_queries(fn () => ai_service()->executeImport($one, ai_admin()));
+        $q3 = count_queries(fn () => ai_service()->executeImport($three, ai_admin()));
+
+        assert_same(2, $q1, 'one imported asset = one asset INSERT + one QR token INSERT (the token existence SELECT is gone)');
+        assert_same(4, $q3 - $q1, 'two more rows cost exactly 4 more queries (2/row, not 3) — the per-row SELECT is gone');
+    } finally {
+        ai_delete_assets($codes);
+    }
+});
+
 // ── parseUploadedFile / ParsesCsvUpload (now covered here too — order-independent since the shadow is central) ──
 
 function ai_tmp_csv(string $bytes): string

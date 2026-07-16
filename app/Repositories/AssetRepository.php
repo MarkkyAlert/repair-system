@@ -206,7 +206,6 @@ class AssetRepository
     public function createAsset(array $payload): int
     {
         $createdAt = date('Y-m-d H:i:s');
-        $token = $this->generateUniqueQrToken();
 
         $startedTransaction = !$this->db->inTransaction();
 
@@ -272,7 +271,7 @@ class AssetRepository
             ]);
 
             $assetId = (int) $this->db->lastInsertId();
-            $this->insertQrToken($assetId, $token, $payload['generated_by'] ?? null, $createdAt);
+            $this->insertUniqueQrToken($assetId, $payload['generated_by'] ?? null, $createdAt);
 
             if ($startedTransaction) {
                 $this->db->commit();
@@ -528,6 +527,30 @@ class AssetRepository
         $stmt->execute();
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /**
+     * Insert a fresh random QR token for a just-created asset, relying on the UNIQUE(token) constraint as the
+     * collision backstop instead of a SELECT-per-token existence probe (generateUniqueQrToken) — one write
+     * instead of check + write, which halves the token cost on bulk import. The asset row is already inserted,
+     * so a duplicate-key error here is necessarily the token; on that (astronomically rare) event, regenerate
+     * and retry. (perf-review F9)
+     */
+    private function insertUniqueQrToken(int $assetId, ?int $generatedBy, string $createdAt): void
+    {
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            try {
+                $this->insertQrToken($assetId, bin2hex(random_bytes(16)), $generatedBy, $createdAt);
+
+                return;
+            } catch (PDOException $exception) {
+                if (is_duplicate_key_error($exception) && $attempt < 4) {
+                    continue;
+                }
+
+                throw $exception;
+            }
+        }
     }
 
     private function insertQrToken(int $assetId, string $token, ?int $generatedBy, string $createdAt): void
