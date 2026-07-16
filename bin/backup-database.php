@@ -180,11 +180,20 @@ foreach ($toDelete as $oldFile) {
 }
 
 if (!$dryRun) {
-    $settings = $container->get(SettingsRepository::class);
-    if ($settings instanceof SettingsRepository) {
-        $settings->upsert('cron_backup_last_run_at', date('Y-m-d H:i:s'), 'string', false, 0);
-        // record rotation failures so the dashboard warns + the exit code is non-zero (error-review-2 F4)
-        $settings->upsert('cron_backup_last_failed', (string) $deleteFailures, 'string', false, 0);
+    // The dump + rotation already succeeded; recording the heartbeat needs the DB, which can be unreachable at
+    // this point (connection dropped, system_settings unavailable). A throw here would escape as an UNCAUGHT
+    // fatal (exit 255) — this CLI script has no global exception boundary — so catch it and exit(1) cleanly, so
+    // the scheduler sees a controlled failure instead of a crash. (error-review-8 F1)
+    try {
+        $settings = $container->get(SettingsRepository::class);
+        if ($settings instanceof SettingsRepository) {
+            $settings->upsert('cron_backup_last_run_at', date('Y-m-d H:i:s'), 'string', false, 0);
+            // record rotation failures so the dashboard warns + the exit code is non-zero (error-review-2 F4)
+            $settings->upsert('cron_backup_last_failed', (string) $deleteFailures, 'string', false, 0);
+        }
+    } catch (Throwable $exception) {
+        fwrite(STDERR, 'Backup finished but recording the heartbeat failed: ' . $exception->getMessage() . PHP_EOL);
+        exit(1);
     }
 }
 

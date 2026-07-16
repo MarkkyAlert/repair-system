@@ -47,3 +47,41 @@ test('backup-worker(F2): a stalled mysqldump is killed at the deadline — worke
         }
     }
 });
+
+// error-review-8 F1: after the dump + rotation succeed, recording the heartbeat (cron_backup_last_run_at) needs
+// the DB — and this CLI script had no global exception boundary, so a PDO failure there escaped as an UNCAUGHT
+// fatal (exit 255). It's now caught → a controlled exit(1). Drives the real worker with a SUCCESSFUL fake dump
+// but an unreachable DB port, so it fails precisely at the heartbeat (PDO is resolved lazily, first touched there).
+test('backup-worker(F1): a heartbeat DB failure exits controlled (1), not an uncaught fatal (255)', function (): void {
+    $fakeDump = tempnam(sys_get_temp_dir(), 'fakedumpok_');
+    file_put_contents($fakeDump, "#!/bin/sh\necho '-- fake dump output'\n"); // succeeds with real (small) output
+    chmod($fakeDump, 0755);
+
+    $backupDir = BASE_PATH . '/storage/backups';
+    $before = glob($backupDir . '/db-*.sql.gz') ?: [];
+
+    try {
+        $script = BASE_PATH . '/bin/backup-database.php';
+        $cmd = 'DB_NAME=repair_system_test'
+            . ' DB_PORT=59999'                       // unreachable → the heartbeat PDO connect fails
+            . ' MYSQLDUMP_BIN=' . escapeshellarg($fakeDump)
+            . ' BACKUP_TIMEOUT_SECONDS=30'
+            . ' ' . escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($script) . ' --keep=1000';
+
+        $out = [];
+        $exitCode = 0;
+        exec($cmd . ' 2>&1', $out, $exitCode);
+        $output = implode("\n", $out);
+
+        assert_same(1, $exitCode, 'a post-dump heartbeat DB failure exits 1 (controlled), not 255 (uncaught fatal)');
+        assert_true(!str_contains($output, 'Fatal error'), 'no PHP fatal error — the failure is handled');
+        assert_true(!str_contains($output, 'Uncaught'), 'no uncaught exception escapes the CLI script');
+        assert_contains_str('heartbeat', $output, 'the controlled failure explains that the backup ran but the heartbeat could not be recorded');
+    } finally {
+        @unlink($fakeDump);
+        // the dump succeeds here, so a backup file is written and (correctly) kept — remove this run's file
+        foreach (array_diff(glob($backupDir . '/db-*.sql.gz') ?: [], $before) as $leftover) {
+            @unlink($leftover);
+        }
+    }
+});
