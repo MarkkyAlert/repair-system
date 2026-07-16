@@ -62,6 +62,21 @@ test('sample pack: ZIP bundles 4 PDF + 4 Excel + README with correct magic bytes
     }
 });
 
+test('query-count(sample pack): each report is collected once, not once per format', function (): void {
+    // perf-review F5: the pack writes a PDF and an XLSX of the same 4 reports. Previously each report's data
+    // was collected twice (once per format) — ~42 queries. A per-run memo collects each report once, and the
+    // suppressed preview no longer issues no-op export_job UPDATEs. Disabling the memo pushes it back over 26.
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $baselineId = (int) sp_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM export_jobs')->fetchColumn();
+
+    try {
+        $queries = count_queries(fn () => sp_service()->generateSamplePack($admin));
+        assert_true($queries <= 26, "sample pack must collect data once per report, not per format (got $queries, was ~42)");
+    } finally {
+        sp_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineId]);
+    }
+});
+
 test('sample pack: manager/admin gate — requester & technician are blocked', function (): void {
     foreach (['requester', 'technician', 'guest'] as $role) {
         $blocked = false;

@@ -1093,6 +1093,11 @@ class ReportService
 
     public function getTicketTrendReportPage(array $viewer, array $filters = []): array
     {
+        return $this->maybeCachedPageData('trend', $viewer, $filters, fn (): array => $this->computeTicketTrendReportPage($viewer, $filters));
+    }
+
+    private function computeTicketTrendReportPage(array $viewer, array $filters = []): array
+    {
         $this->ensureCanViewReports($viewer);
 
         $normalizedFilters = $this->normalizeTrendFilters($filters);
@@ -1437,6 +1442,11 @@ class ReportService
     private const EXEC_PRESETS = ['month', 'quarter', 'year', 'custom'];
 
     public function getExecutiveSummaryPage(array $viewer, array $filters = []): array
+    {
+        return $this->maybeCachedPageData('exec', $viewer, $filters, fn (): array => $this->computeExecutiveSummaryPage($viewer, $filters));
+    }
+
+    private function computeExecutiveSummaryPage(array $viewer, array $filters = []): array
     {
         $this->ensureCanViewReports($viewer);
 
@@ -2160,6 +2170,11 @@ class ReportService
     /** ดึง + map + เรียงคะแนนแย่สุดขึ้นบน (avg น้อยก่อน, tie-break รีวิวเยอะก่อน). ใช้ร่วมหน้าจอ + export. */
     private function collectCsatRows(array $viewer, array $normalizedFilters): array
     {
+        return $this->maybeCachedPageData('csat_rows', $viewer, $normalizedFilters, fn (): array => $this->computeCsatRows($viewer, $normalizedFilters));
+    }
+
+    private function computeCsatRows(array $viewer, array $normalizedFilters): array
+    {
         $rows = array_map(
             fn (array $row): array => $this->mapCsatRow($row),
             $this->reports->getRatingByDimension($viewer, $normalizedFilters, $normalizedFilters['dimension'])
@@ -2546,6 +2561,11 @@ class ReportService
 
     /** ดึง breach ตามมิติที่เลือก → pivot → เรียง breach มากสุดขึ้นบน (bottleneck). ใช้ร่วมหน้าจอ + export. */
     private function collectSlaBreachRows(array $viewer, array $normalizedFilters): array
+    {
+        return $this->maybeCachedPageData('sla_breach_rows', $viewer, $normalizedFilters, fn (): array => $this->computeSlaBreachRows($viewer, $normalizedFilters));
+    }
+
+    private function computeSlaBreachRows(array $viewer, array $normalizedFilters): array
     {
         $raw = $this->reports->getSlaBreachByDimension($viewer, $normalizedFilters, $normalizedFilters['dimension']);
 
@@ -3105,6 +3125,37 @@ class ReportService
     private bool $suppressExportJobTracking = false;
 
     /**
+     * Per-run memo for report page-data, active ONLY while the sample pack is building (null otherwise). The pack
+     * writes both a PDF and an XLSX of the same four reports; without this, each report's data is collected twice
+     * (once per format). Keyed by (bucket, viewer, filters) so a report's data is fetched once and reused. (perf-review F5)
+     *
+     * @var array<string, mixed>|null
+     */
+    private ?array $samplePackDataCache = null;
+
+    /**
+     * Return $collect()'s result, memoized when a sample-pack run is active (otherwise always recompute — normal
+     * single-format exports must never serve stale cached data).
+     *
+     * @param callable(): array<mixed> $collect
+     * @return array<mixed>
+     */
+    private function maybeCachedPageData(string $bucket, array $viewer, array $filters, callable $collect): array
+    {
+        if ($this->samplePackDataCache === null) {
+            return $collect();
+        }
+
+        $key = $bucket . ':' . md5(serialize([$viewer, $filters]));
+        if (!array_key_exists($key, $this->samplePackDataCache)) {
+            $this->samplePackDataCache[$key] = $collect();
+        }
+
+        /** @var array<mixed> */
+        return $this->samplePackDataCache[$key];
+    }
+
+    /**
      * Single entry point for creating an export_jobs audit row. Every deliberate export (POST /reports/export/*)
      * records one; the sample-pack GET preview suppresses it so refreshes/bot-preloads don't inflate the audit.
      */
@@ -3144,6 +3195,7 @@ class ReportService
         // The sample pack is a GET preview bundle — it must NOT create export_jobs audit rows (a refresh or a
         // link-preview bot would inflate the trail). Only deliberate POST exports are audited.
         $this->suppressExportJobTracking = true;
+        $this->samplePackDataCache = []; // collect each report's data once, reuse for both its PDF and XLSX (perf-review F5)
         try {
             $lines = ['ชุดตัวอย่างรายงาน — ระบบแจ้งซ่อมและบำรุงรักษา', 'สร้างเมื่อ ' . date('d/m/Y H:i'), '', 'ไฟล์ในชุดนี้:'];
             foreach ($catalog as [$name, $pdfMethod, $excelMethod, $filters]) {
@@ -3172,6 +3224,7 @@ class ReportService
             throw new RuntimeException('ไม่สามารถสร้างชุดตัวอย่างรายงานได้', 0, $exception);
         } finally {
             $this->suppressExportJobTracking = false;
+            $this->samplePackDataCache = null; // memo lives only for the pack build
         }
     }
 

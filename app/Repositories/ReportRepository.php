@@ -1119,6 +1119,10 @@ class ReportRepository
 
     public function markExportJobCompleted(int $jobId, string $fileName, ?string $filePath = null): void
     {
+        if ($jobId <= 0) {
+            return; // suppressed job (sample-pack preview) — no row to update, skip the no-op UPDATE (perf-review F5)
+        }
+
         $stmt = $this->db->prepare(
             'UPDATE export_jobs
              SET status = :status,
@@ -1142,6 +1146,10 @@ class ReportRepository
 
     public function markExportJobFailed(int $jobId, string $errorMessage): void
     {
+        if ($jobId <= 0) {
+            return; // suppressed job (sample-pack preview) — no row to update (perf-review F5)
+        }
+
         $stmt = $this->db->prepare(
             'UPDATE export_jobs
              SET status = :status,
