@@ -35,7 +35,7 @@
                     <label class="field-label" for="audit_user_id">ผู้ใช้</label>
                     <select id="audit_user_id" class="input" name="user_id">
                         <option value="">ทั้งหมด</option>
-                        <?php foreach (($users ?? []) as $auditUser): ?>
+                        <?php foreach (($userFilterOptions ?? $users ?? []) as $auditUser): ?>
                             <option value="<?= e((string) ($auditUser['id'] ?? 0)) ?>"<?= (int) ($auditFilters['user_id'] ?? 0) === (int) ($auditUser['id'] ?? 0) ? ' selected' : '' ?>><?= e((string) ($auditUser['full_name'] ?? $auditUser['username'] ?? '-')) ?></option>
                         <?php endforeach; ?>
                     </select>

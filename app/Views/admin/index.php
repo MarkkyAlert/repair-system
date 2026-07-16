@@ -18,7 +18,7 @@
     ]) ?>
 
     <div class="stat-grid admin-stat-scroll">
-        <?= render_partial('partials/components/card', ['title' => 'ผู้ใช้งาน', 'value' => (string) count($users ?? []), 'meta' => 'บัญชีทั้งหมดในระบบ', 'tone' => 'default', 'icon' => 'users', 'href' => '/admin#tab-users', 'ariaLabel' => 'ไปที่แท็บผู้ใช้งาน']) ?>
+        <?= render_partial('partials/components/card', ['title' => 'ผู้ใช้งาน', 'value' => (string) (int) ($usersPagination['total'] ?? count($users ?? [])), 'meta' => 'บัญชีทั้งหมดในระบบ', 'tone' => 'default', 'icon' => 'users', 'href' => '/admin#tab-users', 'ariaLabel' => 'ไปที่แท็บผู้ใช้งาน']) ?>
         <?= render_partial('partials/components/card', ['title' => 'แผนก', 'value' => (string) count($departments ?? []), 'meta' => 'หน่วยงานในองค์กร', 'tone' => 'info', 'icon' => 'building', 'href' => '/admin#tab-departments', 'ariaLabel' => 'ไปที่แท็บแผนก']) ?>
         <?= render_partial('partials/components/card', ['title' => 'สถานที่', 'value' => (string) count($locations ?? []), 'meta' => 'จุดติดตั้ง/แจ้งซ่อม', 'tone' => 'info', 'icon' => 'map-pin', 'href' => '/admin#tab-locations', 'ariaLabel' => 'ไปที่แท็บสถานที่']) ?>
         <?= render_partial('partials/components/card', ['title' => 'ความสำคัญ/SLA', 'value' => (string) count($priorities ?? []), 'meta' => 'ระดับความเร่งด่วน', 'tone' => 'danger', 'icon' => 'clock', 'href' => '/admin#tab-priorities', 'ariaLabel' => 'ไปที่แท็บความสำคัญและ SLA']) ?>

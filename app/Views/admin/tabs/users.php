@@ -11,7 +11,7 @@
                     'href' => '/admin/users/import',
                     'icon' => 'send',
                 ]) ?>
-                <span class="badge badge-info"><?= e((string) count($users ?? [])) ?> บัญชี</span>
+                <span class="badge badge-info"><?= e((string) (int) ($usersPagination['total'] ?? count($users ?? []))) ?> บัญชี</span>
             </div>
         </div>
 
@@ -176,5 +176,25 @@
                     </details>
                 <?php endforeach; ?>
             </div>
+
+            <?php
+            $userPage = max(1, (int) ($usersPagination['page'] ?? 1));
+            $userTotalPages = max(1, (int) ($usersPagination['totalPages'] ?? 1));
+            $userQuery = $_GET ?? [];
+            unset($userQuery['user_page']);
+            $userPageUrl = static function (int $target) use ($userQuery): string {
+                return url('/admin?' . http_build_query($userQuery + ['user_page' => $target]) . '#tab-users');
+            };
+            ?>
+            <?php if ($userTotalPages > 1): ?>
+                <nav class="pagination" aria-label="การแบ่งหน้ารายชื่อผู้ใช้งาน">
+                    <span class="pagination-summary"><?= e((string) (int) ($usersPagination['total'] ?? 0)) ?> บัญชี · หน้า <?= e((string) $userPage) ?>/<?= e((string) $userTotalPages) ?></span>
+                    <a class="page-link<?= $userPage <= 1 ? ' is-disabled' : '' ?>" href="<?= e($userPageUrl(max(1, $userPage - 1))) ?>"><?= lucide('chevron-left', 'h-4 w-4') ?></a>
+                    <?php for ($target = max(1, $userPage - 2); $target <= min($userTotalPages, $userPage + 2); $target++): ?>
+                        <a class="page-link<?= $target === $userPage ? ' is-active' : '' ?>" href="<?= e($userPageUrl($target)) ?>"><?= e((string) $target) ?></a>
+                    <?php endfor; ?>
+                    <a class="page-link<?= $userPage >= $userTotalPages ? ' is-disabled' : '' ?>" href="<?= e($userPageUrl(min($userTotalPages, $userPage + 1))) ?>"><?= lucide('chevron-right', 'h-4 w-4') ?></a>
+                </nav>
+            <?php endif; ?>
         <?php endif; ?>
     </section>

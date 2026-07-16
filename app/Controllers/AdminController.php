@@ -64,6 +64,8 @@ class AdminController
             'pageHeading' => 'ตั้งค่าระบบ',
             'currentUser' => $viewer,
             'users' => $data['users'],
+            'usersPagination' => $data['usersPagination'],
+            'userFilterOptions' => $data['userFilterOptions'],
             'departments' => $data['departments'],
             'categories' => $data['categories'],
             'assetCategories' => $data['assetCategories'],

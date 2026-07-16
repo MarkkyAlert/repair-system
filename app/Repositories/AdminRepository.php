@@ -26,6 +26,59 @@ class AdminRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    /**
+     * Paginated users for the admin "users" tab — one page of full rows (each renders an edit form), instead
+     * of every user at once. Bounds the response/DOM as the org grows. (perf-review F8)
+     *
+     * @return array{items: array<int, array<string, mixed>>, total: int, page: int, perPage: int, totalPages: int}
+     */
+    public function getUsersPage(int $page, int $perPage): array
+    {
+        $page = max(1, $page);
+        $perPage = max(1, min(100, $perPage));
+
+        $total = (int) $this->db->query('SELECT COUNT(*) FROM users')->fetchColumn();
+        $totalPages = max(1, (int) ceil($total / $perPage));
+        $page = min($page, $totalPages);
+        $offset = ($page - 1) * $perPage;
+
+        $stmt = $this->db->prepare(
+            "SELECT u.id, u.username, u.email, u.full_name, u.phone, u.role, u.department_id, u.is_active, u.version, d.name AS department_name
+             FROM users u
+             LEFT JOIN departments d ON d.id = u.department_id
+             ORDER BY u.full_name ASC, u.id ASC
+             LIMIT :limit OFFSET :offset"
+        );
+        $stmt->bindValue('limit', $perPage, PDO::PARAM_INT);
+        $stmt->bindValue('offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+
+        return [
+            'items' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
+            'total' => $total,
+            'page' => $page,
+            'perPage' => $perPage,
+            'totalPages' => $totalPages,
+        ];
+    }
+
+    /**
+     * Lightweight id + name list of every user — for the audit-log "filter by user" dropdown, which must list
+     * all users even though the users tab itself is paginated. (perf-review F8)
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getUserFilterOptions(): array
+    {
+        $stmt = $this->db->query(
+            'SELECT id, full_name, username
+             FROM users
+             ORDER BY full_name ASC, id ASC'
+        );
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
     public function getDepartments(): array
     {
         $stmt = $this->db->query(

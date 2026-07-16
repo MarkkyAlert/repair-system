@@ -34,9 +34,14 @@ class AdminService
         $categorySla = $this->extractCategorySlaMap($settings);
         $auditFilters = $this->normalizeAuditFilters($query);
         $auditPage = max(1, (int) ($query['audit_page'] ?? 1));
+        // Paginate the users tab (each row renders a full edit form) instead of loading every user; the audit
+        // filter dropdown still needs all users, so it gets a lightweight id+name list. (perf-review F8)
+        $usersPage = $this->admin->getUsersPage(max(1, (int) ($query['user_page'] ?? 1)), 25);
 
         return [
-            'users' => $this->admin->getUsers(),
+            'users' => $usersPage['items'],
+            'usersPagination' => $usersPage,
+            'userFilterOptions' => $this->admin->getUserFilterOptions(),
             'departments' => $departments,
             'departmentOptions' => array_map(fn (array $department): array => [
                 'id' => (int) ($department['id'] ?? 0),
