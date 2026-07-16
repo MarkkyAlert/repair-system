@@ -240,6 +240,7 @@ CREATE TABLE tickets (
     KEY idx_tickets_technician (assigned_technician_id),
     KEY idx_tickets_status (status, approval_status),
     KEY idx_tickets_requested_at (requested_at),
+    KEY idx_tickets_resolved_at (resolved_at),
     CONSTRAINT fk_tickets_requester FOREIGN KEY (requester_id) REFERENCES users (id) ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT fk_tickets_requester_department FOREIGN KEY (requester_department_id) REFERENCES departments (id) ON DELETE SET NULL ON UPDATE CASCADE,
     CONSTRAINT fk_tickets_location FOREIGN KEY (location_id) REFERENCES locations (id) ON DELETE RESTRICT ON UPDATE CASCADE,
@@ -387,6 +388,7 @@ CREATE TABLE ticket_ratings (
     UNIQUE KEY uq_ticket_ratings_ticket_id (ticket_id, cycle),
     KEY idx_ticket_ratings_requester (requester_id),
     KEY idx_ticket_ratings_technician (technician_id),
+    KEY idx_ticket_ratings_created_at (created_at, ticket_id),
     CONSTRAINT fk_ticket_ratings_ticket FOREIGN KEY (ticket_id) REFERENCES tickets (id) ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT fk_ticket_ratings_requester FOREIGN KEY (requester_id) REFERENCES users (id) ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT fk_ticket_ratings_technician FOREIGN KEY (technician_id) REFERENCES users (id) ON DELETE SET NULL ON UPDATE CASCADE
