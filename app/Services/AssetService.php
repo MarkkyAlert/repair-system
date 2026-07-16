@@ -117,6 +117,7 @@ class AssetService
         }
 
         $this->assets->regenerateQrToken($assetId, (int) ($viewer['id'] ?? 0) > 0 ? (int) $viewer['id'] : null);
+        $this->purgeQrCache($assetId); // the old token's cached PNG is now stale (perf-review F1)
     }
 
     private const PRINT_ASSETS_CAP = 500;
@@ -309,15 +310,58 @@ class AssetService
             throw new DomainException('ไม่พบ QR token สำหรับ asset นี้');
         }
 
+        $token = (string) $asset['qr_token'];
+
+        // Cache the rendered PNG on the private filesystem, keyed by asset id + token hash. The print sheet
+        // renders up to 500 codes and each <img> is a separate request; rendering a fresh PNG every time is
+        // the wall-time cost (measured ~8.7s for 500). Serve cached bytes on repeat requests. The key
+        // includes the token hash, so a regenerated token misses the old file — a stale image is never
+        // served — and regenerateQrToken purges the previous file. (perf-review F1)
+        $cachePath = $this->qrCachePath($assetId, $token);
+        $cached = @file_get_contents($cachePath);
+        if ($cached !== false && $cached !== '') {
+            return $cached;
+        }
+
         $result = Builder::create()
             ->writer(new PngWriter())
-            ->data(url('/scan/' . (string) $asset['qr_token']))
+            ->data(url('/scan/' . $token))
             ->encoding(new Encoding('UTF-8'))
             ->size(300)
             ->margin(12)
             ->build();
 
-        return $result->getString();
+        $png = $result->getString();
+        $this->writeQrCache($cachePath, $png);
+
+        return $png;
+    }
+
+    /** Private-filesystem cache path for an asset's QR PNG, namespaced by a token hash so a regenerated token misses the old file. */
+    private function qrCachePath(int $assetId, string $token): string
+    {
+        return storage_path('qr-cache/' . $assetId . '-' . substr(hash('sha256', $token), 0, 16) . '.png');
+    }
+
+    /** Atomically write the rendered PNG to cache (temp + rename) so a concurrent reader never sees a half-written file. */
+    private function writeQrCache(string $path, string $png): void
+    {
+        $dir = dirname($path);
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0775, true);
+        }
+        $tmp = $path . '.' . bin2hex(random_bytes(4)) . '.tmp';
+        if (@file_put_contents($tmp, $png) !== false) {
+            @rename($tmp, $path);
+        }
+    }
+
+    /** Drop any cached PNGs for this asset — a new token renders a new image; old files must not linger. */
+    private function purgeQrCache(int $assetId): void
+    {
+        foreach (glob(storage_path('qr-cache/' . $assetId . '-*.png')) ?: [] as $file) {
+            @unlink($file);
+        }
     }
 
     private function buildAssetFormData(array $viewer, array $reference, array $oldInput = [], ?array $asset = null): array
