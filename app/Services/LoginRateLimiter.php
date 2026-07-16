@@ -63,11 +63,15 @@ class LoginRateLimiter
 
         $handle = fopen($this->filePath, 'rb');
         if ($handle === false) {
+            // A read failure means the throttle state is unavailable — the limiter degrades to fail-open, so the
+            // reason must be visible (was returned as an empty state silently). (error-review-5 F1)
+            error_log('[ratelimit] cannot open ' . $this->filePath . ' for read — throttle state unavailable (fail-open)');
             return [];
         }
 
         try {
             if (!flock($handle, LOCK_SH)) {
+                error_log('[ratelimit] shared lock failed on ' . $this->filePath . ' — throttle state unavailable (fail-open)');
                 return [];
             }
             $contents = stream_get_contents($handle);
@@ -105,9 +109,18 @@ class LoginRateLimiter
             $payload = $this->dropStaleKeys($payload);
 
             rewind($handle);
-            ftruncate($handle, 0);
-            fwrite($handle, json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
-            fflush($handle);
+            // A failed/partial write leaves the file corrupt → the next read decodes to empty (fail-open) with no
+            // trace. Check each write step so a full disk / quota is surfaced, not swallowed. (error-review-5 F1)
+            if (ftruncate($handle, 0) === false) {
+                error_log('[ratelimit] ftruncate failed on ' . $this->filePath . ' — throttle state may be left corrupt');
+            }
+            $encoded = (string) json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+            if (fwrite($handle, $encoded) === false) {
+                error_log('[ratelimit] fwrite failed on ' . $this->filePath . ' — throttle state NOT persisted (fail-open)');
+            }
+            if (fflush($handle) === false) {
+                error_log('[ratelimit] fflush failed on ' . $this->filePath . ' — throttle state may not be persisted');
+            }
             flock($handle, LOCK_UN);
         } finally {
             fclose($handle);
@@ -121,8 +134,15 @@ class LoginRateLimiter
         }
 
         $decoded = json_decode($contents, true);
+        if (!is_array($decoded)) {
+            // Corrupt state (partial write, manual edit, disk error) — treated as empty means the limiter forgets
+            // every attempt (fail-open). Log it so support sees the cause instead of a silently-reset throttle.
+            // (error-review-5 F1) — self-heals on the next successful write.
+            error_log('[ratelimit] corrupt JSON in ' . $this->filePath . ' — throttle state treated as empty (fail-open)');
+            return [];
+        }
 
-        return is_array($decoded) ? $decoded : [];
+        return $decoded;
     }
 
     /** Drop keys whose newest attempt is older than every decay window — bounds the file to active keys. */
