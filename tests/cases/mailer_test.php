@@ -51,6 +51,7 @@ test('MailerService::send(log): writes a redacted, non-colliding mail-log artifa
     $tweaked = $config;
     $tweaked['mail']['driver'] = 'log';
     $tweaked['mail']['log_path'] = $dir;
+    $tweaked['app']['env'] = 'local'; // dev keeps full content — this test covers the token-redaction path
     $container->instance('config', $tweaked);
 
     $token = 'deadbeefdeadbeefdeadbeefdeadbeef';
@@ -73,6 +74,50 @@ test('MailerService::send(log): writes a redacted, non-colliding mail-log artifa
         $contents = (string) file_get_contents($files[0]) . (string) file_get_contents($files[1]);
         assert_true(!str_contains($contents, $token), 'the live reset token must NOT be persisted in the mail log');
         assert_contains_str('[REDACTED]', $contents, 'the token is redacted in the artifact');
+    } finally {
+        $container->instance('config', $config);
+        foreach (glob($dir . '/*.json') ?: [] as $f) {
+            @unlink($f);
+        }
+        @rmdir($dir);
+    }
+});
+
+// error-review-2 F5: in production the log driver must not persist PII — mask the recipient, drop the body.
+test('MailerService::maskEmail: keeps the first char + domain, hides the rest', function (): void {
+    assert_same('a***@example.com', MailerService::maskEmail('alice@example.com'), 'a normal address is masked');
+    assert_same('', MailerService::maskEmail(''), 'empty stays empty');
+    assert_same('***', MailerService::maskEmail('notanemail'), 'a value with no @ is fully masked');
+});
+
+test('MailerService::send(log) in production: masks recipient + omits the body (no PII on disk) (error-review-2 F5)', function (): void {
+    $container = tvm_container();
+    $config = $container->get('config');
+    $dir = sys_get_temp_dir() . '/f5prod_' . bin2hex(random_bytes(4));
+    $tweaked = $config;
+    $tweaked['mail']['driver'] = 'log';
+    $tweaked['mail']['log_path'] = $dir;
+    $tweaked['app']['env'] = 'production'; // production → PII must not be written
+    $container->instance('config', $tweaked);
+
+    try {
+        $container->get(MailerService::class)->send([
+            'to_email' => 'alice@example.com',
+            'to_name' => 'Alice Secret',
+            'subject' => 'Password reset',
+            'body_html' => '<a href="https://h/reset-password/tok123?email=alice%40example.com">reset</a>',
+            'body_text' => 'sensitive ticket details here',
+        ]);
+
+        $files = glob($dir . '/*.json') ?: [];
+        assert_same(1, count($files), 'one artifact written');
+        $content = (string) file_get_contents($files[0]);
+
+        assert_true(!str_contains($content, 'alice@example.com'), 'the raw recipient email must NOT be on disk in production');
+        assert_contains_str('a***@example.com', $content, 'the recipient is masked');
+        assert_true(!str_contains($content, 'Alice Secret'), 'the recipient name is not persisted');
+        assert_true(!str_contains($content, 'sensitive ticket details'), 'the body content is omitted in production');
+        assert_true(!str_contains($content, 'tok123'), 'no token/URL survives (body omitted)');
     } finally {
         $container->instance('config', $config);
         foreach (glob($dir . '/*.json') ?: [] as $f) {

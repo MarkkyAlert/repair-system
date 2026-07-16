@@ -96,17 +96,29 @@ class MailerService
         // the timestamp+slug name alone silently overwrote the first (lossy). (error-review F5)
         $file = $directory . '/' . $timestamp . '-' . ($slug !== '' ? $slug : 'mail') . '-' . bin2hex(random_bytes(4)) . '.json';
 
-        $payload = [
-            'to_email' => (string) ($message['to_email'] ?? ''),
-            'to_name' => (string) ($message['to_name'] ?? ''),
-            'subject' => (string) ($message['subject'] ?? ''),
-            'body_html' => (string) ($message['body_html'] ?? ''),
-            'body_text' => (string) ($message['body_text'] ?? ''),
-            'payload' => is_string($message['payload'] ?? null)
-                ? json_decode((string) $message['payload'], true)
-                : ($message['payload'] ?? null),
-            'logged_at' => date('c'),
-        ];
+        // In PRODUCTION the log driver must not persist PII: mask the recipient and drop the body/payload,
+        // keeping only the template subject + time (enough to confirm a message was generated). In dev/local
+        // the full content is kept for debugging. Owner decision. (error-review-2 F5)
+        if ((string) config('app.env', 'production') === 'production') {
+            $payload = [
+                'to_email' => self::maskEmail((string) ($message['to_email'] ?? '')),
+                'subject' => (string) ($message['subject'] ?? ''),
+                'body' => '[omitted in production]',
+                'logged_at' => date('c'),
+            ];
+        } else {
+            $payload = [
+                'to_email' => (string) ($message['to_email'] ?? ''),
+                'to_name' => (string) ($message['to_name'] ?? ''),
+                'subject' => (string) ($message['subject'] ?? ''),
+                'body_html' => (string) ($message['body_html'] ?? ''),
+                'body_text' => (string) ($message['body_text'] ?? ''),
+                'payload' => is_string($message['payload'] ?? null)
+                    ? json_decode((string) $message['payload'], true)
+                    : ($message['payload'] ?? null),
+                'logged_at' => date('c'),
+            ];
+        }
 
         // The log driver persists mail to disk indefinitely; it must NOT store a live password-reset token in
         // plaintext. Redact reset tokens (path + query forms) from the serialized record. (error-review F5)
@@ -122,6 +134,18 @@ class MailerService
      * Strip password-reset tokens from text about to be logged: the token is a path segment
      * (/reset-password/<token>?email=...) and, in some flows, a token= query parameter. (error-review F5)
      */
+    /** Mask an email for production logs: keep the first local char + the domain, hide the rest (a***@example.com). (error-review-2 F5) */
+    public static function maskEmail(string $email): string
+    {
+        $email = trim($email);
+        $at = strpos($email, '@');
+        if ($at === false || $at === 0) {
+            return $email === '' ? '' : '***';
+        }
+
+        return substr($email, 0, 1) . '***' . substr($email, $at);
+    }
+
     public static function redactSecrets(string $text): string
     {
         $text = preg_replace('#(/reset-password/)[^/?"\'\s\\\\]+#', '${1}[REDACTED]', $text) ?? $text;

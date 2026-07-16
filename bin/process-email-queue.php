@@ -28,8 +28,13 @@ try {
     echo 'Retried: ' . (int) ($result['retried'] ?? 0) . PHP_EOL;
     echo 'Failed: ' . $failed . PHP_EOL;
 
+    // In production the cron log must not carry recipient PII — print the job id, not the email + subject. (error-review-2 F5)
+    $isProduction = (string) config('app.env', 'production') === 'production';
     foreach (($result['items'] ?? []) as $item) {
-        echo '- [' . (string) ($item['status'] ?? 'unknown') . '] ' . (string) ($item['to_email'] ?? '-') . ' :: ' . (string) ($item['subject'] ?? '-') . PHP_EOL;
+        $who = $isProduction
+            ? 'job #' . (int) ($item['id'] ?? 0)
+            : (string) ($item['to_email'] ?? '-') . ' :: ' . (string) ($item['subject'] ?? '-');
+        echo '- [' . (string) ($item['status'] ?? 'unknown') . '] ' . $who . PHP_EOL;
     }
 
     // The run completed (heartbeat updated), but a terminal failure — an email that exhausted its retries and
