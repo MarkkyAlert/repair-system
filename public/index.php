@@ -54,5 +54,11 @@ try {
         throw $exception;
     }
 
+    // An AJAX/fetch caller must get a JSON 500 (with the correlation reference), not an HTML error page that
+    // breaks response.json(). Same generic message either way — no stack/SQL leaks. (error-review-2 F3)
+    if (request_wants_json()) {
+        Response::jsonError('ระบบเกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง', 500, ['reference' => request_id()]);
+    }
+
     Response::abort(500, 'ระบบเกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง');
 }

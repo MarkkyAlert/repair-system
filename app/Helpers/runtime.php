@@ -146,6 +146,22 @@ function request_id(): string
 }
 
 /**
+ * Whether the caller expects a JSON response (an AJAX/fetch call) rather than an HTML page — used so the
+ * entry-point 500 handler returns a JSON error (with a reference) instead of an HTML page that would break the
+ * client's response.json(). (error-review-2 F3)
+ *
+ * @param array<string, mixed>|null $server defaults to $_SERVER
+ */
+function request_wants_json(?array $server = null): bool
+{
+    $server ??= $_SERVER;
+    $accept = strtolower((string) ($server['HTTP_ACCEPT'] ?? ''));
+    $requestedWith = strtolower((string) ($server['HTTP_X_REQUESTED_WITH'] ?? ''));
+
+    return str_contains($accept, 'application/json') || $requestedWith === 'xmlhttprequest';
+}
+
+/**
  * True when the app is configured to leak stack traces to clients: debug mode enabled under a production
  * environment (the entry-point handler rethrows in debug, so a prod error would expose its trace). The web
  * entry point refuses to serve in this state; local dev (APP_ENV=local) is unaffected.

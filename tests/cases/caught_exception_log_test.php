@@ -45,3 +45,13 @@ test('F8 (traceability): request_id is stable and prefixes the exception log for
         @unlink($tmp);
     }
 });
+
+// error-review-2 F3: the entry-point 500 handler must return JSON (with a reference) to an AJAX/fetch caller
+// instead of an HTML page that breaks response.json(). request_wants_json is the content-negotiation decision.
+test('F3 (traceability): request_wants_json detects AJAX/fetch callers so they get a JSON 500, not HTML', function (): void {
+    assert_true(request_wants_json(['HTTP_ACCEPT' => 'application/json']), 'Accept: application/json → JSON');
+    assert_true(request_wants_json(['HTTP_X_REQUESTED_WITH' => 'XMLHttpRequest']), 'X-Requested-With: XMLHttpRequest → JSON');
+    assert_true(request_wants_json(['HTTP_ACCEPT' => 'text/html, application/json;q=0.9']), 'a mixed Accept including json → JSON');
+    assert_false(request_wants_json(['HTTP_ACCEPT' => 'text/html']), 'a plain browser page load → HTML');
+    assert_false(request_wants_json([]), 'no headers → HTML (safe default)');
+});
