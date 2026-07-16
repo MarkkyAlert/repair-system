@@ -204,6 +204,52 @@ test('sla (F1): a SWALLOWED in-app dispatch failure is counted as notify_failed 
     }
 });
 
+test('sla (O1): an email-only recipient whose email fails is counted as notify_failed, not a false success', function (): void {
+    // The user disabled IN-APP for SLA breach → email is the ONLY channel. Previously notifySlaBreached returned
+    // just the in-app result (which trivially "succeeds" with zero recipients), so an email failure was reported
+    // as success. Now every channel with recipients must deliver.
+    $userId = sla_seed_user();
+    $ticketId = sla_seed_ticket($userId);
+    $trackId = sla_seed_track($ticketId, 'resolution', -3600);
+    sla_pdo()->prepare("INSERT INTO notification_preferences (user_id, notification_type, channel, is_enabled) VALUES (?, 'sla_breached', 'in_app', 0)")->execute([$userId]);
+
+    try {
+        $c = tvm_container();
+        $throwingEmails = new class () extends \App\Services\EmailQueueService {
+            public function __construct()
+            {
+            }
+
+            public function queueSlaBreachedEmails(array $context, array $recipientIds, string $metricType, string $title, string $message): void
+            {
+                throw new \RuntimeException('email queue backend down');
+            }
+        };
+        $realNotifier = new \App\Services\NotificationService(
+            $c->get(\App\Repositories\NotificationRepository::class),
+            $c->get(\App\Repositories\TicketReadRepository::class),
+            $throwingEmails,
+            $c->get(\App\Repositories\NotificationPreferenceRepository::class),
+            $c->get(\App\Repositories\UserRepository::class),
+        );
+        $service = new \App\Services\SlaService(
+            $c->get(\App\Repositories\TicketRepository::class),
+            $c->get(\App\Repositories\TicketReadRepository::class),
+            $realNotifier,
+        );
+
+        $result = $service->processOverdueBreaches();
+
+        assert_same(1, (int) $result['processed'], 'the breach is marked');
+        assert_same(1, (int) $result['notify_failed'], 'the email-only failure is counted (was 0 — a false success)');
+        assert_same(0, (int) $result['notified'], 'not counted as notified');
+        assert_same(0, sla_notif_count($ticketId), 'no in-app notification row was written (in-app disabled for this user)');
+    } finally {
+        sla_pdo()->prepare('DELETE FROM notification_preferences WHERE user_id = ?')->execute([$userId]);
+        sla_cleanup([$ticketId], [$userId]);
+    }
+});
+
 test('sla: an overdue pending track is marked breached (status + breached_at) and counted', function (): void {
     $userId = sla_seed_user();
     $ticketId = sla_seed_ticket($userId);

@@ -342,7 +342,7 @@ class NotificationService
         $title = $metricLabel . ' เกินกำหนด';
         $message = 'Ticket ' . (string) ($context['ticket_no'] ?? '-') . ' มีสถานะเกินกำหนดตาม ' . $metricLabel;
 
-        $notified = $this->dispatchNotification([
+        $inAppDelivered = $this->dispatchNotification([
             'type' => 'ticket.sla_breached.' . $metricType,
             'title' => $title,
             'message' => $message,
@@ -355,13 +355,19 @@ class NotificationService
             'related_id' => $ticketId,
         ], $inAppRecipients);
 
+        $emailDelivered = true;
         try {
             $this->emails->queueSlaBreachedEmails($context, $emailRecipients, $metricType, $title, $message);
         } catch (Throwable $exception) {
             log_caught_exception('notify.email.sla', $exception, ['metric' => $metricType, 'ticket' => $ticketId]);
+            $emailDelivered = false;
         }
 
-        return $notified;
+        // "notified" must reflect EVERY channel that had recipients — an email-only recipient (in-app disabled)
+        // whose email enqueue fails is a real notify failure, even though the empty in-app dispatch trivially
+        // succeeds. dispatchNotification/queue return true when there were no recipients on that channel, so an
+        // AND here == "every channel with recipients delivered". (error-review-3 O1)
+        return $inAppDelivered && $emailDelivered;
     }
 
     /**
