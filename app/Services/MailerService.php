@@ -24,6 +24,13 @@ class MailerService
     {
         $driver = strtolower((string) config('mail.driver', 'log'));
 
+        // Only 'log' and 'smtp' are supported. Reject anything else LOUDLY instead of silently falling through
+        // to PHPMailer's default mail() transport — a typo'd MAIL_DRIVER would otherwise send (or drop) mail via
+        // an unconfigured sendmail with no diagnostic. (error-review F7)
+        if (!in_array($driver, ['log', 'smtp'], true)) {
+            throw new RuntimeException(sprintf('MAIL_DRIVER "%s" ไม่รองรับ — ตั้งค่าได้เฉพาะ log หรือ smtp', $driver));
+        }
+
         if ($driver === 'log') {
             $this->logMessage($message);
             return;

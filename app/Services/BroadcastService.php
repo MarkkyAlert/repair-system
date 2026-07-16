@@ -90,6 +90,13 @@ class BroadcastService
         try {
             $this->mailer->send($message);
         } catch (Throwable $exception) {
+            // the admin sees a generic message; the real cause (SMTP refused, bad driver, timeout) must be logged
+            // with the mail settings so the diagnostic is actionable — it was discarded before. (error-review F7)
+            log_caught_exception('email.test.failed', $exception, [
+                'driver' => (string) config('mail.driver', 'log'),
+                'host' => (string) config('mail.host', ''),
+                'port' => (string) config('mail.port', ''),
+            ]);
             throw new DomainException('ส่งอีเมลทดสอบไม่สำเร็จ: กรุณาตรวจสอบค่า SMTP/MAIL_DRIVER และลองใหม่');
         }
 
