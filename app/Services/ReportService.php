@@ -109,19 +109,25 @@ class ReportService
         // Score EVERY matching asset → the summary cards and the worst-health ranking are computed over all
         // of them; the table then shows only the top N (buyer-tunable). Previously the summary was built from
         // the capped rows, so it undercounted the fleet size / downtime / labor once past the cap (F1).
+        //
+        // Score every asset into a LIGHTWEIGHT record (raw row + the ranking/summary keys) and build the heavy
+        // display array only for the shown slice — not for all up-to-100k rows. Same score (shared assetHealth),
+        // same ranking, same summary; just no per-row label/format allocation for rows nobody sees. (perf-review F6)
         $displayLimit = max(1, (int) config('reports.asset_display_limit', self::ASSET_REPORT_LIMIT));
-        $allRows = $this->collectAssetReportRows($viewer, $normalizedFilters, self::ASSET_SUMMARY_MAX_ROWS);
-        $displayRows = array_slice($allRows, 0, $displayLimit);
+        $scored = array_map(fn (array $row): array => $this->scoreAssetRow($row), $this->reports->getAssetReliabilityReport($viewer, $normalizedFilters, self::ASSET_SUMMARY_MAX_ROWS));
+        usort($scored, static fn (array $a, array $b): int => [$b['health_score'], $b['failure_count']] <=> [$a['health_score'], $a['failure_count']]);
+
+        $displayRows = array_map(fn (array $s): array => $this->mapAssetReliabilityReportRow($s['raw']), array_slice($scored, 0, $displayLimit));
 
         return [
             'filters' => $this->buildAssetReportFilterData($normalizedFilters, $reference),
-            'summary' => $this->buildAssetReportSummary($allRows),
+            'summary' => $this->buildAssetReportSummary($scored),
             'rows' => $displayRows,
             'rowsMeta' => [
                 'displayed' => count($displayRows),
-                'total' => count($allRows),
+                'total' => count($scored),
                 'limit' => $displayLimit,
-                'capped' => count($allRows) > $displayLimit,
+                'capped' => count($scored) > $displayLimit,
             ],
         ];
     }
@@ -161,28 +167,67 @@ class ReportService
         ];
     }
 
-    private function mapAssetReliabilityReportRow(array $row): array
+    /**
+     * Health score + the raw-derived metrics that BOTH the full row mapper and the page's lightweight
+     * ranking/summary scan need — single source so those two passes can never disagree. Lets the page score
+     * every asset for the summary while building the heavy display array only for the shown slice. (perf-review F6)
+     *
+     * @return array{health: array<string, mixed>, failureCount: int, avgHours: float, ageYears: ?float, warranty: array<string, mixed>, mtbfDays: ?float}
+     */
+    private function assetHealth(array $row): array
     {
-        $status = (string) ($row['status'] ?? 'active');
         $failureCount = (int) ($row['failure_count'] ?? 0);
         // single-rounding pipeline (float) เหมือน summary/MTTR — [[report-avg-time-rounding]]
-        $avgMinutes = (float) ($row['avg_resolution_minutes'] ?? 0);
-        $avgHours = round($avgMinutes / 60, 1);
-        $downtimeMinutes = (int) ($row['downtime_minutes'] ?? 0);
-        $laborMinutes = (int) ($row['labor_minutes'] ?? 0);
-
+        $avgHours = round(((float) ($row['avg_resolution_minutes'] ?? 0)) / 60, 1);
         $ageYears = $this->yearsSince($row['purchase_date'] ?? null);
         $warranty = $this->warrantyState($row['warranty_expires_at'] ?? null);
         $mtbfDays = $this->meanTimeBetweenFailures($row['first_failure_at'] ?? null, $row['last_failure_at'] ?? null, $failureCount);
 
-        $health = $this->scoreAssetHealth([
-            'failure_count' => $failureCount,
-            'warranty_status' => $warranty['status'],
-            'age_years' => $ageYears,
-            'mtbf_days' => $mtbfDays,
-            'avg_resolution_hours' => $avgHours,
-            'status' => $status,
-        ]);
+        return [
+            'health' => $this->scoreAssetHealth([
+                'failure_count' => $failureCount,
+                'warranty_status' => $warranty['status'],
+                'age_years' => $ageYears,
+                'mtbf_days' => $mtbfDays,
+                'avg_resolution_hours' => $avgHours,
+                'status' => (string) ($row['status'] ?? 'active'),
+            ]),
+            'failureCount' => $failureCount,
+            'avgHours' => $avgHours,
+            'ageYears' => $ageYears,
+            'warranty' => $warranty,
+            'mtbfDays' => $mtbfDays,
+        ];
+    }
+
+    /** Lightweight scored record for the page's ranking + summary — carries the raw row (mapped to the heavy display shape only if it lands in the shown slice) plus the keys usort()/buildAssetReportSummary() read. (perf-review F6) */
+    private function scoreAssetRow(array $row): array
+    {
+        $health = $this->assetHealth($row)['health'];
+
+        return [
+            'raw' => $row,
+            'health_score' => $health['score'],
+            'health_tone' => $health['tone'],
+            'failure_count' => (int) ($row['failure_count'] ?? 0),
+            'downtime_minutes' => (int) ($row['downtime_minutes'] ?? 0),
+            'labor_minutes' => (int) ($row['labor_minutes'] ?? 0),
+        ];
+    }
+
+    private function mapAssetReliabilityReportRow(array $row): array
+    {
+        $status = (string) ($row['status'] ?? 'active');
+        $downtimeMinutes = (int) ($row['downtime_minutes'] ?? 0);
+        $laborMinutes = (int) ($row['labor_minutes'] ?? 0);
+
+        $c = $this->assetHealth($row);
+        $failureCount = $c['failureCount'];
+        $avgHours = $c['avgHours'];
+        $ageYears = $c['ageYears'];
+        $warranty = $c['warranty'];
+        $mtbfDays = $c['mtbfDays'];
+        $health = $c['health'];
 
         return [
             'id' => (int) ($row['id'] ?? 0),
