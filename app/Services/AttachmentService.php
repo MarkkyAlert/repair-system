@@ -112,6 +112,23 @@ class AttachmentService
         return array_map(fn (array $row): array => $this->mapAttachment($row), array_values($rows));
     }
 
+    /**
+     * Mapped attachments for a specific set of comment ids (live-poll feed). Same disk-existence filter and
+     * mapping as getTicketAttachments, but scoped to the comments being rendered. (perf-review F4)
+     *
+     * @param int[] $commentIds
+     * @return array<int, array<string, mixed>>
+     */
+    public function getAttachmentsForCommentIds(array $commentIds, bool $includeInternal): array
+    {
+        $rows = array_filter(
+            $this->attachments->getByCommentIds($commentIds, $includeInternal),
+            static fn (array $row): bool => is_file(BASE_PATH . '/' . ltrim((string) ($row['disk_path'] ?? ''), '/'))
+        );
+
+        return array_map(fn (array $row): array => $this->mapAttachment($row), array_values($rows));
+    }
+
     public function deleteStoredFiles(array $paths): void
     {
         $paths = array_values(array_unique(array_filter(

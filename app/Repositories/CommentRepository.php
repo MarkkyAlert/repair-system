@@ -49,6 +49,34 @@ class CommentRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    /**
+     * Live-poll variant: only comments newer than $afterId (id > afterId), for the ticket-detail feed.
+     * Bounds the read to what the client is missing instead of loading the whole thread and filtering in
+     * PHP — auto-increment ids mean id > afterId == "posted after the last one the client has". (perf-review F4)
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getCommentsAfterId(int $ticketId, int $afterId, bool $includeInternal): array
+    {
+        $sql =
+            'SELECT c.id, c.ticket_id, c.user_id, c.parent_id, c.body, c.is_internal, c.created_at, c.updated_at, c.version, u.full_name AS author_name, u.role AS author_role
+             FROM ticket_comments c
+             INNER JOIN users u ON u.id = c.user_id
+             WHERE c.ticket_id = :ticket_id
+               AND c.id > :after_id';
+
+        if (!$includeInternal) {
+            $sql .= ' AND c.is_internal = 0';
+        }
+
+        $sql .= ' ORDER BY c.created_at ASC, c.id ASC';
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute(['ticket_id' => $ticketId, 'after_id' => $afterId]);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
     public function findCommentById(int $commentId): ?array
     {
         $stmt = $this->db->prepare(

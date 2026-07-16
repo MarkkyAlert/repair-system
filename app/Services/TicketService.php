@@ -588,16 +588,22 @@ class TicketService
 
         $includeInternal = (string) ($viewer['role'] ?? 'guest') !== 'requester';
 
+        // Fetch ONLY comments newer than $afterId, not the whole thread filtered in PHP. On an idle poll
+        // (no new comments — the common case at 20s intervals) return early WITHOUT the attachments read, so
+        // a quiet ticket costs one bounded query instead of scanning every comment + attachment. (perf-review F4)
+        $comments = $this->comments->getCommentsAfterId($ticketId, $afterId, $includeInternal);
+        if ($comments === []) {
+            return [];
+        }
+
+        $commentIds = array_map(static fn (array $comment): int => (int) ($comment['id'] ?? 0), $comments);
         $commentAttachments = [];
-        foreach ($this->attachments->getTicketAttachments($ticketId, $includeInternal) as $attachment) {
+        foreach ($this->attachments->getAttachmentsForCommentIds($commentIds, $includeInternal) as $attachment) {
             $commentAttachments[(int) ($attachment['comment_id'] ?? 0)][] = $attachment;
         }
 
         $new = [];
-        foreach ($this->comments->getCommentsByTicketId($ticketId, $includeInternal) as $comment) {
-            if ((int) ($comment['id'] ?? 0) <= $afterId) {
-                continue;
-            }
+        foreach ($comments as $comment) {
             $mapped = $this->mapComment($comment, $viewer);
             $mapped['attachments'] = $commentAttachments[(int) ($comment['id'] ?? 0)] ?? [];
             $new[] = $mapped;

@@ -53,6 +53,35 @@ class AttachmentRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    /**
+     * Attachments belonging to a specific set of comment ids — for the live-poll feed which already knows
+     * which (new) comments it is rendering, so it needn't scan every attachment on the ticket. (perf-review F4)
+     *
+     * @param int[] $commentIds
+     * @return array<int, array<string, mixed>>
+     */
+    public function getByCommentIds(array $commentIds, bool $includeInternal): array
+    {
+        $commentIds = array_values(array_unique(array_filter(array_map('intval', $commentIds), static fn (int $id): bool => $id > 0)));
+        if ($commentIds === []) {
+            return [];
+        }
+
+        $placeholders = implode(', ', array_fill(0, count($commentIds), '?'));
+        $sql = "SELECT a.*, c.is_internal
+                FROM ticket_attachments a
+                INNER JOIN ticket_comments c ON c.id = a.comment_id
+                WHERE a.comment_id IN ($placeholders)";
+        if (!$includeInternal) {
+            $sql .= ' AND c.is_internal = 0';
+        }
+        $sql .= ' ORDER BY a.created_at ASC, a.id ASC';
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($commentIds);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
     public function getByCommentId(int $commentId): array
     {
         $stmt = $this->db->prepare('SELECT * FROM ticket_attachments WHERE comment_id = :comment_id');
