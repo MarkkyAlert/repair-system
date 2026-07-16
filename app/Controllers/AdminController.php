@@ -305,11 +305,19 @@ class AdminController
         try {
             csrf_validate();
             $result = $this->broadcast->sendBroadcast($viewer, $_POST);
-            flash('success', sprintf(
-                'ส่งประกาศแล้ว — in-app: %d คน · email: %d คน',
-                (int) ($result['in_app_count'] ?? 0),
-                (int) ($result['email_count'] ?? 0)
-            ));
+            if (!empty($result['email_failed'])) {
+                // the announcement posted in-app, but the email enqueue failed — say so, don't claim it was sent
+                flash('error', sprintf(
+                    'ประกาศขึ้นระบบแล้ว (in-app: %d คน) แต่การส่งอีเมลมีปัญหา — ระบบบันทึกข้อผิดพลาดไว้แล้ว กรุณาตรวจสอบการตั้งค่าอีเมล',
+                    (int) ($result['in_app_count'] ?? 0)
+                ));
+            } else {
+                flash('success', sprintf(
+                    'ส่งประกาศแล้ว — in-app: %d คน · email: %d คน',
+                    (int) ($result['in_app_count'] ?? 0),
+                    (int) ($result['email_count'] ?? 0)
+                ));
+            }
             Response::redirect('/admin/broadcast');
         } catch (\PDOException $__infra) {
             throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)

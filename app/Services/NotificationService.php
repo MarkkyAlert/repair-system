@@ -301,15 +301,20 @@ class NotificationService
             'submission_token' => $submissionToken,
         ], $inAppRecipients);
 
+        // Report the ACTUAL email outcome, not the intended recipient count: if the enqueue fails, the caller
+        // (admin flash) must not claim "email: N sent" when zero were queued. (error-review F3)
+        $emailQueued = true;
         try {
             $this->emails->queueSystemAnnouncementEmails($emailRecipients, $title, $message);
         } catch (Throwable $exception) {
             log_caught_exception('notify.email.broadcast', $exception);
+            $emailQueued = false;
         }
 
         return [
             'in_app_count' => count($inAppRecipients),
-            'email_count' => count($emailRecipients),
+            'email_count' => $emailQueued ? count($emailRecipients) : 0,
+            'email_failed' => !$emailQueued,
         ];
     }
 

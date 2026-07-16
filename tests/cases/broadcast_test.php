@@ -60,3 +60,38 @@ test('broadcast idempotency (R8-F2): the same token sends once; a replay is a no
         bc_pdo()->prepare('DELETE FROM email_queue WHERE id > ?')->execute([$emailFloor]);
     }
 });
+
+// error-review F3: a broadcast reported the INTENDED email recipient count even when the enqueue failed, so the
+// admin saw "email: N sent" for zero queued. The result must report the real outcome + an email_failed flag.
+test('broadcast (F3): an email-enqueue failure is reported, not counted as sent', function (): void {
+    $token = bin2hex(random_bytes(32));
+    $c = tvm_container();
+
+    $throwingEmails = new class () extends \App\Services\EmailQueueService {
+        public function __construct()
+        {
+        }
+
+        public function queueSystemAnnouncementEmails(array $recipientIds, string $title, string $message): void
+        {
+            throw new \RuntimeException('email queue backend down');
+        }
+    };
+    $service = new \App\Services\NotificationService(
+        $c->get(\App\Repositories\NotificationRepository::class),
+        $c->get(\App\Repositories\TicketReadRepository::class),
+        $throwingEmails,
+        $c->get(\App\Repositories\NotificationPreferenceRepository::class),
+        $c->get(\App\Repositories\UserRepository::class),
+    );
+
+    try {
+        $result = $service->notifySystemAnnouncement('Maintenance', 'Please save your work', 4, null, $token);
+
+        assert_true(($result['in_app_count'] ?? 0) > 0, 'the in-app announcement still posted');
+        assert_same(0, (int) ($result['email_count'] ?? -1), 'no emails were queued → email_count is 0, not the intended count');
+        assert_true(($result['email_failed'] ?? false) === true, 'the email failure is surfaced to the caller');
+    } finally {
+        bc_pdo()->prepare('DELETE FROM notifications WHERE submission_token = ?')->execute([$token]); // cascades recipients
+    }
+});

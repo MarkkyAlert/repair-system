@@ -31,6 +31,8 @@ try {
     }
 
     echo 'SLA processed: ' . (int) ($slaResult['processed'] ?? 0) . PHP_EOL;
+    echo 'SLA notified: ' . (int) ($slaResult['notified'] ?? 0) . PHP_EOL;
+    echo 'SLA notify failed: ' . (int) ($slaResult['notify_failed'] ?? 0) . PHP_EOL;
     echo 'Emails processed: ' . (int) ($mailResult['processed'] ?? 0) . PHP_EOL;
     echo 'Emails sent: ' . (int) ($mailResult['sent'] ?? 0) . PHP_EOL;
     echo 'Emails retried: ' . (int) ($mailResult['retried'] ?? 0) . PHP_EOL;

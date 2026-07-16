@@ -123,6 +123,48 @@ test('sla(fixture): drain pre-existing overdue SLA tracks to a known baseline', 
 
 // ── the behaviour under test ──
 
+test('sla: a notify failure is counted as notify_failed, NOT as notified (error-review F3)', function (): void {
+    $userId = sla_seed_user();
+    $ticketId = sla_seed_ticket($userId);
+    $trackId = sla_seed_track($ticketId, 'resolution', -3600); // 1 hour overdue
+
+    try {
+        $throwingNotifier = new class () extends \App\Services\NotificationService {
+            public function __construct()
+            {
+            }
+
+            public function notifySlaBreached(int $ticketId, string $metricType): void
+            {
+                throw new \RuntimeException('notification backend down');
+            }
+        };
+        $service = new \App\Services\SlaService(
+            tvm_container()->get(\App\Repositories\TicketRepository::class),
+            tvm_container()->get(\App\Repositories\TicketReadRepository::class),
+            $throwingNotifier,
+        );
+
+        $result = $service->processOverdueBreaches();
+
+        assert_same(1, (int) $result['processed'], 'the breach is still marked (committed) despite the notify failure');
+        assert_same(1, (int) $result['notify_failed'], 'the failed notification is counted as a failure');
+        assert_same(0, (int) $result['notified'], 'and is NOT reported as a successful notification');
+        assert_same('breached', sla_track_row($trackId)['status'], 'the track is breached regardless of the notify outcome');
+
+        $mine = null;
+        foreach ($result['items'] as $item) {
+            if ((int) ($item['ticket_id'] ?? 0) === $ticketId) {
+                $mine = $item;
+                break;
+            }
+        }
+        assert_true($mine !== null && ($mine['notified'] ?? null) === false, 'the item records notified=false');
+    } finally {
+        sla_cleanup([$ticketId], [$userId]);
+    }
+});
+
 test('sla: an overdue pending track is marked breached (status + breached_at) and counted', function (): void {
     $userId = sla_seed_user();
     $ticketId = sla_seed_ticket($userId);

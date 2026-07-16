@@ -20,6 +20,7 @@ class SlaService
     {
         $breachedAt = date('Y-m-d H:i:s');
         $processed = 0;
+        $notifyFailed = 0;
         $notifiedTickets = [];
 
         foreach ($this->reads->getPendingOverdueSlaBreaches() as $track) {
@@ -41,20 +42,29 @@ class SlaService
             // processes a BATCH. A failed notification for one ticket must not abort the loop — otherwise the
             // remaining breaches go unmarked/unnotified this run and this ticket's own notify is never retried
             // (next run it is no longer "pending"). Log and carry on.
+            $notified = true;
             try {
                 $this->notifications->notifySlaBreached($ticketId, $metricType);
             } catch (Throwable $exception) {
                 log_caught_exception('sla.breach.notify', $exception, ['ticket_id' => $ticketId, 'metric' => $metricType]);
+                $notified = false;
+                $notifyFailed++;
             }
             $notifiedTickets[] = [
                 'ticket_id' => $ticketId,
                 'ticket_no' => (string) ($track['ticket_no'] ?? ''),
                 'metric_type' => $metricType,
+                'notified' => $notified,
             ];
         }
 
+        // Separate "marked as breached" (committed) from "actually notified": a notify failure must NOT be
+        // reported as a successful notification — the breach stands but its alert never went out and won't be
+        // retried (next run it is no longer pending). The cron surfaces notify_failed. (error-review F3)
         return [
             'processed' => $processed,
+            'notified' => $processed - $notifyFailed,
+            'notify_failed' => $notifyFailed,
             'items' => $notifiedTickets,
         ];
     }
