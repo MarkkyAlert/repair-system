@@ -158,8 +158,15 @@ class AttachmentService
             throw new RuntimeException('ไม่พบไฟล์แนบในพื้นที่จัดเก็บ');
         }
 
+        // A read failure (permissions, disk error, a race after the is_file check) must NOT be cast to '' and
+        // shipped as a 200 empty download — surface it as an error the controller logs. (error-review-3 O5)
+        $content = @file_get_contents($path); // '@' — the failure is surfaced via the throw + controller log, not a raw PHP warning
+        if ($content === false) {
+            throw new RuntimeException('ไม่สามารถอ่านไฟล์แนบจากพื้นที่จัดเก็บ');
+        }
+
         return [
-            'content' => (string) file_get_contents($path),
+            'content' => $content,
             'file_name' => (string) $attachment['original_name'],
             'content_type' => (string) $attachment['mime_type'],
         ];

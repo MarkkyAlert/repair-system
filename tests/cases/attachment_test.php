@@ -203,6 +203,40 @@ namespace {
         }
     });
 
+    test('attachment(O5): an unreadable file surfaces an error, not a 200 empty download', function (): void {
+        // the row + file exist (passes is_file), but the file can't be READ (chmod 000). This must throw, not
+        // cast file_get_contents(false) to '' and ship an empty 200. (error-review-3 O5)
+        $ticketId = att_seed_ticket(1);
+        $relDir = 'storage/uploads/tickets/' . $ticketId;
+        $absDir = BASE_PATH . '/' . $relDir;
+        @mkdir($absDir, 0775, true);
+        $relPath = $relDir . '/o5-unreadable.bin';
+        $absPath = BASE_PATH . '/' . $relPath;
+        file_put_contents($absPath, 'secret bytes');
+        chmod($absPath, 0000);
+
+        att_pdo()->prepare(
+            'INSERT INTO ticket_attachments (ticket_id, comment_id, uploaded_by, original_name, stored_name, disk_path, mime_type, file_size, created_at)
+             VALUES (?, NULL, 4, "orig.bin", "stored.bin", ?, "application/octet-stream", 12, NOW())'
+        )->execute([$ticketId, $relPath]);
+
+        try {
+            $threw = false;
+            try {
+                att_service()->getVisibleAttachment((int) att_pdo()->lastInsertId(), ['id' => 4, 'role' => 'admin']);
+            } catch (\RuntimeException $e) {
+                $threw = true;
+                assert_contains_str('ไม่สามารถอ่านไฟล์แนบ', $e->getMessage(), 'the read failure surfaces as an operational error');
+            }
+            assert_true($threw, 'an unreadable file throws — never returns empty content for a 200 download');
+        } finally {
+            chmod($absPath, 0644);
+            @unlink($absPath);
+            @rmdir($absDir);
+            att_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]); // cascades the attachment
+        }
+    });
+
     test('attachment(access): an internal attachment is hidden from the requester but reachable by staff', function (): void {
         $ticketId = att_seed_ticket(1); // owned by requester #1
         try {

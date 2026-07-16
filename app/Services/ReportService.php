@@ -3255,8 +3255,12 @@ class ReportService
             $zip->addFromString('README.txt', implode("\n", $lines));
             $zip->close();
 
-            $content = (string) file_get_contents($tmp);
+            $content = file_get_contents($tmp);
             @unlink($tmp);
+            // a read failure of the just-built ZIP must not ship as a 200 empty download — surface it. (error-review-3 O5)
+            if ($content === false) {
+                throw new RuntimeException('ไม่สามารถอ่านไฟล์ชุดตัวอย่างรายงานที่สร้างไว้');
+            }
 
             return [
                 'content' => $content,
