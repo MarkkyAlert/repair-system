@@ -42,12 +42,16 @@ class SlaService
             // processes a BATCH. A failed notification for one ticket must not abort the loop — otherwise the
             // remaining breaches go unmarked/unnotified this run and this ticket's own notify is never retried
             // (next run it is no longer "pending"). Log and carry on.
+            // notifySlaBreached returns whether the in-app alert was actually written (the dispatch swallows +
+            // logs its own failure), so a swallowed failure is now counted — not just an outright throw. (error-review-2 F1)
             $notified = true;
             try {
-                $this->notifications->notifySlaBreached($ticketId, $metricType);
+                $notified = $this->notifications->notifySlaBreached($ticketId, $metricType);
             } catch (Throwable $exception) {
                 log_caught_exception('sla.breach.notify', $exception, ['ticket_id' => $ticketId, 'metric' => $metricType]);
                 $notified = false;
+            }
+            if (!$notified) {
                 $notifyFailed++;
             }
             $notifiedTickets[] = [

@@ -134,7 +134,7 @@ test('sla: a notify failure is counted as notify_failed, NOT as notified (error-
             {
             }
 
-            public function notifySlaBreached(int $ticketId, string $metricType): void
+            public function notifySlaBreached(int $ticketId, string $metricType): bool
             {
                 throw new \RuntimeException('notification backend down');
             }
@@ -160,6 +160,45 @@ test('sla: a notify failure is counted as notify_failed, NOT as notified (error-
             }
         }
         assert_true($mine !== null && ($mine['notified'] ?? null) === false, 'the item records notified=false');
+    } finally {
+        sla_cleanup([$ticketId], [$userId]);
+    }
+});
+
+test('sla (F1): a SWALLOWED in-app dispatch failure is counted as notify_failed (real path, not just a thrown override)', function (): void {
+    // The earlier test overrides notifySlaBreached to THROW. The real gap is subtler: dispatchNotification
+    // catches the createNotification failure, logs it, and RETURNS — so notifySlaBreached never threw and the
+    // failure was counted as a success. Drive the REAL NotificationService with only its repository throwing.
+    $userId = sla_seed_user();
+    $ticketId = sla_seed_ticket($userId);
+    $trackId = sla_seed_track($ticketId, 'resolution', -3600);
+
+    try {
+        $c = tvm_container();
+        $throwingRepo = new class ($c->get(PDO::class)) extends \App\Repositories\NotificationRepository {
+            public function createNotification(array $payload, array $recipientIds): int
+            {
+                throw new \RuntimeException('notifications table unavailable');
+            }
+        };
+        $realNotifier = new \App\Services\NotificationService(
+            $throwingRepo,
+            $c->get(\App\Repositories\TicketReadRepository::class),
+            $c->get(\App\Services\EmailQueueService::class),
+            $c->get(\App\Repositories\NotificationPreferenceRepository::class),
+            $c->get(\App\Repositories\UserRepository::class),
+        );
+        $service = new \App\Services\SlaService(
+            $c->get(\App\Repositories\TicketRepository::class),
+            $c->get(\App\Repositories\TicketReadRepository::class),
+            $realNotifier,
+        );
+
+        $result = $service->processOverdueBreaches();
+
+        assert_same(1, (int) $result['processed'], 'the breach is still marked');
+        assert_same(1, (int) $result['notify_failed'], 'the SWALLOWED dispatch failure is now counted (was 0 — reported as success)');
+        assert_same(0, (int) $result['notified'], 'and is not reported as notified');
     } finally {
         sla_cleanup([$ticketId], [$userId]);
     }
@@ -287,7 +326,7 @@ test('sla(resilience): a failing notification does not abort the batch — every
             {
             }
 
-            public function notifySlaBreached(int $ticketId, string $metricType): void
+            public function notifySlaBreached(int $ticketId, string $metricType): bool
             {
                 throw new \RuntimeException('notification backend down');
             }

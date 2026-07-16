@@ -95,3 +95,31 @@ test('broadcast (F3): an email-enqueue failure is reported, not counted as sent'
         bc_pdo()->prepare('DELETE FROM notifications WHERE submission_token = ?')->execute([$token]); // cascades recipients
     }
 });
+
+// error-review-2 F1: the in-app write goes through dispatchNotification, which SWALLOWED a createNotification
+// failure and returned — so the broadcast reported in_app_count = intended even when zero were written. The
+// dispatch now returns success/failure; a swallowed in-app failure must surface as in_app_failed + count 0.
+test('broadcast (F1): a SWALLOWED in-app write failure is reported (in_app_failed), not counted as posted', function (): void {
+    $token = bin2hex(random_bytes(32));
+    $c = tvm_container();
+
+    $throwingRepo = new class ($c->get(PDO::class)) extends \App\Repositories\NotificationRepository {
+        public function createNotification(array $payload, array $recipientIds): int
+        {
+            throw new \RuntimeException('notifications table unavailable');
+        }
+    };
+    $service = new \App\Services\NotificationService(
+        $throwingRepo,
+        $c->get(\App\Repositories\TicketReadRepository::class),
+        $c->get(\App\Services\EmailQueueService::class),
+        $c->get(\App\Repositories\NotificationPreferenceRepository::class),
+        $c->get(\App\Repositories\UserRepository::class),
+    );
+
+    $result = $service->notifySystemAnnouncement('Maintenance', 'Please save your work', 4, null, $token);
+
+    assert_same(0, (int) ($result['in_app_count'] ?? -1), 'no in-app notifications were written → in_app_count is 0, not the intended count');
+    assert_true(($result['in_app_failed'] ?? false) === true, 'the swallowed in-app failure is surfaced to the caller');
+    // (no notification row was written, so nothing to clean up)
+});

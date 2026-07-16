@@ -305,7 +305,10 @@ class AdminController
         try {
             csrf_validate();
             $result = $this->broadcast->sendBroadcast($viewer, $_POST);
-            if (!empty($result['email_failed'])) {
+            if (!empty($result['in_app_failed'])) {
+                // the in-app write (the primary channel) was swallowed — the announcement did NOT actually post
+                flash('error', 'ส่งประกาศไม่สำเร็จ — การบันทึกแจ้งเตือนในระบบมีปัญหา ระบบบันทึกข้อผิดพลาดไว้แล้ว กรุณาลองใหม่');
+            } elseif (!empty($result['email_failed'])) {
                 // the announcement posted in-app, but the email enqueue failed — say so, don't claim it was sent
                 flash('error', sprintf(
                     'ประกาศขึ้นระบบแล้ว (in-app: %d คน) แต่การส่งอีเมลมีปัญหา — ระบบบันทึกข้อผิดพลาดไว้แล้ว กรุณาตรวจสอบการตั้งค่าอีเมล',

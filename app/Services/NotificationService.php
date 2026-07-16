@@ -288,7 +288,9 @@ class NotificationService
         $inAppRecipients = $this->filterByPreference($recipientIds, 'system_announcement', 'in_app');
         $emailRecipients = $this->filterByPreference($recipientIds, 'system_announcement', 'email');
 
-        $this->dispatchNotification([
+        // Report the ACTUAL in-app outcome, not the intended recipient count: if the write is swallowed (the
+        // dispatch logs + returns false), the admin flash must not claim "in-app: N" when zero were written. (error-review-2 F1)
+        $inAppWritten = $this->dispatchNotification([
             'type' => 'system.announcement',
             'title' => $title,
             'message' => $message,
@@ -312,17 +314,19 @@ class NotificationService
         }
 
         return [
-            'in_app_count' => count($inAppRecipients),
+            'in_app_count' => $inAppWritten ? count($inAppRecipients) : 0,
+            'in_app_failed' => !$inAppWritten,
             'email_count' => $emailQueued ? count($emailRecipients) : 0,
             'email_failed' => !$emailQueued,
         ];
     }
 
-    public function notifySlaBreached(int $ticketId, string $metricType): void
+    /** @return bool whether the in-app breach alert was actually written (so the SLA cron counts real notifications, not intended ones) (error-review-2 F1) */
+    public function notifySlaBreached(int $ticketId, string $metricType): bool
     {
         $context = $this->reads->findTicketNotificationContextById($ticketId);
         if ($context === null) {
-            return;
+            return false; // the ticket vanished — the breach alert did NOT go out
         }
 
         $metricLabel = $metricType === 'response' ? 'Response SLA' : 'Resolution SLA';
@@ -338,7 +342,7 @@ class NotificationService
         $title = $metricLabel . ' เกินกำหนด';
         $message = 'Ticket ' . (string) ($context['ticket_no'] ?? '-') . ' มีสถานะเกินกำหนดตาม ' . $metricLabel;
 
-        $this->dispatchNotification([
+        $notified = $this->dispatchNotification([
             'type' => 'ticket.sla_breached.' . $metricType,
             'title' => $title,
             'message' => $message,
@@ -356,6 +360,8 @@ class NotificationService
         } catch (Throwable $exception) {
             log_caught_exception('notify.email.sla', $exception, ['metric' => $metricType, 'ticket' => $ticketId]);
         }
+
+        return $notified;
     }
 
     /**
@@ -382,19 +388,29 @@ class NotificationService
         ], $recipientIds);
     }
 
-    private function dispatchNotification(array $payload, array $recipientIds): void
+    /**
+     * Write the in-app notification for the recipients. Returns whether it SUCCEEDED — best-effort still (a
+     * failure is logged, never re-thrown to abort the caller's committed work), but the boolean lets callers
+     * that report a delivery count (SLA cron, broadcast) tell success from a swallowed failure instead of
+     * always claiming the intended count. No recipients = nothing to do = success. (error-review-2 F1)
+     */
+    private function dispatchNotification(array $payload, array $recipientIds): bool
     {
         if ($recipientIds === []) {
-            return;
+            return true;
         }
 
         try {
             $this->notifications->createNotification($payload, $recipientIds);
+
+            return true;
         } catch (Throwable $exception) {
             log_caught_exception('notify.dispatch', $exception, [
                 'type' => (string) ($payload['type'] ?? '?'),
                 'related' => (string) ($payload['related_type'] ?? '?') . ':' . (string) ($payload['related_id'] ?? '?'),
             ]);
+
+            return false;
         }
     }
 
