@@ -40,6 +40,12 @@ trait HandlesFormSubmission
         } catch (\PDOException $__infra) {
             throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
         } catch (DomainException|RuntimeException $exception) {
+            // A DomainException is expected validation (stay quiet). A RuntimeException is an OPERATIONAL
+            // failure (a repo/filesystem/queue error surfaced as a friendly message) — log the root cause so
+            // the team can diagnose it, not just see the user's "ไม่สำเร็จ". (error-review-2 F2)
+            if ($exception instanceof RuntimeException) {
+                log_caught_exception('form.operational', $exception, ['path' => (string) (request()?->path ?? '')]);
+            }
             if ($oldInputOnError !== null) {
                 with_old_input($oldInputOnError);
             }

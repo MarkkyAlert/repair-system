@@ -173,10 +173,12 @@ class UserImportService
                     try {
                         $this->auth->createPasswordReset((string) $row['email']);
                         $sentResetEmails++;
-                    } catch (Throwable) {
+                    } catch (Throwable $exception) {
                         // The user is created active with a random password; a reset-email failure must not
                         // break the import, but it also must not be swallowed silently — record who did not
-                        // receive a reset so the admin can reset them manually.
+                        // receive a reset so the admin can reset them manually, AND log the root cause (the
+                        // exception object was previously discarded). (error-review-2 F2)
+                        log_caught_exception('user.import.reset', $exception, ['email' => (string) ($row['email'] ?? '')]);
                         $resetFailures[] = [
                             'line' => (int) ($row['line'] ?? 0),
                             'username' => (string) ($row['username'] ?? ''),

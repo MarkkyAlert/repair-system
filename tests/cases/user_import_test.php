@@ -256,6 +256,32 @@ namespace {
         }
     });
 
+    test('userImport.executeImport: a reset-email failure is logged (root cause) while the user is still created (error-review-2 F2)', function (): void {
+        // auto_password rows send a reset email; a failure there must not break the import, records who missed
+        // it, AND now logs the root cause (the exception object was previously discarded). Fail only the
+        // password_resets write so the user INSERT still succeeds.
+        $s = bin2hex(random_bytes(3));
+        $row = ui_exec_row(['username' => "f2reset_$s", 'email' => "f2reset_$s@x.test", 'auto_password' => true, 'password' => '']);
+        $tmp = tempnam(sys_get_temp_dir(), 'uireset_') . '.log';
+        $originalLog = (string) ini_get('error_log');
+
+        try {
+            ini_set('error_log', $tmp);
+            $result = null;
+            with_failing_pdo('password_resets', function () use ($row, &$result): void {
+                $result = ui_service()->executeImport([$row]);
+            });
+            ini_set('error_log', $originalLog);
+
+            assert_same(1, (int) $result['imported'], 'the user is still created despite the reset-email failure');
+            assert_contains_str('[user.import.reset]', (string) @file_get_contents($tmp), 'the reset-email failure root cause is logged (was discarded)');
+        } finally {
+            ini_set('error_log', $originalLog);
+            @unlink($tmp);
+            ui_delete_users([$row['username']]);
+        }
+    });
+
     test('userImport.executeImport(resilience): a row colliding at insert is skipped; the rest still import', function (): void {
         $s = bin2hex(random_bytes(4));
         $existing = "clash_$s";
