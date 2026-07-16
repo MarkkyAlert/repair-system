@@ -274,7 +274,11 @@ namespace {
             ini_set('error_log', $originalLog);
 
             assert_same(1, (int) $result['imported'], 'the user is still created despite the reset-email failure');
-            assert_contains_str('[user.import.reset]', (string) @file_get_contents($tmp), 'the reset-email failure root cause is logged (was discarded)');
+            $log = (string) @file_get_contents($tmp);
+            assert_contains_str('[user.import.reset]', $log, 'the reset-email failure root cause is logged (was discarded)');
+            // O3: the log must identify the user WITHOUT the raw email (PII)
+            assert_true(!str_contains($log, $row['email']), 'the raw recipient email must NOT be written to the server log');
+            assert_contains_str($row['username'], $log, 'the user is identified by username instead');
         } finally {
             ini_set('error_log', $originalLog);
             @unlink($tmp);

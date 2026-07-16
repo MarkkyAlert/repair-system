@@ -178,7 +178,12 @@ class UserImportService
                         // break the import, but it also must not be swallowed silently — record who did not
                         // receive a reset so the admin can reset them manually, AND log the root cause (the
                         // exception object was previously discarded). (error-review-2 F2)
-                        log_caught_exception('user.import.reset', $exception, ['email' => (string) ($row['email'] ?? '')]);
+                        // identify the user WITHOUT writing a raw email (PII) to the server log — username +
+                        // masked email is enough to act on. (error-review-3 O3)
+                        log_caught_exception('user.import.reset', $exception, [
+                            'username' => (string) ($row['username'] ?? ''),
+                            'email' => \App\Services\MailerService::maskEmail((string) ($row['email'] ?? '')),
+                        ]);
                         $resetFailures[] = [
                             'line' => (int) ($row['line'] ?? 0),
                             'username' => (string) ($row['username'] ?? ''),
