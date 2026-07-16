@@ -130,10 +130,14 @@ class CommentService
             throw $exception;
         }
 
-        try {
-            $this->attachments->deleteStoredFiles($paths);
-        } catch (Throwable $exception) {
-            log_caught_exception('comment.delete', $exception, ['comment' => $commentId, 'reason' => 'file cleanup failed']);
+        // deleteStoredFiles returns the paths it could NOT unlink (the boolean was previously discarded, so a
+        // failed cleanup left orphans on disk silently). Log them without failing the already-committed delete. (error-review-4 F3)
+        $orphaned = $this->attachments->deleteStoredFiles($paths);
+        if ($orphaned !== []) {
+            log_caught_exception('comment.delete.cleanup', new \RuntimeException('attachment file(s) could not be deleted from disk'), [
+                'comment' => $commentId,
+                'orphans' => count($orphaned),
+            ]);
         }
 
         try {

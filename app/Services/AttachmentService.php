@@ -129,19 +129,29 @@ class AttachmentService
         return array_map(fn (array $row): array => $this->mapAttachment($row), array_values($rows));
     }
 
-    public function deleteStoredFiles(array $paths): void
+    /**
+     * Delete stored files, returning the paths that FAILED to unlink so the caller can log the orphans instead
+     * of leaving them silently on disk — @unlink's boolean was previously discarded. (error-review-4 F3)
+     *
+     * @param string[] $paths
+     * @return string[] paths that existed but could not be deleted
+     */
+    public function deleteStoredFiles(array $paths): array
     {
         $paths = array_values(array_unique(array_filter(
             array_map('strval', $paths),
             static fn (string $path): bool => trim($path) !== ''
         )));
 
+        $failed = [];
         foreach ($paths as $path) {
             $fullPath = BASE_PATH . '/' . ltrim($path, '/');
-            if (is_file($fullPath)) {
-                @unlink($fullPath);
+            if (is_file($fullPath) && !@unlink($fullPath)) {
+                $failed[] = $path;
             }
         }
+
+        return $failed;
     }
 
     public function getVisibleAttachment(int $attachmentId, array $viewer): array

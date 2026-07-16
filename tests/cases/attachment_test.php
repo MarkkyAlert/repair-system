@@ -269,4 +269,30 @@ namespace {
             att_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]); // cascades comment + attachment
         }
     });
+
+    test('attachment(F3): deleteStoredFiles reports the files it could NOT unlink (orphans), not silently void', function (): void {
+        // a file inside a READ-ONLY directory can't be unlinked (needs write on the dir); a normal file can.
+        // deleteStoredFiles must report the failed one so the caller can log the orphan. (error-review-4 F3)
+        $svc = att_service();
+        $roDir = BASE_PATH . '/storage/uploads/tickets/f3ro_' . bin2hex(random_bytes(3));
+        @mkdir($roDir, 0775, true);
+        $lockedRel = str_replace(BASE_PATH . '/', '', $roDir) . '/locked.bin';
+        file_put_contents(BASE_PATH . '/' . $lockedRel, 'x');
+        $okRel = 'storage/uploads/tickets/f3ok_' . bin2hex(random_bytes(3)) . '.bin';
+        file_put_contents(BASE_PATH . '/' . $okRel, 'y');
+        chmod($roDir, 0555); // read-only dir → its file can't be unlinked
+
+        try {
+            $failed = $svc->deleteStoredFiles([$lockedRel, $okRel]);
+
+            assert_same([$lockedRel], $failed, 'the un-unlinkable file is reported as failed; the deletable one is not');
+            assert_true(!is_file(BASE_PATH . '/' . $okRel), 'the deletable file was actually removed');
+            assert_true(is_file(BASE_PATH . '/' . $lockedRel), 'the locked file remains — an orphan the caller can now log');
+        } finally {
+            chmod($roDir, 0775);
+            @unlink(BASE_PATH . '/' . $lockedRel);
+            @rmdir($roDir);
+            @unlink(BASE_PATH . '/' . $okRel);
+        }
+    });
 }
