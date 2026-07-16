@@ -17,8 +17,13 @@ class AuthMiddleware
         if ($timeoutMinutes > 0 && $auth->check() && Session::isIdleExpired($timeoutMinutes)) {
             $auth->logout();
             Session::regenerate();
-            flash('error', 'เซสชันหมดอายุเนื่องจากไม่มีการใช้งานเป็นเวลานาน กรุณาเข้าสู่ระบบใหม่');
             $target = $returnTo ?? request_path();
+            // A JSON/AJAX caller (e.g. the notification-feed poller) must get a 401 JSON, not a 302 to the HTML
+            // login page — a 302+HTML breaks response.json() and leaves the client with no reference. (error-review-5 F2)
+            if (request_wants_json()) {
+                self::denyJson();
+            }
+            flash('error', 'เซสชันหมดอายุเนื่องจากไม่มีการใช้งานเป็นเวลานาน กรุณาเข้าสู่ระบบใหม่');
             Response::redirect('/login?return=' . rawurlencode($target));
         }
 
@@ -34,7 +39,16 @@ class AuthMiddleware
             return;
         }
 
+        if (request_wants_json()) {
+            self::denyJson();
+        }
         $target = $returnTo ?? request_path();
         Response::redirect('/login?return=' . rawurlencode($target));
+    }
+
+    /** JSON 401 for an unauthenticated AJAX/fetch caller — carries a reference to tie the failure to a log line. */
+    private static function denyJson(): never
+    {
+        Response::jsonError('เซสชันหมดอายุหรือยังไม่ได้เข้าสู่ระบบ กรุณาเข้าสู่ระบบใหม่', 401, ['reference' => request_id()]);
     }
 }
