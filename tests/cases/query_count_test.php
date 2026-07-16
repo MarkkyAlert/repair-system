@@ -4,6 +4,7 @@ declare(strict_types=1);
 use App\Repositories\TicketReadRepository;
 use App\Services\AssetService;
 use App\Services\TicketService;
+use App\Services\TicketWorkflowService;
 
 // Deterministic N+1 regression guards (query count, not timing). count_queries() (tests/counting_pdo.php)
 // swaps the container PDO for a CountingPdo and tallies every execute/query/exec. These lock two hot-path
@@ -32,6 +33,20 @@ test('query-count(asset-index): getAssetIndexData is 4 queries — list COUNT+SE
     });
 
     assert_same(4, $n, 'asset index must not over-fetch department/custodian reference the list filter never uses');
+});
+
+test('query-count(bulk-approve): eligibility is one batch visibility read, not one per selected ticket', function (): void {
+    // perf-review F2: tickets 2 (in_progress) + 3 (completed) are visible to an admin but NOT approvable, so
+    // bulk approve skips them — nothing is mutated. The point is the eligibility fetch: one batched read for
+    // the whole selection, not findVisibleTicketById per id (each approve still re-checks status under lock).
+    $result = null;
+    $n = count_queries(function () use (&$result): void {
+        $result = tvm_container()->get(TicketWorkflowService::class)->bulkApproveTickets([2, 3, 999999], qc_admin(), '');
+    });
+
+    assert_same(0, (int) $result['approved'], 'none of these are approvable — nothing is mutated');
+    assert_same(3, count($result['failed']), 'all three are reported as skipped, not applied');
+    assert_same(1, $n, 'the whole selection is validated with ONE visibility read (was one per ticket)');
 });
 
 test('query-count(ticket-detail): getTicketDetailData stays flat as comments grow (attachments batched, not N+1)', function (): void {

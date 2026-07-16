@@ -23,9 +23,16 @@ class TicketWorkflowService
     ) {
     }
 
-    public function approveTicket(int $ticketId, array $viewer, array $input): void
+    public function approveTicket(int $ticketId, array $viewer, array $input, ?array $ticket = null): void
     {
-        $ticket = $this->requireManageableTicket($ticketId, $viewer);
+        // $ticket may be preloaded by bulkApproveTickets (one batch visibility fetch instead of a per-ticket
+        // read); when it is, still enforce the same manage-workflow policy requireManageableTicket would. The
+        // authoritative status check happens under the row lock in TicketRepository::approveTicket. (perf-review F2)
+        if ($ticket === null) {
+            $ticket = $this->requireManageableTicket($ticketId, $viewer);
+        } elseif (!$this->policy->canManageWorkflow($ticket, $viewer)) {
+            throw new DomainException('คุณไม่มีสิทธิ์จัดการ workflow ของรายการนี้');
+        }
 
         if (!$this->policy->canReviewTicket($ticket, $viewer)) {
             throw new DomainException('รายการนี้ไม่อยู่ในสถานะที่อนุมัติได้');
@@ -53,12 +60,23 @@ class TicketWorkflowService
             throw new DomainException('Approve ได้สูงสุด 50 รายการต่อครั้ง');
         }
 
+        // One visibility-scoped batch fetch for the whole selection, instead of a per-ticket read inside each
+        // approveTicket. Each approve still locks + re-checks status authoritatively. (perf-review F2)
+        $byId = [];
+        foreach ($this->reads->findVisibleTicketsByIds($ticketIds, $viewer) as $row) {
+            $byId[(int) ($row['id'] ?? 0)] = $row;
+        }
+
         $approved = 0;
         $failed = [];
 
         foreach ($ticketIds as $ticketId) {
             try {
-                $this->approveTicket($ticketId, $viewer, ['note' => $note]);
+                $ticket = $byId[$ticketId] ?? null;
+                if ($ticket === null) {
+                    throw new DomainException('ไม่พบรายการแจ้งซ่อมที่ต้องการดำเนินการ');
+                }
+                $this->approveTicket($ticketId, $viewer, ['note' => $note], $ticket);
                 $approved++;
             } catch (DomainException $exception) {
                 $failed[] = ['ticket_id' => $ticketId, 'reason' => $exception->getMessage()];

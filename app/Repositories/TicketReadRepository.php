@@ -603,6 +603,42 @@ class TicketReadRepository
     }
 
     // ── Ticket detail — single ticket, comments, activity ──
+    /**
+     * Batch visibility-scoped fetch of the workflow-policy columns for a set of tickets — for bulk actions
+     * (e.g. bulk approve) that would otherwise call findVisibleTicketById once per id. Returns only the
+     * columns the policy + transition need, not the full detail row. (perf-review F2)
+     *
+     * @param int[] $ticketIds
+     * @return array<int, array<string, mixed>>
+     */
+    public function findVisibleTicketsByIds(array $ticketIds, array $viewer): array
+    {
+        $ticketIds = array_values(array_unique(array_filter(array_map('intval', $ticketIds), static fn (int $id): bool => $id > 0)));
+        if ($ticketIds === []) {
+            return [];
+        }
+
+        $params = [];
+        $visibility = $this->visibilityClause($viewer, $params);
+
+        $placeholders = [];
+        foreach ($ticketIds as $i => $id) {
+            $key = 'bulk_id_' . $i;
+            $placeholders[] = ':' . $key;
+            $params[$key] = $id;
+        }
+        $inList = implode(', ', $placeholders);
+
+        $stmt = $this->db->prepare(
+            "SELECT t.id, t.ticket_no, t.status, t.approval_status, t.requester_id, t.assigned_manager_id, t.assigned_technician_id
+             FROM tickets t
+             WHERE t.id IN ($inList) AND $visibility"
+        );
+        $stmt->execute($params);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
     public function findVisibleTicketById(int $ticketId, array $viewer): ?array
     {
         $params = ['ticket_id' => $ticketId];
