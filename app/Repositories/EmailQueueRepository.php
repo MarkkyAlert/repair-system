@@ -73,6 +73,48 @@ class EmailQueueRepository
         return (int) $this->db->lastInsertId();
     }
 
+    /**
+     * Enqueue many messages as bounded multi-row INSERTs (one statement per chunk) instead of one INSERT per
+     * message — for fan-out senders like a system broadcast. Same column defaults as enqueue(). (perf-review F9)
+     *
+     * @param array<int, array<string, mixed>> $payloads
+     */
+    public function enqueueMany(array $payloads): void
+    {
+        if ($payloads === []) {
+            return;
+        }
+
+        $now = date('Y-m-d H:i:s');
+        $columns = 'to_email, to_name, subject, body_html, body_text, payload, status, attempts, max_attempts, error_message, available_at, sent_at, failed_at, created_at, updated_at';
+        $tuple = '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+
+        foreach (array_chunk($payloads, 100) as $chunk) {
+            $rows = implode(', ', array_fill(0, count($chunk), $tuple));
+            $params = [];
+            foreach ($chunk as $payload) {
+                $params[] = (string) ($payload['to_email'] ?? '');
+                $params[] = (string) ($payload['to_name'] ?? '');
+                $params[] = (string) ($payload['subject'] ?? '');
+                $params[] = $payload['body_html'] ?? null;
+                $params[] = $payload['body_text'] ?? null;
+                $params[] = is_array($payload['payload'] ?? null)
+                    ? json_encode($payload['payload'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                    : ($payload['payload'] ?? null);
+                $params[] = 'queued';
+                $params[] = 0;
+                $params[] = max(1, (int) ($payload['max_attempts'] ?? 3));
+                $params[] = null;
+                $params[] = (string) ($payload['available_at'] ?? $now);
+                $params[] = null;
+                $params[] = null;
+                $params[] = $now;
+                $params[] = $now;
+            }
+            $this->db->prepare("INSERT INTO email_queue ($columns) VALUES $rows")->execute($params);
+        }
+    }
+
     public function claimDueEmails(int $limit, string $processingExpiredBefore): array
     {
         $limit = max(1, min($limit, 100));

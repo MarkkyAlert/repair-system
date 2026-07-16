@@ -44,10 +44,22 @@ class EmailQueueService
 
     public function queueSystemAnnouncementEmails(array $recipientIds, string $title, string $message): void
     {
+        // Build every recipient's message then enqueue them in bounded multi-row INSERTs — a broadcast to the
+        // whole org was one INSERT per recipient (2 writes/recipient with the notification). (perf-review F9)
+        $payloads = [];
         foreach ($this->users->findActiveUsersByIds($recipientIds) as $recipient) {
             $email = $this->templates->buildSystemAnnouncement($recipient, $title, $message);
-            $this->enqueueForRecipient($recipient, $email);
+            $payloads[] = [
+                'to_email' => (string) ($recipient['email'] ?? ''),
+                'to_name' => (string) ($recipient['full_name'] ?? ''),
+                'subject' => (string) ($email['subject'] ?? ''),
+                'body_html' => (string) ($email['body_html'] ?? ''),
+                'body_text' => (string) ($email['body_text'] ?? ''),
+                'payload' => $email['payload'] ?? null,
+                'max_attempts' => 3,
+            ];
         }
+        $this->queue->enqueueMany($payloads);
     }
 
     public function queuePasswordResetEmail(array $user, string $resetUrl, string $expiresAt): void

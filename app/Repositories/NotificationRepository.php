@@ -49,20 +49,7 @@ class NotificationRepository
 
             $notificationId = (int) $this->db->lastInsertId();
 
-            $recipientStmt = $this->db->prepare(
-                'INSERT INTO notification_recipients (notification_id, user_id, is_read, read_at, created_at)
-                 VALUES (:notification_id, :user_id, :is_read, :read_at, :created_at)'
-            );
-
-            foreach ($recipientIds as $recipientId) {
-                $recipientStmt->execute([
-                    'notification_id' => $notificationId,
-                    'user_id' => (int) $recipientId,
-                    'is_read' => 0,
-                    'read_at' => null,
-                    'created_at' => $createdAt,
-                ]);
-            }
+            $this->insertRecipients($notificationId, $recipientIds, $createdAt);
 
             $this->db->commit();
 
@@ -73,6 +60,34 @@ class NotificationRepository
             }
 
             throw $exception;
+        }
+    }
+
+    /**
+     * Insert recipient rows for a notification as bounded multi-row INSERTs (one statement per chunk) instead
+     * of one execute() per recipient. A broadcast to the whole org was O(recipients) round-trips; this makes it
+     * O(recipients / CHUNK). Chunked to keep the placeholder count well under driver/packet limits. (perf-review F9)
+     *
+     * @param int[] $recipientIds
+     */
+    private function insertRecipients(int $notificationId, array $recipientIds, string $createdAt): void
+    {
+        $recipientIds = array_values(array_unique(array_filter(array_map('intval', $recipientIds), static fn (int $id): bool => $id > 0)));
+        if ($recipientIds === []) {
+            return;
+        }
+
+        foreach (array_chunk($recipientIds, 200) as $chunk) {
+            $rows = implode(', ', array_fill(0, count($chunk), '(?, ?, 0, NULL, ?)'));
+            $params = [];
+            foreach ($chunk as $recipientId) {
+                $params[] = $notificationId;
+                $params[] = $recipientId;
+                $params[] = $createdAt;
+            }
+            $this->db
+                ->prepare("INSERT INTO notification_recipients (notification_id, user_id, is_read, read_at, created_at) VALUES $rows")
+                ->execute($params);
         }
     }
 
