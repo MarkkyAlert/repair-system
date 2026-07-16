@@ -108,6 +108,26 @@ $metricCount = static fn (string $key): int => max(0, (int) ($metrics[$key] ?? 0
         </section>
     <?php endif; ?>
 
+    <?php if (($cronFailures ?? []) !== []): ?>
+        <section class="operations-alert-strip tone-danger" aria-label="cron ที่ทำงานแล้วแต่มีงานล้มเหลว">
+            <div class="operations-alert-copy">
+                <span class="operations-alert-icon"><?= lucide('triangle-alert', 'h-5 w-5') ?></span>
+                <div>
+                    <strong>งานเบื้องหลังบางรายการล้มเหลว</strong>
+                    <span>Cron ทำงานแล้ว แต่มีงานที่ทำไม่สำเร็จ (ระบบบันทึกไว้ใน log แล้ว) — กรุณาตรวจสอบ</span>
+                </div>
+            </div>
+            <div class="operations-alert-actions">
+                <?php foreach (($cronFailures ?? []) as $failure): ?>
+                    <a class="operations-alert-chip tone-danger" href="<?= e(url($failure['href'] ?? '/admin/email-queue')) ?>">
+                        <?= lucide('triangle-alert', 'h-4 w-4') ?>
+                        <span><?= e($failure['label'] ?? '-') ?> · <?= e($failure['detail'] ?? '') ?></span>
+                    </a>
+                <?php endforeach; ?>
+            </div>
+        </section>
+    <?php endif; ?>
+
     <?php if ($urgentAlerts !== []): ?>
         <section class="operations-alert-strip" aria-label="งานด่วนที่ควรจัดการก่อน">
             <div class="operations-alert-copy">

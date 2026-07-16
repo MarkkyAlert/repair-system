@@ -83,6 +83,7 @@ class TicketService
             'charts' => $charts,
             'primaryCta' => $this->buildDashboardPrimaryCta((string) ($viewer['role'] ?? 'guest')),
             'cronHealth' => $this->buildDashboardCronHealth((string) ($viewer['role'] ?? 'guest')),
+            'cronFailures' => $this->buildDashboardCronFailures((string) ($viewer['role'] ?? 'guest')),
             'setupChecklist' => $this->buildAdminSetupChecklist((string) ($viewer['role'] ?? 'guest')),
             'urgentAlerts' => $this->buildDashboardUrgentAlerts($formattedMetrics),
             'chartSummaries' => $this->buildDashboardChartSummaries($charts),
@@ -144,6 +145,44 @@ class TicketService
         }
 
         return $stale;
+    }
+
+    /**
+     * Cron OUTCOME warnings (distinct from staleness): the last run completed but left terminal failures — an
+     * email that exhausted its retries, or an SLA breach whose alert never went out. A healthy heartbeat alone
+     * hid these; the dashboard must surface them. (error-review F4)
+     *
+     * @return array<int, array{label: string, detail: string, href: string}>
+     */
+    private function buildDashboardCronFailures(string $role): array
+    {
+        if ($role !== 'admin') {
+            return [];
+        }
+
+        // Read LIVE via the repository, not the request-cached setting() helper — a just-recorded cron failure
+        // must show immediately, and it keeps this signal test-observable. (error-review F4)
+        $settings = app(\App\Repositories\SettingsRepository::class);
+        $count = static function (string $key) use ($settings): int {
+            if (!$settings instanceof \App\Repositories\SettingsRepository) {
+                return 0;
+            }
+            $row = $settings->getByKey($key);
+
+            return is_array($row) ? (int) ($row['setting_value'] ?? 0) : 0;
+        };
+
+        $failures = [];
+        $emailFailed = $count('cron_email_queue_last_failed');
+        if ($emailFailed > 0) {
+            $failures[] = ['label' => 'คิวอีเมล', 'detail' => $emailFailed . ' ฉบับส่งไม่สำเร็จ (ครบจำนวนครั้งที่ลองแล้ว)', 'href' => '/admin/email-queue'];
+        }
+        $slaNotifyFailed = $count('cron_sla_notify_last_failed');
+        if ($slaNotifyFailed > 0) {
+            $failures[] = ['label' => 'แจ้งเตือน SLA เกินกำหนด', 'detail' => $slaNotifyFailed . ' รายการแจ้งเตือนไม่สำเร็จ', 'href' => '/admin/email-queue'];
+        }
+
+        return $failures;
     }
 
     /**
