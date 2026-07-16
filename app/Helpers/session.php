@@ -17,7 +17,11 @@ function csrf_field(): string
 
 function csrf_validate(): void
 {
-    Csrf::validate($_POST['_csrf'] ?? null);
+    // Read as mixed: a crafted body like `_csrf[]=x` makes $_POST['_csrf'] an ARRAY, which would hit
+    // Csrf::validate(?string)'s type declaration and throw an uncaught TypeError → HTTP 500. Normalize any
+    // non-string to null so it's rejected as an expected DomainException via the normal flow. (error-review-7 F1)
+    $token = $_POST['_csrf'] ?? null;
+    Csrf::validate(is_string($token) ? $token : null);
 }
 
 /**

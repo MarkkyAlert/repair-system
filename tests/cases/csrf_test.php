@@ -143,3 +143,36 @@ test('csrf(helper): csrf_validate() reads $_POST[_csrf] — matching passes, mis
         }
     }
 });
+
+// error-review-7 F1: a crafted body `_csrf[]=x` makes $_POST['_csrf'] an ARRAY. It was passed straight into
+// Csrf::validate(?string), so (under strict_types) it threw an uncaught TypeError → HTTP 500 on any state-changing
+// route, no login required. csrf_validate() now normalizes a non-string to null so it's rejected as the normal
+// expected DomainException instead of crashing.
+test('csrf(array): an array _csrf token is rejected as DomainException, not an uncaught TypeError (F1)', function (): void {
+    $originalSession = $_SESSION['_csrf_token'] ?? null;
+    $originalPost = $_POST['_csrf'] ?? null;
+    $_SESSION['_csrf_token'] = 'realtoken1234567890abcdef12345678';
+    try {
+        $_POST['_csrf'] = ['x']; // the malformed `_csrf[]=x` body
+        $error = null;
+        try {
+            csrf_validate();
+        } catch (\Throwable $e) {
+            $error = $e;
+        }
+
+        assert_true($error instanceof DomainException, 'an array token is rejected as an expected DomainException (flashed, retryable)');
+        assert_false($error instanceof TypeError, 'it must NOT surface as an uncaught TypeError — that was the HTTP 500');
+    } finally {
+        if ($originalSession === null) {
+            unset($_SESSION['_csrf_token']);
+        } else {
+            $_SESSION['_csrf_token'] = $originalSession;
+        }
+        if ($originalPost === null) {
+            unset($_POST['_csrf']);
+        } else {
+            $_POST['_csrf'] = $originalPost;
+        }
+    }
+});
