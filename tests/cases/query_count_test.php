@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 use App\Repositories\TicketReadRepository;
+use App\Services\AssetService;
 use App\Services\TicketService;
 
 // Deterministic N+1 regression guards (query count, not timing). count_queries() (tests/counting_pdo.php)
@@ -20,6 +21,17 @@ test('query-count(ticket-list): getVisibleTicketsPage issues a constant 2 querie
     });
 
     assert_same(2, $n, 'the ticket list must be one COUNT + one paginated SELECT, regardless of how many rows');
+});
+
+test('query-count(asset-index): getAssetIndexData is 4 queries — list COUNT+SELECT + only the 2 filters it uses', function (): void {
+    // perf-review F8: the asset list filter bar only offers category + location, so the page must load just
+    // those two reference sets — not the full create/edit form reference (which also fetches departments +
+    // custodians the list never uses). 2 reference + 2 list (COUNT + paginated SELECT) = 4.
+    $n = count_queries(function (): void {
+        tvm_container()->get(AssetService::class)->getAssetIndexData(qc_admin(), []);
+    });
+
+    assert_same(4, $n, 'asset index must not over-fetch department/custodian reference the list filter never uses');
 });
 
 test('query-count(ticket-detail): getTicketDetailData stays flat as comments grow (attachments batched, not N+1)', function (): void {

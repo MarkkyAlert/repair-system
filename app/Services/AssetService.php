@@ -24,7 +24,9 @@ class AssetService
     {
         $this->assertManageable($viewer);
 
-        $reference = $this->assets->getAssetFormReferenceData();
+        // The list filter bar only offers category + location — load just those, not the full form reference
+        // (which also fetches departments + custodians the list never uses). (perf-review F8)
+        $reference = $this->assets->getAssetIndexReferenceData();
         $normalizedFilters = $this->normalizeAssetIndexFilters($filters);
         $result = $this->assets->getAssetListPage(max(1, (int) ($filters['page'] ?? 1)), 18, $normalizedFilters);
         $filterOptions = $this->buildAssetFilterOptions($reference);
@@ -139,7 +141,7 @@ class AssetService
             $rows = array_slice($rows, 0, self::PRINT_ASSETS_CAP);
         }
 
-        $filterOptions = $this->buildAssetFilterOptions($this->assets->getAssetFormReferenceData());
+        $filterOptions = $this->buildAssetFilterOptions($this->assets->getAssetIndexReferenceData());
 
         return [
             'brandName' => (string) setting('app_name', config('app.name', 'Repair System')),

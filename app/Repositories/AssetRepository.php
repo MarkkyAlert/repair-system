@@ -151,6 +151,33 @@ class AssetRepository
         return [$where === [] ? '' : 'WHERE ' . implode(' AND ', $where), $params];
     }
 
+    /**
+     * Lighter reference set for the asset LIST filters (category + location only). The list's filter bar does
+     * not offer department/custodian, so loading them (as getAssetFormReferenceData does for the create/edit
+     * form) is two wasted queries per list view. (perf-review F8)
+     */
+    public function getAssetIndexReferenceData(): array
+    {
+        $categories = $this->db->query(
+            'SELECT id, code, name
+             FROM asset_categories
+             WHERE is_active = 1
+             ORDER BY sort_order ASC, id ASC'
+        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $locations = $this->db->query(
+            'SELECT id, code, name, building, floor, room
+             FROM locations
+             WHERE is_active = 1
+             ORDER BY name ASC, id ASC'
+        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        return [
+            'categories' => $categories,
+            'locations' => $locations,
+        ];
+    }
+
     public function getAssetFormReferenceData(): array
     {
         $categories = $this->db->query(
