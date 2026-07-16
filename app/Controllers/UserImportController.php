@@ -60,6 +60,9 @@ class UserImportController
         } catch (\PDOException $__infra) {
             throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
         } catch (DomainException|RuntimeException $exception) {
+            if ($exception instanceof RuntimeException) {
+                log_caught_exception('controller.operational', $exception, ['path' => (string) (request()?->path ?? '')]);
+            }
             flash('error', $exception->getMessage());
             Response::redirect('/admin/users/import');
         }
@@ -105,6 +108,9 @@ class UserImportController
         } catch (\PDOException $__infra) {
             throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
         } catch (DomainException|RuntimeException $exception) {
+            if ($exception instanceof RuntimeException) {
+                log_caught_exception('controller.operational', $exception, ['path' => (string) (request()?->path ?? '')]);
+            }
             flash('error', $exception->getMessage());
             Response::redirect('/admin/users/import');
         }

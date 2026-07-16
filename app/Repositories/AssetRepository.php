@@ -613,6 +613,6 @@ class AssetRepository
             }
         }
 
-        throw new RuntimeException('ไม่สามารถสร้าง QR token ที่ไม่ซ้ำกันได้ กรุณาลองใหม่อีกครั้ง');
+        throw new DomainException('ไม่สามารถสร้าง QR token ที่ไม่ซ้ำกันได้ กรุณาลองใหม่อีกครั้ง');
     }
 }

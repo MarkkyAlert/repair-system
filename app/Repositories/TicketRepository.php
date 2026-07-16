@@ -1096,7 +1096,7 @@ class TicketRepository
         $stmt = $this->db->prepare('SELECT GET_LOCK(:name, 5)');
         $stmt->execute(['name' => $name]);
         if ((int) $stmt->fetchColumn() !== 1) {
-            throw new RuntimeException('ระบบกำลังสร้างเลข Ticket กรุณาลองอีกครั้ง');
+            throw new DomainException('ระบบกำลังสร้างเลข Ticket กรุณาลองอีกครั้ง');
         }
     }
 
@@ -1150,7 +1150,7 @@ class TicketRepository
             && ($ownerColumn === null || (int) ($ticket[$ownerColumn] ?? 0) === (int) $ownerId);
 
         if (!$valid) {
-            throw new RuntimeException('สถานะ Ticket ถูกเปลี่ยนแล้ว กรุณารีเฟรชหน้าแล้วลองอีกครั้ง');
+            throw new DomainException('สถานะ Ticket ถูกเปลี่ยนแล้ว กรุณารีเฟรชหน้าแล้วลองอีกครั้ง');
         }
 
         return (string) ($ticket['status'] ?? '');

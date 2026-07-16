@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Repositories;
 
+use DomainException;
 use PDO;
 use RuntimeException;
 use Throwable;
@@ -177,7 +178,7 @@ class GuestTicketRequestRepository
         $stmt = $this->db->prepare('SELECT GET_LOCK(:name, 5)');
         $stmt->execute(['name' => 'guest-req-convert-' . $requestId]);
         if ((int) $stmt->fetchColumn() !== 1) {
-            throw new RuntimeException('ระบบกำลังประมวลผลคำขอนี้ กรุณาลองใหม่อีกครั้ง');
+            throw new DomainException('ระบบกำลังประมวลผลคำขอนี้ กรุณาลองใหม่อีกครั้ง');
         }
     }
 
