@@ -175,6 +175,12 @@ class AssetImportService
                 $this->assets->createAsset($payload);
                 $imported++;
             } catch (Throwable $exception) {
+                // Expected, reported skips (a duplicate → createAsset translates it to DomainException; or a raw
+                // duplicate-key error) stay silent. Anything else (e.g. a DB outage) is an unexpected failure whose
+                // root cause must be logged — not hidden behind the generic row message. (error-review F6)
+                if (!($exception instanceof DomainException) && !is_duplicate_key_error($exception)) {
+                    log_caught_exception('asset.import.row', $exception, ['line' => (int) ($row['line'] ?? 0), 'asset_code' => (string) ($row['asset_code'] ?? '')]);
+                }
                 $skipped[] = [
                     'line' => (int) ($row['line'] ?? 0),
                     'asset_code' => (string) ($row['asset_code'] ?? ''),

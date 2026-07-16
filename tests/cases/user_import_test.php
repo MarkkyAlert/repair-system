@@ -213,6 +213,49 @@ namespace {
         }
     });
 
+    test('userImport.executeImport: an UNEXPECTED row failure is skipped AND logged; a duplicate is skipped SILENTLY (error-review F6)', function (): void {
+        $originalLog = (string) ini_get('error_log');
+
+        // (a) an unexpected failure (DB outage simulated by FailingPdo on the INSERT) — skipped, but the root
+        // cause must be logged (previously hidden behind the generic "เกิดข้อผิดพลาดในการบันทึก" message)
+        $row = ui_exec_row(['username' => 'f6imp_' . bin2hex(random_bytes(3))]);
+        $tmp = tempnam(sys_get_temp_dir(), 'uimpfail_') . '.log';
+        try {
+            ini_set('error_log', $tmp);
+            $result = null;
+            with_failing_pdo('INSERT INTO users', function () use ($row, &$result): void {
+                $result = ui_service()->executeImport([$row]);
+            });
+            ini_set('error_log', $originalLog);
+
+            assert_same(0, (int) $result['imported'], 'the row could not be inserted');
+            assert_same(1, count($result['skipped']), 'the failing row is skipped, not fatal to the batch');
+            assert_contains_str('[user.import.row]', (string) @file_get_contents($tmp), 'the unexpected (non-duplicate) failure root cause is logged');
+        } finally {
+            ini_set('error_log', $originalLog);
+            @unlink($tmp);
+            ui_delete_users([$row['username']]);
+        }
+
+        // (b) a DUPLICATE is an EXPECTED skip — it must NOT be logged as an error (gating: only non-duplicates log)
+        $s = bin2hex(random_bytes(4));
+        $existing = "f6dup_$s";
+        $seedId = ui_seed_user($existing, "f6dup_$s@x.test");
+        $tmp2 = tempnam(sys_get_temp_dir(), 'uimpdup_') . '.log';
+        try {
+            ini_set('error_log', $tmp2);
+            $dup = ui_service()->executeImport([ui_exec_row(['username' => $existing, 'email' => "other_$s@x.test"])]);
+            ini_set('error_log', $originalLog);
+
+            assert_same(1, count($dup['skipped']), 'the duplicate row is skipped');
+            assert_true(!str_contains((string) @file_get_contents($tmp2), '[user.import.row]'), 'a duplicate skip is expected and must NOT be logged as an error');
+        } finally {
+            ini_set('error_log', $originalLog);
+            @unlink($tmp2);
+            ui_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$seedId]);
+        }
+    });
+
     test('userImport.executeImport(resilience): a row colliding at insert is skipped; the rest still import', function (): void {
         $s = bin2hex(random_bytes(4));
         $existing = "clash_$s";

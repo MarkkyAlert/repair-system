@@ -246,6 +246,32 @@ test('query-count(asset import): each imported row costs 2 queries (insert + tok
     }
 });
 
+test('assetImport.executeImport: an UNEXPECTED row failure is skipped AND its root cause is logged (error-review F6)', function (): void {
+    // A duplicate is an expected, silent skip; a DB outage (simulated by FailingPdo on the asset INSERT) is an
+    // unexpected failure whose root cause must be logged, not hidden behind the generic row message.
+    $ref = ai_ref();
+    $row = ai_exec_row($ref);
+    $tmp = tempnam(sys_get_temp_dir(), 'aimpfail_') . '.log';
+    $originalLog = (string) ini_get('error_log');
+
+    try {
+        ini_set('error_log', $tmp);
+        $result = null;
+        with_failing_pdo('INSERT INTO assets', function () use ($row, &$result): void {
+            $result = ai_service()->executeImport([$row], ai_admin());
+        });
+        ini_set('error_log', $originalLog);
+
+        assert_same(0, (int) $result['imported'], 'the row could not be inserted');
+        assert_same(1, count($result['skipped']), 'the failing row is skipped, not fatal to the batch');
+        assert_contains_str('[asset.import.row]', (string) @file_get_contents($tmp), 'the unexpected (non-duplicate) failure root cause is logged');
+    } finally {
+        ini_set('error_log', $originalLog);
+        @unlink($tmp);
+        ai_delete_assets([$row['asset_code']]);
+    }
+});
+
 // ── parseUploadedFile / ParsesCsvUpload (now covered here too — order-independent since the shadow is central) ──
 
 function ai_tmp_csv(string $bytes): string

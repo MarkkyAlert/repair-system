@@ -185,6 +185,12 @@ class UserImportService
                     }
                 }
             } catch (Throwable $exception) {
+                // Expected, reported skips (a duplicate → createUser translates it to DomainException; or a raw
+                // duplicate-key error) stay silent. Anything else (e.g. a DB outage) is an unexpected failure whose
+                // root cause must be logged — not hidden behind the generic row message. (error-review F6)
+                if (!($exception instanceof DomainException) && !is_duplicate_key_error($exception)) {
+                    log_caught_exception('user.import.row', $exception, ['line' => (int) ($row['line'] ?? 0), 'username' => (string) ($row['username'] ?? '')]);
+                }
                 $skipped[] = [
                     'line' => (int) ($row['line'] ?? 0),
                     'username' => (string) ($row['username'] ?? ''),
