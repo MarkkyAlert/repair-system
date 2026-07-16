@@ -6,6 +6,30 @@ declare(strict_types=1);
 // CLASS + message + file:line — enough to debug without failing the main operation or emitting a noisy full
 // stack trace. Captures error_log to a temp file (destination is otherwise set by php.ini).
 
+// error-review-4 F2: services wrap a root cause (disk/DB/library) in a friendly RuntimeException; the logger
+// must record the DEEPEST previous cause, not just the wrapper — otherwise "สร้างไฟล์ไม่ได้" hides the reason.
+test('caught-exception-log: records the deepest wrapped cause, not just the wrapper', function (): void {
+    $tmp = tempnam(sys_get_temp_dir(), 'chain_') . '.log';
+    $originalLog = (string) ini_get('error_log');
+    ini_set('error_log', $tmp);
+
+    try {
+        $root = new ErrorException('disk full: no space left on device');
+        $mid = new RuntimeException('could not write the export', 0, $root);
+        $wrapper = new RuntimeException('ไม่สามารถสร้างไฟล์ PDF ได้', 0, $mid);
+
+        log_caught_exception('report.export', $wrapper, ['ticket' => 7]);
+
+        $logged = (string) @file_get_contents($tmp);
+        assert_contains_str('ไม่สามารถสร้างไฟล์ PDF ได้', $logged, 'the friendly wrapper message is still logged');
+        assert_contains_str('disk full: no space left on device', $logged, 'the DEEPEST root cause message is logged');
+        assert_contains_str('ErrorException', $logged, 'the root cause class is logged');
+    } finally {
+        ini_set('error_log', $originalLog);
+        @unlink($tmp);
+    }
+});
+
 test('caught-exception-log: records marker, context (key=value), and exception class/message', function (): void {
     $tmp = tempnam(sys_get_temp_dir(), 'caught_') . '.log';
     $originalLog = (string) ini_get('error_log');

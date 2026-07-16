@@ -202,15 +202,26 @@ function log_caught_exception(string $marker, \Throwable $exception, array $cont
     }
     $suffix = $parts === [] ? '' : ' ' . implode(' ', $parts);
 
+    // Walk to the deepest wrapped cause: services wrap a disk/DB/library failure in a friendly RuntimeException
+    // ("สร้างไฟล์ไม่ได้"), so the wrapper alone hides the real reason. Append the root class/message/file:line. (error-review-4 F2)
+    $root = $exception;
+    while ($root->getPrevious() !== null) {
+        $root = $root->getPrevious();
+    }
+    $cause = $root === $exception
+        ? ''
+        : sprintf(' <- %s: %s in %s:%d', $root::class, $root->getMessage(), $root->getFile(), $root->getLine());
+
     error_log(sprintf(
-        '[req:%s] [%s]%s %s: %s in %s:%d',
+        '[req:%s] [%s]%s %s: %s in %s:%d%s',
         request_id(),
         $marker,
         $suffix,
         $exception::class,
         $exception->getMessage(),
         $exception->getFile(),
-        $exception->getLine()
+        $exception->getLine(),
+        $cause
     ));
 }
 
