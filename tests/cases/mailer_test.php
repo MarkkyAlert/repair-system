@@ -33,6 +33,55 @@ test('MailerService::resolveFromName: explicit MAIL_FROM_NAME wins; empty falls 
     );
 });
 
+// error-review F5: the 'log' mail driver persists mail to disk indefinitely, so it must NOT store a live
+// password-reset token in plaintext, and two messages in the same second must not overwrite each other.
+test('MailerService::redactSecrets: strips reset tokens (path + query forms), leaving a [REDACTED] marker', function (): void {
+    $token = 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4';
+    $scrubbed = MailerService::redactSecrets("link https://h/reset-password/$token?email=u%40x.test and ?token=$token");
+
+    assert_true(!str_contains($scrubbed, $token), 'the raw reset token must not survive redaction');
+    assert_contains_str('/reset-password/[REDACTED]', $scrubbed, 'the path-form token is redacted');
+    assert_contains_str('token=[REDACTED]', $scrubbed, 'the query-form token is redacted');
+});
+
+test('MailerService::send(log): writes a redacted, non-colliding mail-log artifact (error-review F5)', function (): void {
+    $container = tvm_container();
+    $config = $container->get('config');
+    $dir = sys_get_temp_dir() . '/f5maillog_' . bin2hex(random_bytes(4));
+    $tweaked = $config;
+    $tweaked['mail']['driver'] = 'log';
+    $tweaked['mail']['log_path'] = $dir;
+    $container->instance('config', $tweaked);
+
+    $token = 'deadbeefdeadbeefdeadbeefdeadbeef';
+    $msg = static fn (): array => [
+        'to_email' => 'user@x.test',
+        'subject' => 'Reset your password',
+        'body_html' => "<a href=\"https://h/reset-password/$token?email=user%40x.test\">reset</a>",
+        'body_text' => "https://h/reset-password/$token?email=user%40x.test",
+        'payload' => ['template' => 'password_reset', 'reset_url' => "https://h/reset-password/$token?email=user%40x.test"],
+    ];
+
+    try {
+        $mailer = $container->get(MailerService::class);
+        $mailer->send($msg()); // same subject, same second
+        $mailer->send($msg());
+
+        $files = glob($dir . '/*.json') ?: [];
+        assert_same(2, count($files), 'two same-subject messages in the same second produce TWO files, not one (lossless)');
+
+        $contents = (string) file_get_contents($files[0]) . (string) file_get_contents($files[1]);
+        assert_true(!str_contains($contents, $token), 'the live reset token must NOT be persisted in the mail log');
+        assert_contains_str('[REDACTED]', $contents, 'the token is redacted in the artifact');
+    } finally {
+        $container->instance('config', $config);
+        foreach (glob($dir . '/*.json') ?: [] as $f) {
+            @unlink($f);
+        }
+        @rmdir($dir);
+    }
+});
+
 // error-review F7: an unsupported MAIL_DRIVER must be rejected loudly, not silently sent via PHPMailer's
 // default mail() transport (an unconfigured sendmail that drops/misroutes mail with no diagnostic).
 test('MailerService::send: an unsupported MAIL_DRIVER throws instead of falling through to mail() (error-review F7)', function (): void {

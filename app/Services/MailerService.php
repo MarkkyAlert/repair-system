@@ -92,7 +92,9 @@ class MailerService
         $timestamp = date('Ymd-His');
         $slug = preg_replace('/[^a-z0-9]+/i', '-', strtolower((string) ($message['subject'] ?? 'mail')));
         $slug = trim((string) $slug, '-');
-        $file = $directory . '/' . $timestamp . '-' . ($slug !== '' ? $slug : 'mail') . '.json';
+        // random suffix so two messages in the same second with the same subject each get their OWN file —
+        // the timestamp+slug name alone silently overwrote the first (lossy). (error-review F5)
+        $file = $directory . '/' . $timestamp . '-' . ($slug !== '' ? $slug : 'mail') . '-' . bin2hex(random_bytes(4)) . '.json';
 
         $payload = [
             'to_email' => (string) ($message['to_email'] ?? ''),
@@ -106,9 +108,25 @@ class MailerService
             'logged_at' => date('c'),
         ];
 
-        $written = file_put_contents($file, (string) json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        // The log driver persists mail to disk indefinitely; it must NOT store a live password-reset token in
+        // plaintext. Redact reset tokens (path + query forms) from the serialized record. (error-review F5)
+        $json = self::redactSecrets((string) json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+        $written = file_put_contents($file, $json);
         if ($written === false) {
             throw new RuntimeException('Unable to write mail log file.');
         }
+    }
+
+    /**
+     * Strip password-reset tokens from text about to be logged: the token is a path segment
+     * (/reset-password/<token>?email=...) and, in some flows, a token= query parameter. (error-review F5)
+     */
+    public static function redactSecrets(string $text): string
+    {
+        $text = preg_replace('#(/reset-password/)[^/?"\'\s\\\\]+#', '${1}[REDACTED]', $text) ?? $text;
+        $text = preg_replace('#([?&](?:token|reset_token)=)[^&"\'\s\\\\]+#i', '${1}[REDACTED]', $text) ?? $text;
+
+        return $text;
     }
 }
