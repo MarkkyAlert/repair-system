@@ -55,3 +55,28 @@ test('F3 (traceability): request_wants_json detects AJAX/fetch callers so they g
     assert_false(request_wants_json(['HTTP_ACCEPT' => 'text/html']), 'a plain browser page load → HTML');
     assert_false(request_wants_json([]), 'no headers → HTML (safe default)');
 });
+
+// error-review-2 F6: bootstrap silently swallowed ALL Throwable from its timezone lookup, so a real DB error
+// looked like the expected "first-run, table not created yet" case. is_missing_table_error discriminates:
+// ONLY a missing table is the silent first-run case; every other DB error is logged.
+test('F6: is_missing_table_error flags only "table doesn\'t exist", not other DB errors', function (): void {
+    $pdo = tvm_container()->get(PDO::class);
+
+    $missing = null;
+    try {
+        $pdo->query('SELECT 1 FROM a_table_that_truly_does_not_exist_xyz');
+    } catch (\PDOException $e) {
+        $missing = $e;
+    }
+    assert_true($missing !== null && is_missing_table_error($missing), 'a real missing-table error is the expected first-run case (stays silent)');
+
+    $otherDbError = null;
+    try {
+        $pdo->query('SELECT no_such_column_xyz FROM users');
+    } catch (\PDOException $e) {
+        $otherDbError = $e;
+    }
+    assert_true($otherDbError !== null && !is_missing_table_error($otherDbError), 'an unknown-column error is NOT missing-table → it would be logged, not swallowed');
+
+    assert_false(is_missing_table_error(new \RuntimeException('not a PDO error')), 'a non-PDO exception is never a missing-table');
+});

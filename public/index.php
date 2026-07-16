@@ -6,7 +6,20 @@ use App\Core\Request;
 use App\Core\Response;
 use App\Repositories\SettingsRepository;
 
-[$container, $router] = require dirname(__DIR__) . '/bootstrap.php';
+// Bootstrap runs OUTSIDE the request try/catch below, so a startup failure (DB unreachable/misconfigured)
+// would surface as a raw uncaught error with no app reference — or be mistaken for "not yet installed". Wrap
+// it in an early boundary: log it and return a generic 500, using only native calls (the app handler may not
+// exist yet). (error-review-2 F6)
+try {
+    [$container, $router] = require dirname(__DIR__) . '/bootstrap.php';
+} catch (Throwable $bootstrapException) {
+    error_log('[bootstrap] startup failed: ' . $bootstrapException);
+    if (!headers_sent()) {
+        http_response_code(500);
+        header('Content-Type: text/plain; charset=utf-8');
+    }
+    exit('ระบบเริ่มทำงานไม่สำเร็จ กรุณาลองใหม่อีกครั้ง (โปรดตรวจสอบ server log)');
+}
 
 // Fail fast on a leaky misconfiguration: APP_DEBUG=true under APP_ENV=production makes the handler below
 // rethrow and expose stack traces to clients. Refuse to serve rather than leak (local dev / CLI unaffected).

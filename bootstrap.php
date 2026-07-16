@@ -76,8 +76,13 @@ $container->singleton(PDO::class, static function (Container $container): PDO {
         if ($settingTimezone !== '' && in_array($settingTimezone, timezone_identifiers_list(), true)) {
             $timezone = $settingTimezone;
         }
-    } catch (Throwable) {
-        // The settings table may not exist yet during initial installation.
+    } catch (Throwable $timezoneException) {
+        // ONLY "table doesn't exist" is the expected first-run case (system_settings not created yet) — stay
+        // silent there. Any other failure (permissions, a dropped connection) must be logged, not silently
+        // swallowed and mistaken for "not installed". (error-review-2 F6)
+        if (!is_missing_table_error($timezoneException)) {
+            error_log('[bootstrap.timezone] ' . $timezoneException);
+        }
     }
 
     if (!in_array($timezone, timezone_identifiers_list(), true)) {

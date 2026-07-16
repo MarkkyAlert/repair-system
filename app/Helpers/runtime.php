@@ -120,6 +120,22 @@ function is_duplicate_key_error(\Throwable $exception): bool
 }
 
 /**
+ * True when the error is "table doesn't exist" (MySQL 1146 / SQLSTATE 42S02) — the ONE DB error bootstrap
+ * treats as the expected first-run case (schema not loaded yet). Every other DB error must be logged, not
+ * silently swallowed and mistaken for "not installed". (error-review-2 F6)
+ */
+function is_missing_table_error(\Throwable $exception): bool
+{
+    if (!$exception instanceof \PDOException) {
+        return false;
+    }
+    $code = (string) $exception->getCode();
+    $message = $exception->getMessage();
+
+    return $code === '42S02' || str_contains($message, '1146') || str_contains($message, "doesn't exist");
+}
+
+/**
  * Log an exception that escaped every controller-level try/catch and reached the entry-point handler.
  * The full class, message, file:line and stack trace go to the server error log (destination set by php.ini —
  * Apache error log / stderr in production) so an unexpected 500 is debuggable. It is never written to the HTTP
