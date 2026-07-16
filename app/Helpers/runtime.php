@@ -127,7 +127,22 @@ function is_duplicate_key_error(\Throwable $exception): bool
  */
 function log_uncaught_exception(\Throwable $exception): void
 {
-    error_log('[uncaught] ' . $exception);
+    error_log('[req:' . request_id() . '] [uncaught] ' . $exception);
+}
+
+/**
+ * A short, per-request correlation id — generated once and reused for the whole request. It is emitted as the
+ * X-Request-Id response header, shown on the generic 500 page, and prefixed onto every server-log line, so a
+ * user's "I hit an error, reference ABC12345" ties straight to the matching log entry. (error-review F8)
+ */
+function request_id(): string
+{
+    static $id = null;
+    if ($id === null) {
+        $id = bin2hex(random_bytes(4)); // 8 hex chars: enough to correlate, carries no PII
+    }
+
+    return $id;
 }
 
 /**
@@ -156,7 +171,8 @@ function log_caught_exception(string $marker, \Throwable $exception, array $cont
     $suffix = $parts === [] ? '' : ' ' . implode(' ', $parts);
 
     error_log(sprintf(
-        '[%s]%s %s: %s in %s:%d',
+        '[req:%s] [%s]%s %s: %s in %s:%d',
+        request_id(),
         $marker,
         $suffix,
         $exception::class,

@@ -25,3 +25,23 @@ test('caught-exception-log: records marker, context (key=value), and exception c
         @unlink($tmp);
     }
 });
+
+// error-review F8: a per-request correlation id ties a user's "I got an error" to the exact server-log line.
+// request_id() is stable within the request and prefixes every logged exception; it is also emitted as the
+// X-Request-Id header and shown on the generic 500 page.
+test('F8 (traceability): request_id is stable and prefixes the exception log for correlation', function (): void {
+    $rid = request_id();
+    assert_true(preg_match('/^[a-f0-9]{8}$/', $rid) === 1, 'request id is 8 hex chars, no PII');
+    assert_same($rid, request_id(), 'the id is stable within the request (memoized), so header/page/log all match');
+
+    $tmp = tempnam(sys_get_temp_dir(), 'req_') . '.log';
+    $originalLog = (string) ini_get('error_log');
+    ini_set('error_log', $tmp);
+    try {
+        log_caught_exception('t.marker', new RuntimeException('boom'), ['x' => 1]);
+        assert_contains_str('[req:' . $rid . ']', (string) @file_get_contents($tmp), 'the log line carries the request id, so a reported reference finds the entry');
+    } finally {
+        ini_set('error_log', $originalLog);
+        @unlink($tmp);
+    }
+});

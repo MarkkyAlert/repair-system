@@ -67,7 +67,8 @@ class Response
     {
         $view = View::exists('errors/' . $status) ? 'errors/' . $status : 'errors/500';
         http_response_code($status);
-        View::render($view, ['title' => (string) $status, 'message' => $message], 'guest');
+        // carry the request correlation id so the error page can show a reference that matches the server log (error-review F8)
+        View::render($view, ['title' => (string) $status, 'message' => $message, 'reference' => request_id()], 'guest');
         exit;
     }
 }

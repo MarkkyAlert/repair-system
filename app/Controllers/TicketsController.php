@@ -380,7 +380,9 @@ class TicketsController
         } catch (DomainException|RuntimeException $exception) {
             Response::abort(404, $exception->getMessage());
         } catch (Throwable $exception) {
-            error_log('Job Order PDF generation failed: ' . $exception::class . ': ' . $exception->getMessage());
+            // route through the shared logger so the entry carries the request id + ticket + file:line (was a
+            // bare class/message line that couldn't be tied to the user's failed request). (error-review F8)
+            log_caught_exception('ticket.jobpdf', $exception, ['ticket' => (int) $ticketId]);
             Response::abort(500, 'ไม่สามารถสร้างไฟล์ Job Order PDF ได้ กรุณาลองใหม่อีกครั้ง');
         }
     }

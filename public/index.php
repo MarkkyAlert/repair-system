@@ -21,6 +21,11 @@ if (is_unsafe_production_debug((string) config('app.env', 'production'), (bool) 
 // redirect below and file downloads — carries them. CSP is emitted per-response in View::render (needs the nonce).
 emit_security_headers();
 
+// Correlation id on every response so a user can quote a reference that ties to the server log. (error-review F8)
+if (!headers_sent()) {
+    header('X-Request-Id: ' . request_id());
+}
+
 try {
     $request = Request::capture();
     $container->instance(Request::class, $request);
