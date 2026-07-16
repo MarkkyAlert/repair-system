@@ -80,3 +80,16 @@ test('F6: is_missing_table_error flags only "table doesn\'t exist", not other DB
 
     assert_false(is_missing_table_error(new \RuntimeException('not a PDO error')), 'a non-PDO exception is never a missing-table');
 });
+
+// error-review-3 O6: a startup failure happens before the app handler/request_id() exist, so the front
+// controller generates a native reference and threads the SAME value into the log, the X-Request-Id header, and
+// the response body — support can tie the user's reference to the log line. Source-lock (index.php's startup
+// boundary is not harness-drivable).
+test('O6: the bootstrap-failure boundary threads one reference into log, header, and response', function (): void {
+    $src = (string) file_get_contents(dirname(__DIR__, 2) . '/public/index.php');
+
+    assert_contains_str('$bootReference = bin2hex(random_bytes', $src, 'a native reference is generated before bootstrap (no helper dependency)');
+    assert_contains_str("error_log('[bootstrap req:' . \$bootReference", $src, 'the reference prefixes the startup-failure log line');
+    assert_contains_str("header('X-Request-Id: ' . \$bootReference)", $src, 'the same reference is returned in the X-Request-Id header');
+    assert_contains_str('รหัสอ้างอิง: \' . $bootReference', $src, 'the same reference is shown to the user in the response');
+});

@@ -10,15 +10,20 @@ use App\Repositories\SettingsRepository;
 // would surface as a raw uncaught error with no app reference — or be mistaken for "not yet installed". Wrap
 // it in an early boundary: log it and return a generic 500, using only native calls (the app handler may not
 // exist yet). (error-review-2 F6)
+// A native correlation reference generated BEFORE bootstrap (request_id() lives in a helper that may not have
+// loaded yet). The SAME value goes into the log, the X-Request-Id header, and the response body, so support can
+// tie a user's "ref XXXX" straight to the startup-failure log line. (error-review-3 O6)
+$bootReference = bin2hex(random_bytes(4));
 try {
     [$container, $router] = require dirname(__DIR__) . '/bootstrap.php';
 } catch (Throwable $bootstrapException) {
-    error_log('[bootstrap] startup failed: ' . $bootstrapException);
+    error_log('[bootstrap req:' . $bootReference . '] startup failed: ' . $bootstrapException);
     if (!headers_sent()) {
         http_response_code(500);
         header('Content-Type: text/plain; charset=utf-8');
+        header('X-Request-Id: ' . $bootReference);
     }
-    exit('ระบบเริ่มทำงานไม่สำเร็จ กรุณาลองใหม่อีกครั้ง (โปรดตรวจสอบ server log)');
+    exit('ระบบเริ่มทำงานไม่สำเร็จ (รหัสอ้างอิง: ' . $bootReference . ') กรุณาลองใหม่ และแจ้งรหัสนี้กับผู้ดูแลระบบ');
 }
 
 // Fail fast on a leaky misconfiguration: APP_DEBUG=true under APP_ENV=production makes the handler below
