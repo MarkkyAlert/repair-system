@@ -91,15 +91,60 @@ if (!$dryRun) {
         escapeshellarg($absolutePath)
     );
 
+    // Run under a deadline so a stalled mysqldump/gzip (a hung DB endpoint) can't hang the cron forever with no
+    // heartbeat. proc_open + poll; on timeout, terminate and remove the partial file. (error-review-7 F2)
+    $timeoutSeconds = max(1, (int) env('BACKUP_TIMEOUT_SECONDS', 900));
     $exitCode = 0;
-    $output = [];
-    exec($cmd . ' 2>&1', $output, $exitCode);
+    $stderr = '';
+    $timedOut = false;
+
+    $descriptors = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+    $pipes = [];
+    $proc = proc_open(['sh', '-c', $cmd], $descriptors, $pipes);
+    if (!is_resource($proc)) {
+        putenv('MYSQL_PWD');
+        fwrite(STDERR, 'Cannot start backup process.' . PHP_EOL);
+        @unlink($absolutePath);
+        exit(1);
+    }
+    fclose($pipes[0]);
+    stream_set_blocking($pipes[1], false);
+    stream_set_blocking($pipes[2], false);
+
+    $deadline = microtime(true) + $timeoutSeconds;
+    while (true) {
+        $status = proc_get_status($proc);
+        $stderr .= (string) stream_get_contents($pipes[2]);
+        if (!$status['running']) {
+            $exitCode = (int) $status['exitcode'];
+            break;
+        }
+        if (microtime(true) >= $deadline) {
+            $timedOut = true;
+            proc_terminate($proc, 15); // SIGTERM
+            usleep(500000);
+            if (proc_get_status($proc)['running']) {
+                proc_terminate($proc, 9); // SIGKILL — the shell is gone; any lingering child is reparented + SIGPIPEs
+            }
+            break;
+        }
+        usleep(100000); // 100ms
+    }
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    proc_close($proc);
 
     // Clear sensitive env var asap
     putenv('MYSQL_PWD');
 
+    if ($timedOut) {
+        fwrite(STDERR, 'mysqldump/gzip exceeded the ' . $timeoutSeconds . 's deadline — terminated; partial backup removed.' . PHP_EOL);
+        @unlink($absolutePath);
+        exit(1);
+    }
+
     if ($exitCode !== 0) {
-        fwrite(STDERR, 'mysqldump failed (exit ' . $exitCode . '): ' . implode("\n", $output) . PHP_EOL);
+        fwrite(STDERR, 'mysqldump failed (exit ' . $exitCode . '): ' . $stderr . PHP_EOL);
         @unlink($absolutePath);
         exit(1);
     }
