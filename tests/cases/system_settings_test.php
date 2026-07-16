@@ -433,4 +433,37 @@ namespace {
             @rmdir($absDir);
         }
     });
+
+    // error-review-5 F3: deleteLogoFile used a bare @unlink — when the remove failed (read-only dir, perms),
+    // the orphan logo file was left with no trace. Now it logs. deleteLogoFile is private, so drive it via
+    // reflection against a file in a read-only directory (its unlink must fail).
+    test('logo(F3): a logo file that cannot be unlinked is logged, not silently left as an orphan', function (): void {
+        $svc = ss_service();
+        $del = new ReflectionMethod($svc, 'deleteLogoFile');
+        $del->setAccessible(true);
+
+        $roDir = BASE_PATH . '/storage/uploads/tickets/logoro_' . bin2hex(random_bytes(4));
+        @mkdir($roDir, 0775, true);
+        $logo = $roDir . '/logo-locked.png';
+        file_put_contents($logo, 'x');
+        chmod($roDir, 0555); // read-only dir → its file can't be unlinked
+
+        $logFile = tempnam(sys_get_temp_dir(), 'logo_') . '.log';
+        $originalLog = (string) ini_get('error_log');
+        ini_set('error_log', $logFile);
+        try {
+            $del->invoke($svc, $logo);
+            $logged = (string) @file_get_contents($logFile);
+
+            assert_contains_str('[settings.logo.cleanup]', $logged, 'a logo file that cannot be removed is logged');
+            assert_contains_str('file=logo-locked.png', $logged, 'the log names the orphaned file');
+            assert_true(is_file($logo), 'the orphan logo file still exists (its unlink failed)');
+        } finally {
+            ini_set('error_log', $originalLog);
+            @unlink($logFile);
+            chmod($roDir, 0775);
+            @unlink($logo);
+            @rmdir($roDir);
+        }
+    });
 }

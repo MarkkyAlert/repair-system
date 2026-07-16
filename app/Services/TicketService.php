@@ -558,7 +558,8 @@ class TicketService
             if ($startedTransaction && $this->db->inTransaction()) {
                 $this->db->rollBack();
             }
-            $this->attachments->deleteStoredFiles($storedPaths);
+            // roll back files stored for this failed ticket; log any that can't be removed (error-review-5 F3)
+            $this->attachments->purgeStoredFiles($storedPaths, 'ticket.create.cleanup', ['ticket' => $ticketId]);
             throw $exception;
         }
 

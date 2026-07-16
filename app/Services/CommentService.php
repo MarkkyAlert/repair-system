@@ -63,7 +63,8 @@ class CommentService
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
             }
-            $this->attachments->deleteStoredFiles($storedPaths);
+            // roll back files stored for this failed comment; log any that can't be removed (error-review-5 F3)
+            $this->attachments->purgeStoredFiles($storedPaths, 'comment.create.cleanup', ['ticket' => $ticketId]);
             throw $exception;
         }
 
@@ -130,15 +131,9 @@ class CommentService
             throw $exception;
         }
 
-        // deleteStoredFiles returns the paths it could NOT unlink (the boolean was previously discarded, so a
-        // failed cleanup left orphans on disk silently). Log them without failing the already-committed delete. (error-review-4 F3)
-        $orphaned = $this->attachments->deleteStoredFiles($paths);
-        if ($orphaned !== []) {
-            log_caught_exception('comment.delete.cleanup', new \RuntimeException('attachment file(s) could not be deleted from disk'), [
-                'comment' => $commentId,
-                'orphans' => count($orphaned),
-            ]);
-        }
+        // Files that can't be unlinked are logged (not silently dropped) without failing the already-committed
+        // delete — the shared purge helper records the orphans. (error-review-4 F3, error-review-5 F3)
+        $this->attachments->purgeStoredFiles($paths, 'comment.delete.cleanup', ['comment' => $commentId]);
 
         try {
             $this->notifications->notifyCommentEvent(

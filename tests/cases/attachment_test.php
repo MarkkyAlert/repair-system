@@ -295,4 +295,74 @@ namespace {
             @unlink(BASE_PATH . '/' . $okRel);
         }
     });
+
+    test('attachment(F3-purge): purgeStoredFiles logs the orphans it could not remove, with the caller marker', function (): void {
+        // Every rollback/cleanup path routes through purgeStoredFiles so a failed unlink is logged, not dropped.
+        // A file in a read-only directory can't be unlinked → it must be logged under the caller's marker. (error-review-5 F3)
+        $svc = att_service();
+        $roDir = BASE_PATH . '/storage/uploads/tickets/f3purge_' . bin2hex(random_bytes(3));
+        @mkdir($roDir, 0775, true);
+        $lockedRel = str_replace(BASE_PATH . '/', '', $roDir) . '/locked.bin';
+        file_put_contents(BASE_PATH . '/' . $lockedRel, 'x');
+        chmod($roDir, 0555);
+
+        $logFile = tempnam(sys_get_temp_dir(), 'purge_') . '.log';
+        $originalLog = (string) ini_get('error_log');
+        ini_set('error_log', $logFile);
+        try {
+            $svc->purgeStoredFiles([$lockedRel], 'ticket.create.cleanup', ['ticket' => 4242]);
+            $logged = (string) @file_get_contents($logFile);
+
+            assert_contains_str('[ticket.create.cleanup]', $logged, 'the orphan is logged under the caller-supplied marker');
+            assert_contains_str('orphans=1', $logged, 'the count of files left on disk is recorded');
+            assert_contains_str('ticket=4242', $logged, 'the caller context (entity id) is recorded');
+            assert_true(is_file(BASE_PATH . '/' . $lockedRel), 'the orphan file itself still exists (it could not be unlinked)');
+        } finally {
+            ini_set('error_log', $originalLog);
+            @unlink($logFile);
+            chmod($roDir, 0775);
+            @unlink(BASE_PATH . '/' . $lockedRel);
+            @rmdir($roDir);
+        }
+    });
+
+    test('attachment(F3-purge): a clean delete logs nothing, and every cleanup caller routes through purgeStoredFiles', function (): void {
+        // no orphan → no noise
+        $svc = att_service();
+        $okRel = 'storage/uploads/tickets/f3clean_' . bin2hex(random_bytes(3)) . '.bin';
+        file_put_contents(BASE_PATH . '/' . $okRel, 'y');
+        $logFile = tempnam(sys_get_temp_dir(), 'purge_') . '.log';
+        $originalLog = (string) ini_get('error_log');
+        ini_set('error_log', $logFile);
+        try {
+            $svc->purgeStoredFiles([$okRel], 'ticket.create.cleanup', ['ticket' => 1]);
+            assert_same('', trim((string) @file_get_contents($logFile)), 'a successful cleanup logs nothing');
+            assert_true(!is_file(BASE_PATH . '/' . $okRel), 'the deletable file was removed');
+        } finally {
+            ini_set('error_log', $originalLog);
+            @unlink($logFile);
+            @unlink(BASE_PATH . '/' . $okRel);
+        }
+
+        // source-lock: the rollback/cleanup sites hand their orphans to purgeStoredFiles (with a marker), rather
+        // than calling deleteStoredFiles() and discarding its return. (error-review-5 F3)
+        $root = dirname(__DIR__, 2);
+        $markers = [
+            'app/Services/AttachmentService.php' => ['attachment.store.cleanup', 'attachment.comment.cleanup'],
+            'app/Services/CommentService.php' => ['comment.create.cleanup', 'comment.delete.cleanup'],
+            'app/Services/TicketService.php' => ['ticket.create.cleanup'],
+            'app/Services/SystemSettingsService.php' => ['settings.logo.cleanup'],
+        ];
+        foreach ($markers as $file => $expected) {
+            $src = (string) file_get_contents($root . '/' . $file);
+            foreach ($expected as $marker) {
+                assert_contains_str($marker, $src, "$file logs cleanup failures under '$marker'");
+            }
+        }
+        // no service outside AttachmentService may call the raw primitive as a fire-and-forget statement
+        foreach (['app/Services/CommentService.php', 'app/Services/TicketService.php'] as $file) {
+            $src = (string) file_get_contents($root . '/' . $file);
+            assert_true(!str_contains($src, '->deleteStoredFiles('), "$file routes cleanup through purgeStoredFiles, not the raw deleteStoredFiles");
+        }
+    });
 }

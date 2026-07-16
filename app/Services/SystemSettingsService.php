@@ -314,8 +314,14 @@ class SystemSettingsService
 
     private function deleteLogoFile(?string $path): void
     {
-        if ($path !== null && is_file($path)) {
-            @unlink($path);
+        // A failed unlink left an orphaned logo file with no trace — log it (without failing the settings save)
+        // so support can clean it up. (error-review-5 F3)
+        if ($path !== null && is_file($path) && !@unlink($path)) {
+            log_caught_exception(
+                'settings.logo.cleanup',
+                new \RuntimeException('logo file could not be deleted from disk'),
+                ['file' => basename($path)]
+            );
         }
     }
 

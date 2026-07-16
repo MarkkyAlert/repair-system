@@ -95,7 +95,9 @@ class AttachmentService
                 ]);
             }
         } catch (Throwable $exception) {
-            $this->deleteStoredFiles($storedPaths);
+            // roll back the files already moved for this (failed) upload; log any that can't be removed so a
+            // half-written upload doesn't leave silent orphans. (error-review-5 F3)
+            $this->purgeStoredFiles($storedPaths, 'attachment.store.cleanup', ['ticket' => $ticketId]);
             throw $exception;
         }
 
@@ -154,6 +156,26 @@ class AttachmentService
         return $failed;
     }
 
+    /**
+     * Delete stored files AND record any that could not be removed via the shared logger, so an orphaned file
+     * leaves a trace for support instead of being silently discarded. Every rollback/cleanup path should call
+     * this rather than deleteStoredFiles() directly (whose boolean return is easy to drop). (error-review-5 F3)
+     *
+     * @param string[] $paths
+     * @param array<string, mixed> $context
+     */
+    public function purgeStoredFiles(array $paths, string $marker, array $context = []): void
+    {
+        $orphaned = $this->deleteStoredFiles($paths);
+        if ($orphaned !== []) {
+            log_caught_exception(
+                $marker,
+                new \RuntimeException('attachment file(s) could not be deleted from disk'),
+                $context + ['orphans' => count($orphaned)]
+            );
+        }
+    }
+
     public function getVisibleAttachment(int $attachmentId, array $viewer): array
     {
         $attachment = $this->attachments->findById($attachmentId);
@@ -184,7 +206,7 @@ class AttachmentService
 
     public function deleteCommentFiles(int $commentId): void
     {
-        $this->deleteStoredFiles($this->getCommentFilePaths($commentId));
+        $this->purgeStoredFiles($this->getCommentFilePaths($commentId), 'attachment.comment.cleanup', ['comment' => $commentId]);
     }
 
     public function getCommentFilePaths(int $commentId): array
