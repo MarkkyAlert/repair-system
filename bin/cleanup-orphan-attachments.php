@@ -54,6 +54,10 @@ try {
         $settings = $container->get(SettingsRepository::class);
         if ($settings instanceof SettingsRepository) {
             $settings->upsert('cron_orphan_cleanup_last_run_at', date('Y-m-d H:i:s'), 'string', false, 0);
+            // Record delete failures so the dashboard warns even though the job "ran" (a fresh heartbeat alone
+            // hid a run that left orphans it couldn't delete). A clean run writes '0', clearing the warning —
+            // matching the backup/email/SLA crons. (error-review-6 F2)
+            $settings->upsert('cron_orphan_cleanup_last_failed', (string) (int) $result['errors'], 'string', false, 0);
         }
     }
 
@@ -72,7 +76,9 @@ try {
         }
     }
 
-    exit((int) $result['errors'] > 0 ? 1 : 0);
+    // Exit 2 = "ran but left delete failures" (distinct from a crash's 1), matching the backup cron so a
+    // scheduler/monitor can tell a completed-with-failures run from a hard crash. (error-review-6 F2)
+    exit((int) $result['errors'] > 0 ? 2 : 0);
 } catch (Throwable $exception) {
     fwrite(STDERR, (string) $exception . PHP_EOL); // full trace (class + message + file:line) for cron debugging
     exit(1);

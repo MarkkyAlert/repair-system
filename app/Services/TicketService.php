@@ -185,6 +185,12 @@ class TicketService
         if ($backupFailed > 0) {
             $failures[] = ['label' => 'สำรอง database', 'detail' => $backupFailed . ' ไฟล์เก่าลบไม่สำเร็จ (พื้นที่อาจเต็ม)', 'href' => '/admin#tab-backup'];
         }
+        // A cleanup run that COMPLETED but couldn't delete some orphan files (perms/full disk) — the freshness
+        // heartbeat alone showed it as healthy. (error-review-6 F2)
+        $orphanFailed = $count('cron_orphan_cleanup_last_failed');
+        if ($orphanFailed > 0) {
+            $failures[] = ['label' => 'ล้างไฟล์แนบกำพร้า', 'detail' => $orphanFailed . ' ไฟล์กำพร้าลบไม่สำเร็จ (สิทธิ์/พื้นที่อาจมีปัญหา)', 'href' => '/admin/email-queue'];
+        }
 
         return $failures;
     }
