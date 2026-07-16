@@ -65,13 +65,13 @@ class LoginRateLimiter
         if ($handle === false) {
             // A read failure means the throttle state is unavailable — the limiter degrades to fail-open, so the
             // reason must be visible (was returned as an empty state silently). (error-review-5 F1)
-            error_log('[ratelimit] cannot open ' . $this->filePath . ' for read — throttle state unavailable (fail-open)');
+            $this->logDiag('cannot open ' . $this->filePath . ' for read — throttle state unavailable (fail-open)');
             return [];
         }
 
         try {
             if (!flock($handle, LOCK_SH)) {
-                error_log('[ratelimit] shared lock failed on ' . $this->filePath . ' — throttle state unavailable (fail-open)');
+                $this->logDiag('shared lock failed on ' . $this->filePath . ' — throttle state unavailable (fail-open)');
                 return [];
             }
             $contents = stream_get_contents($handle);
@@ -80,7 +80,14 @@ class LoginRateLimiter
             fclose($handle);
         }
 
-        return $this->decode((string) $contents);
+        if ($contents === false) {
+            // The read stream itself failed (I/O error) — distinct from an empty/absent file. Treating it as
+            // empty would silently drop the recorded attempts, so surface it. (error-review-6 F1)
+            $this->logDiag('read failed on ' . $this->filePath . ' — throttle state unavailable (fail-open)');
+            return [];
+        }
+
+        return $this->decode($contents);
     }
 
     private function mutate(callable $callback): void
@@ -93,18 +100,25 @@ class LoginRateLimiter
         // RISK MAP: If storage is not writable, login throttling silently degrades; deployment must verify permissions.
         $handle = fopen($this->filePath, 'c+');
         if ($handle === false) {
-            error_log('[ratelimit] cannot open ' . $this->filePath . ' — login throttle DISABLED');
+            $this->logDiag('cannot open ' . $this->filePath . ' — login throttle DISABLED');
             return;
         }
 
         try {
             if (!flock($handle, LOCK_EX)) {
-                error_log('[ratelimit] flock failed on ' . $this->filePath . ' — login throttle DISABLED');
+                $this->logDiag('flock failed on ' . $this->filePath . ' — login throttle DISABLED');
                 return;
             }
 
             rewind($handle);
-            $payload = $this->decode((string) stream_get_contents($handle));
+            $existing = stream_get_contents($handle);
+            if ($existing === false) {
+                // Couldn't read the current state before rewriting it — the recorded attempts would be lost.
+                // Log and treat as empty (self-heals on this write). (error-review-6 F1)
+                $this->logDiag('read-before-write failed on ' . $this->filePath . ' — prior throttle state may be lost');
+                $existing = '';
+            }
+            $payload = $this->decode($existing);
             $payload = $callback($payload);
             $payload = $this->dropStaleKeys($payload);
 
@@ -112,19 +126,33 @@ class LoginRateLimiter
             // A failed/partial write leaves the file corrupt → the next read decodes to empty (fail-open) with no
             // trace. Check each write step so a full disk / quota is surfaced, not swallowed. (error-review-5 F1)
             if (ftruncate($handle, 0) === false) {
-                error_log('[ratelimit] ftruncate failed on ' . $this->filePath . ' — throttle state may be left corrupt');
+                $this->logDiag('ftruncate failed on ' . $this->filePath . ' — throttle state may be left corrupt');
             }
             $encoded = (string) json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-            if (fwrite($handle, $encoded) === false) {
-                error_log('[ratelimit] fwrite failed on ' . $this->filePath . ' — throttle state NOT persisted (fail-open)');
+            $written = fwrite($handle, $encoded);
+            if ($written === false || $written < strlen($encoded)) {
+                // A SHORT write (fewer bytes than the payload, e.g. a full disk) is not `false` but still leaves
+                // truncated/corrupt JSON — check the byte count, not just false. (error-review-6 F1)
+                $this->logDiag('fwrite incomplete on ' . $this->filePath . ' — wrote ' . var_export($written, true) . ' of ' . strlen($encoded) . ' bytes (throttle state NOT persisted, fail-open)');
             }
             if (fflush($handle) === false) {
-                error_log('[ratelimit] fflush failed on ' . $this->filePath . ' — throttle state may not be persisted');
+                $this->logDiag('fflush failed on ' . $this->filePath . ' — throttle state may not be persisted');
             }
             flock($handle, LOCK_UN);
         } finally {
             fclose($handle);
         }
+    }
+
+    /**
+     * One diagnostic channel for every storage degradation — prefixed with the request id so a fail-open
+     * incident on the login page ties to the exact server-log line, like the shared exception logger. The
+     * limiter can't throw (it must degrade to fail-open), so this is the only trace. (error-review-6 F1)
+     */
+    private function logDiag(string $message): void
+    {
+        $reference = function_exists('request_id') ? request_id() : '--------';
+        error_log('[ratelimit][req:' . $reference . '] ' . $message);
     }
 
     private function decode(string $contents): array
@@ -138,7 +166,7 @@ class LoginRateLimiter
             // Corrupt state (partial write, manual edit, disk error) — treated as empty means the limiter forgets
             // every attempt (fail-open). Log it so support sees the cause instead of a silently-reset throttle.
             // (error-review-5 F1) — self-heals on the next successful write.
-            error_log('[ratelimit] corrupt JSON in ' . $this->filePath . ' — throttle state treated as empty (fail-open)');
+            $this->logDiag('corrupt JSON in ' . $this->filePath . ' — throttle state treated as empty (fail-open)');
             return [];
         }
 

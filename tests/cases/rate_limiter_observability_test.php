@@ -28,6 +28,8 @@ test('rate-limiter(F1): a corrupt state file is logged, and fail-open is preserv
         assert_contains_str('[ratelimit]', $logged, 'the corrupt state is now logged (was returned as empty, silently)');
         assert_contains_str('corrupt JSON', $logged, 'the log names the actual cause so support can act');
         assert_true(strlen($logged) > 0, 'a diagnostic is written — no longer log_bytes=0 on a corrupt file');
+        // error-review-6 F1: the diagnostic now carries the request id, so a fail-open incident ties to a log line
+        assert_true(preg_match('/\[ratelimit]\[req:[a-f0-9]{8}]/', $logged) === 1, 'the diagnostic carries [req:<id>] for correlation');
     } finally {
         ini_set('error_log', $originalLog);
         @unlink($logFile);
@@ -57,13 +59,17 @@ test('rate-limiter(F1): valid state still works — a hit is recorded and the fi
 test('rate-limiter(F1): every storage-failure branch emits a diagnostic (source-lock)', function (): void {
     $src = (string) file_get_contents(dirname(__DIR__, 2) . '/app/Services/LoginRateLimiter.php');
 
-    // read(): open + shared-lock failures
+    // read(): open + shared-lock + stream-read failures
     assert_contains_str("cannot open ' . \$this->filePath . ' for read", $src, 'a read-open failure is logged');
     assert_contains_str('shared lock failed on', $src, 'a shared-lock failure is logged');
+    assert_true(preg_match('/if \(\$contents === false\)/', $src) === 1, 'a failed stream_get_contents on read is checked (error-review-6 F1)');
+    assert_true(preg_match('/if \(\$existing === false\)/', $src) === 1, 'a failed read-before-write in mutate is checked (error-review-6 F1)');
     // decode(): corrupt json
     assert_contains_str('corrupt JSON in', $src, 'a corrupt-JSON decode is logged');
-    // mutate(): the write steps are checked (return value not discarded)
+    // mutate(): the write steps are checked (return value not discarded), incl. a SHORT write (byte count)
     assert_true(preg_match('/if \(ftruncate\([^)]*\) === false\)/', $src) === 1, 'ftruncate result is checked');
-    assert_true(preg_match('/if \(fwrite\([^)]*\) === false\)/', $src) === 1, 'fwrite result is checked');
+    assert_true(preg_match('/\$written === false \|\| \$written < strlen\(/', $src) === 1, 'fwrite checks a SHORT write (byte count), not just false (error-review-6 F1)');
     assert_true(preg_match('/if \(fflush\([^)]*\) === false\)/', $src) === 1, 'fflush result is checked');
+    // every diagnostic goes through one channel that prefixes the request id for correlation
+    assert_contains_str("error_log('[ratelimit][req:' . \$reference", $src, 'diagnostics carry [req:<id>] via the shared logDiag channel (error-review-6 F1)');
 });
