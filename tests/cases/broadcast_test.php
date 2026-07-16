@@ -123,3 +123,47 @@ test('broadcast (F1): a SWALLOWED in-app write failure is reported (in_app_faile
     assert_true(($result['in_app_failed'] ?? false) === true, 'the swallowed in-app failure is surfaced to the caller');
     // (no notification row was written, so nothing to clean up)
 });
+
+// error-review-3 O4: the audit trail recorded 'broadcast.sent' unconditionally — even when a channel failed —
+// contradicting what the admin is shown. The action must reflect the real outcome + carry the failure flags.
+test('broadcast (O4): the audit action reflects the real outcome (partial on an email-only failure)', function (): void {
+    $c = tvm_container();
+    $pdo = bc_pdo();
+    $auditFloor = (int) $pdo->query('SELECT COALESCE(MAX(id), 0) FROM audit_logs')->fetchColumn();
+    $token = bin2hex(random_bytes(32));
+
+    $throwingEmails = new class () extends \App\Services\EmailQueueService {
+        public function __construct()
+        {
+        }
+
+        public function queueSystemAnnouncementEmails(array $recipientIds, string $title, string $message): void
+        {
+            throw new \RuntimeException('email queue backend down');
+        }
+    };
+    $notifier = new \App\Services\NotificationService(
+        $c->get(\App\Repositories\NotificationRepository::class),
+        $c->get(\App\Repositories\TicketReadRepository::class),
+        $throwingEmails,
+        $c->get(\App\Repositories\NotificationPreferenceRepository::class),
+        $c->get(\App\Repositories\UserRepository::class),
+    );
+    $svc = new \App\Services\BroadcastService(
+        $notifier,
+        $c->get(\App\Services\MailerService::class),
+        $c->get(\App\Services\EmailTemplateService::class),
+        $c->get(\App\Services\AuditLogger::class),
+    );
+
+    try {
+        $svc->sendBroadcast(['id' => 4, 'role' => 'admin', 'full_name' => 'Admin'], ['title' => 'Notice', 'message' => 'Body', 'submission_token' => $token]);
+
+        $row = $pdo->query("SELECT action, context FROM audit_logs WHERE id > $auditFloor AND action LIKE 'broadcast.%' ORDER BY id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+        assert_same('broadcast.partial', (string) ($row['action'] ?? ''), 'an email failure is audited as partial, not sent');
+        assert_contains_str('"email_failed":true', (string) ($row['context'] ?? ''), 'the failure flag is recorded in the audit context');
+    } finally {
+        $pdo->prepare('DELETE FROM notifications WHERE submission_token = ?')->execute([$token]); // cascades recipients
+        $pdo->prepare('DELETE FROM audit_logs WHERE id > ?')->execute([$auditFloor]);
+    }
+});

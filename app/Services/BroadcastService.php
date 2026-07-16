@@ -56,11 +56,26 @@ class BroadcastService
             $submissionToken
         );
 
-        $this->audit->record($viewer, 'broadcast.sent', 'system', null, [
+        // Audit the ACTUAL outcome — the trail must not say "sent" when a channel failed (it would contradict
+        // what the controller shows the admin). Record + carry the failure flags. (error-review-3 O4)
+        $inAppFailed = !empty($result['in_app_failed']);
+        $emailFailed = !empty($result['email_failed']);
+        $action = 'broadcast.sent';
+        if (!empty($result['duplicate'])) {
+            $action = 'broadcast.duplicate';
+        } elseif ($inAppFailed && $emailFailed) {
+            $action = 'broadcast.failed';
+        } elseif ($inAppFailed || $emailFailed) {
+            $action = 'broadcast.partial';
+        }
+
+        $this->audit->record($viewer, $action, 'system', null, [
             'title' => $title,
             'role_filter' => $roleFilter !== '' ? $roleFilter : 'all',
-            'in_app_count' => $result['in_app_count'],
-            'email_count' => $result['email_count'],
+            'in_app_count' => $result['in_app_count'] ?? 0,
+            'email_count' => $result['email_count'] ?? 0,
+            'in_app_failed' => $inAppFailed,
+            'email_failed' => $emailFailed,
         ]);
 
         return $result;
