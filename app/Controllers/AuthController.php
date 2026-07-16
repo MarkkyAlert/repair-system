@@ -166,6 +166,12 @@ class AuthController
         } catch (\PDOException $__infra) {
             throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
         } catch (DomainException|RuntimeException $exception) {
+            // DomainException = expected (bad/expired token, weak password, CSRF) → flash only. A RuntimeException
+            // is an operational failure (e.g. session/hash subsystem) that was flashed with no trace; log it so a
+            // user's "couldn't reset" report is debuggable. (error-review-4 F1)
+            if ($exception instanceof RuntimeException) {
+                log_caught_exception('auth.reset', $exception);
+            }
             flash('error', $exception->getMessage());
             Response::redirect('/reset-password/' . rawurlencode($token) . '?email=' . rawurlencode($email));
         }

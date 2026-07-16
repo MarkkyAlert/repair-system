@@ -77,6 +77,12 @@ class TicketsController
         } catch (\PDOException $__infra) {
             throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
         } catch (DomainException|RuntimeException $exception) {
+            // A DomainException is expected input (CSRF/validation) — flash only. A RuntimeException here is an
+            // operational failure (e.g. attachment storage couldn't write to disk) that was previously flashed
+            // with no server-log trace; record it so it's debuggable. (error-review-4 F1)
+            if ($exception instanceof RuntimeException) {
+                log_caught_exception('ticket.store', $exception, ['user' => (int) ($viewer['id'] ?? 0)]);
+            }
             with_old_input([
                 'title' => (string) ($_POST['title'] ?? ''),
                 'description' => (string) ($_POST['description'] ?? ''),
@@ -377,11 +383,11 @@ class TicketsController
             );
         } catch (\PDOException $__infra) {
             throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
-        } catch (DomainException|RuntimeException $exception) {
-            Response::abort(404, $exception->getMessage());
+        } catch (DomainException $exception) {
+            Response::abort(404, $exception->getMessage()); // not-found / no-access — an expected 404, no server log
         } catch (Throwable $exception) {
-            // route through the shared logger so the entry carries the request id + ticket + file:line (was a
-            // bare class/message line that couldn't be tied to the user's failed request). (error-review F8)
+            // An operational failure (RuntimeException from PDF rendering, or anything else) is NOT a 404 — it was
+            // previously mis-reported as "not found" with no log. Log it and return a 500. (error-review-4 F1)
             log_caught_exception('ticket.jobpdf', $exception, ['ticket' => (int) $ticketId]);
             Response::abort(500, 'ไม่สามารถสร้างไฟล์ Job Order PDF ได้ กรุณาลองใหม่อีกครั้ง');
         }
@@ -398,8 +404,13 @@ class TicketsController
             Response::download($png, 'ticket-qr-' . (int) $ticketId . '.png', 'image/png', 'inline');
         } catch (\PDOException $__infra) {
             throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
-        } catch (DomainException|RuntimeException $exception) {
-            Response::abort(404, $exception->getMessage());
+        } catch (DomainException $exception) {
+            Response::abort(404, $exception->getMessage()); // not-found / no-access — an expected 404, no server log
+        } catch (Throwable $exception) {
+            // Operational render failure (RuntimeException, GD/imagick, etc.) — was previously masked as a 404 with
+            // no log; surface it as a logged 500 like printPdf. (error-review-4 F1)
+            log_caught_exception('ticket.qrpng', $exception, ['ticket' => (int) $ticketId]);
+            Response::abort(500, 'ไม่สามารถสร้าง QR ของ Ticket ได้ กรุณาลองใหม่อีกครั้ง');
         }
     }
 }

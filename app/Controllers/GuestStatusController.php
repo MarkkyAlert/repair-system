@@ -29,8 +29,8 @@ class GuestStatusController
         $result = null;
         $error = null;
         try {
-            // csrf_validate() throws RuntimeException — keep it INSIDE the try (and catch RuntimeException)
-            // so a missing/expired token on this public guest form renders a friendly error, not a 500.
+            // csrf_validate() throws DomainException on a bad/expired token — keep it INSIDE the try so a
+            // missing/stale token on this public guest form renders a friendly error, not a 500. (error-review-4 F1)
             csrf_validate();
             $result = $this->guests->lookupGuestStatus($requestNo, $contact, $ip);
             if ($result === null) {

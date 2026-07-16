@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace App\Core;
 
-use RuntimeException;
+use DomainException;
 
 class Csrf
 {
@@ -26,7 +26,9 @@ class Csrf
         $sessionToken = $_SESSION['_csrf_token'] ?? null;
 
         if (!is_string($token) || !is_string($sessionToken) || !hash_equals($sessionToken, $token)) {
-            throw new RuntimeException('CSRF token ไม่ถูกต้อง');
+            // A bad/expired/forged token is an EXPECTED condition (flash + retry), not an operational failure —
+            // DomainException keeps it out of the operational error log. (error-review-4 F1)
+            throw new DomainException('CSRF token ไม่ถูกต้อง');
         }
     }
 }

@@ -43,7 +43,7 @@ test('csrf(deny): wrong token / null token / no session token are all rejected',
         $rejected = false;
         try {
             Csrf::validate('deadbeefdeadbeefdeadbeefdeadbeef');
-        } catch (RuntimeException) {
+        } catch (DomainException) {
             $rejected = true;
         }
         assert_true($rejected, 'a mismatching token is rejected');
@@ -54,7 +54,7 @@ test('csrf(deny): wrong token / null token / no session token are all rejected',
         $rejected = false;
         try {
             Csrf::validate(null);
-        } catch (RuntimeException) {
+        } catch (DomainException) {
             $rejected = true;
         }
         assert_true($rejected, 'a null submitted token is rejected');
@@ -65,10 +65,26 @@ test('csrf(deny): wrong token / null token / no session token are all rejected',
         $rejected = false;
         try {
             Csrf::validate('a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4');
-        } catch (RuntimeException) {
+        } catch (DomainException) {
             $rejected = true;
         }
         assert_true($rejected, 'validation fails when the session has no token');
+    });
+});
+
+// error-review-4 F1: a bad/expired/forged token is an EXPECTED condition (flash + retry), not an operational
+// failure. It must be a DomainException — NOT a RuntimeException — so that controller catches which log
+// RuntimeExceptions as operational failures don't record every mistyped/stale form as server-side noise.
+test('csrf(classify): a rejected token is a DomainException (expected), never a RuntimeException (operational)', function (): void {
+    csrf_with_session_token('a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4', function (): void {
+        $thrown = null;
+        try {
+            Csrf::validate('deadbeefdeadbeefdeadbeefdeadbeef');
+        } catch (Throwable $e) {
+            $thrown = $e;
+        }
+        assert_true($thrown instanceof DomainException, 'CSRF rejection is a DomainException — flashed to the user, not logged');
+        assert_false($thrown instanceof RuntimeException, 'it is NOT a RuntimeException, so it will not be logged as an operational failure');
     });
 });
 
@@ -76,7 +92,7 @@ test('csrf(no-leak): the rejection message does not expose the expected session 
     csrf_with_session_token('supersecrettokenvalue0000000000', function (): void {
         try {
             Csrf::validate('wrong');
-        } catch (RuntimeException $e) {
+        } catch (DomainException $e) {
             assert_false(
                 str_contains($e->getMessage(), 'supersecrettokenvalue0000000000'),
                 'the error message must not leak the session token'
@@ -110,7 +126,7 @@ test('csrf(helper): csrf_validate() reads $_POST[_csrf] — matching passes, mis
         $rejected = false;
         try {
             csrf_validate();
-        } catch (RuntimeException) {
+        } catch (DomainException) {
             $rejected = true;
         }
         assert_true($rejected, 'a mismatching $_POST[_csrf] is rejected by csrf_validate()');
