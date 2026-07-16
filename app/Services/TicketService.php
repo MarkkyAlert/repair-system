@@ -181,6 +181,10 @@ class TicketService
         if ($slaNotifyFailed > 0) {
             $failures[] = ['label' => 'แจ้งเตือน SLA เกินกำหนด', 'detail' => $slaNotifyFailed . ' รายการแจ้งเตือนไม่สำเร็จ', 'href' => '/admin/email-queue'];
         }
+        $backupFailed = $count('cron_backup_last_failed');
+        if ($backupFailed > 0) {
+            $failures[] = ['label' => 'สำรอง database', 'detail' => $backupFailed . ' ไฟล์เก่าลบไม่สำเร็จ (พื้นที่อาจเต็ม)', 'href' => '/admin#tab-backup'];
+        }
 
         return $failures;
     }

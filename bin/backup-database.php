@@ -120,6 +120,7 @@ usort($existing, static fn (string $a, string $b): int => filemtime($b) <=> file
 
 $toDelete = array_slice($existing, $keep);
 $deletedCount = 0;
+$deleteFailures = 0;
 foreach ($toDelete as $oldFile) {
     if ($dryRun) {
         echo '[backup] would delete: ' . basename($oldFile) . PHP_EOL;
@@ -129,6 +130,7 @@ foreach ($toDelete as $oldFile) {
         $deletedCount++;
     } else {
         fwrite(STDERR, '[backup] failed to delete: ' . basename($oldFile) . PHP_EOL);
+        $deleteFailures++;
     }
 }
 
@@ -136,6 +138,8 @@ if (!$dryRun) {
     $settings = $container->get(SettingsRepository::class);
     if ($settings instanceof SettingsRepository) {
         $settings->upsert('cron_backup_last_run_at', date('Y-m-d H:i:s'), 'string', false, 0);
+        // record rotation failures so the dashboard warns + the exit code is non-zero (error-review-2 F4)
+        $settings->upsert('cron_backup_last_failed', (string) $deleteFailures, 'string', false, 0);
     }
 }
 
@@ -143,5 +147,8 @@ if (!$dryRun) {
 // count($existing) already includes the new backup. Dry-run skips creation,
 // so the new (hypothetical) file is not in $existing.
 $retained = count($existing) - $deletedCount + ($dryRun ? 1 : 0);
-echo '[backup] done. retained=' . $retained . ' deleted=' . $deletedCount . PHP_EOL;
-exit(0);
+echo '[backup] done. retained=' . $retained . ' deleted=' . $deletedCount . ' delete_failed=' . $deleteFailures . PHP_EOL;
+
+// the backup itself succeeded, but a failed rotation delete means stale files pile up (disk fills) — signal it
+// with a non-zero exit (2), distinct from a crash's 1, while keeping the heartbeat. (error-review-2 F4)
+exit($deleteFailures > 0 ? 2 : 0);
