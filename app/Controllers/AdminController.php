@@ -107,6 +107,8 @@ class AdminController
                     . ' / ' . (string) $cred['password'] . ' (บันทึกไว้ — รหัสนี้จะไม่แสดงอีก)';
             }
             flash('success', $message);
+        } catch (\PDOException $__infra) {
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
         }
@@ -309,6 +311,8 @@ class AdminController
                 (int) ($result['email_count'] ?? 0)
             ));
             Response::redirect('/admin/broadcast');
+        } catch (\PDOException $__infra) {
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
         } catch (DomainException|RuntimeException $exception) {
             with_old_input([
                 'title' => (string) ($_POST['title'] ?? ''),

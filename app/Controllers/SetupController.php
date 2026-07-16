@@ -75,6 +75,8 @@ class SetupController
             }
             flash('success', $message . ' กรุณาเข้าสู่ระบบ');
             Response::redirect('/login');
+        } catch (\PDOException $__infra) {
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
         } catch (DomainException|RuntimeException $exception) {
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();

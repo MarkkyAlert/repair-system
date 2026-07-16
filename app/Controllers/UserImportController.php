@@ -57,6 +57,8 @@ class UserImportController
                 'importToken' => $token,
                 'errorMessage' => null,
             ]);
+        } catch (\PDOException $__infra) {
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
             Response::redirect('/admin/users/import');
@@ -100,6 +102,8 @@ class UserImportController
                 $names = implode(', ', array_map(static fn (array $f): string => (string) ($f['username'] ?? ''), $resetFailures));
                 flash('error', 'ส่งอีเมลตั้งรหัสผ่านไม่สำเร็จ ' . count($resetFailures) . ' ผู้ใช้ (' . $names . ') — ผู้ใช้ถูกสร้างแล้วแต่ยังไม่มีรหัสผ่าน กรุณารีเซ็ตรหัสผ่านให้เอง');
             }
+        } catch (\PDOException $__infra) {
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
             Response::redirect('/admin/users/import');

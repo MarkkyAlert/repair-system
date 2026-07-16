@@ -55,6 +55,8 @@ class CommentsController
             }
 
             flash('success', 'อัปเดต comment เรียบร้อยแล้ว');
+        } catch (\PDOException $__infra) {
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
         } catch (DomainException|RuntimeException $exception) {
             if ($expectsJson) {
                 Response::jsonError($exception->getMessage());

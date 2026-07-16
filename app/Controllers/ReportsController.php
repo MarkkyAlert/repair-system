@@ -80,6 +80,8 @@ class ReportsController
 
         try {
             $pack = $this->reports->generateSamplePack($viewer);
+        } catch (\PDOException $__infra) {
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
             Response::redirect('/reports/guide');
@@ -516,6 +518,8 @@ class ReportsController
                 (string) ($export['file_name'] ?? $fallbackName),
                 (string) ($export['content_type'] ?? $fallbackType)
             );
+        } catch (\PDOException $__infra) {
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
             Response::redirect($redirectPath);

@@ -74,6 +74,8 @@ class TicketsController
             $ticketId = $this->tickets->createTicket($viewer, $_POST, $_FILES['attachments'] ?? []);
             flash('success', 'สร้างรายการแจ้งซ่อมเรียบร้อยแล้ว');
             Response::redirect('/tickets/' . $ticketId);
+        } catch (\PDOException $__infra) {
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
         } catch (DomainException|RuntimeException $exception) {
             with_old_input([
                 'title' => (string) ($_POST['title'] ?? ''),
@@ -135,6 +137,8 @@ class TicketsController
                 $message .= ' · ล้มเหลว ' . $failedCount . ' รายการ (สถานะอาจเปลี่ยนไปแล้ว)';
             }
             flash('success', $message);
+        } catch (\PDOException $__infra) {
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
         }
@@ -371,6 +375,8 @@ class TicketsController
                 (string) ($export['file_name'] ?? 'job-order.pdf'),
                 (string) ($export['content_type'] ?? 'application/pdf')
             );
+        } catch (\PDOException $__infra) {
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
         } catch (DomainException|RuntimeException $exception) {
             Response::abort(404, $exception->getMessage());
         } catch (Throwable $exception) {
@@ -388,6 +394,8 @@ class TicketsController
         try {
             $png = $this->print->generatePrintQrPng((int) $ticketId, $viewer);
             Response::download($png, 'ticket-qr-' . (int) $ticketId . '.png', 'image/png', 'inline');
+        } catch (\PDOException $__infra) {
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
         } catch (DomainException|RuntimeException $exception) {
             Response::abort(404, $exception->getMessage());
         }

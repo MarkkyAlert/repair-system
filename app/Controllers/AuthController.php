@@ -69,6 +69,8 @@ class AuthController
 
             flash('success', 'เข้าสู่ระบบเรียบร้อยแล้ว');
             Response::redirect($returnTo);
+        } catch (\PDOException $__infra) {
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
         } catch (DomainException|RuntimeException $exception) {
             with_old_input(['login' => $login]);
             flash('error', $exception->getMessage());
@@ -110,6 +112,8 @@ class AuthController
 
             $this->service->createPasswordReset($email);
             flash('success', 'หากอีเมลนี้มีอยู่ในระบบ ระบบได้สร้างคำขอรีเซ็ตรหัสผ่านให้แล้ว');
+        } catch (\PDOException $__infra) {
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
         } catch (DomainException|RuntimeException $exception) {
             with_old_input(['email' => $email]);
             flash('error', $exception->getMessage());
@@ -159,6 +163,8 @@ class AuthController
 
             flash('success', 'ตั้งรหัสผ่านใหม่เรียบร้อยแล้ว กรุณาเข้าสู่ระบบอีกครั้ง');
             Response::redirect('/login');
+        } catch (\PDOException $__infra) {
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
             Response::redirect('/reset-password/' . rawurlencode($token) . '?email=' . rawurlencode($email));
@@ -189,6 +195,8 @@ class AuthController
                 (string) ($_POST['password_confirmation'] ?? '')
             );
             flash('success', 'เปลี่ยนรหัสผ่านเรียบร้อยแล้ว');
+        } catch (\PDOException $__infra) {
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
         }
@@ -255,6 +263,8 @@ class AuthController
             $this->users->updateRememberToken($userId, null);
             $this->rememberMe->clearCurrent();
             flash('success', 'ยกเลิกการจดจำการเข้าระบบทุกอุปกรณ์เรียบร้อยแล้ว');
+        } catch (\PDOException $__infra) {
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
         }
@@ -271,6 +281,8 @@ class AuthController
             $this->service->updateProfile(auth()->user() ?? [], $_POST);
             clear_old_input();
             flash('success', 'อัปเดตข้อมูลบัญชีเรียบร้อยแล้ว');
+        } catch (\PDOException $__infra) {
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
         } catch (DomainException|RuntimeException $exception) {
             with_old_input([
                 'full_name' => (string) ($_POST['full_name'] ?? ''),
@@ -329,6 +341,8 @@ class AuthController
             }
             $this->preferences->upsertMatrix($userId, $matrix);
             flash('success', 'บันทึกการตั้งค่าการแจ้งเตือนเรียบร้อยแล้ว');
+        } catch (\PDOException $__infra) {
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
         }

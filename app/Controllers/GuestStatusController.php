@@ -37,6 +37,8 @@ class GuestStatusController
                 // error กลาง ๆ — ไม่บอกว่าเลขมีจริงไหม (กัน enumeration)
                 $error = 'ไม่พบข้อมูล — กรุณาตรวจสอบเลขอ้างอิงและเบอร์โทร/อีเมลที่แจ้งไว้อีกครั้ง';
             }
+        } catch (\PDOException $__infra) {
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
         } catch (DomainException|RuntimeException $exception) {
             $error = $exception->getMessage();
         }

@@ -85,6 +85,8 @@ class AssetsController
             $assetId = $this->assets->createAsset($viewer, $_POST);
             flash('success', 'สร้าง Asset และ QR token เรียบร้อยแล้ว');
             Response::redirect('/asset-registry/' . $assetId);
+        } catch (\PDOException $__infra) {
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
         } catch (DomainException|RuntimeException $exception) {
             with_old_input($this->assetOldInput($_POST));
             flash('error', $exception->getMessage());
@@ -160,6 +162,8 @@ class AssetsController
 
             $this->assets->updateAsset((int) $assetId, $viewer, $_POST);
             flash('success', 'อัปเดต Asset เรียบร้อยแล้ว');
+        } catch (\PDOException $__infra) {
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
         } catch (DomainException|RuntimeException $exception) {
             with_old_input($this->assetOldInput($_POST));
             flash('error', $exception->getMessage());
@@ -189,6 +193,8 @@ class AssetsController
         try {
             $png = $this->assets->generateQrPng((int) $assetId, $viewer);
             Response::download($png, 'asset-qr-' . (int) $assetId . '.png', 'image/png', 'inline');
+        } catch (\PDOException $__infra) {
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
         } catch (DomainException|RuntimeException $exception) {
             Response::abort(404, $exception->getMessage());
         }
@@ -234,6 +240,8 @@ class AssetsController
                 (string) ($export['file_name'] ?? 'asset-registry.csv'),
                 (string) ($export['content_type'] ?? 'text/csv; charset=UTF-8')
             );
+        } catch (\PDOException $__infra) {
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
             Response::redirect('/asset-registry');
@@ -254,6 +262,8 @@ class AssetsController
                 (string) ($export['file_name'] ?? 'asset-registry.xlsx'),
                 (string) ($export['content_type'] ?? 'application/octet-stream')
             );
+        } catch (\PDOException $__infra) {
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
             Response::redirect('/asset-registry');
@@ -298,6 +308,8 @@ class AssetsController
                 'importToken' => $token,
                 'errorMessage' => null,
             ]);
+        } catch (\PDOException $__infra) {
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
             Response::redirect('/asset-registry/import');
@@ -329,6 +341,8 @@ class AssetsController
                 $summary .= ' · ข้าม ' . $skipped . ' รายการ (อาจซ้ำหรือผิดพลาด)';
             }
             flash('success', $summary);
+        } catch (\PDOException $__infra) {
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
             Response::redirect('/asset-registry/import');
