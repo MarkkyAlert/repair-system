@@ -260,6 +260,29 @@ namespace {
         }
     });
 
+    test('userImport.parseUploadedFile: enforces the synchronous row cap — default lowered to 50 (perf-review F1)', function (): void {
+        // Each imported user is bcrypt-hashed in-request (deliberately slow), so the row cap bounds how long
+        // the admin waits and the risk of a web-server timeout mid-import. The default is 50; a 51-row file is
+        // rejected and the message states the actual cap (raising it back to 200 would let 51 through → reds).
+        $csv = "username,email,full_name,role,department_code,phone,password\n";
+        for ($i = 1; $i <= 51; $i++) {
+            $csv .= "user$i,user$i@x.test,User $i,requester,,,\n";
+        }
+        $file = ui_file($csv);
+        try {
+            $threw = false;
+            try {
+                ui_service()->parseUploadedFile($file);
+            } catch (DomainException $e) {
+                $threw = true;
+                assert_true(str_contains($e->getMessage(), 'ไม่เกิน 50'), 'the cap message names the current 50-row limit: ' . $e->getMessage());
+            }
+            assert_true($threw, '51 rows exceeds the 50-row synchronous cap and is rejected');
+        } finally {
+            @unlink($file['tmp_name']);
+        }
+    });
+
     test('userImport.parseUploadedFile: rejects a missing column, an empty file, an oversized file, and a non-.csv name', function (): void {
         // missing 'password' column
         $missing = ui_file("username,email,full_name,role,department_code,phone\njdoe,j@x.test,J,requester,,\n");

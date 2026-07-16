@@ -79,7 +79,10 @@ return [
         'import_asset_max_bytes' => (int) Env::get('UPLOAD_IMPORT_ASSET_MAX_BYTES', 2 * 1024 * 1024),
         'import_asset_max_rows' => (int) Env::get('UPLOAD_IMPORT_ASSET_MAX_ROWS', 500),
         'import_user_max_bytes' => (int) Env::get('UPLOAD_IMPORT_USER_MAX_BYTES', 1 * 1024 * 1024),
-        'import_user_max_rows' => (int) Env::get('UPLOAD_IMPORT_USER_MAX_ROWS', 200),
+        // Synchronous default kept modest: each imported user is bcrypt-hashed in-request (deliberately slow),
+        // so a large batch makes the admin wait and risks a web-server timeout mid-import (partial result).
+        // ~50 rows is a few seconds; raise via env only on a fast host with a generous max_execution_time. (perf-review F1)
+        'import_user_max_rows' => (int) Env::get('UPLOAD_IMPORT_USER_MAX_ROWS', 50),
         // Where the organisation logo is stored (relative to the app root). Overridable so a deploy can point it
         // at a writable/shared volume.
         'branding_dir' => trim((string) Env::get('BRANDING_UPLOAD_DIR', 'storage/uploads/branding'), '/'),

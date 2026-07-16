@@ -29,7 +29,7 @@ class UserImportService
             $file,
             self::CSV_COLUMNS,
             (int) config('uploads.import_user_max_bytes', 1 * 1024 * 1024),
-            (int) config('uploads.import_user_max_rows', 200)
+            (int) config('uploads.import_user_max_rows', 50)
         );
     }
 
