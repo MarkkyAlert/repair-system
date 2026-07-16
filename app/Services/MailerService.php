@@ -146,6 +146,21 @@ class MailerService
         return substr($email, 0, 1) . '***' . substr($email, $at);
     }
 
+    /** Mask a phone for production audit/logs: keep only the last 4 digits (***5678); too-short numbers become '***'. (error-review-4 F5) */
+    public static function maskPhone(string $phone): string
+    {
+        $phone = trim($phone);
+        if ($phone === '') {
+            return '';
+        }
+        $digits = preg_replace('/\D+/', '', $phone) ?? '';
+        if (strlen($digits) < 4) {
+            return '***';
+        }
+
+        return '***' . substr($digits, -4);
+    }
+
     public static function redactSecrets(string $text): string
     {
         $text = preg_replace('#(/reset-password/)[^/?"\'\s\\\\]+#', '${1}[REDACTED]', $text) ?? $text;

@@ -115,8 +115,13 @@ class BroadcastService
             throw new DomainException('ส่งอีเมลทดสอบไม่สำเร็จ: กรุณาตรวจสอบค่า SMTP/MAIL_DRIVER และลองใหม่');
         }
 
+        // In production the audit trail must not retain the raw recipient address — mask it (the template +
+        // driver are enough to confirm what was sent). Dev keeps the full address for debugging. (error-review-4 F5)
+        $auditEmail = (string) config('app.env', 'production') === 'production'
+            ? MailerService::maskEmail($email)
+            : $email;
         $this->audit->record($viewer, 'email_test.sent', 'email', null, [
-            'to_email' => $email,
+            'to_email' => $auditEmail,
             'template' => $template,
             'driver' => (string) config('mail.driver', 'log'),
         ]);

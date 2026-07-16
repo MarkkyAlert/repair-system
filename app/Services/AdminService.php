@@ -251,7 +251,30 @@ class AdminService
 
     private function recordAudit(array $viewer, string $action, string $entityType, ?int $entityId = null, array $context = []): void
     {
-        $this->audit->record($viewer, $action, $entityType, $entityId, $context);
+        $this->audit->record($viewer, $action, $entityType, $entityId, $this->redactAuditPii($context));
+    }
+
+    /**
+     * Keep raw contact PII (email/phone) out of the persistent audit record in production — the entry already
+     * identifies the target by entity id + full_name, so the exact address/number need not be retained there.
+     * Dev/local keeps the full values for debugging, matching the mail-log PII policy. (error-review-4 F5)
+     *
+     * @param array<string, mixed> $context
+     * @return array<string, mixed>
+     */
+    private function redactAuditPii(array $context): array
+    {
+        if ((string) config('app.env', 'production') !== 'production') {
+            return $context;
+        }
+        if (array_key_exists('email', $context)) {
+            $context['email'] = MailerService::maskEmail((string) $context['email']);
+        }
+        if (array_key_exists('phone', $context)) {
+            $context['phone'] = MailerService::maskPhone((string) $context['phone']);
+        }
+
+        return $context;
     }
 
     private function extractCategorySlaMap(array $settings): array
