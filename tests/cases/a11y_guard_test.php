@@ -349,6 +349,23 @@ test('a11y-review accent-contrast: dark-theme indigo accents get a darker light 
     assert_true($ratio >= 4.5, sprintf('--indigo-700 on --canvas is %.2f:1, below AA', $ratio));
 });
 
+test('a11y-review setup-labels: first-run setup admin fields carry a visible <label for>, not placeholder-only', function (): void {
+    // The /setup admin-account fields had only a group <legend> + placeholders; a placeholder vanishes on
+    // input, so the installer loses the field's identity mid-form (WCAG 3.3.2). Each now has an id + label.
+    // (ux-review-3 F3) — axe can't catch this because a placeholder satisfies the accessible-name check.
+    $html = (string) file_get_contents(dirname(__DIR__, 2) . '/app/Views/setup/index.php');
+    foreach (['admin_username', 'admin_email', 'admin_full_name', 'admin_password'] as $field) {
+        assert_true(
+            preg_match('/<label for="' . preg_quote($field, '/') . '"/', $html) === 1,
+            "setup field {$field} must have a persistent <label for> (WCAG 3.3.2), not just a placeholder"
+        );
+        assert_true(
+            preg_match('/<input id="' . preg_quote($field, '/') . '"/', $html) === 1,
+            "setup field {$field} input must carry the matching id"
+        );
+    }
+});
+
 test('a11y-review pagination: hand-rolled admin pagination prev/next carry accessible names', function (): void {
     // The Audit + Users tabs hand-roll pagination (custom page params + #tab hash), and their prev/next
     // arrows held only an aria-hidden SVG — axe link-name (serious). They now carry the same aria set as

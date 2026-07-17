@@ -55,10 +55,22 @@
                 <fieldset class="field-group" style="border:0;padding:0;margin:0">
                     <legend class="field-label" style="padding:0;margin-bottom:.6rem">บัญชีผู้ดูแลระบบ <span class="required">*</span></legend>
                     <div class="stack-md">
-                        <input name="admin_username" type="text" class="input" required placeholder="ชื่อผู้ใช้ (เช่น admin)" autocomplete="username">
-                        <input name="admin_email" type="email" class="input" required placeholder="อีเมล (เช่น admin@example.com)">
-                        <input name="admin_full_name" type="text" class="input" required placeholder="ชื่อ-นามสกุล">
-                        <input name="admin_password" type="password" class="input" required minlength="8" placeholder="รหัสผ่าน (อย่างน้อย 8 ตัวอักษร)" autocomplete="new-password">
+                        <div class="field-group">
+                            <label for="admin_username" class="field-label">ชื่อผู้ใช้</label>
+                            <input id="admin_username" name="admin_username" type="text" class="input" required placeholder="เช่น admin" autocomplete="username">
+                        </div>
+                        <div class="field-group">
+                            <label for="admin_email" class="field-label">อีเมล</label>
+                            <input id="admin_email" name="admin_email" type="email" class="input" required placeholder="เช่น admin@example.com">
+                        </div>
+                        <div class="field-group">
+                            <label for="admin_full_name" class="field-label">ชื่อ-นามสกุล</label>
+                            <input id="admin_full_name" name="admin_full_name" type="text" class="input" required placeholder="ชื่อ-นามสกุลของผู้ดูแล">
+                        </div>
+                        <div class="field-group">
+                            <label for="admin_password" class="field-label">รหัสผ่าน</label>
+                            <input id="admin_password" name="admin_password" type="password" class="input" required minlength="8" placeholder="อย่างน้อย 8 ตัวอักษร" autocomplete="new-password">
+                        </div>
                     </div>
                 </fieldset>
             <?php else: ?>
