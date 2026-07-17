@@ -145,7 +145,7 @@ $initialCount = (int) ($counts[$oldRoleFilter] ?? 0);
 
             /* C2: Character counter UX */
             .broadcast-page .field-hint { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
-            .broadcast-page .char-counter { font-variant-numeric: tabular-nums; font-size: .78rem; color: var(--text-muted, #94a3b8); white-space: nowrap; flex-shrink: 0; }
+            .broadcast-page .char-counter { font-variant-numeric: tabular-nums; font-size: .78rem; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
             .broadcast-page .char-counter.is-near-limit { color: rgb(234, 179, 8); font-weight: 600; }
             .broadcast-page .char-counter.is-at-limit { color: rgb(239, 68, 68); font-weight: 700; }
 
@@ -153,14 +153,16 @@ $initialCount = (int) ($counts[$oldRoleFilter] ?? 0);
             .broadcast-notice { display: flex; align-items: flex-start; gap: .65rem; padding: .85rem 1rem; border-radius: 12px; background: rgba(56, 189, 248, .08); border: 1px solid rgba(56, 189, 248, .25); color: var(--text); margin-bottom: .25rem; }
             .broadcast-notice-icon { width: 18px; height: 18px; flex-shrink: 0; color: rgb(56, 189, 248); margin-top: 2px; }
             .broadcast-notice strong { display: block; font-size: .9rem; margin-bottom: .2rem; }
-            .broadcast-notice p { margin: 0; font-size: .82rem; line-height: 1.5; color: var(--text-muted, #94a3b8); }
-            .broadcast-notice a { color: rgb(129, 140, 248); text-decoration: underline; text-underline-offset: 2px; }
+            .broadcast-notice p { margin: 0; font-size: .82rem; line-height: 1.5; color: var(--muted); }
+            .broadcast-notice a { color: var(--indigo-700); text-decoration: underline; text-underline-offset: 2px; }
+            .dark .broadcast-notice a { color: rgb(129, 140, 248); }
 
             /* I1: Recipient count chip */
             .role-filter-row { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
             .role-filter-row .input { flex: 1 1 240px; min-width: 0; }
             .recipient-count-chip { display: inline-flex; align-items: center; gap: .4rem; padding: .5rem .75rem; font-size: .85rem; color: var(--text); background: rgba(99, 102, 241, .1); border: 1px solid rgba(99, 102, 241, .25); border-radius: 99px; white-space: nowrap; flex-shrink: 0; font-variant-numeric: tabular-nums; }
-            .recipient-count-chip strong { color: rgb(129, 140, 248); font-weight: 700; }
+            .recipient-count-chip strong { color: var(--indigo-700); font-weight: 700; }
+            .dark .recipient-count-chip strong { color: rgb(129, 140, 248); }
             .recipient-count-chip.is-empty { background: rgba(239, 68, 68, .08); border-color: rgba(239, 68, 68, .25); color: rgb(239, 68, 68); }
             .recipient-count-chip.is-empty strong { color: rgb(239, 68, 68); }
 
@@ -169,13 +171,14 @@ $initialCount = (int) ($counts[$oldRoleFilter] ?? 0);
             .broadcast-actions .btn-ghost { margin-left: auto; }
 
             /* N1: Tone-down Broadcast badge — indigo info instead of warning yellow */
-            .broadcast-badge { display: inline-flex; align-items: center; gap: .35rem; padding: .3rem .6rem; font-size: .72rem; font-weight: 600; letter-spacing: .02em; color: rgb(165, 180, 252); background: rgba(99, 102, 241, .12); border: 1px solid rgba(99, 102, 241, .25); border-radius: 99px; white-space: nowrap; }
+            .broadcast-badge { display: inline-flex; align-items: center; gap: .35rem; padding: .3rem .6rem; font-size: .72rem; font-weight: 600; letter-spacing: .02em; color: var(--indigo-700); background: rgba(99, 102, 241, .12); border: 1px solid rgba(99, 102, 241, .25); border-radius: 99px; white-space: nowrap; }
+            .dark .broadcast-badge { color: rgb(165, 180, 252); }
             .broadcast-badge svg { width: 14px; height: 14px; }
 
             /* N5: Section divider with caption */
             .broadcast-section-divider { display: flex; align-items: center; gap: .65rem; margin-top: .25rem; }
             .broadcast-section-divider::before, .broadcast-section-divider::after { content: ''; flex: 1; height: 1px; background: var(--glass-border, rgba(255,255,255,.08)); }
-            .broadcast-section-divider span { font-size: .7rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted, #94a3b8); }
+            .broadcast-section-divider span { font-size: .7rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 
             @media (max-width: 600px) {
                 .role-filter-row { flex-direction: column; align-items: stretch; }

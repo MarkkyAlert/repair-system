@@ -271,3 +271,93 @@ test('a11y-review track-alert: the guest track error is a live region (role=aler
         'guest track error box must carry role="alert" so SR announces the lookup failure'
     );
 });
+
+test('a11y-review contrast: the undeclared --text-muted fallback is gone; --muted clears AA on light', function (): void {
+    // --text-muted is never declared, so every `var(--text-muted, #94a3b8)` silently rendered #94a3b8 —
+    // only ~2.3:1 on the light canvas (fails WCAG 1.4.3). breadcrumb, confirm-modal + broadcast were
+    // switched to the real --muted token. Assert the bad fallback is gone from CSS (both files) + the
+    // broadcast inline styles, and that --muted itself clears AA. (ux-review F5, F6)
+    $root = dirname(__DIR__, 2);
+    foreach ([
+        'resources/css/app.css',
+        'public/assets/css/app.css',
+        'app/Views/admin/broadcast.php',
+    ] as $rel) {
+        $src = (string) file_get_contents($root . '/' . $rel);
+        assert_true(
+            !str_contains($src, 'var(--text-muted'),
+            "{$rel} still uses the undeclared var(--text-muted…) fallback (fails AA on light surfaces)"
+        );
+    }
+
+    $css = (string) file_get_contents($root . '/public/assets/css/app.css');
+    assert_true(preg_match('/:root\{[^}]*--muted:#([0-9a-fA-F]{6})/', $css, $mm) === 1, 'light --muted hex not found in :root');
+    assert_true(preg_match('/--canvas:#([0-9a-fA-F]{6})/', $css, $cm) === 1, 'light --canvas hex not found');
+
+    $lum = static function (string $hex): float {
+        $r = (int) hexdec(substr($hex, 0, 2));
+        $g = (int) hexdec(substr($hex, 2, 2));
+        $b = (int) hexdec(substr($hex, 4, 2));
+        $f = static fn (float $c): float => ($c /= 255) <= 0.03928 ? $c / 12.92 : (($c + 0.055) / 1.055) ** 2.4;
+        return 0.2126 * $f($r) + 0.7152 * $f($g) + 0.0722 * $f($b);
+    };
+    $l1 = $lum($mm[1]);
+    $l2 = $lum($cm[1]);
+    $ratio = (max($l1, $l2) + 0.05) / (min($l1, $l2) + 0.05);
+    assert_true($ratio >= 4.5, sprintf('--muted #%s on --canvas #%s is %.2f:1, below WCAG AA 4.5:1', $mm[1], $cm[1], $ratio));
+});
+
+test('a11y-review accent-contrast: dark-theme indigo accents get a darker light value (breadcrumb, modal, broadcast)', function (): void {
+    // #a5b4fc / #818cf8 are dark-theme accents that only clear ~1.7-2.7:1 on light surfaces. The light rules
+    // now use the darker --indigo-700 (the light-indigo is confined to a .dark override), and the confirm
+    // modal card is opaque so the dark backdrop can't gray out its labels. Runtime-verified by the axe
+    // ticket-detail + broadcast + modal e2e. (ux-review F5, F6)
+    $root = dirname(__DIR__, 2);
+    $css = (string) file_get_contents($root . '/public/assets/css/app.css');
+    $broadcast = (string) file_get_contents($root . '/app/Views/admin/broadcast.php');
+
+    assert_true(
+        preg_match('/\.breadcrumb li\[aria-current=page\]\{[^}]*color:var\(--indigo-700\)/', $css) === 1,
+        'breadcrumb current item must use --indigo-700 on light (was #a5b4fc → 1.8:1)'
+    );
+    assert_true(
+        preg_match('/\.confirm-modal-summary strong\{[^}]*color:var\(--indigo-700\)/', $css) === 1,
+        'confirm-modal emphasis must use --indigo-700 on light'
+    );
+    assert_true(
+        preg_match('/\.confirm-modal-card\{[^}]*background:var\(--surface-strong\)/', $css) === 1,
+        'confirm-modal card must be opaque (--surface-strong) so the backdrop cannot gray out its text'
+    );
+    assert_true(
+        preg_match('/\.broadcast-badge \{[^}]*color: var\(--indigo-700\)/', $broadcast) === 1,
+        'broadcast badge must use --indigo-700 on light'
+    );
+
+    // --indigo-700 clears AA for normal text on the light canvas.
+    assert_true(preg_match('/--indigo-700:#([0-9a-fA-F]{6})/', $css, $im) === 1, '--indigo-700 hex not found');
+    assert_true(preg_match('/--canvas:#([0-9a-fA-F]{6})/', $css, $cm) === 1, '--canvas hex not found');
+    $lum = static function (string $hex): float {
+        $r = (int) hexdec(substr($hex, 0, 2));
+        $g = (int) hexdec(substr($hex, 2, 2));
+        $b = (int) hexdec(substr($hex, 4, 2));
+        $f = static fn (float $c): float => ($c /= 255) <= 0.03928 ? $c / 12.92 : (($c + 0.055) / 1.055) ** 2.4;
+        return 0.2126 * $f($r) + 0.7152 * $f($g) + 0.0722 * $f($b);
+    };
+    $l1 = $lum($im[1]);
+    $l2 = $lum($cm[1]);
+    $ratio = (max($l1, $l2) + 0.05) / (min($l1, $l2) + 0.05);
+    assert_true($ratio >= 4.5, sprintf('--indigo-700 on --canvas is %.2f:1, below AA', $ratio));
+});
+
+test('a11y-review pagination: hand-rolled admin pagination prev/next carry accessible names', function (): void {
+    // The Audit + Users tabs hand-roll pagination (custom page params + #tab hash), and their prev/next
+    // arrows held only an aria-hidden SVG — axe link-name (serious). They now carry the same aria set as
+    // the shared pagination partial. (ux-review F7)
+    $root = dirname(__DIR__, 2);
+    foreach (['app/Views/admin/tabs/audit.php', 'app/Views/admin/tabs/users.php'] as $rel) {
+        $html = (string) file_get_contents($root . '/' . $rel);
+        assert_true(str_contains($html, 'aria-label="หน้าก่อนหน้า"'), "{$rel} prev pagination link missing aria-label (WCAG 2.4.4/4.1.2)");
+        assert_true(str_contains($html, 'aria-label="หน้าถัดไป"'), "{$rel} next pagination link missing aria-label");
+        assert_true(str_contains($html, 'aria-current="page"'), "{$rel} active page link missing aria-current");
+    }
+});

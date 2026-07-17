@@ -23,6 +23,9 @@ test.describe('accessibility (axe)', () => {
     { name: 'admin', url: '/admin' },
     { name: 'reports', url: '/reports' },
     { name: 'asset create', url: '/asset-registry/create' },
+    // ux-review-2: broadcast (F6 page contrast) + forgot-password (F1 mobile reflow doesn't regress a11y).
+    { name: 'broadcast', url: '/admin/broadcast' },
+    { name: 'forgot password', url: '/forgot-password' },
   ];
 
   for (const p of pages) {
@@ -35,6 +38,32 @@ test.describe('accessibility (axe)', () => {
       expect(blocking, `\n${summary}`).toEqual([]);
     });
   }
+
+  // Deep pages behind navigation — the breadcrumb contrast (F5) only appears on detail pages.
+  test('no serious/critical axe violations: ticket detail (breadcrumb)', async ({ page }) => {
+    await page.goto('/tickets');
+    await page.waitForLoadState('networkidle');
+    await page.locator('a.ticket-queue-row').first().click();
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('.breadcrumb')).toBeVisible();
+    const results = await analyze(page);
+    const blocking = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
+    const summary = blocking.map((v) => `${v.id} (${v.impact}) x${v.nodes.length}: ${v.nodes[0]?.target?.join(' ')}`).join('\n');
+    expect(blocking, `\n${summary}`).toEqual([]);
+  });
+
+  // The confirm-modal summary (<dt> labels, lead) uses muted text (F6 modal state).
+  test('no serious/critical axe violations: broadcast confirm modal open', async ({ page }) => {
+    await page.goto('/admin/broadcast');
+    await page.fill('#broadcast_title', 'a11y contrast');
+    await page.fill('#broadcast_message', 'confirm modal contrast check');
+    await page.click('[data-confirm-modal-trigger="broadcast-confirm-modal"]');
+    await expect(page.locator('#broadcast-confirm-modal')).toBeVisible();
+    const results = await analyze(page);
+    const blocking = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
+    const summary = blocking.map((v) => `${v.id} (${v.impact}) x${v.nodes.length}: ${v.nodes[0]?.target?.join(' ')}`).join('\n');
+    expect(blocking, `\n${summary}`).toEqual([]);
+  });
 });
 
 test.describe('keyboard: confirm-modal focus trap (F1)', () => {

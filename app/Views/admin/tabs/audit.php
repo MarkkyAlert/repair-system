@@ -112,11 +112,11 @@
             <?php if ($auditTotalPages > 1): ?>
                 <nav class="pagination" aria-label="การแบ่งหน้าบันทึกการตรวจสอบ">
                     <span class="pagination-summary"><?= e((string) (int) ($auditLogs['total'] ?? 0)) ?> รายการ · หน้า <?= e((string) $auditPage) ?>/<?= e((string) $auditTotalPages) ?></span>
-                    <a class="page-link<?= $auditPage <= 1 ? ' is-disabled' : '' ?>" href="<?= e($auditPageUrl(max(1, $auditPage - 1))) ?>"><?= lucide('chevron-left', 'h-4 w-4') ?></a>
+                    <a class="page-link<?= $auditPage <= 1 ? ' is-disabled' : '' ?>" href="<?= e($auditPageUrl(max(1, $auditPage - 1))) ?>" aria-label="หน้าก่อนหน้า"<?= $auditPage <= 1 ? ' aria-disabled="true"' : '' ?>><?= lucide('chevron-left', 'h-4 w-4') ?></a>
                     <?php for ($target = max(1, $auditPage - 2); $target <= min($auditTotalPages, $auditPage + 2); $target++): ?>
-                        <a class="page-link<?= $target === $auditPage ? ' is-active' : '' ?>" href="<?= e($auditPageUrl($target)) ?>"><?= e((string) $target) ?></a>
+                        <a class="page-link<?= $target === $auditPage ? ' is-active' : '' ?>" href="<?= e($auditPageUrl($target)) ?>" aria-label="<?= e($target === $auditPage ? 'หน้าปัจจุบัน หน้าที่ ' . $target : 'ไปหน้าที่ ' . $target) ?>"<?= $target === $auditPage ? ' aria-current="page"' : '' ?>><?= e((string) $target) ?></a>
                     <?php endfor; ?>
-                    <a class="page-link<?= $auditPage >= $auditTotalPages ? ' is-disabled' : '' ?>" href="<?= e($auditPageUrl(min($auditTotalPages, $auditPage + 1))) ?>"><?= lucide('chevron-right', 'h-4 w-4') ?></a>
+                    <a class="page-link<?= $auditPage >= $auditTotalPages ? ' is-disabled' : '' ?>" href="<?= e($auditPageUrl(min($auditTotalPages, $auditPage + 1))) ?>" aria-label="หน้าถัดไป"<?= $auditPage >= $auditTotalPages ? ' aria-disabled="true"' : '' ?>><?= lucide('chevron-right', 'h-4 w-4') ?></a>
                 </nav>
             <?php endif; ?>
         <?php endif; ?>

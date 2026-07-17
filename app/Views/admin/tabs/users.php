@@ -189,11 +189,11 @@
             <?php if ($userTotalPages > 1): ?>
                 <nav class="pagination" aria-label="การแบ่งหน้ารายชื่อผู้ใช้งาน">
                     <span class="pagination-summary"><?= e((string) (int) ($usersPagination['total'] ?? 0)) ?> บัญชี · หน้า <?= e((string) $userPage) ?>/<?= e((string) $userTotalPages) ?></span>
-                    <a class="page-link<?= $userPage <= 1 ? ' is-disabled' : '' ?>" href="<?= e($userPageUrl(max(1, $userPage - 1))) ?>"><?= lucide('chevron-left', 'h-4 w-4') ?></a>
+                    <a class="page-link<?= $userPage <= 1 ? ' is-disabled' : '' ?>" href="<?= e($userPageUrl(max(1, $userPage - 1))) ?>" aria-label="หน้าก่อนหน้า"<?= $userPage <= 1 ? ' aria-disabled="true"' : '' ?>><?= lucide('chevron-left', 'h-4 w-4') ?></a>
                     <?php for ($target = max(1, $userPage - 2); $target <= min($userTotalPages, $userPage + 2); $target++): ?>
-                        <a class="page-link<?= $target === $userPage ? ' is-active' : '' ?>" href="<?= e($userPageUrl($target)) ?>"><?= e((string) $target) ?></a>
+                        <a class="page-link<?= $target === $userPage ? ' is-active' : '' ?>" href="<?= e($userPageUrl($target)) ?>" aria-label="<?= e($target === $userPage ? 'หน้าปัจจุบัน หน้าที่ ' . $target : 'ไปหน้าที่ ' . $target) ?>"<?= $target === $userPage ? ' aria-current="page"' : '' ?>><?= e((string) $target) ?></a>
                     <?php endfor; ?>
-                    <a class="page-link<?= $userPage >= $userTotalPages ? ' is-disabled' : '' ?>" href="<?= e($userPageUrl(min($userTotalPages, $userPage + 1))) ?>"><?= lucide('chevron-right', 'h-4 w-4') ?></a>
+                    <a class="page-link<?= $userPage >= $userTotalPages ? ' is-disabled' : '' ?>" href="<?= e($userPageUrl(min($userTotalPages, $userPage + 1))) ?>" aria-label="หน้าถัดไป"<?= $userPage >= $userTotalPages ? ' aria-disabled="true"' : '' ?>><?= lucide('chevron-right', 'h-4 w-4') ?></a>
                 </nav>
             <?php endif; ?>
         <?php endif; ?>
