@@ -53,7 +53,7 @@
             </div>
 
             <?php if (!empty($error)): ?>
-                <div class="auth-alert auth-alert-danger">
+                <div class="auth-alert auth-alert-danger" role="alert">
                     <span class="auth-alert-icon"><?= lucide('triangle-alert', 'h-4 w-4') ?></span>
                     <p><?= e((string) $error) ?></p>
                 </div>

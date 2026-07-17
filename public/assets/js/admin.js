@@ -32,6 +32,10 @@
             const active = t.getAttribute('href') === hash;
             t.classList.toggle('is-active', active);
             t.setAttribute('aria-selected', active ? 'true' : 'false');
+            // Roving tabindex (WAI-ARIA tabs): only the selected tab is in the Tab order; the rest are
+            // reached with arrow keys. Without this the 12 tabs are 12 separate Tab stops and there is no
+            // arrow navigation, breaking the contract role="tab" advertises to assistive tech.
+            t.setAttribute('tabindex', active ? '0' : '-1');
             if (active) activeTab = t;
         });
         panels.forEach((p) => {
@@ -40,12 +44,28 @@
         revealActive(activeTab);
     };
 
-    tabs.forEach((tab) => {
+    const tabList = Array.from(tabs);
+    const selectTab = (tab, focus) => {
+        const hash = tab.getAttribute('href');
+        activate(hash);
+        history.replaceState(null, '', hash);
+        if (focus) tab.focus();
+    };
+
+    tabs.forEach((tab, i) => {
         tab.addEventListener('click', (e) => {
             e.preventDefault();
-            const hash = tab.getAttribute('href');
-            activate(hash);
-            history.replaceState(null, '', hash);
+            selectTab(tab, false);
+        });
+        tab.addEventListener('keydown', (e) => {
+            let next = null;
+            if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = tabList[(i + 1) % tabList.length];
+            else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = tabList[(i - 1 + tabList.length) % tabList.length];
+            else if (e.key === 'Home') next = tabList[0];
+            else if (e.key === 'End') next = tabList[tabList.length - 1];
+            if (!next) return;
+            e.preventDefault();
+            selectTab(next, true);
         });
     });
 

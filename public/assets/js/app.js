@@ -761,9 +761,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // ── Report table sorting ──
+  // ── Report table sorting (mouse + keyboard) ──
   document.querySelectorAll('.data-table th[data-sort-col]').forEach(function (th) {
-    th.addEventListener('click', function () {
+    // Make the header operable + sortable-aware: focusable, and an initial aria-sort=none so a screen
+    // reader announces "sortable / not sorted" and is triggerable by keyboard, not click only (WCAG 2.1.1).
+    // Keep the native <th> columnheader role — it is what supports aria-sort; a role="button" override would
+    // strip that support and make aria-sort an invalid attribute (axe aria-allowed-attr). Progressive: added
+    // by JS, so it's only advertised when the sorter is actually wired up.
+    if (!th.hasAttribute('tabindex')) th.setAttribute('tabindex', '0');
+    if (!th.hasAttribute('aria-sort')) th.setAttribute('aria-sort', 'none');
+
+    var sortByHeader = function () {
       var table = th.closest('table');
       var tbody = table && table.querySelector('tbody');
       if (!tbody) return;
@@ -774,7 +782,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       table.querySelectorAll('th[data-sort-col]').forEach(function (s) {
         s.classList.remove('sort-asc', 'sort-desc');
-        s.removeAttribute('aria-sort');
+        s.setAttribute('aria-sort', 'none');
       });
       th.classList.add(asc ? 'sort-asc' : 'sort-desc');
       th.setAttribute('aria-sort', asc ? 'ascending' : 'descending');
@@ -805,6 +813,14 @@ document.addEventListener('DOMContentLoaded', () => {
         return va.localeCompare(vb, 'th') * (asc ? 1 : -1);
       });
       rows.forEach(function (r) { tbody.appendChild(r); });
+    };
+
+    th.addEventListener('click', sortByHeader);
+    th.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+        e.preventDefault();
+        sortByHeader();
+      }
     });
   });
 

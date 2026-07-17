@@ -87,3 +87,34 @@ test.describe('keyboard: mobile sidebar drawer focus trap (F1b)', () => {
     expect(await toggle.evaluate((t) => t === document.activeElement)).toBe(true);
   });
 });
+
+test.describe('keyboard: admin tabs roving tabindex + arrow nav (a11y-review F3)', () => {
+  test.use({ storageState: adminState });
+
+  test('ArrowRight moves selection to the next tab; only the selected tab is a Tab stop', async ({ page }) => {
+    await page.goto('/admin');
+    const tabs = page.locator('.admin-tab');
+
+    // Roving tabindex: exactly one tab (the selected one) is in the Tab order.
+    const zeroTabindex = await tabs.evaluateAll((els) =>
+      els.filter((e) => e.getAttribute('tabindex') === '0').length);
+    expect(zeroTabindex).toBe(1);
+    const firstId = await tabs.first().getAttribute('aria-controls');
+
+    // Focus the selected tab, then arrow to the next one — focus + selection move together.
+    await tabs.first().focus();
+    await page.keyboard.press('ArrowRight');
+    const second = tabs.nth(1);
+    expect(await second.evaluate((t) => t === document.activeElement)).toBe(true);
+    await expect(second).toHaveAttribute('aria-selected', 'true');
+    await expect(second).toHaveAttribute('tabindex', '0');
+    // The previously-selected tab drops out of the Tab order.
+    await expect(tabs.first()).toHaveAttribute('tabindex', '-1');
+    expect(await second.getAttribute('aria-controls')).not.toBe(firstId);
+
+    // Arrow back returns to the first tab.
+    await page.keyboard.press('ArrowLeft');
+    expect(await tabs.first().evaluate((t) => t === document.activeElement)).toBe(true);
+    await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
+  });
+});

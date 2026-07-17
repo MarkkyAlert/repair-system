@@ -135,7 +135,10 @@ a:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--indigo-500) 38%, transparent);
+  /* Solid (not 38% translucent) — a translucent ring composited only ~1.6:1 against the near-black dark
+     canvas and the near-white light canvas, below the WCAG 1.4.11 3:1 for non-text focus indicators.
+     Solid --indigo-500 clears 4:1 on both themes. (a11y-review F1) */
+  outline: 3px solid var(--indigo-500);
   outline-offset: 2px;
 }
 /* Ensure buttons + admin tabs get the same 3px indigo focus ring as inputs.
@@ -144,7 +147,7 @@ textarea:focus-visible {
    leaves the ring looking like the thin UA default. Focus rings must appear instantly. */
 .btn:focus-visible,
 .admin-tab:focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--indigo-500) 38%, transparent) !important;
+  outline: 3px solid var(--indigo-500) !important;
   outline-offset: 2px;
   transition: none;
 }
