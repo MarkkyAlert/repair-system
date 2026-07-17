@@ -6276,19 +6276,33 @@ code.mono, .mono {
   }
 }
 
-/* F7: the guest "track status" page has only one column of content — center it as a
-   single-column card instead of leaving the hero-card's second column empty on wide screens */
-.hero-card-single { grid-template-columns: 1fr; max-width: 640px; margin-inline: auto; }
 
-/* F6: cluster the 12 admin tabs into groups (master data · access & audit · system)
-   with a thin separator before each new group — no change to the tablist semantics */
-.admin-tab-group-start { margin-left: .6rem; position: relative; }
-.admin-tab-group-start::before {
-  content: "";
-  position: absolute;
-  left: -.35rem;
-  top: 22%;
-  bottom: 22%;
-  width: 1px;
-  background: var(--glass-border-strong, rgba(255, 255, 255, .22));
+
+/* F7: guest "track status" page — two-column like login; numbered steps + result card */
+.guest-track-steps .hero-feature-icon { font-weight: 800; font-size: .95rem; }
+.guest-track-result {
+  margin-bottom: 1.25rem;
+  padding: 1.25rem;
+  border-radius: 14px;
+  text-align: center;
+  background: linear-gradient(135deg, var(--indigo-50), rgba(99, 102, 241, .08));
+  border: 1px solid var(--glass-border);
 }
+.dark .guest-track-result { background: linear-gradient(135deg, rgba(99, 102, 241, .16), rgba(99, 102, 241, .06)); }
+.guest-track-result-ref { font-size: 1.25rem; font-weight: 800; color: var(--indigo-600); margin: .25rem 0 .75rem; font-family: var(--font-mono, monospace); }
+.dark .guest-track-result-ref { color: var(--indigo-300); }
+
+/* F6: group the 12 admin tabs into labelled rows (จัดการข้อมูล · สิทธิ์ & ตรวจสอบ · ระบบ). Each label is
+   full-width so it forces its own row, and the tabs after it wrap below until the next label. The labels are
+   role="presentation"/aria-hidden so the tablist still exposes only the tabs to assistive tech. */
+.admin-tab-grouplabel {
+  flex: 0 0 100%;
+  margin: .55rem 0 .15rem;
+  padding: 0 .3rem;
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.admin-tab-grouplabel-first { margin-top: .05rem; }

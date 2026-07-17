@@ -30,16 +30,19 @@
 
     <div class="admin-tabs-scroller">
     <nav class="admin-tabs" role="tablist" aria-label="หมวดการตั้งค่า">
+        <span class="admin-tab-grouplabel admin-tab-grouplabel-first" role="presentation" aria-hidden="true">จัดการข้อมูล</span>
         <a href="#tab-users" class="admin-tab is-active" role="tab" aria-selected="true" aria-controls="tab-users"><?= lucide('users', 'h-4 w-4') ?><span>ผู้ใช้งาน</span></a>
         <a href="#tab-departments" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-departments"><?= lucide('building', 'h-4 w-4') ?><span>แผนก</span></a>
         <a href="#tab-locations" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-locations"><?= lucide('map-pin', 'h-4 w-4') ?><span>สถานที่</span></a>
         <a href="#tab-priorities" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-priorities"><?= lucide('clock', 'h-4 w-4') ?><span>ความสำคัญ/SLA</span></a>
         <a href="#tab-categories" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-categories"><?= lucide('tag', 'h-4 w-4') ?><span>หมวดหมู่งาน</span></a>
         <a href="#tab-asset-categories" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-asset-categories"><?= lucide('layers', 'h-4 w-4') ?><span>หมวดหมู่ทรัพย์สิน</span></a>
-        <a href="#tab-roles" class="admin-tab admin-tab-group-start" role="tab" aria-selected="false" aria-controls="tab-roles"><?= lucide('shield-check', 'h-4 w-4') ?><span>สิทธิ์ตามบทบาท</span></a>
+        <span class="admin-tab-grouplabel" role="presentation" aria-hidden="true">สิทธิ์ &amp; ตรวจสอบ</span>
+        <a href="#tab-roles" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-roles"><?= lucide('shield-check', 'h-4 w-4') ?><span>สิทธิ์ตามบทบาท</span></a>
         <a href="#tab-audit" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-audit"><?= lucide('file-text', 'h-4 w-4') ?><span>บันทึกการตรวจสอบ</span></a>
         <a href="#tab-security" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-security"><?= lucide('shield', 'h-4 w-4') ?><span>ความปลอดภัย</span><?php if ((int) ($loginAttemptStats['recent_failures'] ?? 0) > 0): ?> <span class="admin-tab-badge"><?= e((string) (int) $loginAttemptStats['recent_failures']) ?></span><?php endif; ?></a>
-        <a href="#tab-email" class="admin-tab admin-tab-group-start" role="tab" aria-selected="false" aria-controls="tab-email"><?= lucide('send', 'h-4 w-4') ?><span>อีเมล</span></a>
+        <span class="admin-tab-grouplabel" role="presentation" aria-hidden="true">ระบบ</span>
+        <a href="#tab-email" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-email"><?= lucide('send', 'h-4 w-4') ?><span>อีเมล</span></a>
         <a href="#tab-settings" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-settings"><?= lucide('settings', 'h-4 w-4') ?><span>การตั้งค่า</span></a>
         <a href="#tab-backup" class="admin-tab" role="tab" aria-selected="false" aria-controls="tab-backup"><?= lucide('database', 'h-4 w-4') ?><span>สำรอง & กู้คืน</span></a>
     </nav>

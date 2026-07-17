@@ -35,8 +35,8 @@ test('css (ux-review): the ux-review fixes live in BOTH source and built CSS', f
 
     $markers = [
         '.workflow-scroll-fade' => 'mobile stepper scroll fade (F2)',
-        '.hero-card-single' => 'centered guest track card (F7)',
-        '.admin-tab-group-start' => 'admin tab grouping (F6)',
+        '.guest-track-result' => 'guest track result card (F7)',
+        '.admin-tab-grouplabel' => 'admin tab group labels (F6)',
     ];
     foreach ($markers as $selector => $what) {
         assert_true(str_contains($source, $selector), "resources/css/app.css missing {$selector} ({$what})");
