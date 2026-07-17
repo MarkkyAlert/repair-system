@@ -77,7 +77,7 @@ test('F3 (auth): sendResetLink logs an operational RuntimeException with a refer
         'register_shutdown_function(function() use ($logtmp){ echo "\n===LOG===\n".@file_get_contents($logtmp); @unlink($logtmp); });',
         '$_SESSION["_csrf_token"]="tok"; $_POST["_csrf"]="tok"; $_POST["email"]="probe@example.com";',
         '$stub = new class() extends \App\Services\AuthService { public function __construct(){} public function createPasswordReset(string $e): ?string { throw new \RuntimeException("email template render failed"); } };',
-        '$ctrl = new \App\Controllers\AuthController($stub, app(\App\Repositories\NotificationPreferenceRepository::class), app(\App\Repositories\UserRepository::class), app(\App\Services\RememberMeService::class));',
+        '$ctrl = new \App\Controllers\AuthController($stub, app(\App\Repositories\NotificationPreferenceRepository::class), app(\App\Repositories\UserRepository::class), app(\App\Services\RememberMeService::class), app(\App\Services\NotificationService::class));',
         '$ctrl->sendResetLink();',
         'echo "REACHED_END";',
     ];

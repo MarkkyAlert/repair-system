@@ -43,6 +43,26 @@ class NotificationService
     ) {
     }
 
+    /**
+     * Normalise a raw notification-preference form (the `pref` matrix of email/in_app checkboxes) into the full
+     * per-type matrix and persist it. Owns the normalization + write so the controller only delegates — the
+     * preference repository is already this service's dependency. (consistency-review F2)
+     *
+     * @param array<string, mixed> $rawInput the raw $_POST['pref'] map (type => ['email'=>on, 'in_app'=>on])
+     */
+    public function saveUserPreferences(int $userId, array $rawInput): void
+    {
+        $matrix = [];
+        foreach (self::NOTIFICATION_TYPES as $type => $_label) {
+            $row = is_array($rawInput[$type] ?? null) ? $rawInput[$type] : [];
+            $matrix[$type] = [
+                'email' => isset($row['email']),
+                'in_app' => isset($row['in_app']),
+            ];
+        }
+        $this->preferences->upsertMatrix($userId, $matrix);
+    }
+
     public function getBellData(array $viewer): array
     {
         $userId = (int) ($viewer['id'] ?? 0);

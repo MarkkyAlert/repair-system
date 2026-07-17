@@ -23,6 +23,7 @@ class AuthController
         private NotificationPreferenceRepository $preferences,
         private UserRepository $users,
         private RememberMeService $rememberMe,
+        private NotificationService $notifications,
     ) {
     }
 
@@ -345,15 +346,9 @@ class AuthController
 
         try {
             csrf_validate();
-            $input = (array) ($_POST['pref'] ?? []);
-            $matrix = [];
-            foreach (NotificationService::NOTIFICATION_TYPES as $type => $_label) {
-                $matrix[$type] = [
-                    'email' => isset($input[$type]['email']),
-                    'in_app' => isset($input[$type]['in_app']),
-                ];
-            }
-            $this->preferences->upsertMatrix($userId, $matrix);
+            // delegate the normalization + write to the service that owns the preference repository, so this
+            // mutation goes through a service like every other. (consistency-review F2)
+            $this->notifications->saveUserPreferences($userId, (array) ($_POST['pref'] ?? []));
             flash('success', 'บันทึกการตั้งค่าการแจ้งเตือนเรียบร้อยแล้ว');
         } catch (\PDOException $__infra) {
             throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)

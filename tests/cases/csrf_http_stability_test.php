@@ -20,7 +20,7 @@ function csrf_login_capture(string $csrfExpr): string
         . '$_SESSION["_csrf_token"]="realtoken1234567890abcdef12345678";'
         . '$_POST["_csrf"]=' . $csrfExpr . ';'
         . '$_POST["login"]="admin"; $_POST["password"]="whatever";'
-        . '$ctrl = new \App\Controllers\AuthController(app(\App\Services\AuthService::class), app(\App\Repositories\NotificationPreferenceRepository::class), app(\App\Repositories\UserRepository::class), app(\App\Services\RememberMeService::class));'
+        . '$ctrl = new \App\Controllers\AuthController(app(\App\Services\AuthService::class), app(\App\Repositories\NotificationPreferenceRepository::class), app(\App\Repositories\UserRepository::class), app(\App\Services\RememberMeService::class), app(\App\Services\NotificationService::class));'
         . '$ctrl->login();'
         . 'echo "REACHED_END";';
 
