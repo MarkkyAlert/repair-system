@@ -132,12 +132,12 @@
             <div class="brand-copy"><strong>ระบบพร้อมใช้งาน</strong><span><?= e(setting('default_timezone', config('app.timezone', 'Asia/Bangkok'))) ?></span></div>
         </div>
     </aside>
-    <button type="button" class="sidebar-overlay" data-sidebar-overlay hidden aria-label="Close navigation"></button>
+    <button type="button" class="sidebar-overlay" data-sidebar-overlay hidden aria-label="ปิดเมนู"></button>
 
     <div class="main-shell">
         <header class="topbar no-print">
             <div class="topbar-left">
-                <button type="button" class="icon-button mobile-only" data-sidebar-toggle aria-label="Toggle navigation" aria-controls="app-sidebar" aria-expanded="false">
+                <button type="button" class="icon-button mobile-only" data-sidebar-toggle aria-label="เปิด/ปิดเมนู" aria-controls="app-sidebar" aria-expanded="false">
                     <?= lucide('menu', 'h-5 w-5') ?>
                 </button>
                 <div>
@@ -147,7 +147,7 @@
             </div>
             <div class="topbar-actions">
                 <?= render_partial('partials/components/notification-bell') ?>
-                <button type="button" class="icon-button" data-theme-toggle aria-label="Toggle dark mode">
+                <button type="button" class="icon-button" data-theme-toggle aria-label="สลับโหมดสว่าง/มืด">
                     <span class="theme-icon theme-icon-light"><?= lucide('sun', 'h-5 w-5') ?></span>
                     <span class="theme-icon theme-icon-dark"><?= lucide('moon', 'h-5 w-5') ?></span>
                 </button>

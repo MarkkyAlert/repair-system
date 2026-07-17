@@ -6247,3 +6247,31 @@ code.mono, .mono {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* =========================================================================
+   UX review fixes (ux-review) — appended raw CSS; mirrored in the built asset
+   ========================================================================= */
+/* F5: keep a ticket code on one line so an adjacent status badge can't split it */
+.ticket-no { white-space: nowrap; }
+
+/* F2: the status stepper scrolls sideways on mobile — mark the wrapper relative
+   so a right-edge fade can sit over its scroll edge (hidden on desktop) */
+.workflow-progress-wrap { position: relative; }
+.workflow-scroll-fade { display: none; }
+
+@media (max-width: 700px) {
+  /* F3: stat cards two-up on mobile (a later media rule had forced one-per-row) */
+  .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  /* F2: fade signalling the stepper has more steps off-screen */
+  .workflow-scroll-fade {
+    display: block;
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: .3rem;
+    width: 2.25rem;
+    pointer-events: none;
+    background: linear-gradient(to right, rgba(0, 0, 0, 0), var(--surface-strong));
+  }
+}

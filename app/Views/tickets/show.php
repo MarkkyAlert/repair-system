@@ -140,6 +140,7 @@ if (!empty($workflow['canReview'])) {
                 <span class="helper-text">งานถูกพักไว้ชั่วคราว จะกลับมาดำเนินการต่อในขั้น “ดำเนินการ”</span>
             </div>
         <?php endif; ?>
+        <div class="workflow-progress-wrap">
         <ol class="workflow-progress" aria-label="สถานะการดำเนินงาน">
             <?php foreach ($progressSteps as $statusKey => $statusLabel): ?>
                 <?php
@@ -166,6 +167,8 @@ if (!empty($workflow['canReview'])) {
                 </li>
             <?php endforeach; ?>
         </ol>
+        <span class="workflow-scroll-fade" aria-hidden="true"></span>
+        </div>
     </section>
 
     <!-- Overview + Assignment grid -->

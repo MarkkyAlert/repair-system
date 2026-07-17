@@ -17,7 +17,7 @@ if ($items === []) {
 }
 $lastIndex = count($items) - 1;
 ?>
-<nav class="breadcrumb" aria-label="Breadcrumb">
+<nav class="breadcrumb" aria-label="เส้นทางนำทาง">
     <ol>
         <?php foreach ($items as $index => $item):
             $label = (string) ($item['label'] ?? '');
