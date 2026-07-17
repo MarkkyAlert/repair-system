@@ -74,6 +74,16 @@
         window.addEventListener('resize', updateFades);
     }
 
+    // Scroll so the tab row lands just below the sticky topbar, not hidden under it (topbar is taller +
+    // higher z-index). Used by the stat-card jumps and by an initial deep link. (ux-review-3 F2)
+    const revealTabsBelowTopbar = () => {
+        if (!scroller) return;
+        const topbar = document.querySelector('.topbar') || document.querySelector('header');
+        const offset = (topbar ? topbar.getBoundingClientRect().height : 0) + 12;
+        const y = scroller.getBoundingClientRect().top + window.scrollY - offset;
+        window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+    };
+
     // F5: stat cards jump to their matching tab (smooth, no reload). The href
     // fallback (/admin#tab-...) still works if JS is unavailable.
     document.querySelectorAll('.stat-grid a.metric-card[href*="#tab-"]').forEach((card) => {
@@ -83,16 +93,16 @@
             e.preventDefault();
             activate(hash);
             history.replaceState(null, '', hash);
-            // Offset the scroll by the sticky topbar so the tab bar lands below it, not hidden under.
-            if (scroller) {
-                const topbar = document.querySelector('.topbar') || document.querySelector('header');
-                const offset = (topbar ? topbar.getBoundingClientRect().height : 0) + 12;
-                const y = scroller.getBoundingClientRect().top + window.scrollY - offset;
-                window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
-            }
+            revealTabsBelowTopbar();
         });
     });
 
-    activate(location.hash || '#tab-users');
+    const initialHash = location.hash;
+    activate(initialHash || '#tab-users');
+    // A deep link (/admin#tab-priorities) landed the browser at the panel with the tab row hidden behind the
+    // topbar; scroll it into view so the user sees which section is active and can switch. (ux-review-3 F2)
+    if (initialHash && document.querySelector('.admin-tab[href="' + initialHash + '"]')) {
+        requestAnimationFrame(revealTabsBelowTopbar);
+    }
     updateFades();
 })();

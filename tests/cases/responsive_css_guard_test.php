@@ -79,5 +79,16 @@ test('css (ux-review-2): forgot-pw collapse, mobile export, priority reflow pres
             preg_match('/\.admin-tab-grouplabel\s*\{\s*flex:\s*0 0 auto/', $css) === 1,
             "{$label} missing mobile .admin-tab-grouplabel { flex: 0 0 auto } (F3 inline captions)"
         );
+        // ux-review-3 F2: on mobile the admin tab row sticks BELOW the 76px topbar (top:76px), not at top:0
+        // where the taller, higher-z topbar hid it entirely.
+        assert_true(
+            preg_match('/\.admin-tabs-scroller\s*\{\s*top:\s*76px/', $css) === 1,
+            "{$label} missing mobile .admin-tabs-scroller { top: 76px } (F2 — tab row hidden behind topbar)"
+        );
+        // ux-review-3 F4: the field info-buttons must meet the 24x24 minimum target size (WCAG 2.5.8).
+        assert_true(
+            preg_match('/\.field-info-icon\s*\{[^}]*width:\s*24px[^}]*height:\s*24px/', $css) === 1,
+            "{$label} .field-info-icon must be >= 24x24 (was 22x22 — below WCAG 2.5.8 min target)"
+        );
     }
 });

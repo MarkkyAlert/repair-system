@@ -3599,8 +3599,8 @@ input[type="checkbox"].switch:checked::after { left: 20px; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   margin-left: .35rem;
   padding: 0;
   color: var(--muted);
@@ -6336,4 +6336,7 @@ code.mono, .mono {
   .admin-tabs { flex-wrap: nowrap; overflow-x: auto; }
   .admin-tab-grouplabel { flex: 0 0 auto; margin: 0 .1rem 0 .35rem; align-self: center; }
   .admin-tab-grouplabel-first { margin: 0 .1rem 0 .1rem; }
+  /* The sticky topbar is 76px tall at top:0 (z-index 30); a tab row also stuck at top:0 (z-index 20) hid
+     entirely behind it when the page was scrolled or deep-linked. Stick the tab row BELOW the topbar. (F2) */
+  .admin-tabs-scroller { top: 76px; }
 }
