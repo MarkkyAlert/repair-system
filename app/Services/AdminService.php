@@ -83,7 +83,13 @@ class AdminService
         }
 
         require_max_length($fullName, 150, 'ชื่อผู้ใช้งาน'); // users.full_name VARCHAR(150) (F6)
-        require_max_length(trim((string) ($input['phone'] ?? '')), 30, 'เบอร์โทร'); // users.phone VARCHAR(30) (F6)
+        $phone = trim((string) ($input['phone'] ?? ''));
+        require_max_length($phone, 30, 'เบอร์โทร'); // users.phone VARCHAR(30) (F6)
+        if ($phone !== '' && !valid_phone_format($phone)) {
+            // match the profile/import flows — an admin edit must not accept a malformed phone the user's own
+            // profile edit would reject. (dup-review F2)
+            throw new DomainException('รูปแบบเบอร์โทรไม่ถูกต้อง');
+        }
 
         if (!is_valid_email($email)) {
             throw new DomainException('รูปแบบอีเมลผู้ใช้งานไม่ถูกต้อง');
@@ -103,7 +109,7 @@ class AdminService
         $payload = [
             'full_name' => $fullName,
             'email' => $email,
-            'phone' => trim((string) ($input['phone'] ?? '')),
+            'phone' => $phone,
             'role' => $role,
             'department_id' => $departmentId > 0 ? $departmentId : null,
             'is_active' => truthy_input($input['is_active'] ?? '0'),
@@ -130,7 +136,12 @@ class AdminService
         }
 
         require_max_length($fullName, 150, 'ชื่อผู้ใช้งาน'); // users.full_name VARCHAR(150) (F6)
-        require_max_length(trim((string) ($input['phone'] ?? '')), 30, 'เบอร์โทร'); // users.phone VARCHAR(30) (F6)
+        $phone = trim((string) ($input['phone'] ?? ''));
+        require_max_length($phone, 30, 'เบอร์โทร'); // users.phone VARCHAR(30) (F6)
+        if ($phone !== '' && !valid_phone_format($phone)) {
+            // match the profile/import flows — an admin-created user must not accept a malformed phone. (dup-review F2)
+            throw new DomainException('รูปแบบเบอร์โทรไม่ถูกต้อง');
+        }
 
         if (!is_valid_username($username)) {
             throw new DomainException('ชื่อผู้ใช้ต้องมี 3-50 ตัวอักษร และใช้ได้เฉพาะ a-z, 0-9, จุด, ขีดกลาง และขีดล่าง');
@@ -160,7 +171,7 @@ class AdminService
             'username' => $username,
             'full_name' => $fullName,
             'email' => $email,
-            'phone' => trim((string) ($input['phone'] ?? '')),
+            'phone' => $phone,
             'role' => $role,
             'department_id' => $departmentId > 0 ? $departmentId : null,
             'password_hash' => password_hash($password, PASSWORD_BCRYPT),

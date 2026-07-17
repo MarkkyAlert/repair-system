@@ -121,6 +121,7 @@ class SetupController
             if ($username === '' || $email === '' || $fullName === '' || $password === '') {
                 throw new DomainException('กรุณากรอกข้อมูลผู้ดูแลระบบให้ครบถ้วน');
             }
+            require_max_length($fullName, 150, 'ชื่อ-นามสกุล'); // users.full_name VARCHAR(150) — match the other user flows (dup-review F2)
             if (!is_valid_username($username)) {
                 throw new DomainException('ชื่อผู้ใช้ต้องมี 3-50 ตัว (a-z, 0-9, จุด, ขีดกลาง, ขีดล่าง)');
             }
