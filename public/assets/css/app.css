@@ -26,3 +26,20 @@
     background: linear-gradient(to right, rgba(0, 0, 0, 0), var(--surface-strong));
   }
 }
+
+/* F7: the guest "track status" page has only one column of content — center it as a
+   single-column card instead of leaving the hero-card's second column empty on wide screens */
+.hero-card-single { grid-template-columns: 1fr; max-width: 640px; margin-inline: auto; }
+
+/* F6: cluster the 12 admin tabs into groups (master data · access & audit · system)
+   with a thin separator before each new group — no change to the tablist semantics */
+.admin-tab-group-start { margin-left: .6rem; position: relative; }
+.admin-tab-group-start::before {
+  content: "";
+  position: absolute;
+  left: -.35rem;
+  top: 22%;
+  bottom: 22%;
+  width: 1px;
+  background: var(--glass-border-strong, rgba(255, 255, 255, .22));
+}

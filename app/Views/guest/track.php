@@ -1,5 +1,5 @@
 <section class="guest-panel">
-    <div class="hero-card">
+    <div class="hero-card hero-card-single">
         <div class="hero-copy">
             <span class="pill">ติดตามสถานะ</span>
             <h1 class="hero-title">เช็คสถานะคำขอแจ้งปัญหา</h1>
