@@ -30,7 +30,12 @@ class BackupService
         $lastRunAt = trim((string) ($row['setting_value'] ?? ''));
         $lastTs = $lastRunAt !== '' ? strtotime($lastRunAt) : false;
 
-        $paths = glob(storage_path('backups') . '/db-*.sql.gz') ?: [];
+        // Only count files that are actually RESTORABLE — a real, non-empty gzip. A truncated/empty/junk
+        // db-*.sql.gz (e.g. one a broken backup left behind) must not read as a fresh, valid backup. (error-review-9 F1)
+        $paths = array_values(array_filter(
+            glob(storage_path('backups') . '/db-*.sql.gz') ?: [],
+            fn (string $path): bool => $this->isRestorableBackup($path)
+        ));
         usort($paths, static fn (string $a, string $b): int => filemtime($b) <=> filemtime($a));
 
         $files = [];
@@ -76,6 +81,40 @@ class BackupService
                 'newest_file' => $newest !== null ? basename($newest) : 'db-YYYY-MM-DD_HHMMSS.sql.gz',
             ],
         ];
+    }
+
+    /**
+     * True only for a real, non-empty gzip — the cheap, no-decompress restorability check used to keep an
+     * empty/truncated/junk db-*.sql.gz out of the "valid backup" count. Verifies the gzip magic bytes and that
+     * the trailer's ISIZE (uncompressed size, mod 2^32) is > 0, so a gzip of empty input (ISIZE 0) is rejected.
+     * (error-review-9 F1)
+     */
+    private function isRestorableBackup(string $path): bool
+    {
+        $size = (int) (@filesize($path) ?: 0);
+        if ($size < 18) { // smaller than a minimal gzip header (10) + trailer (8)
+            return false;
+        }
+        $handle = @fopen($path, 'rb');
+        if ($handle === false) {
+            return false;
+        }
+        try {
+            $magic = (string) fread($handle, 2);
+            if (fseek($handle, -4, SEEK_END) !== 0) {
+                return false;
+            }
+            $isizeBytes = (string) fread($handle, 4);
+        } finally {
+            fclose($handle);
+        }
+
+        if (strlen($magic) < 2 || $magic[0] !== "\x1f" || $magic[1] !== "\x8b" || strlen($isizeBytes) < 4) {
+            return false; // not a gzip file
+        }
+        $unpacked = unpack('V', $isizeBytes);
+
+        return $unpacked !== false && $unpacked[1] > 0; // ISIZE 0 → gzip of empty input → not restorable
     }
 
     /** bytes → ข้อความอ่านง่าย (B/KB/MB/GB/TB). */

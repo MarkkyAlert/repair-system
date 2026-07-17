@@ -85,3 +85,46 @@ test('backup-worker(F1): a heartbeat DB failure exits controlled (1), not an unc
         }
     }
 });
+
+// error-review-9 F1 (Critical): the worker ran `mysqldump | gzip` via a shell, which reported gzip's exit code
+// (still 0 when mysqldump failed), then only checked the compressed filesize (an empty gzip is > 0 bytes) — so a
+// failed dump wrote an empty file, recorded the heartbeat, and reported SUCCESS. mysqldump now runs directly with
+// its stdout gzipped in-process, so its real exit code is checked. A failing dump must exit non-zero, leave NO
+// backup file, and NOT touch the heartbeat.
+test('backup-worker(F1): a FAILED mysqldump exits non-zero, leaves no artifact, and does not record the heartbeat', function (): void {
+    $settings = tvm_container()->get(\App\Repositories\SettingsRepository::class);
+    $heartbeatBefore = (string) ($settings->getByKey('cron_backup_last_run_at')['setting_value'] ?? '');
+
+    // a fake mysqldump that fails like the real one would (writes to stderr, non-zero exit)
+    $fakeDump = tempnam(sys_get_temp_dir(), 'faildump_');
+    file_put_contents($fakeDump, "#!/bin/sh\necho 'mysqldump: Got error: 2002: Cannot connect' >&2\nexit 7\n");
+    chmod($fakeDump, 0755);
+
+    $backupDir = BASE_PATH . '/storage/backups';
+    $before = glob($backupDir . '/db-*.sql.gz') ?: [];
+
+    try {
+        $script = BASE_PATH . '/bin/backup-database.php';
+        $cmd = 'DB_NAME=repair_system_test'
+            . ' MYSQLDUMP_BIN=' . escapeshellarg($fakeDump)
+            . ' BACKUP_TIMEOUT_SECONDS=30'
+            . ' ' . escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($script) . ' --keep=1000';
+
+        $out = [];
+        $exitCode = 0;
+        exec($cmd . ' 2>&1', $out, $exitCode);
+        $output = implode("\n", $out);
+
+        assert_same(1, $exitCode, 'a failed mysqldump makes the worker exit non-zero (no more false success from gzip masking the error)');
+        assert_true(!str_contains($output, '[backup] wrote'), 'no "[backup] wrote ..." success line is printed for a failed dump');
+        assert_same($before, glob($backupDir . '/db-*.sql.gz') ?: [], 'no backup artifact is left behind for a failed dump');
+
+        $heartbeatAfter = (string) ($settings->getByKey('cron_backup_last_run_at')['setting_value'] ?? '');
+        assert_same($heartbeatBefore, $heartbeatAfter, 'the heartbeat is NOT recorded — the dashboard must not show a fresh backup');
+    } finally {
+        @unlink($fakeDump);
+        foreach (array_diff(glob($backupDir . '/db-*.sql.gz') ?: [], $before) as $leftover) {
+            @unlink($leftover);
+        }
+    }
+});

@@ -52,7 +52,6 @@ $username = (string) config('db.username', '');
 $password = (string) config('db.password', '');
 $charset = (string) config('db.charset', 'utf8mb4');
 $mysqldumpBin = (string) env('MYSQLDUMP_BIN', 'mysqldump');
-$gzipBin = (string) env('GZIP_BIN', 'gzip');
 
 if ($database === '' || $username === '') {
     fwrite(STDERR, 'Database name/username missing in config.' . PHP_EOL);
@@ -79,43 +78,68 @@ if (!$dryRun) {
     // Avoid leaking password in process listings — use MYSQL_PWD env var instead of --password=
     putenv('MYSQL_PWD=' . $password);
 
-    $cmd = sprintf(
-        '%s --host=%s --port=%s --user=%s --single-transaction --quick --default-character-set=%s --no-tablespaces %s | %s > %s',
-        escapeshellcmd($mysqldumpBin),
-        escapeshellarg($host),
-        escapeshellarg($port),
-        escapeshellarg($username),
-        escapeshellarg($charset),
-        escapeshellarg($database),
-        escapeshellcmd($gzipBin),
-        escapeshellarg($absolutePath)
-    );
+    // Run mysqldump DIRECTLY (array proc_open — no shell) and gzip its stdout in-process (PHP zlib), so a
+    // mysqldump failure is caught via its OWN exit code. A `mysqldump | gzip` shell pipe reported gzip's status
+    // (still 0 when mysqldump fails), which let an empty gzip pass as a "successful" backup. (error-review-9 F1)
+    $dumpArgs = [
+        $mysqldumpBin,
+        '--host=' . $host,
+        '--port=' . $port,
+        '--user=' . $username,
+        '--single-transaction',
+        '--quick',
+        '--default-character-set=' . $charset,
+        '--no-tablespaces',
+        $database,
+    ];
 
-    // Run under a deadline so a stalled mysqldump/gzip (a hung DB endpoint) can't hang the cron forever with no
-    // heartbeat. proc_open + poll; on timeout, terminate and remove the partial file. (error-review-7 F2)
+    // Deadline so a stalled dump (a hung DB endpoint) can't hang the cron forever with no heartbeat. (error-review-7 F2)
     $timeoutSeconds = max(1, (int) env('BACKUP_TIMEOUT_SECONDS', 900));
     $exitCode = 0;
     $stderr = '';
     $timedOut = false;
+    $sqlBytes = 0; // uncompressed SQL bytes actually produced by mysqldump — the real "did we back anything up" signal
 
-    $descriptors = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+    $descriptors = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
     $pipes = [];
-    $proc = proc_open(['sh', '-c', $cmd], $descriptors, $pipes);
+    $proc = proc_open($dumpArgs, $descriptors, $pipes);
     if (!is_resource($proc)) {
         putenv('MYSQL_PWD');
-        fwrite(STDERR, 'Cannot start backup process.' . PHP_EOL);
+        fwrite(STDERR, 'Cannot start mysqldump.' . PHP_EOL);
         @unlink($absolutePath);
         exit(1);
     }
-    fclose($pipes[0]);
+    $gz = gzopen($absolutePath, 'wb6');
+    if ($gz === false) {
+        putenv('MYSQL_PWD');
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        proc_terminate($proc, 9);
+        proc_close($proc);
+        fwrite(STDERR, 'Cannot open backup file for writing: ' . $absolutePath . PHP_EOL);
+        @unlink($absolutePath);
+        exit(1);
+    }
     stream_set_blocking($pipes[1], false);
     stream_set_blocking($pipes[2], false);
 
     $deadline = microtime(true) + $timeoutSeconds;
     while (true) {
-        $status = proc_get_status($proc);
+        $chunk = fread($pipes[1], 65536);
+        if (is_string($chunk) && $chunk !== '') {
+            gzwrite($gz, $chunk);
+            $sqlBytes += strlen($chunk);
+        }
         $stderr .= (string) stream_get_contents($pipes[2]);
+
+        $status = proc_get_status($proc);
         if (!$status['running']) {
+            // drain anything buffered after the process exited
+            while (is_string($rest = fread($pipes[1], 65536)) && $rest !== '') {
+                gzwrite($gz, $rest);
+                $sqlBytes += strlen($rest);
+            }
+            $stderr .= (string) stream_get_contents($pipes[2]);
             $exitCode = (int) $status['exitcode'];
             break;
         }
@@ -124,39 +148,40 @@ if (!$dryRun) {
             proc_terminate($proc, 15); // SIGTERM
             usleep(500000);
             if (proc_get_status($proc)['running']) {
-                proc_terminate($proc, 9); // SIGKILL — the shell is gone; any lingering child is reparented + SIGPIPEs
+                proc_terminate($proc, 9); // SIGKILL
             }
             break;
         }
-        usleep(100000); // 100ms
+        if (!is_string($chunk) || $chunk === '') {
+            usleep(50000); // nothing ready yet — don't busy-spin
+        }
     }
+
+    gzclose($gz);
     fclose($pipes[1]);
     fclose($pipes[2]);
     proc_close($proc);
-
-    // Clear sensitive env var asap
-    putenv('MYSQL_PWD');
+    putenv('MYSQL_PWD'); // clear the sensitive env var asap
 
     if ($timedOut) {
-        fwrite(STDERR, 'mysqldump/gzip exceeded the ' . $timeoutSeconds . 's deadline — terminated; partial backup removed.' . PHP_EOL);
+        fwrite(STDERR, 'mysqldump exceeded the ' . $timeoutSeconds . 's deadline — terminated; partial backup removed.' . PHP_EOL);
         @unlink($absolutePath);
         exit(1);
     }
-
     if ($exitCode !== 0) {
-        fwrite(STDERR, 'mysqldump failed (exit ' . $exitCode . '): ' . $stderr . PHP_EOL);
+        fwrite(STDERR, 'mysqldump failed (exit ' . $exitCode . '): ' . trim($stderr) . PHP_EOL);
+        @unlink($absolutePath);
+        exit(1);
+    }
+    if ($sqlBytes === 0) {
+        // dump exited 0 but produced no SQL — refuse to record an empty backup as a success (error-review-9 F1)
+        fwrite(STDERR, 'mysqldump produced no SQL output — refusing to write an empty backup.' . PHP_EOL);
         @unlink($absolutePath);
         exit(1);
     }
 
     $size = is_file($absolutePath) ? (int) filesize($absolutePath) : 0;
-    if ($size <= 0) {
-        fwrite(STDERR, 'Backup file is empty or missing: ' . $absolutePath . PHP_EOL);
-        @unlink($absolutePath);
-        exit(1);
-    }
-
-    echo '[backup] wrote ' . number_format($size / 1024, 1) . ' KB' . PHP_EOL;
+    echo '[backup] wrote ' . number_format($size / 1024, 1) . ' KB (' . number_format($sqlBytes / 1024, 1) . ' KB SQL)' . PHP_EOL;
 }
 
 // Rotation — keep newest N files, delete the rest

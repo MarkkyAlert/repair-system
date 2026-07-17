@@ -21,7 +21,8 @@ test('backup status: staleness by last-run age + file listing + restore command'
     $tmpPath = $dir . '/' . $tmpName;
 
     try {
-        file_put_contents($tmpPath, str_repeat('x', 2048));
+        // a REAL, non-empty gzip (getStatus now only counts restorable gzips, not any bytes). (error-review-9 F1)
+        file_put_contents($tmpPath, (string) gzencode(str_repeat("-- SQL backup line;\n", 100)));
         touch($tmpPath, time()); // ensure it is the newest file
         clearstatcache(true, $tmpPath); // getStatus() reads filemtime(); drop any cached stat so touch() is seen
 
@@ -46,7 +47,58 @@ test('backup status: staleness by last-run age + file listing + restore command'
         $settings->upsert('cron_backup_last_run_at', date('Y-m-d H:i:s', time() - (BackupService::STALE_MINUTES + 60) * 60), 'string', false, 0);
         assert_true($svc->getStatus()['is_stale'] === true, 'old file + old last-run → stale');
     } finally {
+        clearstatcache(true, $tmpPath);
         @unlink($tmpPath);
+        if ($original === null) {
+            $pdo->prepare('DELETE FROM system_settings WHERE setting_key = ?')->execute(['cron_backup_last_run_at']);
+        } else {
+            $settings->upsert(
+                'cron_backup_last_run_at',
+                $original['setting_value'] ?? null,
+                (string) ($original['value_type'] ?? 'string'),
+                (bool) ($original['is_public'] ?? false),
+                (int) ($original['updated_by'] ?? 0)
+            );
+        }
+    }
+});
+
+// error-review-9 F1: an empty/truncated/junk db-*.sql.gz (e.g. left by the old backup bug that let mysqldump
+// failures through) must NOT be counted as a real backup or keep the status "fresh".
+test('backup status: a non-gzip / empty-gzip file is not counted as a restorable backup', function (): void {
+    $svc = tvm_container()->get(BackupService::class);
+    $settings = tvm_container()->get(SettingsRepository::class);
+    $pdo = tvm_container()->get(PDO::class);
+
+    $original = $settings->getByKey('cron_backup_last_run_at');
+    $dir = storage_path('backups');
+    @mkdir($dir, 0775, true);
+    $suffix = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+    $junkPath = $dir . '/db-2099-02-02_' . $suffix . '.sql.gz';   // not a gzip at all
+    $emptyGzPath = $dir . '/db-2099-02-03_' . $suffix . '.sql.gz'; // valid gzip of EMPTY input (ISIZE 0)
+
+    // isolate: no other valid backups + no cron heartbeat, so freshness depends solely on these files
+    $existingValid = array_filter(glob($dir . '/db-*.sql.gz') ?: [], static fn (string $p): bool => is_file($p));
+
+    try {
+        file_put_contents($junkPath, str_repeat('x', 2048)); // 2KB of non-gzip bytes
+        file_put_contents($emptyGzPath, (string) gzencode(''));
+        touch($junkPath, time());
+        touch($emptyGzPath, time());
+        clearstatcache();
+        $settings->upsert('cron_backup_last_run_at', '', 'string', false, 0); // no heartbeat evidence
+
+        $status = $svc->getStatus();
+        // neither junk file is the newest/counted backup
+        assert_true(basename((string) ($status['newest_file'] ?? '')) !== basename($junkPath), 'a non-gzip file is not the newest backup');
+        assert_true(basename((string) ($status['newest_file'] ?? '')) !== basename($emptyGzPath), 'an empty-input gzip is not the newest backup');
+        if ($existingValid === []) {
+            assert_true($status['has_backups'] === false, 'with only junk files present, there are NO valid backups');
+            assert_true($status['is_stale'] === true, 'junk files do not keep the backup status fresh');
+        }
+    } finally {
+        @unlink($junkPath);
+        @unlink($emptyGzPath);
         if ($original === null) {
             $pdo->prepare('DELETE FROM system_settings WHERE setting_key = ?')->execute(['cron_backup_last_run_at']);
         } else {
