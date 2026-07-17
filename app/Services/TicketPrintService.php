@@ -38,7 +38,7 @@ class TicketPrintService
         return [
             'paper' => $paper,
             'paper_label' => strtoupper($paper),
-            'printed_at' => date('d/m/Y H:i'),
+            'printed_at' => thai_datetime(time()),
             'ticket' => $mapped + [
                 'ticket_url' => url('/tickets/' . (int) ($mapped['id'] ?? $ticketId)),
                 'print_qr_url' => url('/tickets/' . (int) ($mapped['id'] ?? $ticketId) . '/print/qr.png'),

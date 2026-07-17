@@ -253,7 +253,7 @@ $distColors = [5 => '#10b981', 4 => '#84cc16', 3 => '#f59e0b', 2 => '#f97316', 1
                             <td style="max-width:420px; white-space:normal;"><?= e((string) $item['feedback']) ?></td>
                             <td><?= e((string) $item['technician_name']) ?></td>
                             <td><?= e((string) $item['category_name']) ?></td>
-                            <td><?= e((string) $item['date_label']) ?></td>
+                            <td data-sort="<?= (int) ($item['date_sort'] ?? 0) ?>"><?= e((string) $item['date_label']) ?></td>
                             <td>
                                 <?php if ((int) $item['ticket_id'] > 0): ?>
                                     <a href="<?= e(url('/tickets/' . (int) $item['ticket_id'])) ?>"><?= e((string) $item['ticket_no']) ?></a>

@@ -572,7 +572,7 @@ class ReportService
 
         try {
             $html = View::capture('reports/asset-reliability-pdf', [
-                'generatedAt' => date('d/m/Y H:i'),
+                'generatedAt' => thai_datetime(time()),
                 'summary' => $this->buildAssetReportSummary($rows),
                 'rows' => $rows,
                 'filters' => $this->describeAssetReportFilters($normalizedFilters, $this->reports->getAssetReportReferenceData()),
@@ -847,7 +847,7 @@ class ReportService
 
         try {
             $html = View::capture('reports/technician-performance-pdf', [
-                'generatedAt' => date('d/m/Y H:i'),
+                'generatedAt' => thai_datetime(time()),
                 'summary' => $this->buildTechnicianPerformanceSummary($rows),
                 'rows' => $rows,
                 'filters' => $this->describeFilters($normalizedFilters, $this->reports->getFilterReferenceData()),
@@ -1111,7 +1111,7 @@ class ReportService
 
         try {
             $html = View::capture('reports/problem-hotspot-pdf', [
-                'generatedAt' => date('d/m/Y H:i'),
+                'generatedAt' => thai_datetime(time()),
                 'dimensionLabel' => $this->hotspotDimensionLabel($normalizedFilters['dimension']),
                 'summary' => $this->buildProblemHotspotSummary($rows),
                 'rows' => $rows,
@@ -1460,7 +1460,7 @@ class ReportService
 
         try {
             $html = View::capture('reports/trend-pdf', [
-                'generatedAt' => date('d/m/Y H:i'),
+                'generatedAt' => thai_datetime(time()),
                 'granularityLabel' => match ($normalizedFilters['granularity']) {
                     'day' => 'รายวัน',
                     'week' => 'รายสัปดาห์',
@@ -1616,8 +1616,8 @@ class ReportService
         }
 
         return [
-            'this' => ['from' => $thisFrom->format('Y-m-d'), 'to' => $thisTo->format('Y-m-d'), 'label' => $thisFrom->format('d/m/Y') . ' – ' . $thisTo->format('d/m/Y')],
-            'prev' => ['from' => $prevFrom->format('Y-m-d'), 'to' => $prevTo->format('Y-m-d'), 'label' => $prevFrom->format('d/m/Y') . ' – ' . $prevTo->format('d/m/Y')],
+            'this' => ['from' => $thisFrom->format('Y-m-d'), 'to' => $thisTo->format('Y-m-d'), 'label' => thai_datetime($thisFrom->getTimestamp(), false) . ' – ' . thai_datetime($thisTo->getTimestamp(), false)],
+            'prev' => ['from' => $prevFrom->format('Y-m-d'), 'to' => $prevTo->format('Y-m-d'), 'label' => thai_datetime($prevFrom->getTimestamp(), false) . ' – ' . thai_datetime($prevTo->getTimestamp(), false)],
         ];
     }
 
@@ -1756,7 +1756,7 @@ class ReportService
 
         try {
             $html = View::capture('reports/executive-pdf', [
-                'generatedAt' => date('d/m/Y H:i'),
+                'generatedAt' => thai_datetime(time()),
                 'period' => $page['period'],
                 'kpis' => $page['kpis'],
                 'filters' => $this->describeFilters($normalizedFilters, $this->reports->getFilterReferenceData()),
@@ -1959,7 +1959,7 @@ class ReportService
 
         try {
             $html = View::capture('reports/backlog-aging-pdf', [
-                'generatedAt' => date('d/m/Y H:i'),
+                'generatedAt' => thai_datetime(time()),
                 'dimensionLabel' => $this->backlogDimensionLabel($normalizedFilters['dimension']),
                 'summary' => $this->buildBacklogSummary($rows),
                 'rows' => $rows,
@@ -2158,7 +2158,7 @@ class ReportService
 
         try {
             $html = View::capture('reports/reopen-rate-pdf', [
-                'generatedAt' => date('d/m/Y H:i'),
+                'generatedAt' => thai_datetime(time()),
                 'dimensionLabel' => $this->reopenDimensionLabel($normalizedFilters['dimension']),
                 'summary' => $this->buildReopenSummary($rows),
                 'rows' => $rows,
@@ -2329,7 +2329,8 @@ class ReportService
                 $technician = trim((string) ($row['technician_name'] ?? ''));
                 $category = trim((string) ($row['category_name'] ?? ''));
                 $createdAt = (string) ($row['created_at'] ?? '');
-                // รูปแบบ d/m/Y H:i ตรงกับที่ตัว sort ของ data-table (type="date") parse ได้ (ต่างจาก human_date ไทย)
+                // Show a Thai พ.ศ. date like the rest of the app; the sortable table gets the raw timestamp in
+                // date_sort so the "วันที่" column still sorts correctly. (ux-review F1)
                 $createdTs = $createdAt !== '' ? strtotime($createdAt) : false;
 
                 return [
@@ -2340,7 +2341,8 @@ class ReportService
                     'ticket_id' => (int) ($row['ticket_id'] ?? 0),
                     'ticket_no' => (string) ($row['ticket_no'] ?? ''),
                     'created_at' => $createdAt,
-                    'date_label' => $createdTs !== false ? date('d/m/Y H:i', $createdTs) : '-',
+                    'date_label' => $createdTs !== false ? thai_datetime($createdTs) : '-',
+                    'date_sort' => $createdTs !== false ? $createdTs : 0,
                     'tone' => $score <= 2 ? 'danger' : ($score === 3 ? 'warning' : 'success'),
                 ];
             },
@@ -2499,7 +2501,7 @@ class ReportService
 
         try {
             $html = View::capture('reports/csat-pdf', [
-                'generatedAt' => date('d/m/Y H:i'),
+                'generatedAt' => thai_datetime(time()),
                 'dimensionLabel' => $this->csatDimensionLabel($normalizedFilters['dimension']),
                 'summary' => $summary,
                 'distribution' => $this->buildCsatDistribution($viewer, $normalizedFilters, $summary['rating_count']),
@@ -2888,7 +2890,7 @@ class ReportService
 
         try {
             $html = View::capture('reports/sla-breach-pdf', [
-                'generatedAt' => date('d/m/Y H:i'),
+                'generatedAt' => thai_datetime(time()),
                 'dimensionLabel' => $this->slaBreachDimensionLabel($normalizedFilters['dimension']),
                 'summary' => $this->buildSlaBreachSummary($rows),
                 'rows' => $rows,
@@ -3051,7 +3053,7 @@ class ReportService
 
         try {
             $html = View::capture('reports/pdf', [
-                'generatedAt' => date('d/m/Y H:i'),
+                'generatedAt' => thai_datetime(time()),
                 'summary' => [
                     'total' => (int) ($summary['total_tickets'] ?? 0),
                     'resolved' => (int) ($summary['resolved_tickets'] ?? 0),
@@ -3242,7 +3244,7 @@ class ReportService
         $this->suppressExportJobTracking = true;
         $this->samplePackDataCache = []; // collect each report's data once, reuse for both its PDF and XLSX (perf-review F5)
         try {
-            $lines = ['ชุดตัวอย่างรายงาน — ระบบแจ้งซ่อมและบำรุงรักษา', 'สร้างเมื่อ ' . date('d/m/Y H:i'), '', 'ไฟล์ในชุดนี้:'];
+            $lines = ['ชุดตัวอย่างรายงาน — ระบบแจ้งซ่อมและบำรุงรักษา', 'สร้างเมื่อ ' . thai_datetime(time()), '', 'ไฟล์ในชุดนี้:'];
             foreach ($catalog as [$name, $pdfMethod, $excelMethod, $filters]) {
                 $pdf = $this->{$pdfMethod}($viewer, $filters);
                 $excel = $this->{$excelMethod}($viewer, $filters);
@@ -3493,6 +3495,6 @@ class ReportService
             return (string) $value;
         }
 
-        return date('d/m/Y H:i', $timestamp);
+        return thai_datetime($timestamp);
     }
 }

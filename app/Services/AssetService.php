@@ -686,7 +686,7 @@ class AssetService
             return (string) $value;
         }
 
-        return date('d/m/Y H:i', $timestamp);
+        return thai_datetime($timestamp);
     }
 
     private function formatDate(mixed $value): string
@@ -700,7 +700,7 @@ class AssetService
             return (string) $value;
         }
 
-        return date('d/m/Y', $timestamp);
+        return thai_datetime($timestamp, false);
     }
 
     private function buildLabel(array $parts): string

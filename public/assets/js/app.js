@@ -789,12 +789,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 - (parseFloat(vb.replace(/[^0-9.\-]/g, '')) || 0)) * (asc ? 1 : -1);
         }
         if (type === 'date') {
-          // Capture DD/MM/YYYY plus optional HH:MM so same-day rows sort by time too.
-          var pa = va.match(/(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}))?/);
-          var pb = vb.match(/(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}))?/);
-          var da = pa ? new Date(pa[3], pa[2] - 1, pa[1], pa[4] || 0, pa[5] || 0).getTime() : 0;
-          var db = pb ? new Date(pb[3], pb[2] - 1, pb[1], pb[4] || 0, pb[5] || 0).getTime() : 0;
-          return (da - db) * (asc ? 1 : -1);
+          // Prefer a machine value in data-sort (so a cell can DISPLAY a Thai พ.ศ. date yet still sort);
+          // fall back to parsing DD/MM/YYYY (optional HH:MM) from the visible text.
+          var dateSortValue = function (cell, text) {
+            var ds = cell && cell.getAttribute('data-sort');
+            if (ds) {
+              var t = Date.parse(ds);
+              return isNaN(t) ? (parseFloat(ds) || 0) : t;
+            }
+            var m = text.match(/(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}))?/);
+            return m ? new Date(m[3], m[2] - 1, m[1], m[4] || 0, m[5] || 0).getTime() : 0;
+          };
+          return (dateSortValue(a.children[col], va) - dateSortValue(b.children[col], vb)) * (asc ? 1 : -1);
         }
         return va.localeCompare(vb, 'th') * (asc ? 1 : -1);
       });

@@ -762,6 +762,6 @@ class NotificationService
             return (string) $value;
         }
 
-        return date('d/m/Y H:i', $timestamp);
+        return thai_datetime($timestamp);
     }
 }

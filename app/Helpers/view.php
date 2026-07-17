@@ -33,6 +33,43 @@ function notification_bell_data(): array
         : ['unreadCount' => 0, 'items' => []];
 }
 
+if (!function_exists('thai_datetime')) {
+    /**
+     * The single ABSOLUTE Thai date format used for display system-wide: "dd MonthAbbr <พ.ศ.> [HH:MM]"
+     * (e.g. "06 ก.พ. 2569 09:05"). Buddhist year. Use this everywhere a date is shown to a user so the
+     * whole app reads one calendar — services previously used date('d/m/Y') (ค.ศ.), which clashed with the
+     * Thai พ.ศ. dates on ticket pages. (ux-review F1) Returns "-" for empty/invalid input.
+     *
+     * @param int|string|null $value a unix timestamp, a datetime string, or null
+     */
+    function thai_datetime(int|string|null $value, bool $withTime = true): string
+    {
+        if ($value === null || $value === '' || $value === '-') {
+            return '-';
+        }
+        $ts = is_int($value) ? $value : strtotime((string) $value);
+        if ($ts === false || $ts <= 0) {
+            return '-';
+        }
+
+        $thaiMonths = [
+            1 => 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+            'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
+        ];
+        $monthLabel = $thaiMonths[(int) date('n', $ts)] ?? '';
+        $year = (int) date('Y', $ts);
+        // Convert Gregorian (< 2500) to Buddhist year; leave a value already in Buddhist range as-is.
+        $yearLabel = $year < 2500 ? (string) ($year + 543) : (string) $year;
+
+        $out = sprintf('%s %s %s', date('d', $ts), $monthLabel, $yearLabel);
+        if ($withTime) {
+            $out .= ' ' . date('H:i', $ts);
+        }
+
+        return $out;
+    }
+}
+
 if (!function_exists('human_date')) {
     /**
      * Format a datetime to a human-friendly Thai string.
@@ -50,7 +87,11 @@ if (!function_exists('human_date')) {
         }
         $ts = strtotime((string) $value);
         if ($ts === false || $ts <= 0) {
-            return '-';
+            // Not a parseable date — assume it's ALREADY a display string (several services pre-format their
+            // date fields, which are then shown raw in some views and passed through human_date() in others).
+            // Return it unchanged so human_date() is idempotent on its own output instead of collapsing an
+            // already-formatted Thai date to "-". (ux-review F1)
+            return trim((string) $value);
         }
 
         $now = time();
@@ -73,20 +114,8 @@ if (!function_exists('human_date')) {
             return 'เมื่อวาน' . ($withTime ? ' ' . date('H:i', $ts) : '');
         }
 
-        $thaiMonths = [
-            1 => 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
-            'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
-        ];
-        $monthLabel = $thaiMonths[(int) date('n', $ts)] ?? '';
-        $year = (int) date('Y', $ts);
-        // Convert to Buddhist year if value looks like Gregorian (year < 2500)
-        $yearLabel = $year < 2500 ? (string) ($year + 543) : (string) $year;
-
-        $datePart = sprintf('%s %s %s', date('d', $ts), $monthLabel, $yearLabel);
-        if ($withTime) {
-            $datePart .= ' ' . date('H:i', $ts);
-        }
-        return $datePart;
+        // beyond "yesterday" → the shared absolute Thai format (single source). (ux-review F1)
+        return thai_datetime($ts, $withTime);
     }
 }
 
