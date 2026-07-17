@@ -983,15 +983,18 @@ class TicketService
             ];
         }
 
+        $requestedAt = $ticket['requested_at'] ?? null;
         $response = $this->buildSlaMetricState(
             'Response SLA',
             $ticket['response_due_at'] ?? null,
-            $ticket['first_response_at'] ?? null
+            $ticket['first_response_at'] ?? null,
+            $requestedAt
         );
         $resolution = $this->buildSlaMetricState(
             'Resolution SLA',
             $ticket['resolution_due_at'] ?? null,
-            $ticket['resolved_at'] ?? null
+            $ticket['resolved_at'] ?? null,
+            $requestedAt
         );
 
         $isOverdue = ($response['status'] ?? '') === 'breached' || ($resolution['status'] ?? '') === 'breached';
@@ -1025,12 +1028,14 @@ class TicketService
         ];
     }
 
-    private function buildSlaMetricState(string $name, mixed $targetAt, mixed $achievedAt): array
+    private function buildSlaMetricState(string $name, mixed $targetAt, mixed $achievedAt, mixed $requestedAt = null): array
     {
         $target = is_string($targetAt) ? trim($targetAt) : '';
         $achieved = is_string($achievedAt) ? trim($achievedAt) : '';
+        $requested = is_string($requestedAt) ? trim($requestedAt) : '';
         $targetTimestamp = $target !== '' ? strtotime($target) : false;
         $achievedTimestamp = $achieved !== '' ? strtotime($achieved) : false;
+        $requestedTimestamp = $requested !== '' ? strtotime($requested) : false;
 
         if ($targetTimestamp === false) {
             return [
@@ -1044,6 +1049,20 @@ class TicketService
         }
 
         if ($achievedTimestamp !== false) {
+            // An achievement BEFORE the ticket was requested is impossible data (bad seed/import) — it can't be
+            // judged met/breached, so treat SLA as unavailable rather than a false "met". Keeps this ticket-detail
+            // classification in step with the report's (ReportService::buildSlaMetricState). (dup-review F1)
+            if ($requestedTimestamp !== false && $achievedTimestamp < $requestedTimestamp) {
+                return [
+                    'name' => $name,
+                    'status' => 'unavailable',
+                    'label' => 'ข้อมูลเวลาไม่ถูกต้อง',
+                    'tone' => 'default',
+                    'target_at' => $this->formatDateTime($targetAt),
+                    'achieved_at' => $this->formatDateTime($achievedAt),
+                ];
+            }
+
             $isBreached = $achievedTimestamp > $targetTimestamp;
 
             return [
