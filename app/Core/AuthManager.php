@@ -16,6 +16,16 @@ class AuthManager
 
     public function check(): bool
     {
+        return self::checkSession();
+    }
+
+    /**
+     * DB-free auth probe: reads the session only — no UserRepository, no PDO resolution. The error-page path
+     * must render even when the database is unreachable, so it cannot go through auth() (which resolves the
+     * repository, whose PDO connects eagerly and would throw during an outage). (ux-review-3 F1)
+     */
+    public static function checkSession(): bool
+    {
         return is_array(Session::get(self::SESSION_KEY));
     }
 

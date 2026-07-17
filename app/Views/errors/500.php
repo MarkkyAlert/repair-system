@@ -6,7 +6,7 @@
         <?php if (($reference ?? '') !== ''): ?>
             <p class="hero-text" style="font-size:.85rem;opacity:.7;">รหัสอ้างอิง: <code><?= e((string) $reference) ?></code> — แจ้งรหัสนี้กับผู้ดูแลระบบเพื่อช่วยตรวจสอบได้เร็วขึ้น</p>
         <?php endif; ?>
-        <?php $errAuthed = auth()->check(); // signed-in users recover to the dashboard, not the login page (ux-review-2 F8) ?>
+        <?php $errAuthed = \App\Core\AuthManager::checkSession(); // DB-free session probe (no repository resolve) — the 500 page must render during a DB outage (ux-review-2 F8, ux-review-3 F1) ?>
         <?= render_partial('partials/components/button', [
             'label' => $errAuthed ? 'กลับแดชบอร์ด' : 'กลับหน้าเข้าสู่ระบบ',
             'href' => $errAuthed ? '/dashboard' : '/login',
