@@ -69,5 +69,15 @@ test('css (ux-review-2): forgot-pw collapse, mobile export, priority reflow pres
             preg_match('/\.collapsible-meta\s*\{\s*flex-basis:\s*100%/', $css) === 1,
             "{$label} missing mobile .collapsible-meta { flex-basis: 100% } (F4 reflow)"
         );
+        // F3: on mobile the admin tablist becomes one horizontal-scroll row (nowrap) and its group captions
+        // stop forcing their own row (flex:0 0 auto) — desktop keeps the 3-row grouped layout (flex:0 0 100%).
+        assert_true(
+            preg_match('/\.admin-tabs\s*\{\s*flex-wrap:\s*nowrap;\s*overflow-x:\s*auto/', $css) === 1,
+            "{$label} missing mobile .admin-tabs { flex-wrap: nowrap; overflow-x: auto } (F3 single-row)"
+        );
+        assert_true(
+            preg_match('/\.admin-tab-grouplabel\s*\{\s*flex:\s*0 0 auto/', $css) === 1,
+            "{$label} missing mobile .admin-tab-grouplabel { flex: 0 0 auto } (F3 inline captions)"
+        );
     }
 });

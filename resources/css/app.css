@@ -6328,3 +6328,12 @@ code.mono, .mono {
   color: var(--muted);
 }
 .admin-tab-grouplabel-first { margin-top: .05rem; }
+
+/* Mobile: collapse the 3-row grouped tablist (which ate ~45% of a 375px viewport, sticky) into a single
+   horizontal-scroll row. Group captions become inline separators that scroll with the tabs instead of
+   forcing their own row; desktop keeps the labelled rows. (ux-review-2 F3) */
+@media (max-width: 700px) {
+  .admin-tabs { flex-wrap: nowrap; overflow-x: auto; }
+  .admin-tab-grouplabel { flex: 0 0 auto; margin: 0 .1rem 0 .35rem; align-self: center; }
+  .admin-tab-grouplabel-first { margin: 0 .1rem 0 .1rem; }
+}
