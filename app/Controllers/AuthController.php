@@ -273,8 +273,9 @@ class AuthController
             if ($userId <= 0) {
                 throw new DomainException('ไม่พบบัญชีผู้ใช้งาน');
             }
-            $this->users->updateRememberToken($userId, null);
-            $this->rememberMe->clearCurrent();
+            // delegate to the purpose-built service method (NULL the stored token + drop the cookie) instead of
+            // re-implementing it against the repository, so any future revoke behaviour lives in one place. (consistency-review)
+            $this->rememberMe->revokeAllForUser($userId);
             flash('success', 'ยกเลิกการจดจำการเข้าระบบทุกอุปกรณ์เรียบร้อยแล้ว');
         } catch (\PDOException $__infra) {
             throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)

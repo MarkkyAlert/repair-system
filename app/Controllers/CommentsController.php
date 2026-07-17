@@ -40,10 +40,9 @@ class CommentsController
         AuthMiddleware::handle();
 
         $viewer = auth()->user() ?? [];
-        $request = request();
-        $acceptHeader = strtolower((string) ($request?->server['HTTP_ACCEPT'] ?? ''));
-        $requestedWith = strtolower((string) ($request?->server['HTTP_X_REQUESTED_WITH'] ?? ''));
-        $expectsJson = str_contains($acceptHeader, 'application/json') || $requestedWith === 'xmlhttprequest';
+        // use the shared content-negotiation helper (same one the entry point + AuthMiddleware use) rather than
+        // re-deriving Accept / X-Requested-With here, so the JSON decision can't drift. (consistency-review)
+        $expectsJson = request_wants_json(request()?->server);
 
         try {
             csrf_validate();

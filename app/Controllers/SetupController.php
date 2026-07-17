@@ -213,7 +213,9 @@ class SetupController
         $stmt = $this->db->prepare('SELECT GET_LOCK(:name, 10)');
         $stmt->execute(['name' => 'maintenance-first-run-setup']);
         if ((int) $stmt->fetchColumn() !== 1) {
-            throw new RuntimeException('ระบบกำลังตั้งค่าอยู่ กรุณาลองใหม่อีกครั้ง');
+            // a concurrent setup holds the lock — an EXPECTED "try again" condition, not an operational failure,
+            // so it's a DomainException (flashed, retryable) per the taxonomy. (consistency-review)
+            throw new DomainException('ระบบกำลังตั้งค่าอยู่ กรุณาลองใหม่อีกครั้ง');
         }
     }
 
