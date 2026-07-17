@@ -25,3 +25,21 @@ test('css #4: dashboard-chart-grid min-width:0 overflow fix present in source an
         'public/assets/css/app.css missing the min-width:0 fix — rebuild the CSS (source edited without a build)'
     );
 });
+
+// Same both-files guard for the ux-review CSS (appended raw rules, no Tailwind rebuild). These distinctive
+// selectors are unique to that block, so if any is missing from one file the source + served CSS have drifted.
+test('css (ux-review): the ux-review fixes live in BOTH source and built CSS', function (): void {
+    $root = dirname(__DIR__, 2);
+    $source = (string) file_get_contents($root . '/resources/css/app.css');
+    $built = (string) file_get_contents($root . '/public/assets/css/app.css');
+
+    $markers = [
+        '.workflow-scroll-fade' => 'mobile stepper scroll fade (F2)',
+        '.hero-card-single' => 'centered guest track card (F7)',
+        '.admin-tab-group-start' => 'admin tab grouping (F6)',
+    ];
+    foreach ($markers as $selector => $what) {
+        assert_true(str_contains($source, $selector), "resources/css/app.css missing {$selector} ({$what})");
+        assert_true(str_contains($built, $selector), "public/assets/css/app.css missing {$selector} ({$what}) — append it to the built file too");
+    }
+});
