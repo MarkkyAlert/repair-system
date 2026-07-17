@@ -58,7 +58,7 @@ class SetupController
             if ($appName === '') {
                 throw new DomainException('กรุณากรอกชื่อระบบ');
             }
-            if (mb_strlen($appName) > 100) {
+            if (mb_strlen($appName) > \App\Services\SystemSettingsService::APP_NAME_MAX_LENGTH) {
                 throw new DomainException('ชื่อระบบยาวเกินกำหนด');
             }
 

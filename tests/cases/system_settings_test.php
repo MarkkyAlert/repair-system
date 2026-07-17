@@ -466,4 +466,30 @@ namespace {
             @rmdir($roDir);
         }
     });
+
+    // consistency-review: first-run setup capped the system name at 100 chars, but the system-settings edit
+    // checked only for empty — so the same long name was rejected during setup yet accepted afterwards. Both
+    // now share SystemSettingsService::APP_NAME_MAX_LENGTH. (owner-confirmed: cap 100 everywhere)
+    test('system-settings(app_name): a name over 100 chars is rejected, matching first-run setup', function (): void {
+        $svc = ss_service();
+        $longName = str_repeat('ก', SystemSettingsService::APP_NAME_MAX_LENGTH + 1);
+
+        $threw = false;
+        try {
+            $svc->updateSystemSettings(ss_admin(), [
+                'app_name' => $longName,
+                'default_timezone' => 'Asia/Bangkok',
+                'ticket_prefix' => 'TIC',
+                'business_start' => '08:00',
+                'business_end' => '17:00',
+            ]);
+        } catch (DomainException $e) {
+            $threw = str_contains($e->getMessage(), 'ยาวเกินกำหนด');
+        }
+        assert_true($threw, 'the system-settings edit rejects a >100-char app_name (was: only the empty check)');
+
+        // single source: first-run setup enforces the SAME shared constant, so the two flows can't diverge again
+        $setupSrc = (string) file_get_contents(dirname(__DIR__, 2) . '/app/Controllers/SetupController.php');
+        assert_contains_str('APP_NAME_MAX_LENGTH', $setupSrc, 'first-run setup uses the shared APP_NAME_MAX_LENGTH limit');
+    });
 }

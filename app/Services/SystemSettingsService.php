@@ -36,6 +36,10 @@ class SystemSettingsService
         'category_sla_',  // /admin/categories/*
     ];
 
+    /** Max length of the system name — single source for both first-run setup and the system-settings edit, so
+     *  the same value can't be accepted in one flow and rejected in the other. (consistency-review) */
+    public const APP_NAME_MAX_LENGTH = 100;
+
     public function __construct(
         private SettingsRepository $settings,
         private AuditLogger $audit,
@@ -110,6 +114,11 @@ class SystemSettingsService
 
         if ($appName === '') {
             throw new DomainException('กรุณากรอกชื่อระบบ');
+        }
+
+        // Match first-run setup's limit — the same name must not be rejected there but accepted here. (consistency-review)
+        if (mb_strlen($appName) > self::APP_NAME_MAX_LENGTH) {
+            throw new DomainException('ชื่อระบบยาวเกินกำหนด (สูงสุด ' . self::APP_NAME_MAX_LENGTH . ' ตัวอักษร)');
         }
 
         // คำโปรยใต้ชื่อระบบเป็นตัวเลือก (เว้นว่างได้เพื่อซ่อน) แต่จำกัดความยาวกันข้อความล้น UI
