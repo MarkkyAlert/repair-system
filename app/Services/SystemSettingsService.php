@@ -275,7 +275,9 @@ class SystemSettingsService
         $lockStmt = $this->db->prepare('SELECT GET_LOCK(:name, 5)');
         $lockStmt->execute(['name' => $lockName]);
         if ((int) $lockStmt->fetchColumn() !== 1) {
-            throw new \RuntimeException('ระบบกำลังอัปเดตโลโก้ กรุณาลองอีกครั้ง');
+            // a concurrent logo update holds the lock — an EXPECTED "try again" condition, so it's a
+            // DomainException (flashed, retryable), matching the setup lock. (consistency-review F1)
+            throw new DomainException('ระบบกำลังอัปเดตโลโก้ กรุณาลองอีกครั้ง');
         }
 
         try {

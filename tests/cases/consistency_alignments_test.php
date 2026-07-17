@@ -34,3 +34,16 @@ test('consistency: a concurrent-setup lock conflict is a DomainException (expect
         'it is no longer a RuntimeException (which would read as an operational failure to log)'
     );
 });
+
+test('consistency(F1): the logo-update lock conflict is a DomainException too, matching the setup lock', function (): void {
+    $src = (string) file_get_contents(dirname(__DIR__, 2) . '/app/Services/SystemSettingsService.php');
+
+    assert_true(
+        preg_match("/throw new DomainException\('ระบบกำลังอัปเดตโลโก้/u", $src) === 1,
+        'the "logo update in progress, try again" lock conflict throws DomainException (expected/retry)'
+    );
+    assert_true(
+        preg_match("/throw new \\\\?RuntimeException\('ระบบกำลังอัปเดตโลโก้/u", $src) === 0,
+        'the logo lock is no longer a RuntimeException'
+    );
+});

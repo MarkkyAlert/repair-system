@@ -26,7 +26,7 @@ test('demo-data gate F1: load() refuses (before writing) when ALLOW_DEMO_DATA is
             $caught = $exception;
         }
 
-        assert_true($caught instanceof RuntimeException, 'load() throws a RuntimeException when demo data is disabled');
+        assert_true($caught instanceof DomainException, 'load() throws a DomainException (expected policy block, flashed not logged) when demo data is disabled');
         assert_true(
             str_contains($caught instanceof Throwable ? $caught->getMessage() : '', 'ALLOW_DEMO_DATA'),
             'the gate message points the operator at the ALLOW_DEMO_DATA flag'
