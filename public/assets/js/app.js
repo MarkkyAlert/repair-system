@@ -23,6 +23,49 @@ document.addEventListener('DOMContentLoaded', () => {
   const printTriggers = document.querySelectorAll('[data-print-trigger]');
   const toasts = document.querySelectorAll('[data-toast]');
 
+  // Chart.js paints legend/tick/grid text onto a <canvas>, so a CSS class toggle can't recolour it (and Axe
+  // can't see it either). Single source for the theme-dependent chart colours, shared by chart creation and
+  // the live re-theme below.
+  const dashboardCharts = [];
+  const dashboardChartColors = () => {
+    const dark = root.classList.contains('dark');
+    return {
+      text: dark ? '#cbd5e1' : '#334155',
+      grid: dark ? 'rgba(148, 163, 184, 0.18)' : 'rgba(148, 163, 184, 0.22)',
+      doughnutBorder: dark ? '#020617' : '#ffffff',
+    };
+  };
+
+  // Push the current theme's colours into every dashboard chart when the user flips light/dark, so legend and
+  // axis labels stay readable without a page reload.
+  const syncDashboardChartTheme = () => {
+    if (!dashboardCharts.length) {
+      return;
+    }
+    const colors = dashboardChartColors();
+    dashboardCharts.forEach((chart) => {
+      const legendLabels = chart.options?.plugins?.legend?.labels;
+      if (legendLabels) {
+        legendLabels.color = colors.text;
+      }
+      ['x', 'y'].forEach((axis) => {
+        const scale = chart.options?.scales?.[axis];
+        if (scale?.ticks) {
+          scale.ticks.color = colors.text;
+        }
+        if (scale?.grid) {
+          scale.grid.color = colors.grid;
+        }
+      });
+      if (chart.config?.type === 'doughnut') {
+        chart.data.datasets.forEach((dataset) => {
+          dataset.borderColor = colors.doughnutBorder;
+        });
+      }
+      chart.update('none');
+    });
+  };
+
   const syncThemeToggle = () => {
     if (!themeToggle) {
       return;
@@ -35,6 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
     root.classList.toggle('dark', theme === 'dark');
     localStorage.setItem('theme', theme);
     syncThemeToggle();
+    syncDashboardChartTheme();
   };
 
   // The sidebar is an off-canvas modal drawer only at <=1024px; on desktop it's a static rail.
@@ -525,8 +569,9 @@ document.addEventListener('DOMContentLoaded', () => {
   if (dashboardChartPayload && typeof window.Chart !== 'undefined') {
     try {
       const payload = JSON.parse(dashboardChartPayload.textContent || '{}');
-      const textColor = root.classList.contains('dark') ? '#cbd5e1' : '#334155';
-      const gridColor = root.classList.contains('dark') ? 'rgba(148, 163, 184, 0.18)' : 'rgba(148, 163, 184, 0.22)';
+      const chartColors = dashboardChartColors();
+      const textColor = chartColors.text;
+      const gridColor = chartColors.grid;
       const palette = ['#4f46e5', '#0ea5e9', '#10b981', '#f59e0b', '#f43f5e', '#8b5cf6', '#14b8a6', '#f97316'];
 
       document.querySelectorAll('[data-dashboard-chart]').forEach((canvas) => {
@@ -562,7 +607,7 @@ document.addEventListener('DOMContentLoaded', () => {
             dataset.spanGaps = true;
           } else if (chartType === 'doughnut') {
             dataset.backgroundColor = chartData.labels.map((_, i) => palette[i % palette.length]);
-            dataset.borderColor = root.classList.contains('dark') ? '#020617' : '#ffffff';
+            dataset.borderColor = chartColors.doughnutBorder;
           } else {
             dataset.backgroundColor = color;
             dataset.borderRadius = 8;
@@ -575,7 +620,7 @@ document.addEventListener('DOMContentLoaded', () => {
           ? chartData.datasets.map((source, index) => styleDataset(source, index))
           : [styleDataset({ label: chartData.label, data: chartData.data }, 0)];
 
-        new window.Chart(canvas, {
+        const chart = new window.Chart(canvas, {
           type: chartType,
           data: {
             labels: chartData.labels,
@@ -605,6 +650,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
           },
         });
+        dashboardCharts.push(chart);
       });
 
       revealCharts();
