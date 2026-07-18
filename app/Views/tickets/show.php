@@ -584,7 +584,7 @@ if (!empty($workflow['canReview'])) {
                             <label for="comment_attachments" class="file-field-button"><?= lucide('paperclip', 'button-icon') ?><span>เลือกไฟล์</span></label>
                             <span class="file-field-name" data-file-field-name data-empty="ยังไม่ได้เลือกไฟล์" aria-live="polite">ยังไม่ได้เลือกไฟล์</span>
                         </div>
-                        <p class="field-hint">รองรับรูปภาพและเอกสาร (PDF/Word/Excel/Text) สูงสุด 3 ไฟล์ ไฟล์ละไม่เกิน 5MB</p>
+                        <p class="field-hint">รองรับรูปภาพและเอกสาร (PDF/Word/Excel/Text) สูงสุด <?= e((string) (int) config('uploads.attachment_max_files', 3)) ?> ไฟล์ ไฟล์ละไม่เกิน <?= e(mb_from_bytes(config('uploads.attachment_max_bytes', 5242880))) ?>MB</p>
                     </div>
                     <div class="comment-form-actions">
                         <?php if (!empty($workflow['canUseInternalComment'])): ?>

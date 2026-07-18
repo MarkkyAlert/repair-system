@@ -70,6 +70,21 @@ if (!function_exists('thai_datetime')) {
     }
 }
 
+if (!function_exists('mb_from_bytes')) {
+    /**
+     * Format a byte count as a short MB label for UI hints ("5", "1.5") so upload/import limits can be rendered
+     * from config instead of hard-coded in each view. (ux-refactor F6)
+     *
+     * @param int|string $bytes
+     */
+    function mb_from_bytes(int|string $bytes): string
+    {
+        $mb = (int) $bytes / (1024 * 1024);
+
+        return rtrim(rtrim(number_format($mb, 1), '0'), '.');
+    }
+}
+
 if (!function_exists('thai_year')) {
     /**
      * Display a year in the Buddhist calendar (พ.ศ.) to match thai_datetime() and the reports. Keeps STORED /

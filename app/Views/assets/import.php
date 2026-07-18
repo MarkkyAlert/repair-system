@@ -47,7 +47,7 @@ $total = (int) ($preview['total'] ?? 0);
                 <li><span>1</span><div><strong>ใช้เทมเพลตเท่านั้น</strong><span>คอลัมน์ครบทุกตัว แม้บางตัวจะเว้นค่าได้</span></div></li>
                 <li><span>2</span><div><strong>เชื่อมข้อมูลด้วยรหัส</strong><span>category_code, location_code, department_code จากตั้งค่าระบบ และ custodian_username จากบัญชีผู้ใช้</span></div></li>
                 <li><span>3</span><div><strong>วันที่</strong><span>รูปแบบ YYYY-MM-DD (เช่น 2024-01-15)</span></div></li>
-                <li><span>4</span><div><strong>สูงสุด 500 รายการต่อรอบ</strong><span>ไฟล์ขนาดไม่เกิน 2MB</span></div></li>
+                <li><span>4</span><div><strong>สูงสุด <?= e((string) (int) config('uploads.import_asset_max_rows', 500)) ?> รายการต่อรอบ</strong><span>ไฟล์ขนาดไม่เกิน <?= e(mb_from_bytes(config('uploads.import_asset_max_bytes', 2097152))) ?>MB</span></div></li>
             </ol>
 
             <form method="post" action="<?= e(url('/asset-registry/import')) ?>" enctype="multipart/form-data" class="stack-md" data-loading-submit>

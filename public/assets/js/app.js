@@ -262,7 +262,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    const maxFiles = 3;
+    const maxFiles = parseInt(input.getAttribute('data-max-files'), 10) || 3; // config-driven (ux-refactor F6)
     const formatter = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 1 });
 
     const clearPreview = () => {

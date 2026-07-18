@@ -51,7 +51,7 @@ $total = (int) ($preview['total'] ?? 0);
                 <li><span>1</span><div><strong>คอลัมน์ที่จำเป็น</strong><span>username, email, full_name, role (ที่เหลือเว้นได้)</span></div></li>
                 <li><span>2</span><div><strong>บทบาทที่ใช้ได้</strong><span>requester / manager / technician / admin</span></div></li>
                 <li><span>3</span><div><strong>เว้นรหัสผ่านไว้</strong><span>ระบบจะสร้างให้และส่งอีเมลตั้งรหัสผ่านอัตโนมัติ</span></div></li>
-                <li><span>4</span><div><strong>สูงสุด <?= e((string) (int) config('uploads.import_user_max_rows', 50)) ?> ผู้ใช้ต่อรอบ</strong><span>ไฟล์ขนาดไม่เกิน 1MB</span></div></li>
+                <li><span>4</span><div><strong>สูงสุด <?= e((string) (int) config('uploads.import_user_max_rows', 50)) ?> ผู้ใช้ต่อรอบ</strong><span>ไฟล์ขนาดไม่เกิน <?= e(mb_from_bytes(config('uploads.import_user_max_bytes', 1048576))) ?>MB</span></div></li>
             </ol>
 
             <form method="post" action="<?= e(url('/admin/users/import')) ?>" enctype="multipart/form-data" class="stack-md" data-loading-submit>
