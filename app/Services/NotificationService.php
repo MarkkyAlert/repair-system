@@ -21,7 +21,7 @@ class NotificationService
         'system_announcement' => 'ประกาศจากผู้ดูแลระบบ',
     ];
 
-    // Display-only chips on /profile/notifications — Thai labels (owner decision 2026-07-18, ux-review-7 F3),
+    // Display-only chips on /profile/notifications — Thai labels (owner decision 2026-07-18),
     // consistent with ticket_status_label_th(): resolved=รอตรวจรับ, completed=เสร็จสิ้น.
     public const NOTIFICATION_TYPE_HINTS = [
         'ticket_status_changed' => 'มอบหมาย · เริ่มงาน · รอตรวจรับ · เสร็จสิ้น · เปิดซ้ำ · ยกเลิก',
@@ -48,7 +48,7 @@ class NotificationService
     /**
      * Normalise a raw notification-preference form (the `pref` matrix of email/in_app checkboxes) into the full
      * per-type matrix and persist it. Owns the normalization + write so the controller only delegates — the
-     * preference repository is already this service's dependency. (consistency-review F2)
+     * preference repository is already this service's dependency.
      *
      * @param array<string, mixed> $rawInput the raw $_POST['pref'] map (type => ['email'=>on, 'in_app'=>on])
      */
@@ -295,7 +295,7 @@ class NotificationService
     {
         // Idempotency: a retry after a network hiccup, or a second tab, re-POSTs the same one-time token —
         // return a no-op so the whole org isn't re-notified (in-app + email). The nullable UNIQUE column is the
-        // race backstop; this pre-check covers the common sequential retry. (safety-review R8-F2)
+        // race backstop; this pre-check covers the common sequential retry.
         if ($submissionToken !== '' && $this->notifications->broadcastTokenExists($submissionToken)) {
             return ['in_app_count' => 0, 'email_count' => 0, 'duplicate' => true];
         }
@@ -311,7 +311,7 @@ class NotificationService
         $emailRecipients = $this->filterByPreference($recipientIds, 'system_announcement', 'email');
 
         // Report the ACTUAL in-app outcome, not the intended recipient count: if the write is swallowed (the
-        // dispatch logs + returns false), the admin flash must not claim "in-app: N" when zero were written. (error-review-2 F1)
+        // dispatch logs + returns false), the admin flash must not claim "in-app: N" when zero were written.
         $inAppWritten = $this->dispatchNotification([
             'type' => 'system.announcement',
             'title' => $title,
@@ -326,7 +326,7 @@ class NotificationService
         ], $inAppRecipients);
 
         // Report the ACTUAL email outcome, not the intended recipient count: if the enqueue fails, the caller
-        // (admin flash) must not claim "email: N sent" when zero were queued. (error-review F3)
+        // (admin flash) must not claim "email: N sent" when zero were queued.
         $emailQueued = true;
         try {
             $this->emails->queueSystemAnnouncementEmails($emailRecipients, $title, $message);
@@ -343,7 +343,7 @@ class NotificationService
         ];
     }
 
-    /** @return bool whether the in-app breach alert was actually written (so the SLA cron counts real notifications, not intended ones) (error-review-2 F1) */
+    /** @return bool whether the in-app breach alert was actually written (so the SLA cron counts real notifications, not intended ones) */
     public function notifySlaBreached(int $ticketId, string $metricType): bool
     {
         $context = $this->reads->findTicketNotificationContextById($ticketId);
@@ -388,7 +388,7 @@ class NotificationService
         // "notified" must reflect EVERY channel that had recipients — an email-only recipient (in-app disabled)
         // whose email enqueue fails is a real notify failure, even though the empty in-app dispatch trivially
         // succeeds. dispatchNotification/queue return true when there were no recipients on that channel, so an
-        // AND here == "every channel with recipients delivered". (error-review-3 O1)
+        // AND here == "every channel with recipients delivered".
         return $inAppDelivered && $emailDelivered;
     }
 
@@ -420,7 +420,7 @@ class NotificationService
      * Write the in-app notification for the recipients. Returns whether it SUCCEEDED — best-effort still (a
      * failure is logged, never re-thrown to abort the caller's committed work), but the boolean lets callers
      * that report a delivery count (SLA cron, broadcast) tell success from a swallowed failure instead of
-     * always claiming the intended count. No recipients = nothing to do = success. (error-review-2 F1)
+     * always claiming the intended count. No recipients = nothing to do = success.
      */
     private function dispatchNotification(array $payload, array $recipientIds): bool
     {

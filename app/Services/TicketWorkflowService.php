@@ -27,7 +27,7 @@ class TicketWorkflowService
     {
         // $ticket may be preloaded by bulkApproveTickets (one batch visibility fetch instead of a per-ticket
         // read); when it is, still enforce the same manage-workflow policy requireManageableTicket would. The
-        // authoritative status check happens under the row lock in TicketRepository::approveTicket. (perf-review F2)
+        // authoritative status check happens under the row lock in TicketRepository::approveTicket.
         if ($ticket === null) {
             $ticket = $this->requireManageableTicket($ticketId, $viewer);
         } elseif (!$this->policy->canManageWorkflow($ticket, $viewer)) {
@@ -61,7 +61,7 @@ class TicketWorkflowService
         }
 
         // One visibility-scoped batch fetch for the whole selection, instead of a per-ticket read inside each
-        // approveTicket. Each approve still locks + re-checks status authoritatively. (perf-review F2)
+        // approveTicket. Each approve still locks + re-checks status authoritatively.
         $byId = [];
         foreach ($this->reads->findVisibleTicketsByIds($ticketIds, $viewer) as $row) {
             $byId[(int) ($row['id'] ?? 0)] = $row;
@@ -119,7 +119,7 @@ class TicketWorkflowService
             throw new DomainException('รายการนี้ยังไม่พร้อมสำหรับการมอบหมายช่าง');
         }
 
-        $technicianId = strict_int($input['technician_id'] ?? null, 'ช่างเทคนิค'); // round F1: reject "3junk"
+        $technicianId = strict_int($input['technician_id'] ?? null, 'ช่างเทคนิค'); // reject "3junk"
         if ($technicianId <= 0) {
             throw new DomainException('กรุณาเลือกช่างเทคนิคที่ต้องการมอบหมาย');
         }
@@ -132,7 +132,7 @@ class TicketWorkflowService
         $instructions = trim((string) ($input['instructions'] ?? ''));
 
         // Mid-work reassign (technician already accepted/started) is an exceptional action — require a
-        // reason so the activity log records WHY the work moved (logic-review F2, business-confirmed).
+        // reason so the activity log records WHY the work moved.
         if (in_array((string) ($ticket['status'] ?? ''), ['accepted', 'in_progress'], true) && $instructions === '') {
             throw new DomainException('กรุณาระบุเหตุผลในการย้ายงานที่ช่างรับไปแล้ว');
         }
@@ -190,7 +190,7 @@ class TicketWorkflowService
 
         $diagnosisSummary = trim((string) ($input['diagnosis_summary'] ?? ''));
         $resolutionSummary = trim((string) ($input['resolution_summary'] ?? ''));
-        $laborMinutes = strict_int($input['labor_minutes'] ?? null, 'จำนวนเวลาที่ใช้'); // round F1: reject "12junk"
+        $laborMinutes = strict_int($input['labor_minutes'] ?? null, 'จำนวนเวลาที่ใช้'); // reject "12junk"
 
         if ($diagnosisSummary === '' || $resolutionSummary === '') {
             throw new DomainException('กรุณากรอกผลการวิเคราะห์และวิธีแก้ไขให้ครบถ้วน');
@@ -221,7 +221,7 @@ class TicketWorkflowService
         }
 
         $closureNote = trim((string) ($input['closure_note'] ?? ''));
-        $score = strict_int($input['score'] ?? null, 'คะแนนความพึงพอใจ'); // round F1: reject "5junk"
+        $score = strict_int($input['score'] ?? null, 'คะแนนความพึงพอใจ'); // reject "5junk"
         $feedback = trim((string) ($input['feedback'] ?? ''));
 
         if ($score < 1 || $score > 5) {

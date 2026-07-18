@@ -96,7 +96,7 @@ class AttachmentService
             }
         } catch (Throwable $exception) {
             // roll back the files already moved for this (failed) upload; log any that can't be removed so a
-            // half-written upload doesn't leave silent orphans. (error-review-5 F3)
+            // half-written upload doesn't leave silent orphans.
             $this->purgeStoredFiles($storedPaths, 'attachment.store.cleanup', ['ticket' => $ticketId]);
             throw $exception;
         }
@@ -116,7 +116,7 @@ class AttachmentService
 
     /**
      * Mapped attachments for a specific set of comment ids (live-poll feed). Same disk-existence filter and
-     * mapping as getTicketAttachments, but scoped to the comments being rendered. (perf-review F4)
+     * mapping as getTicketAttachments, but scoped to the comments being rendered.
      *
      * @param int[] $commentIds
      * @return array<int, array<string, mixed>>
@@ -133,7 +133,7 @@ class AttachmentService
 
     /**
      * Delete stored files, returning the paths that FAILED to unlink so the caller can log the orphans instead
-     * of leaving them silently on disk — @unlink's boolean was previously discarded. (error-review-4 F3)
+     * of leaving them silently on disk — @unlink's boolean was previously discarded.
      *
      * @param string[] $paths
      * @return string[] paths that existed but could not be deleted
@@ -159,7 +159,7 @@ class AttachmentService
     /**
      * Delete stored files AND record any that could not be removed via the shared logger, so an orphaned file
      * leaves a trace for support instead of being silently discarded. Every rollback/cleanup path should call
-     * this rather than deleteStoredFiles() directly (whose boolean return is easy to drop). (error-review-5 F3)
+     * this rather than deleteStoredFiles() directly (whose boolean return is easy to drop).
      *
      * @param string[] $paths
      * @param array<string, mixed> $context
@@ -191,7 +191,7 @@ class AttachmentService
         }
 
         // A read failure (permissions, disk error, a race after the is_file check) must NOT be cast to '' and
-        // shipped as a 200 empty download — surface it as an error the controller logs. (error-review-3 O5)
+        // shipped as a 200 empty download — surface it as an error the controller logs.
         $content = @file_get_contents($path); // '@' — the failure is surfaced via the throw + controller log, not a raw PHP warning
         if ($content === false) {
             throw new RuntimeException('ไม่สามารถอ่านไฟล์แนบจากพื้นที่จัดเก็บ');

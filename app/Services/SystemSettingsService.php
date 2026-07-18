@@ -37,7 +37,7 @@ class SystemSettingsService
     ];
 
     /** Max length of the system name — single source for both first-run setup and the system-settings edit, so
-     *  the same value can't be accepted in one flow and rejected in the other. (consistency-review) */
+     *  the same value can't be accepted in one flow and rejected in the other. */
     public const APP_NAME_MAX_LENGTH = 100;
 
     public function __construct(
@@ -116,7 +116,7 @@ class SystemSettingsService
             throw new DomainException('กรุณากรอกชื่อระบบ');
         }
 
-        // Match first-run setup's limit — the same name must not be rejected there but accepted here. (consistency-review)
+        // Match first-run setup's limit — the same name must not be rejected there but accepted here.
         if (mb_strlen($appName) > self::APP_NAME_MAX_LENGTH) {
             throw new DomainException('ชื่อระบบยาวเกินกำหนด (สูงสุด ' . self::APP_NAME_MAX_LENGTH . ' ตัวอักษร)');
         }
@@ -276,7 +276,7 @@ class SystemSettingsService
         $lockStmt->execute(['name' => $lockName]);
         if ((int) $lockStmt->fetchColumn() !== 1) {
             // a concurrent logo update holds the lock — an EXPECTED "try again" condition, so it's a
-            // DomainException (flashed, retryable), matching the setup lock. (consistency-review F1)
+            // DomainException (flashed, retryable), matching the setup lock.
             throw new DomainException('ระบบกำลังอัปเดตโลโก้ กรุณาลองอีกครั้ง');
         }
 
@@ -326,7 +326,7 @@ class SystemSettingsService
     private function deleteLogoFile(?string $path): void
     {
         // A failed unlink left an orphaned logo file with no trace — log it (without failing the settings save)
-        // so support can clean it up. (error-review-5 F3)
+        // so support can clean it up.
         if ($path !== null && is_file($path) && !@unlink($path)) {
             log_caught_exception(
                 'settings.logo.cleanup',

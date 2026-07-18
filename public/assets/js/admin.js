@@ -75,7 +75,7 @@
     }
 
     // Scroll so the tab row lands just below the sticky topbar, not hidden under it (topbar is taller +
-    // higher z-index). Used by the stat-card jumps and by an initial deep link. (ux-review-3 F2)
+    // higher z-index). Used by the stat-card jumps and by an initial deep link.
     const revealTabsBelowTopbar = () => {
         if (!scroller) return;
         const topbar = document.querySelector('.topbar') || document.querySelector('header');
@@ -100,7 +100,7 @@
     const initialHash = location.hash;
     activate(initialHash || '#tab-users');
     // A deep link (/admin#tab-priorities) landed the browser at the panel with the tab row hidden behind the
-    // topbar; scroll it into view so the user sees which section is active and can switch. (ux-review-3 F2)
+    // topbar; scroll it into view so the user sees which section is active and can switch.
     if (initialHash && document.querySelector('.admin-tab[href="' + initialHash + '"]')) {
         requestAnimationFrame(revealTabsBelowTopbar);
     }

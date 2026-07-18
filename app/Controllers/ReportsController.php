@@ -81,7 +81,7 @@ class ReportsController
         try {
             $pack = $this->reports->generateSamplePack($viewer);
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
         } catch (DomainException|RuntimeException $exception) {
             if ($exception instanceof RuntimeException) {
                 log_caught_exception('controller.operational', $exception, ['path' => (string) (request()?->path ?? '')]);
@@ -522,7 +522,7 @@ class ReportsController
                 (string) ($export['content_type'] ?? $fallbackType)
             );
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
         } catch (DomainException|RuntimeException $exception) {
             if ($exception instanceof RuntimeException) {
                 log_caught_exception('controller.operational', $exception, ['path' => (string) (request()?->path ?? '')]);

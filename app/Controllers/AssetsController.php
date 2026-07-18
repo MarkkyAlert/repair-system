@@ -86,7 +86,7 @@ class AssetsController
             flash('success', 'สร้าง Asset และ QR token เรียบร้อยแล้ว');
             Response::redirect('/asset-registry/' . $assetId);
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
         } catch (DomainException|RuntimeException $exception) {
             if ($exception instanceof RuntimeException) {
                 log_caught_exception('controller.operational', $exception, ['path' => (string) (request()?->path ?? '')]);
@@ -166,7 +166,7 @@ class AssetsController
             $this->assets->updateAsset((int) $assetId, $viewer, $_POST);
             flash('success', 'อัปเดต Asset เรียบร้อยแล้ว');
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
         } catch (DomainException|RuntimeException $exception) {
             if ($exception instanceof RuntimeException) {
                 log_caught_exception('controller.operational', $exception, ['path' => (string) (request()?->path ?? '')]);
@@ -200,7 +200,7 @@ class AssetsController
             $png = $this->assets->generateQrPng((int) $assetId, $viewer);
             Response::download($png, 'asset-qr-' . (int) $assetId . '.png', 'image/png', 'inline');
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
         } catch (DomainException|RuntimeException $exception) {
             if ($exception instanceof RuntimeException) {
                 log_caught_exception('controller.operational', $exception, ['path' => (string) (request()?->path ?? '')]);
@@ -250,7 +250,7 @@ class AssetsController
                 (string) ($export['content_type'] ?? 'text/csv; charset=UTF-8')
             );
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
         } catch (DomainException|RuntimeException $exception) {
             if ($exception instanceof RuntimeException) {
                 log_caught_exception('controller.operational', $exception, ['path' => (string) (request()?->path ?? '')]);
@@ -275,7 +275,7 @@ class AssetsController
                 (string) ($export['content_type'] ?? 'application/octet-stream')
             );
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
         } catch (DomainException|RuntimeException $exception) {
             if ($exception instanceof RuntimeException) {
                 log_caught_exception('controller.operational', $exception, ['path' => (string) (request()?->path ?? '')]);
@@ -311,7 +311,7 @@ class AssetsController
             $rows = $this->importer->parseUploadedFile($_FILES['csv'] ?? []);
             $preview = $this->importer->validateRows($rows);
 
-            // Token-scope the batch so a second preview in another tab can't hijack this tab's confirm. (F3)
+            // Token-scope the batch so a second preview in another tab can't hijack this tab's confirm.
             $token = bin2hex(random_bytes(16));
             Session::put('asset_import_batch', ['token' => $token, 'rows' => $preview['valid']]);
 
@@ -324,7 +324,7 @@ class AssetsController
                 'errorMessage' => null,
             ]);
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
         } catch (DomainException|RuntimeException $exception) {
             if ($exception instanceof RuntimeException) {
                 log_caught_exception('controller.operational', $exception, ['path' => (string) (request()?->path ?? '')]);
@@ -360,7 +360,7 @@ class AssetsController
             }
             flash('success', $summary);
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
         } catch (DomainException|RuntimeException $exception) {
             if ($exception instanceof RuntimeException) {
                 log_caught_exception('controller.operational', $exception, ['path' => (string) (request()?->path ?? '')]);

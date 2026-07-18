@@ -55,7 +55,7 @@ class AttachmentRepository
 
     /**
      * Attachments belonging to a specific set of comment ids — for the live-poll feed which already knows
-     * which (new) comments it is rendering, so it needn't scan every attachment on the ticket. (perf-review F4)
+     * which (new) comments it is rendering, so it needn't scan every attachment on the ticket.
      *
      * @param int[] $commentIds
      * @return array<int, array<string, mixed>>

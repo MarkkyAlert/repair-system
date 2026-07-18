@@ -154,7 +154,7 @@ class AssetRepository
     /**
      * Lighter reference set for the asset LIST filters (category + location only). The list's filter bar does
      * not offer department/custodian, so loading them (as getAssetFormReferenceData does for the create/edit
-     * form) is two wasted queries per list view. (perf-review F8)
+     * form) is two wasted queries per list view.
      */
     public function getAssetIndexReferenceData(): array
     {
@@ -561,7 +561,7 @@ class AssetRepository
      * collision backstop instead of a SELECT-per-token existence probe (generateUniqueQrToken) — one write
      * instead of check + write, which halves the token cost on bulk import. The asset row is already inserted,
      * so a duplicate-key error here is necessarily the token; on that (astronomically rare) event, regenerate
-     * and retry. (perf-review F9)
+     * and retry.
      */
     private function insertUniqueQrToken(int $assetId, ?int $generatedBy, string $createdAt): void
     {

@@ -74,7 +74,7 @@ class UserImportService
             if ($email !== '' && !is_valid_email($email)) {
                 $errors[] = 'email format ไม่ถูกต้อง หรือยาวเกิน 190 ตัว';
             }
-            if (mb_strlen($fullName) > 150) { // users.full_name VARCHAR(150) (F6)
+            if (mb_strlen($fullName) > 150) { // users.full_name VARCHAR(150)
                 $errors[] = 'full_name ยาวเกิน 150 ตัว';
             }
             if (!in_array($role, valid_roles(), true)) {
@@ -177,9 +177,9 @@ class UserImportService
                         // The user is created active with a random password; a reset-email failure must not
                         // break the import, but it also must not be swallowed silently — record who did not
                         // receive a reset so the admin can reset them manually, AND log the root cause (the
-                        // exception object was previously discarded). (error-review-2 F2)
+                        // exception object was previously discarded).
                         // identify the user WITHOUT writing a raw email (PII) to the server log — username +
-                        // masked email is enough to act on. (error-review-3 O3)
+                        // masked email is enough to act on.
                         log_caught_exception('user.import.reset', $exception, [
                             'username' => (string) ($row['username'] ?? ''),
                             'email' => \App\Services\MailerService::maskEmail((string) ($row['email'] ?? '')),
@@ -194,7 +194,7 @@ class UserImportService
             } catch (Throwable $exception) {
                 // Expected, reported skips (a duplicate → createUser translates it to DomainException; or a raw
                 // duplicate-key error) stay silent. Anything else (e.g. a DB outage) is an unexpected failure whose
-                // root cause must be logged — not hidden behind the generic row message. (error-review F6)
+                // root cause must be logged — not hidden behind the generic row message.
                 if (!($exception instanceof DomainException) && !is_duplicate_key_error($exception)) {
                     log_caught_exception('user.import.row', $exception, ['line' => (int) ($row['line'] ?? 0), 'username' => (string) ($row['username'] ?? '')]);
                 }

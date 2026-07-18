@@ -27,7 +27,7 @@ class Csrf
 
         if (!is_string($token) || !is_string($sessionToken) || !hash_equals($sessionToken, $token)) {
             // A bad/expired/forged token is an EXPECTED condition (flash + retry), not an operational failure —
-            // DomainException keeps it out of the operational error log. (error-review-4 F1)
+            // DomainException keeps it out of the operational error log.
             throw new DomainException('CSRF token ไม่ถูกต้อง');
         }
     }

@@ -52,7 +52,7 @@ class CommentRepository
     /**
      * Live-poll variant: only comments newer than $afterId (id > afterId), for the ticket-detail feed.
      * Bounds the read to what the client is missing instead of loading the whole thread and filtering in
-     * PHP — auto-increment ids mean id > afterId == "posted after the last one the client has". (perf-review F4)
+     * PHP — auto-increment ids mean id > afterId == "posted after the last one the client has".
      *
      * @return array<int, array<string, mixed>>
      */

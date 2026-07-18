@@ -39,7 +39,7 @@ class RememberMeService
             if ($parsed !== null) {
                 // Clear by the token HASH, not the cookie's claimed user_id — a forged cookie carrying another
                 // user's id but a bogus token hashes to nothing that matches, so it cannot revoke that user's
-                // remember-me. Only the real cookie holder (whose hash matches the stored row) clears it. (F1)
+                // remember-me. Only the real cookie holder (whose hash matches the stored row) clears it.
                 $this->users->clearRememberTokenByHash(hash('sha256', $parsed['raw']));
             }
         }

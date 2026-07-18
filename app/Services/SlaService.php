@@ -43,7 +43,7 @@ class SlaService
             // remaining breaches go unmarked/unnotified this run and this ticket's own notify is never retried
             // (next run it is no longer "pending"). Log and carry on.
             // notifySlaBreached returns whether the in-app alert was actually written (the dispatch swallows +
-            // logs its own failure), so a swallowed failure is now counted — not just an outright throw. (error-review-2 F1)
+            // logs its own failure), so a swallowed failure is now counted — not just an outright throw.
             $notified = true;
             try {
                 $notified = $this->notifications->notifySlaBreached($ticketId, $metricType);
@@ -64,7 +64,7 @@ class SlaService
 
         // Separate "marked as breached" (committed) from "actually notified": a notify failure must NOT be
         // reported as a successful notification — the breach stands but its alert never went out and won't be
-        // retried (next run it is no longer pending). The cron surfaces notify_failed. (error-review F3)
+        // retried (next run it is no longer pending). The cron surfaces notify_failed.
         return [
             'processed' => $processed,
             'notified' => $processed - $notifyFailed,

@@ -7,7 +7,7 @@ class LoginRateLimiter
 {
     // Any key untouched for longer than this is beyond every decay window in use (login/reset 900s, guest
     // 600s), so it can be dropped on the next write — otherwise a key per unique (login|IP) accumulates
-    // forever (only clear() ever removed one) and the JSON file grows unbounded. (logic-review R6-F2)
+    // forever (only clear() ever removed one) and the JSON file grows unbounded.
     private const GLOBAL_MAX_AGE_SECONDS = 3600;
 
     private string $filePath;
@@ -64,7 +64,7 @@ class LoginRateLimiter
         $handle = fopen($this->filePath, 'rb');
         if ($handle === false) {
             // A read failure means the throttle state is unavailable — the limiter degrades to fail-open, so the
-            // reason must be visible (was returned as an empty state silently). (error-review-5 F1)
+            // reason must be visible (was returned as an empty state silently).
             $this->logDiag('cannot open ' . $this->filePath . ' for read — throttle state unavailable (fail-open)');
             return [];
         }
@@ -82,7 +82,7 @@ class LoginRateLimiter
 
         if ($contents === false) {
             // The read stream itself failed (I/O error) — distinct from an empty/absent file. Treating it as
-            // empty would silently drop the recorded attempts, so surface it. (error-review-6 F1)
+            // empty would silently drop the recorded attempts, so surface it.
             $this->logDiag('read failed on ' . $this->filePath . ' — throttle state unavailable (fail-open)');
             return [];
         }
@@ -114,7 +114,7 @@ class LoginRateLimiter
             $existing = stream_get_contents($handle);
             if ($existing === false) {
                 // Couldn't read the current state before rewriting it — the recorded attempts would be lost.
-                // Log and treat as empty (self-heals on this write). (error-review-6 F1)
+                // Log and treat as empty (self-heals on this write).
                 $this->logDiag('read-before-write failed on ' . $this->filePath . ' — prior throttle state may be lost');
                 $existing = '';
             }
@@ -124,7 +124,7 @@ class LoginRateLimiter
 
             rewind($handle);
             // A failed/partial write leaves the file corrupt → the next read decodes to empty (fail-open) with no
-            // trace. Check each write step so a full disk / quota is surfaced, not swallowed. (error-review-5 F1)
+            // trace. Check each write step so a full disk / quota is surfaced, not swallowed.
             if (ftruncate($handle, 0) === false) {
                 $this->logDiag('ftruncate failed on ' . $this->filePath . ' — throttle state may be left corrupt');
             }
@@ -132,7 +132,7 @@ class LoginRateLimiter
             $written = fwrite($handle, $encoded);
             if ($written === false || $written < strlen($encoded)) {
                 // A SHORT write (fewer bytes than the payload, e.g. a full disk) is not `false` but still leaves
-                // truncated/corrupt JSON — check the byte count, not just false. (error-review-6 F1)
+                // truncated/corrupt JSON — check the byte count, not just false.
                 $this->logDiag('fwrite incomplete on ' . $this->filePath . ' — wrote ' . var_export($written, true) . ' of ' . strlen($encoded) . ' bytes (throttle state NOT persisted, fail-open)');
             }
             if (fflush($handle) === false) {
@@ -147,7 +147,7 @@ class LoginRateLimiter
     /**
      * One diagnostic channel for every storage degradation — prefixed with the request id so a fail-open
      * incident on the login page ties to the exact server-log line, like the shared exception logger. The
-     * limiter can't throw (it must degrade to fail-open), so this is the only trace. (error-review-6 F1)
+     * limiter can't throw (it must degrade to fail-open), so this is the only trace.
      */
     private function logDiag(string $message): void
     {
@@ -165,7 +165,7 @@ class LoginRateLimiter
         if (!is_array($decoded)) {
             // Corrupt state (partial write, manual edit, disk error) — treated as empty means the limiter forgets
             // every attempt (fail-open). Log it so support sees the cause instead of a silently-reset throttle.
-            // (error-review-5 F1) — self-heals on the next successful write.
+            // — self-heals on the next successful write.
             $this->logDiag('corrupt JSON in ' . $this->filePath . ' — throttle state treated as empty (fail-open)');
             return [];
         }

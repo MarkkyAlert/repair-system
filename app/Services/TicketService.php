@@ -150,7 +150,7 @@ class TicketService
     /**
      * Cron OUTCOME warnings (distinct from staleness): the last run completed but left terminal failures — an
      * email that exhausted its retries, or an SLA breach whose alert never went out. A healthy heartbeat alone
-     * hid these; the dashboard must surface them. (error-review F4)
+     * hid these; the dashboard must surface them.
      *
      * @return array<int, array{label: string, detail: string, href: string}>
      */
@@ -161,7 +161,7 @@ class TicketService
         }
 
         // Read LIVE via the repository, not the request-cached setting() helper — a just-recorded cron failure
-        // must show immediately, and it keeps this signal test-observable. (error-review F4)
+        // must show immediately, and it keeps this signal test-observable.
         $settings = app(\App\Repositories\SettingsRepository::class);
         $count = static function (string $key) use ($settings): int {
             if (!$settings instanceof \App\Repositories\SettingsRepository) {
@@ -186,7 +186,7 @@ class TicketService
             $failures[] = ['label' => 'สำรอง database', 'detail' => $backupFailed . ' ไฟล์เก่าลบไม่สำเร็จ (พื้นที่อาจเต็ม)', 'href' => '/admin#tab-backup'];
         }
         // A cleanup run that COMPLETED but couldn't delete some orphan files (perms/full disk) — the freshness
-        // heartbeat alone showed it as healthy. (error-review-6 F2)
+        // heartbeat alone showed it as healthy.
         $orphanFailed = $count('cron_orphan_cleanup_last_failed');
         if ($orphanFailed > 0) {
             $failures[] = ['label' => 'ล้างไฟล์แนบกำพร้า', 'detail' => $orphanFailed . ' ไฟล์กำพร้าลบไม่สำเร็จ (สิทธิ์/พื้นที่อาจมีปัญหา)', 'href' => '/admin/email-queue'];
@@ -463,7 +463,7 @@ class TicketService
 
         $title = trim((string) ($input['title'] ?? ''));
         $description = trim((string) ($input['description'] ?? ''));
-        // strict_int so a malformed "1junk" is rejected up front, not silently coerced to its numeric prefix (round F1)
+        // strict_int so a malformed "1junk" is rejected up front, not silently coerced to its numeric prefix
         $priorityId = strict_int($input['priority_id'] ?? null, 'Priority ');
         $categoryId = strict_int($input['ticket_category_id'] ?? null, 'Category ');
         $locationId = strict_int($input['location_id'] ?? null, 'Location ');
@@ -472,7 +472,7 @@ class TicketService
         $urgencyLevel = strtolower(trim((string) ($input['urgency_level'] ?? 'medium')));
         // Origin channel is a TRUSTED ARGUMENT set by the caller (web controller → default 'web'; guest QR
         // convert → 'qr'), NEVER read from user $input — otherwise a crafted web POST could spoof the source
-        // (channel=phone/email/walk_in) and skew the origin in the detail/reports. (logic-review R4-F1)
+        // (channel=phone/email/walk_in) and skew the origin in the detail/reports.
         $channel = in_array($channel, ['web', 'qr', 'phone', 'email', 'walk_in'], true) ? $channel : 'web';
         $submissionToken = $this->submissionToken((string) ($input['submission_token'] ?? ''), false);
 
@@ -564,7 +564,7 @@ class TicketService
             if ($startedTransaction && $this->db->inTransaction()) {
                 $this->db->rollBack();
             }
-            // roll back files stored for this failed ticket; log any that can't be removed (error-review-5 F3)
+            // roll back files stored for this failed ticket; log any that can't be removed
             $this->attachments->purgeStoredFiles($storedPaths, 'ticket.create.cleanup', ['ticket' => $ticketId]);
             throw $exception;
         }
@@ -640,7 +640,7 @@ class TicketService
 
         // Fetch ONLY comments newer than $afterId, not the whole thread filtered in PHP. On an idle poll
         // (no new comments — the common case at 20s intervals) return early WITHOUT the attachments read, so
-        // a quiet ticket costs one bounded query instead of scanning every comment + attachment. (perf-review F4)
+        // a quiet ticket costs one bounded query instead of scanning every comment + attachment.
         $comments = $this->comments->getCommentsAfterId($ticketId, $afterId, $includeInternal);
         if ($comments === []) {
             return [];
@@ -1051,7 +1051,7 @@ class TicketService
         if ($achievedTimestamp !== false) {
             // An achievement BEFORE the ticket was requested is impossible data (bad seed/import) — it can't be
             // judged met/breached, so treat SLA as unavailable rather than a false "met". Keeps this ticket-detail
-            // classification in step with the report's (ReportService::buildSlaMetricState). (dup-review F1)
+            // classification in step with the report's (ReportService::buildSlaMetricState).
             if ($requestedTimestamp !== false && $achievedTimestamp < $requestedTimestamp) {
                 return [
                     'name' => $name,
@@ -1169,7 +1169,7 @@ class TicketService
             'statusOptions' => ticket_status_options(true),
             'yearOptions' => array_map(fn (int $year): array => [
                 'value' => (string) $year,          // query value stays Gregorian
-                'label' => thai_year($year),        // display in Buddhist year (ux-review-4 F2)
+                'label' => thai_year($year),        // display in Buddhist year
             ], $years),
             'active_count' => $this->countActiveDashboardFilters($filters),
         ];
@@ -1196,7 +1196,7 @@ class TicketService
 
     private function monthLabels(): array
     {
-        // Thai month abbreviations so the dashboard charts read the same calendar as tickets/reports. (ux-review-4 F2)
+        // Thai month abbreviations so the dashboard charts read the same calendar as tickets/reports.
         return ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
     }
 

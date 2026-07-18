@@ -63,7 +63,7 @@ class CommentService
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
             }
-            // roll back files stored for this failed comment; log any that can't be removed (error-review-5 F3)
+            // roll back files stored for this failed comment; log any that can't be removed
             $this->attachments->purgeStoredFiles($storedPaths, 'comment.create.cleanup', ['ticket' => $ticketId]);
             throw $exception;
         }
@@ -73,7 +73,7 @@ class CommentService
                 $this->notifications->notifyCommentEvent($ticketId, $commentId, (int) ($viewer['id'] ?? 0), $isInternal, $body, 'created');
             } catch (Throwable $exception) {
                 // best-effort notify — must not fail the already-created comment, but the failure must be
-                // visible (was silently swallowed, so a broken notifier left no trace). (error-review F2)
+                // visible (was silently swallowed, so a broken notifier left no trace).
                 log_caught_exception('comment.create.notify', $exception, ['ticket' => $ticketId, 'comment' => $commentId]);
             }
         }
@@ -132,7 +132,7 @@ class CommentService
         }
 
         // Files that can't be unlinked are logged (not silently dropped) without failing the already-committed
-        // delete — the shared purge helper records the orphans. (error-review-4 F3, error-review-5 F3)
+        // delete — the shared purge helper records the orphans.
         $this->attachments->purgeStoredFiles($paths, 'comment.delete.cleanup', ['comment' => $commentId]);
 
         try {
@@ -145,7 +145,7 @@ class CommentService
                 'deleted'
             );
         } catch (Throwable $exception) {
-            // best-effort notify — the delete already committed; surface the failure instead of swallowing it. (error-review F2)
+            // best-effort notify — the delete already committed; surface the failure instead of swallowing it.
             log_caught_exception('comment.delete.notify', $exception, ['ticket' => $ticketId, 'comment' => $commentId]);
         }
     }

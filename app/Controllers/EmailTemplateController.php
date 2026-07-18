@@ -81,7 +81,7 @@ class EmailTemplateController
             $this->templateService->saveOverrides($templateKey, $_POST, $userId);
             flash('success', 'บันทึกการตั้งค่า template เรียบร้อยแล้ว');
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
         }
@@ -100,7 +100,7 @@ class EmailTemplateController
             $this->templateService->resetOverrides($templateKey);
             flash('success', 'คืนค่า template เป็นค่าเริ่มต้นเรียบร้อยแล้ว');
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
         }

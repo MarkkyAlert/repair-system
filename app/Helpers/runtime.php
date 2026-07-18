@@ -122,7 +122,7 @@ function is_duplicate_key_error(\Throwable $exception): bool
 /**
  * True when the error is "table doesn't exist" (MySQL 1146 / SQLSTATE 42S02) — the ONE DB error bootstrap
  * treats as the expected first-run case (schema not loaded yet). Every other DB error must be logged, not
- * silently swallowed and mistaken for "not installed". (error-review-2 F6)
+ * silently swallowed and mistaken for "not installed".
  */
 function is_missing_table_error(\Throwable $exception): bool
 {
@@ -149,7 +149,7 @@ function log_uncaught_exception(\Throwable $exception): void
 /**
  * A short, per-request correlation id — generated once and reused for the whole request. It is emitted as the
  * X-Request-Id response header, shown on the generic 500 page, and prefixed onto every server-log line, so a
- * user's "I hit an error, reference ABC12345" ties straight to the matching log entry. (error-review F8)
+ * user's "I hit an error, reference ABC12345" ties straight to the matching log entry.
  */
 function request_id(): string
 {
@@ -164,7 +164,7 @@ function request_id(): string
 /**
  * Whether the caller expects a JSON response (an AJAX/fetch call) rather than an HTML page — used so the
  * entry-point 500 handler returns a JSON error (with a reference) instead of an HTML page that would break the
- * client's response.json(). (error-review-2 F3)
+ * client's response.json().
  *
  * @param array<string, mixed>|null $server defaults to $_SERVER
  */
@@ -203,7 +203,7 @@ function log_caught_exception(string $marker, \Throwable $exception, array $cont
     $suffix = $parts === [] ? '' : ' ' . implode(' ', $parts);
 
     // Walk to the deepest wrapped cause: services wrap a disk/DB/library failure in a friendly RuntimeException
-    // ("สร้างไฟล์ไม่ได้"), so the wrapper alone hides the real reason. Append the root class/message/file:line. (error-review-4 F2)
+    // ("สร้างไฟล์ไม่ได้"), so the wrapper alone hides the real reason. Append the root class/message/file:line.
     $root = $exception;
     while ($root->getPrevious() !== null) {
         $root = $root->getPrevious();
@@ -229,7 +229,7 @@ function log_caught_exception(string $marker, \Throwable $exception, array $cont
 function is_valid_email(string $email): bool
 {
     // Length-bounded to the users.email / *_email column (VARCHAR(190)) so a syntactically valid but
-    // over-long address is rejected with a friendly message instead of a raw DB error (strict mode). (F6)
+    // over-long address is rejected with a friendly message instead of a raw DB error (strict mode).
     return (function_exists('mb_strlen') ? mb_strlen($email) : strlen($email)) <= 190
         && filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
 }
@@ -239,7 +239,7 @@ function is_valid_email(string $email): bool
  * session — so opening a second preview in another tab (which replaces the session batch + token) cannot make
  * the first tab's confirm import the second tab's rows. Pure (no session/HTTP), so it is directly testable;
  * the controller owns Session::get/forget. Throws DomainException on a token mismatch or an empty batch.
- * (logic-review R3-F3 / security-review coverage gap)
+ *
  *
  * @param mixed $batch The session batch: ['token' => string, 'rows' => array<int, mixed>]
  * @return array<int, mixed>
@@ -261,7 +261,7 @@ function verified_import_rows(mixed $batch, string $submittedToken): array
 
 /**
  * Reject a value longer than its DB column so the user sees a clear message, not a raw
- * "Data too long" error under MySQL strict mode. No-op for values within the limit. (logic-review F6)
+ * "Data too long" error under MySQL strict mode. No-op for values within the limit.
  */
 function require_max_length(string $value, int $max, string $label): void
 {
@@ -362,7 +362,7 @@ function auth(): AuthManager
 /**
  * Parse a form field that must be a whole number. Empty/missing → $default; a non-integer string like
  * "12junk" throws (PHP's (int) cast silently keeps the "12" prefix). Services own input validation, so this
- * throws DomainException for the caller to surface as a friendly message. (round F1 — strict numeric input)
+ * throws DomainException for the caller to surface as a friendly message. (strict numeric input)
  */
 function strict_int(mixed $raw, string $label, int $default = 0): int
 {

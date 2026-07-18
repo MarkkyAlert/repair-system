@@ -262,7 +262,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    const maxFiles = parseInt(input.getAttribute('data-max-files'), 10) || 3; // config-driven (ux-refactor F6)
+    const maxFiles = parseInt(input.getAttribute('data-max-files'), 10) || 3; // config-driven
     const formatter = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 1 });
 
     const clearPreview = () => {
@@ -711,7 +711,7 @@ document.addEventListener('DOMContentLoaded', () => {
         toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
         document.body.classList.toggle('notification-open', isOpen);
         // Move focus INTO the dialog on open so keyboard/SR users land on its content (the menu is portaled to
-        // <body>, so a plain Tab from the bell would skip it). (ux-review-6 F4)
+        // <body>, so a plain Tab from the bell would skip it).
         if (isOpen) {
           (close || menu.querySelector('a, button') || menu).focus();
         }
@@ -766,7 +766,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // ── Custom Thai file picker: echo the chosen file name(s) into the aria-live readout (F1) ──
+  // ── Custom Thai file picker: echo the chosen file name(s) into the aria-live readout ──
   // The native "No file chosen" text is browser-locale and hidden by .file-field-input; mirror the
   // selection in Thai here so the picker matches the rest of the UI.
   document.addEventListener('change', function (e) {
@@ -789,7 +789,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ── Auth error: move focus to the server-rendered error on load so SR announces it + keyboard lands on it.
-  // The alert already has role="alert"; focusing it guarantees the failure is surfaced after the reload. (ux-review-6 F5)
+  // The alert already has role="alert"; focusing it guarantees the failure is surfaced after the reload.
   (function () {
     var authError = document.querySelector('[data-auth-error]');
     if (authError) authError.focus();
@@ -1376,7 +1376,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── Keyboard-scrollable table wrappers (WCAG 2.1.1) ──
   // A horizontally-overflowing scroll region (.table-wrap, or the mobile report stat rail .report-stat-scroll)
   // must be reachable + scrollable by keyboard. Make it a focusable, labelled group ONLY while it actually
-  // overflows, so it isn't a dead tab stop when it fits (both scroll at 375px but fit on desktop). (ux-review-6 F2)
+  // overflows, so it isn't a dead tab stop when it fits (both scroll at 375px but fit on desktop).
   (function () {
     var wraps = document.querySelectorAll('.table-wrap, .report-stat-scroll');
     if (!wraps.length) return;
@@ -1404,7 +1404,7 @@ document.addEventListener('DOMContentLoaded', () => {
   })();
 
   // The notification inbox filter tabs scroll horizontally when they overflow (mobile); fade the right edge
-  // ONLY while there are tabs hidden to the right, so the user knows to scroll. (ux-review-8 F1)
+  // ONLY while there are tabs hidden to the right, so the user knows to scroll.
   document.querySelectorAll('.notification-filter-tabs').forEach(function (tabs) {
     var sync = function () {
       tabs.classList.toggle('can-scroll-right', tabs.scrollWidth > tabs.clientWidth + tabs.scrollLeft + 1);
@@ -1416,7 +1416,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // The status stepper (.workflow-progress) becomes a horizontal scroll region on mobile; make it keyboard-
   // focusable ONLY while it overflows so keyboard users can scroll to steps off-screen (WCAG 2.1.1). It already
-  // carries aria-label + <ol> list semantics, so only tabindex is toggled (no role override). (ux-review-5 F1)
+  // carries aria-label + <ol> list semantics, so only tabindex is toggled (no role override).
   (function () {
     var steppers = document.querySelectorAll('.workflow-progress');
     if (!steppers.length) return;

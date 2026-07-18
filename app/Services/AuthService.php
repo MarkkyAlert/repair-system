@@ -50,7 +50,7 @@ class AuthService
 
         if ($login === '' || $password === '') {
             // hit the IP bucket too — otherwise rotating the login value with an empty password from one IP
-            // makes a new (login,IP) pair every time, never tripping any cap while spawning keys. (R6-F2)
+            // makes a new (login,IP) pair every time, never tripping any cap while spawning keys.
             $this->rateLimiter->hit($limiterKey);
             $this->rateLimiter->hit($ipKey, self::ATTEMPT_DECAY_SECONDS);
             $this->logAttempt($login, null, $ipAddress, $userAgent, false, 'empty_credentials');
@@ -146,7 +146,7 @@ class AuthService
         // Throttle reset requests on three dimensions, all hit unconditionally so none reveals whether the
         // email exists: the (email,IP) pair (3/15m), an IP-only bucket (10/15m — caps one source fanning out
         // across many different emails), and an email-only bucket (5/1h — caps bombing ONE inbox from many
-        // IPs). (logic-review R6-F2)
+        // IPs).
         $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
         $normalizedIp = $ip !== '' ? $ip : 'unknown';
         $pairKey = 'pwreset:' . sha1($email . '|' . $normalizedIp);
@@ -283,7 +283,7 @@ class AuthService
             throw new DomainException('กรุณากรอกชื่อ-นามสกุลและอีเมลให้ครบถ้วน');
         }
 
-        require_max_length($fullName, 150, 'ชื่อ-นามสกุล'); // users.full_name VARCHAR(150) (was 200 → DB error) (F6)
+        require_max_length($fullName, 150, 'ชื่อ-นามสกุล'); // users.full_name VARCHAR(150) (was 200 → DB error)
 
         if (!is_valid_email($email)) {
             throw new DomainException('รูปแบบอีเมลไม่ถูกต้อง');
@@ -314,7 +314,7 @@ class AuthService
             'full_name' => $fullName,
             'email' => $email,
             'phone' => $phone,
-            'original_version' => strict_int($input['original_version'] ?? null, 'เวอร์ชันข้อมูล'), // optimistic lock (R8-F1)
+            'original_version' => strict_int($input['original_version'] ?? null, 'เวอร์ชันข้อมูล'), // optimistic lock
         ]);
 
         $this->auth->refresh();

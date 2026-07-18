@@ -187,7 +187,7 @@ class UserRepository
     /**
      * Clear the remember token ONLY for the row whose stored hash equals $tokenHash. Used on logout so a caller
      * cannot revoke someone else's persistent login by forging a cookie with another user's id — a mismatched
-     * (or forged) hash matches no row and clears nothing. (logic-review F1)
+     * (or forged) hash matches no row and clears nothing.
      */
     public function clearRememberTokenByHash(string $tokenHash): void
     {
@@ -268,7 +268,7 @@ class UserRepository
     {
         // Revoke every remember-me session in the SAME statement as the password write, so the two can never
         // diverge: a separate revoke call could fail after the password already changed, leaving an old cookie
-        // still able to log in. One UPDATE = password change and token revocation are atomic. (logic-review F1)
+        // still able to log in. One UPDATE = password change and token revocation are atomic.
         $stmt = $this->db->prepare(
             'UPDATE users
              SET password_hash = :password_hash,
@@ -291,9 +291,9 @@ class UserRepository
 
     public function updateProfile(int $userId, array $data): bool
     {
-        // Same optimistic-lock contract as the admin user edit (R7-F3): profile and admin write the SAME row,
+        // Same optimistic-lock contract as the admin user edit: profile and admin write the SAME row,
         // so profile must also bump version WHERE it still matches — otherwise a profile save (or a second tab)
-        // silently overwrites a newer admin change, and vice versa. (safety-review R8-F1)
+        // silently overwrites a newer admin change, and vice versa.
         $stmt = $this->db->prepare(
             'UPDATE users
              SET full_name = :full_name,

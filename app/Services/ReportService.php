@@ -73,7 +73,7 @@ class ReportService
                 $this->reports->getSlaComplianceByPriority($viewer, $normalizedFilters)
             ),
             // /reports overview technician block reads the SAME immutable resolver-based rows as the full
-            // /reports/technician-performance page (R13) — so the two pages never disagree and neither restates a
+            // /reports/technician-performance page — so the two pages never disagree and neither restates a
             // past period on reopen/reassign. Previously this used a current-assignee query (getTechnicianPerformance)
             // whose resolved/MTTR mutated + made a reassigned resolver's row vanish.
             'technicianPerformance' => $this->collectTechnicianPerformanceRows($viewer, $normalizedFilters),
@@ -108,11 +108,11 @@ class ReportService
 
         // Score EVERY matching asset → the summary cards and the worst-health ranking are computed over all
         // of them; the table then shows only the top N (buyer-tunable). Previously the summary was built from
-        // the capped rows, so it undercounted the fleet size / downtime / labor once past the cap (F1).
+        // the capped rows, so it undercounted the fleet size / downtime / labor once past the cap.
         //
         // Score every asset into a LIGHTWEIGHT record (raw row + the ranking/summary keys) and build the heavy
         // display array only for the shown slice — not for all up-to-100k rows. Same score (shared assetHealth),
-        // same ranking, same summary; just no per-row label/format allocation for rows nobody sees. (perf-review F6)
+        // same ranking, same summary; just no per-row label/format allocation for rows nobody sees.
         $displayLimit = max(1, (int) config('reports.asset_display_limit', self::ASSET_REPORT_LIMIT));
         $scored = array_map(fn (array $row): array => $this->scoreAssetRow($row), $this->reports->getAssetReliabilityReport($viewer, $normalizedFilters, self::ASSET_SUMMARY_MAX_ROWS));
         usort($scored, static fn (array $a, array $b): int => [$b['health_score'], $b['failure_count']] <=> [$a['health_score'], $a['failure_count']]);
@@ -170,7 +170,7 @@ class ReportService
     /**
      * Health score + the raw-derived metrics that BOTH the full row mapper and the page's lightweight
      * ranking/summary scan need — single source so those two passes can never disagree. Lets the page score
-     * every asset for the summary while building the heavy display array only for the shown slice. (perf-review F6)
+     * every asset for the summary while building the heavy display array only for the shown slice.
      *
      * @return array{health: array<string, mixed>, failureCount: int, avgHours: float, ageYears: ?float, warranty: array<string, mixed>, mtbfDays: ?float}
      */
@@ -200,7 +200,7 @@ class ReportService
         ];
     }
 
-    /** Lightweight scored record for the page's ranking + summary — carries the raw row (mapped to the heavy display shape only if it lands in the shown slice) plus the keys usort()/buildAssetReportSummary() read. (perf-review F6) */
+    /** Lightweight scored record for the page's ranking + summary — carries the raw row (mapped to the heavy display shape only if it lands in the shown slice) plus the keys usort()/buildAssetReportSummary() read. */
     private function scoreAssetRow(array $row): array
     {
         $health = $this->assetHealth($row)['health'];
@@ -249,14 +249,14 @@ class ReportService
             'avg_resolution_hours_label' => (int) ($row['resolved_count'] ?? 0) > 0 ? number_format($avgHours, 1) : '-',
             'downtime_minutes' => $downtimeMinutes,
             // presence = มี incident ที่ปิดจริง (resolved_count) ไม่ใช่ค่าผลรวม > 0 — งานที่ซ่อมเสร็จในนาทีเดียว
-            // มี downtime จริง 0.0 ชม. ต้องไม่อ่านเป็น "ไม่มีข้อมูล" (BI-review F4, เกณฑ์เดียวกับ avg_resolution)
+            // มี downtime จริง 0.0 ชม. ต้องไม่อ่านเป็น "ไม่มีข้อมูล"
             'downtime_hours_label' => (int) ($row['resolved_count'] ?? 0) > 0 ? number_format(round($downtimeMinutes / 60, 1), 1) : '-',
             'labor_minutes' => $laborMinutes,
             'labor_hours_label' => $laborMinutes > 0 ? number_format(round($laborMinutes / 60, 1), 1) : '-',
             'age_label' => $ageYears !== null ? number_format($ageYears, 1) . ' ปี' : '-',
             // raw numerics for Excel export (the label carries a Thai unit → text in Excel; the export header
             // already states the unit, so the sheet gets a bare number the manager can pivot/sum). TYPED int/float
-            // so the exporter writes them numeric — a number_format string would now be treated as text (R16). (F3)
+            // so the exporter writes them numeric — a number_format string would now be treated as text.
             'mtbf_days_export' => $mtbfDays !== null ? (int) round($mtbfDays) : '-',
             'age_years_export' => $ageYears !== null ? round($ageYears, 1) : '-',
             'warranty_label' => $warranty['label'],
@@ -376,7 +376,7 @@ class ReportService
         $first = strtotime((string) $firstAt);
         $last = strtotime((string) $lastAt);
         // reject reversed or future failure dates — a 2030 "failure" would fabricate a huge, healthy-looking
-        // MTBF (round-8 F3; belt-and-suspenders alongside the query-level future-incident exclusion).
+        // MTBF.
         if ($first === false || $last === false || $last < $first || $last > time()) {
             return null;
         }
@@ -494,7 +494,7 @@ class ReportService
     private function assetReportExportRow(array $row): array
     {
         return [
-            // user-defined text (code/name/category/location) → force text so Excel never number-infers it (R17/R18)
+            // user-defined text (code/name/category/location) → force text so Excel never number-infers it
             $this->txt($row['asset_code']), $this->txt($row['name']), $this->txt($row['category_name']), $this->txt($row['location_name']), $row['status_label'],
             $row['health_label'], $this->txt($row['health_reason']), $row['failure_count'], $row['last_failure'],
             $row['mtbf_days_export'], $row['avg_resolution_hours_label'], $row['downtime_hours_label'],
@@ -661,7 +661,7 @@ class ReportService
         // Row base = the UNION of currently-active technicians (live) AND everyone who RESOLVED in the window
         // (resolver). A technician later deactivated or demoted is no longer in `live`, but their immutable past
         // performance still shows because they remain in `resolver` — otherwise closing an account would erase a
-        // person's whole history + shrink team totals (R14-F1). Live-only techs get zeroed performance; resolver-
+        // person's whole history + shrink team totals. Live-only techs get zeroed performance; resolver-
         // only (departed) techs get zeroed live workload.
         $names = [];
         foreach ($live as $id => $row) {
@@ -687,13 +687,13 @@ class ReportService
         // As-reported (Phase 2 + R13): EVERY performance metric comes from the resolve-event actor
         // (getTechnicianResolverStats) over "the tickets this tech actually closed in the window" — resolved + MTTR
         // + SLA-on-time (vs the FROZEN per-cycle target) + CSAT (per-cycle rating). So a later reopen/reassign never
-        // restates a past period, and the /reports overview + full page read the SAME immutable rows (R13). The
+        // restates a past period, and the /reports overview + full page read the SAME immutable rows. The
         // per-tech completion %, first-response time, labor hours, and the date-filtered "รับ"(assigned) column were
-        // removed — none can be a clean immutable/current metric (R12/R13/R14). $live may be empty for a departed
+        // removed — none can be a clean immutable/current metric. $live may be empty for a departed
         // resolver (deactivated/demoted) → current-workload columns read 0/'-', but the performance columns still show.
         $resolved = (int) ($resolver['resolved'] ?? 0);
         $mttrMinutes = (float) ($resolver['mttr_minutes'] ?? 0);
-        // MTTR presence = tickets with a real resolve event (resolution_base), not the status-resolved count (F1)
+        // MTTR presence = tickets with a real resolve event (resolution_base), not the status-resolved count
         $resolutionBase = (int) ($resolver['resolution_base'] ?? 0);
         $slaBase = (int) ($resolver['sla_base'] ?? 0);
         $slaOnTime = (int) ($resolver['sla_on_time'] ?? 0);
@@ -733,7 +733,7 @@ class ReportService
             'sla_base' => $slaBase,
             'sla_on_time' => $slaOnTime,
             // true = ยังเป็นช่างที่ active (มีแถวใน live roster); false = อดีตช่าง (deactivated/demoted) ที่เก็บไว้เพื่อ
-            // ประวัติผลงาน. ใช้แยกนับหัว "ช่างที่ยังใช้งาน" ไม่ให้รวมอดีตช่าง (R14-F1 headcount).
+            // ประวัติผลงาน. ใช้แยกนับหัว "ช่างที่ยังใช้งาน" ไม่ให้รวมอดีตช่าง.
             'is_active_tech' => $live !== [],
         ];
     }
@@ -746,7 +746,7 @@ class ReportService
 
         return [
             // headcount card = "ช่างที่ยังใช้งานในระบบ" → count ONLY active technicians (live roster), not the
-            // historical resolvers kept in the detail rows for their immutable past performance (R14-F1).
+            // historical resolvers kept in the detail rows for their immutable past performance.
             'technicians' => count(array_filter($rows, static fn (array $r): bool => (bool) ($r['is_active_tech'] ?? false))),
             'open_now' => (int) array_sum(array_column($rows, 'open_now')),
             'resolved' => (int) array_sum(array_column($rows, 'resolved')),
@@ -1307,7 +1307,7 @@ class ReportService
         $normalized['to_datetime'] = $to . ' 23:59:59';
 
         // ปฏิเสธช่วงที่ยาวเกิน MAX_TREND_BUCKETS งวด — เดิม trendBucketList ตัดท้ายช่วงทิ้งเงียบ ๆ (วันล่าสุดหาย
-        // จากกราฟ/สรุป/export). แจ้งชัดให้ผู้ใช้ลดช่วงหรือใช้ granularity ที่หยาบกว่าแทน (round-2 #1).
+        // จากกราฟ/สรุป/export). แจ้งชัดให้ผู้ใช้ลดช่วงหรือใช้ granularity ที่หยาบกว่าแทน.
         $buckets = $this->trendBucketCount($granularity, $from, $to);
         if ($buckets > self::MAX_TREND_BUCKETS) {
             $granularityTh = ['day' => 'วัน', 'week' => 'สัปดาห์', 'month' => 'เดือน'][$granularity] ?? $granularity;
@@ -1393,7 +1393,7 @@ class ReportService
 
     private function trendExportRow(array $period): array
     {
-        // 'งาน SLA' / 'จำนวนรีวิว' = base ของ % และคะแนน — export บอก sample size เหมือนหน้าจอ (F4)
+        // 'งาน SLA' / 'จำนวนรีวิว' = base ของ % และคะแนน — export บอก sample size เหมือนหน้าจอ
         return [
             $period['label'], $period['created'], $period['resolved'], $period['net'],
             $period['sla_pct_label'], $period['sla_base'], $period['mttr_hours_label'], $period['csat_label'], $period['rating_count'],
@@ -1521,7 +1521,7 @@ class ReportService
         $tMttr = round(((float) ($thisSum['avg_resolution_minutes'] ?? 0)) / 60, 1);
         $pMttr = round(((float) ($prevSum['avg_resolution_minutes'] ?? 0)) / 60, 1);
         // MTTR presence = tickets with a real resolved_at (resolution_base), NOT the status-resolved count —
-        // a resolved-status ticket with a NULL resolved_at contributes nothing to the average (F1).
+        // a resolved-status ticket with a NULL resolved_at contributes nothing to the average.
         $tMttrBase = (int) ($thisSum['resolution_base'] ?? 0);
         $pMttrBase = (int) ($prevSum['resolution_base'] ?? 0);
         $tRating = (float) ($thisSum['avg_rating'] ?? 0);
@@ -1537,7 +1537,7 @@ class ReportService
             // snapshot "ค้างเกินตอนนี้" (งวดก่อนปิดไปหมด → baseline ≈ 0 ทำให้เทียบงวดเพี้ยน)
             $this->execKpiCard('เกิน SLA', (int) ($thisSum['breached_tickets'] ?? 0), (int) ($prevSum['breached_tickets'] ?? 0), 'down_good', 0, '', (string) (int) ($thisSum['breached_tickets'] ?? 0)),
             // MTTR/คะแนน เป็น avg → presence = มีงานปิด/มีรีวิวจริงไหม (base count) ไม่ใช่ค่า avg>0 —
-            // งานปิด <1 นาที (MTTR 0.0) ยังต้องนับว่ามีข้อมูล ไม่งั้นเดลต้าหาย/โชว์ '-' ทั้งที่มีงาน (F5)
+            // งานปิด <1 นาที (MTTR 0.0) ยังต้องนับว่ามีข้อมูล ไม่งั้นเดลต้าหาย/โชว์ '-' ทั้งที่มีงาน
             $this->execKpiCard('เวลาซ่อมเฉลี่ย (ชม.)', $tMttr, $pMttr, 'down_good', 1, '', $tMttrBase > 0 ? number_format($tMttr, 1) : '-', $tMttrBase > 0, $pMttrBase > 0),
             $this->execKpiCard('คะแนนเฉลี่ย', $tRating, $pRating, 'up_good', 1, '', $tRating > 0 ? number_format($tRating, 1) : '-', $tRating > 0, $pRating > 0, $tRatingCount > 0 ? 'จาก ' . number_format($tRatingCount) . ' รีวิว' : null),
         ];
@@ -1640,19 +1640,19 @@ class ReportService
      */
     private function execKpiCard(string $label, float $thisVal, float $prevVal, string $goodDir, int $decimals, string $unit, string $valueLabel, bool $thisHasData = true, bool $prevHasData = true, ?string $sampleLabel = null): array
     {
-        // งวดก่อนไม่มี base (rate/avg ที่ตัวหารเป็น 0) → prev = "-" ไม่ใช่ 0.0 ปลอม (R11-F2). count ส่ง prevHasData
+        // งวดก่อนไม่มี base (rate/avg ที่ตัวหารเป็น 0) → prev = "-" ไม่ใช่ 0.0 ปลอม. count ส่ง prevHasData
         // เป็น true เสมอ (0 คือค่าจริง) จึงยังเป็นตัวเลข. single source → หน้าจอ + CSV/XLSX/PDF อ่านค่านี้เหมือนกัน.
         $prevLabel = $prevHasData ? number_format($prevVal, $decimals) . $unit : '-';
 
-        // Typed export values so the XLSX cell is a real number, not text (R20): a COUNT KPI (no unit, no decimals —
+        // Typed export values so the XLSX cell is a real number, not text: a COUNT KPI (no unit, no decimals —
         // total/resolved/breach) exports as a typed int so Excel can SUM/pivot it; rate/avg labels ("75.0%", "5.0")
         // stay as their formatted string (the exporter's %/decimal handling keeps those numeric); "-" (no base) → text.
         $isCount = $unit === '' && $decimals === 0;
         $valueExport = !$thisHasData ? '-' : ($isCount ? (int) round($thisVal) : $valueLabel);
         $prevExport = !$prevHasData ? '-' : ($isCount ? (int) round($prevVal) : $prevLabel);
 
-        // งวดปัจจุบันไม่มี base (rate/avg ที่ตัวหารเป็น 0) → ห้ามปั้นค่า 0% หรือเดลต้าหลอก (template-review F/Finding A).
-        // ต่างจาก count ที่ 0 คือค่าจริง — ตัว count ส่ง hasData=true เสมอ. sample_label = ฐานที่ค่าตั้งอยู่ (F4).
+        // งวดปัจจุบันไม่มี base (rate/avg ที่ตัวหารเป็น 0) → ห้ามปั้นค่า 0% หรือเดลต้าหลอก.
+        // ต่างจาก count ที่ 0 คือค่าจริง — ตัว count ส่ง hasData=true เสมอ. sample_label = ฐานที่ค่าตั้งอยู่.
         if (!$thisHasData) {
             return ['label' => $label, 'value_label' => '-', 'prev_value_label' => $prevLabel, 'value_export' => $valueExport, 'prev_value_export' => $prevExport, 'delta_label' => '—', 'pct_label' => '—', 'tone' => 'default', 'sample_label' => $sampleLabel];
         }
@@ -1691,8 +1691,8 @@ class ReportService
 
     private function execExportRow(array $kpi): array
     {
-        // 'ฐานตัวอย่าง' = sample_label (เช่น "จาก N รีวิว") ให้ export ตรงกับจอ/PDF (F4) ; KPI อื่นเว้นว่าง.
-        // value/prev = typed export values so a COUNT KPI is a real number in Excel, not text (R20).
+        // 'ฐานตัวอย่าง' = sample_label (เช่น "จาก N รีวิว") ให้ export ตรงกับจอ/PDF ; KPI อื่นเว้นว่าง.
+        // value/prev = typed export values so a COUNT KPI is a real number in Excel, not text.
         return [$kpi['label'], $kpi['value_export'] ?? $kpi['value_label'], $kpi['prev_value_export'] ?? $kpi['prev_value_label'], $kpi['delta_label'], $kpi['pct_label'], (string) ($kpi['sample_label'] ?? '')];
     }
 
@@ -1838,7 +1838,7 @@ class ReportService
             'total' => (int) ($row['total'] ?? 0),
             'oldest_days' => $oldest,
             // presence = has backlog (total > 0), NOT oldest > 0 — a real open ticket created today is
-            // aged 0 days and must read "0 วัน", not "-" (which means "no backlog"). (round-2 #6)
+            // aged 0 days and must read "0 วัน", not "-" (which means "no backlog").
             'oldest_label' => (int) ($row['total'] ?? 0) > 0 ? $oldest . ' วัน' : '-',
             'warn_tone' => $b730 > 0 ? 'warning' : 'default',
             'over30_tone' => $b30 > 0 ? 'danger' : 'default',
@@ -2296,7 +2296,7 @@ class ReportService
     private function buildCsatDistribution(array $viewer, array $normalizedFilters, int $total): array
     {
         // ไม่มีรีวิวเลย (base=0) → ไม่มี "การกระจายคะแนน" จริง — คืน [] แทน 5 bucket ที่โชว์ 0.0% ทั้งหมด
-        // (มิฉะนั้น PDF/หน้าจอช่วงว่างจะดูเหมือนมี distribution จริง). สอดคล้อง empty≠zero. (BI-review round-2 #5)
+        // (มิฉะนั้น PDF/หน้าจอช่วงว่างจะดูเหมือนมี distribution จริง). สอดคล้อง empty≠zero.
         if ($total <= 0) {
             return [];
         }
@@ -2330,7 +2330,7 @@ class ReportService
                 $category = trim((string) ($row['category_name'] ?? ''));
                 $createdAt = (string) ($row['created_at'] ?? '');
                 // Show a Thai พ.ศ. date like the rest of the app; the sortable table gets the raw timestamp in
-                // date_sort so the "วันที่" column still sorts correctly. (ux-review F1)
+                // date_sort so the "วันที่" column still sorts correctly.
                 $createdTs = $createdAt !== '' ? strtotime($createdAt) : false;
 
                 return [
@@ -2373,7 +2373,7 @@ class ReportService
             'dimension' => in_array($dimension, self::CSAT_DIMENSIONS, true) ? $dimension : 'technician',
             'department_id' => max(0, (int) ($filters['department_id'] ?? 0)),
             'category_id' => max(0, (int) ($filters['category_id'] ?? 0)),
-            'status' => '', // กัน status leak เข้าตัวกรอง (บทเรียนจาก reopen code-review)
+            'status' => '', // กัน status leak เข้าตัวกรอง
         ];
     }
 
@@ -2399,7 +2399,7 @@ class ReportService
 
     /**
      * The 4 CSAT sections (summary / distribution / breakdown / feedback) as title+headers+rows — SINGLE SOURCE
-     * so every export format carries the same sections the screen shows (BI-review F4 parity: CSV was breakdown-
+     * so every export format carries the same sections the screen shows (parity: CSV was breakdown-
      * only, Excel had no distribution, PDF had no feedback). Order matches the screen.
      */
     private function csatExportSections(array $viewer, array $normalizedFilters, array $rows, int $feedbackLimit): array
@@ -2629,7 +2629,7 @@ class ReportService
                 continue;
             }
             // pivot by dimension_id, not label — two entities with the same name (schema allows duplicate
-            // location/category names) must stay distinct rows (template-review F3). null id → '' bucket.
+            // location/category names) must stay distinct rows. null id → '' bucket.
             $key = (string) ($row['dimension_id'] ?? '');
             if (!isset($byDim[$key])) {
                 $byDim[$key] = ['label' => (string) ($row['dimension_label'] ?? '-'), 'response' => ['met' => 0, 'breached' => 0], 'resolution' => ['met' => 0, 'breached' => 0]];
@@ -2993,7 +2993,7 @@ class ReportService
             ];
 
             // route the main sheet through the shared writer so numeric cells (e.g. "เวลาแก้ไข" > 999h with a
-            // thousands comma) are real numbers, not text — same path as the CSAT/analytics sheets (round-9)
+            // thousands comma) are real numbers, not text — same path as the CSAT/analytics sheets
             $this->exporter->fillSheet(
                 $spreadsheet->getActiveSheet(),
                 'รายงาน Ticket',
@@ -3012,7 +3012,7 @@ class ReportService
                     $row['resolution_hours_label'],
                     $row['sla_overdue_label'],
                     $row['sla_label'],
-                    $row['rating_value'], // typed int → numeric (average/pivot); '-' when unrated (R19)
+                    $row['rating_value'], // typed int → numeric (average/pivot); '-' when unrated
                     $this->txt($row['location_name']),
                 ], $rows)
             );
@@ -3095,7 +3095,7 @@ class ReportService
 
         try {
             // The CSV carries the ticket table PLUS the same 4 analytics blocks as the Excel sheets / screen, so
-            // a manager who exports CSV gets the same conclusions as the other formats (BI-review F4). The ticket
+            // a manager who exports CSV gets the same conclusions as the other formats. The ticket
             // table stays the first block (a clean pivotable table); the analytics follow as titled blocks.
             $ticketSection = [
                 'headers' => ['เลขที่', 'หัวข้อ', 'ผู้แจ้ง', 'แผนก', 'หมวดหมู่', 'ช่างเทคนิค', 'ความสำคัญ', 'สถานะ', 'วันที่แจ้ง', 'วันที่แก้ไข', 'เวลาแก้ไข (ชม.)', 'เกิน SLA', 'สถานะ SLA', 'คะแนน', 'สถานที่'],
@@ -3174,7 +3174,7 @@ class ReportService
     /**
      * Per-run memo for report page-data, active ONLY while the sample pack is building (null otherwise). The pack
      * writes both a PDF and an XLSX of the same four reports; without this, each report's data is collected twice
-     * (once per format). Keyed by (bucket, viewer, filters) so a report's data is fetched once and reused. (perf-review F5)
+     * (once per format). Keyed by (bucket, viewer, filters) so a report's data is fetched once and reused.
      *
      * @var array<string, mixed>|null
      */
@@ -3242,7 +3242,7 @@ class ReportService
         // The sample pack is a GET preview bundle — it must NOT create export_jobs audit rows (a refresh or a
         // link-preview bot would inflate the trail). Only deliberate POST exports are audited.
         $this->suppressExportJobTracking = true;
-        $this->samplePackDataCache = []; // collect each report's data once, reuse for both its PDF and XLSX (perf-review F5)
+        $this->samplePackDataCache = []; // collect each report's data once, reuse for both its PDF and XLSX
         try {
             $lines = ['ชุดตัวอย่างรายงาน — ระบบแจ้งซ่อมและบำรุงรักษา', 'สร้างเมื่อ ' . thai_datetime(time()), '', 'ไฟล์ในชุดนี้:'];
             foreach ($catalog as [$name, $pdfMethod, $excelMethod, $filters]) {
@@ -3259,7 +3259,7 @@ class ReportService
 
             $content = file_get_contents($tmp);
             @unlink($tmp);
-            // a read failure of the just-built ZIP must not ship as a 200 empty download — surface it. (error-review-3 O5)
+            // a read failure of the just-built ZIP must not ship as a 200 empty download — surface it.
             if ($content === false) {
                 throw new RuntimeException('ไม่สามารถอ่านไฟล์ชุดตัวอย่างรายงานที่สร้างไว้');
             }
@@ -3398,7 +3398,7 @@ class ReportService
             'sla_overdue_label' => $isOverdue ? 'ใช่' : 'ไม่ใช่',
             'rating_score' => $ratingScore,
             'rating_label' => $ratingScore > 0 ? (string) $ratingScore : '-',
-            // typed rating for exports: a real int so Excel can average/pivot it (or '-' text when unrated) (R19)
+            // typed rating for exports: a real int so Excel can average/pivot it (or '-' text when unrated)
             'rating_value' => $ratingScore > 0 ? $ratingScore : '-',
             'location_name' => (string) ($row['location_name'] ?? '-'),
             'detail_url' => '/tickets/' . (int) ($row['id'] ?? 0),

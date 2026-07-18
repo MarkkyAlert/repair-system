@@ -19,7 +19,7 @@ class AuthMiddleware
             Session::regenerate();
             $target = $returnTo ?? request_path();
             // A JSON/AJAX caller (e.g. the notification-feed poller) must get a 401 JSON, not a 302 to the HTML
-            // login page — a 302+HTML breaks response.json() and leaves the client with no reference. (error-review-5 F2)
+            // login page — a 302+HTML breaks response.json() and leaves the client with no reference.
             if (request_wants_json()) {
                 self::denyJson();
             }

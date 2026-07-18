@@ -141,7 +141,7 @@ class GuestTicketService
     {
         // Required conversion inputs — validated here (not the controller) so the rule holds for every
         // caller of convertToTicket, and is checked before any lock/DB work is done. strict_int rejects a
-        // malformed "1junk" instead of the controller's old (int) cast silently keeping the "1" prefix (F1).
+        // malformed "1junk" instead of the controller's old (int) cast silently keeping the "1" prefix.
         $priorityId = strict_int($priorityId, 'ความสำคัญ');
         $categoryId = strict_int($categoryId, 'หมวดหมู่');
         if ($priorityId <= 0 || $categoryId <= 0) {
@@ -166,7 +166,7 @@ class GuestTicketService
             $originalTitle = (string) $request['title'];
             // The composed "[จาก Guest: name] {title}" can exceed the 200-char ticket-title limit (name ≤150 +
             // title ≤200), which would make a successfully-submitted guest request fail to convert. Cap the
-            // title at 200 and keep the FULL original in the description so nothing is lost. (logic-review F4)
+            // title at 200 and keep the FULL original in the description so nothing is lost.
             $composedTitle = '[จาก Guest: ' . (string) $request['guest_name'] . '] ' . $originalTitle;
             if (mb_strlen($composedTitle) > 200) {
                 $composedTitle = mb_substr($composedTitle, 0, 200);
@@ -189,8 +189,8 @@ class GuestTicketService
             ];
 
             // ผู้แจ้งตัวจริงคือ guest (ไม่มีบัญชี/แผนก) — ห้ามให้ ticket สืบทอด "แผนก" ของคนที่กดแปลง
-            // ไม่งั้นรายงานมิติแผนกผู้แจ้งจะนับงานคนนอกเข้าแผนกของ admin/manager (logic-review F3,
-            // business-confirmed). requester_id ยังเป็นผู้กดแปลงโดยตั้งใจ (ต้องมีคนภายในถือสิทธิ์ปิดงาน).
+            // ไม่งั้นรายงานมิติแผนกผู้แจ้งจะนับงานคนนอกเข้าแผนกของ admin/manager
+            // (ตัดสินใจโดยเจ้าของระบบ). requester_id ยังเป็นผู้กดแปลงโดยตั้งใจ (ต้องมีคนภายในถือสิทธิ์ปิดงาน).
             $converterWithoutDepartment = $viewer;
             unset($converterWithoutDepartment['department_id']);
 
@@ -199,7 +199,7 @@ class GuestTicketService
             // จึง "ได้ทั้งคู่ หรือไม่ได้เลย" ไม่มี ticket กำพร้า (สร้างแล้วแต่ request ยังไม่ถูก mark converted).
             $this->db->beginTransaction();
             try {
-                // channel='qr' as a trusted argument — the origin was a QR scan (logic-review R4-F1/F2)
+                // channel='qr' as a trusted argument — the origin was a QR scan
                 $ticketId = $tickets->createTicket($converterWithoutDepartment, $ticketInput, [], 'qr');
                 if (!$this->requests->claimAndLink($requestId, $ticketId, (int) ($viewer['id'] ?? 0))) {
                     throw new RuntimeException('เชื่อมโยง Ticket กับ guest request ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');

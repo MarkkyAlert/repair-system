@@ -301,10 +301,10 @@ class TicketRepository
 
         try {
             $this->db->beginTransaction();
-            // accepted/in_progress: mid-work reassign when the technician became unavailable (logic-review F2).
+            // accepted/in_progress: mid-work reassign when the technician became unavailable.
             // Branch on the LOCKED status, not the pre-lock snapshot passed by the caller — a concurrent
             // accept/start between the service's read and this lock must not make a reassign look like a first
-            // assign (which would skip the response-SLA reset and log a wrong from_status). (logic-review F2b)
+            // assign (which would skip the response-SLA reset and log a wrong from_status).
             $lockedStatus = $this->lockTicketForTransition($ticketId, ['approved', 'assigned', 'accepted', 'in_progress'], 'approved');
 
             $isReassign = in_array($lockedStatus, ['assigned', 'accepted', 'in_progress'], true);
@@ -312,7 +312,6 @@ class TicketRepository
             // Authoritative under-lock re-check of the mid-work-reassign reason rule. The service checks this
             // BEFORE the lock, but a concurrent accept/start could move the ticket into a mid-work state after
             // that check — enforce it here on the LOCKED status so a reason can never be skipped by a race.
-            // (logic-review F2c)
             if (in_array($lockedStatus, ['accepted', 'in_progress'], true) && $instructions === '') {
                 throw new DomainException('กรุณาระบุเหตุผลในการย้ายงานที่ช่างรับไปแล้ว');
             }
@@ -322,7 +321,7 @@ class TicketRepository
             // row + rechecks open work under its own lock) could otherwise interleave: the deactivate sees no
             // open work yet (this assign uncommitted) and disables the account, then this assign commits →
             // is_active=0 + status=assigned, work stuck on a dead account. Locking the user row here serialises
-            // the two flows so exactly one wins. (logic-review R7-F1)
+            // the two flows so exactly one wins.
             $techStmt = $this->db->prepare('SELECT role, is_active FROM users WHERE id = :id LIMIT 1 FOR UPDATE');
             $techStmt->execute(['id' => $technicianId]);
             $tech = $techStmt->fetch(PDO::FETCH_ASSOC) ?: null;
@@ -534,7 +533,7 @@ class TicketRepository
         try {
             $this->db->beginTransaction();
             // multi-status lock → log from the LOCKED status, not the caller's pre-lock snapshot, so a concurrent
-            // accept between the service read and this lock can't record a wrong from_status. (logic-review F5)
+            // accept between the service read and this lock can't record a wrong from_status.
             $lockedStatus = $this->lockTicketForTransition($ticketId, ['assigned', 'accepted'], 'approved', 'assigned_technician_id', $actorId);
 
             $ticketStmt = $this->db->prepare(
@@ -592,7 +591,7 @@ class TicketRepository
 
         try {
             $this->db->beginTransaction();
-            // multi-status lock → log from the LOCKED status, not the caller's pre-lock snapshot. (logic-review F5)
+            // multi-status lock → log from the LOCKED status, not the caller's pre-lock snapshot.
             $lockedStatus = $this->lockTicketForTransition($ticketId, ['accepted', 'in_progress'], 'approved', 'assigned_technician_id', $actorId);
 
             $ticketStmt = $this->db->prepare(

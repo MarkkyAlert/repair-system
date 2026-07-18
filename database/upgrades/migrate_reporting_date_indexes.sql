@@ -1,5 +1,5 @@
 -- ============================================================
--- Reporting date-window performance — indexes บนคอลัมน์ที่ใช้กรองช่วงวันที่ (perf-review F7)
+-- Reporting date-window performance — indexes บนคอลัมน์ที่ใช้กรองช่วงวันที่
 -- ------------------------------------------------------------
 -- 1) Dashboard "ค่าเฉลี่ยการปิดงานรายเดือน" กรอง tickets.resolved_at ตามช่วงปี
 --    (getDashboardMonthlyResolutionAverages) — เดิม resolved_at ไม่มี index → full scan + filesort.

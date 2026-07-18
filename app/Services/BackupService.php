@@ -31,7 +31,7 @@ class BackupService
         $lastTs = $lastRunAt !== '' ? strtotime($lastRunAt) : false;
 
         // Only count files that are actually RESTORABLE — a real, non-empty gzip. A truncated/empty/junk
-        // db-*.sql.gz (e.g. one a broken backup left behind) must not read as a fresh, valid backup. (error-review-9 F1)
+        // db-*.sql.gz (e.g. one a broken backup left behind) must not read as a fresh, valid backup.
         $paths = array_values(array_filter(
             glob(storage_path('backups') . '/db-*.sql.gz') ?: [],
             fn (string $path): bool => $this->isRestorableBackup($path)
@@ -87,7 +87,7 @@ class BackupService
      * True only for a real, non-empty gzip — the cheap, no-decompress restorability check used to keep an
      * empty/truncated/junk db-*.sql.gz out of the "valid backup" count. Verifies the gzip magic bytes and that
      * the trailer's ISIZE (uncompressed size, mod 2^32) is > 0, so a gzip of empty input (ISIZE 0) is rejected.
-     * (error-review-9 F1)
+     *
      */
     private function isRestorableBackup(string $path): bool
     {

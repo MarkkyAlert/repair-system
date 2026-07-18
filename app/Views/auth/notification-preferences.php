@@ -159,7 +159,7 @@
                loosening the label row — an invisible, absolutely-positioned overlay carries the extra hit area. */
             .prefs-info-icon::after { content: ""; position: absolute; inset: -8px; }
             .prefs-info-icon:hover { color: var(--indigo-400, #818cf8); background: rgba(99, 102, 241, .12); border-color: rgba(99, 102, 241, .25); }
-            .prefs-info-icon:focus-visible { color: var(--indigo-400, #818cf8); background: rgba(99, 102, 241, .12); border-color: rgba(99, 102, 241, .25); outline: 3px solid var(--indigo-500); outline-offset: 2px; } /* solid ring ≥3:1 (ux-review-6 F7) */
+            .prefs-info-icon:focus-visible { color: var(--indigo-400, #818cf8); background: rgba(99, 102, 241, .12); border-color: rgba(99, 102, 241, .25); outline: 3px solid var(--indigo-500); outline-offset: 2px; } /* solid ring ≥3:1 */
             .prefs-info-icon[aria-expanded="true"] { color: var(--indigo-400, #818cf8); background: rgba(99, 102, 241, .15); }
 
             .prefs-impact-text { display: flex; align-items: flex-start; gap: .4rem; margin-top: .4rem; padding: .5rem .65rem; border-radius: 8px; background: rgba(234, 179, 8, .08); border: 1px solid rgba(234, 179, 8, .2); color: var(--text); }

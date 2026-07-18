@@ -80,7 +80,7 @@ if (!$dryRun) {
 
     // Run mysqldump DIRECTLY (array proc_open — no shell) and gzip its stdout in-process (PHP zlib), so a
     // mysqldump failure is caught via its OWN exit code. A `mysqldump | gzip` shell pipe reported gzip's status
-    // (still 0 when mysqldump fails), which let an empty gzip pass as a "successful" backup. (error-review-9 F1)
+    // (still 0 when mysqldump fails), which let an empty gzip pass as a "successful" backup.
     $dumpArgs = [
         $mysqldumpBin,
         '--host=' . $host,
@@ -93,7 +93,7 @@ if (!$dryRun) {
         $database,
     ];
 
-    // Deadline so a stalled dump (a hung DB endpoint) can't hang the cron forever with no heartbeat. (error-review-7 F2)
+    // Deadline so a stalled dump (a hung DB endpoint) can't hang the cron forever with no heartbeat.
     $timeoutSeconds = max(1, (int) env('BACKUP_TIMEOUT_SECONDS', 900));
     $exitCode = 0;
     $stderr = '';
@@ -174,7 +174,7 @@ if (!$dryRun) {
         exit(1);
     }
     if ($sqlBytes === 0) {
-        // dump exited 0 but produced no SQL — refuse to record an empty backup as a success (error-review-9 F1)
+        // dump exited 0 but produced no SQL — refuse to record an empty backup as a success
         fwrite(STDERR, 'mysqldump produced no SQL output — refusing to write an empty backup.' . PHP_EOL);
         @unlink($absolutePath);
         exit(1);
@@ -208,12 +208,12 @@ if (!$dryRun) {
     // The dump + rotation already succeeded; recording the heartbeat needs the DB, which can be unreachable at
     // this point (connection dropped, system_settings unavailable). A throw here would escape as an UNCAUGHT
     // fatal (exit 255) — this CLI script has no global exception boundary — so catch it and exit(1) cleanly, so
-    // the scheduler sees a controlled failure instead of a crash. (error-review-8 F1)
+    // the scheduler sees a controlled failure instead of a crash.
     try {
         $settings = $container->get(SettingsRepository::class);
         if ($settings instanceof SettingsRepository) {
             $settings->upsert('cron_backup_last_run_at', date('Y-m-d H:i:s'), 'string', false, 0);
-            // record rotation failures so the dashboard warns + the exit code is non-zero (error-review-2 F4)
+            // record rotation failures so the dashboard warns + the exit code is non-zero
             $settings->upsert('cron_backup_last_failed', (string) $deleteFailures, 'string', false, 0);
         }
     } catch (Throwable $exception) {
@@ -229,5 +229,5 @@ $retained = count($existing) - $deletedCount + ($dryRun ? 1 : 0);
 echo '[backup] done. retained=' . $retained . ' deleted=' . $deletedCount . ' delete_failed=' . $deleteFailures . PHP_EOL;
 
 // the backup itself succeeded, but a failed rotation delete means stale files pile up (disk fills) — signal it
-// with a non-zero exit (2), distinct from a crash's 1, while keeping the heartbeat. (error-review-2 F4)
+// with a non-zero exit (2), distinct from a crash's 1, while keeping the heartbeat.
 exit($deleteFailures > 0 ? 2 : 0);

@@ -76,7 +76,7 @@ class SetupController
             flash('success', $message . ' กรุณาเข้าสู่ระบบ');
             Response::redirect('/login');
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
         } catch (DomainException|RuntimeException $exception) {
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
@@ -98,7 +98,7 @@ class SetupController
      * serialised by a DB named lock with an admin/flag RE-CHECK INSIDE the lock so two concurrent setups can
      * never each create an admin (unique keys are per username/email, not "only one admin"). No HTTP/redirect,
      * so it is directly testable. Throws DomainException if setup is already done (the race loser) or the admin
-     * input is invalid; returns the demo summary (or null). (logic-review R6-F1)
+     * input is invalid; returns the demo summary (or null).
      *
      * @param array<string, mixed> $input raw admin_* / load_demo fields
      * @return array<string, mixed>|null
@@ -121,7 +121,7 @@ class SetupController
             if ($username === '' || $email === '' || $fullName === '' || $password === '') {
                 throw new DomainException('กรุณากรอกข้อมูลผู้ดูแลระบบให้ครบถ้วน');
             }
-            require_max_length($fullName, 150, 'ชื่อ-นามสกุล'); // users.full_name VARCHAR(150) — match the other user flows (dup-review F2)
+            require_max_length($fullName, 150, 'ชื่อ-นามสกุล'); // users.full_name VARCHAR(150) — match the other user flows
             if (!is_valid_username($username)) {
                 throw new DomainException('ชื่อผู้ใช้ต้องมี 3-50 ตัว (a-z, 0-9, จุด, ขีดกลาง, ขีดล่าง)');
             }
@@ -214,7 +214,7 @@ class SetupController
         $stmt->execute(['name' => 'maintenance-first-run-setup']);
         if ((int) $stmt->fetchColumn() !== 1) {
             // a concurrent setup holds the lock — an EXPECTED "try again" condition, not an operational failure,
-            // so it's a DomainException (flashed, retryable) per the taxonomy. (consistency-review)
+            // so it's a DomainException (flashed, retryable) per the taxonomy.
             throw new DomainException('ระบบกำลังตั้งค่าอยู่ กรุณาลองใหม่อีกครั้ง');
         }
     }

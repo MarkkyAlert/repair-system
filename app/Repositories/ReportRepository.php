@@ -265,7 +265,7 @@ class ReportRepository
         $conditions = [$this->visibilityClause($viewer, $params)];
         $this->applyAssetReportFilters($conditions, $filters, $params);
         // a future requested_at (clock skew / bad import) is not a real failure — excluding it keeps
-        // failure_count / first_failure / last_failure / MTBF / downtime honest (round-8 F3).
+        // failure_count / first_failure / last_failure / MTBF / downtime honest.
         $conditions[] = 't.requested_at <= NOW()';
         $whereClause = implode(' AND ', $conditions);
         $limit = max(1, min($limit, self::MAX_ROWS));
@@ -379,7 +379,7 @@ class ReportRepository
         $params = [];
         $conditions = [$this->visibilityClause($viewer, $params)];
         $this->applyReportFilters($conditions, $filters, $params);
-        $conditions[] = $this->slaApplicableCondition(); // cancelled ticket = ไม่คิด SLA (round-8 F1)
+        $conditions[] = $this->slaApplicableCondition(); // cancelled ticket = ไม่คิด SLA
         $conditions[] = $this->latestSlaCycleClause('ts'); // sla-compliance current = the latest cycle's verdict (F1 Phase 2)
         $whereClause = implode(' AND ', $conditions);
 
@@ -423,7 +423,7 @@ class ReportRepository
         $params = [];
         $conditions = [$this->visibilityClause($viewer, $params)];
         $this->applySlaBreachFilters($conditions, $filters, $params);
-        $conditions[] = $this->slaApplicableCondition(); // cancelled ticket = ไม่คิด SLA (round-8 F1)
+        $conditions[] = $this->slaApplicableCondition(); // cancelled ticket = ไม่คิด SLA
         $conditions[] = $this->latestSlaCycleClause('ts'); // sla-breach current = the latest cycle's verdict (F1 Phase 2)
         $whereClause = implode(' AND ', $conditions);
 
@@ -721,7 +721,7 @@ class ReportRepository
     }
 
     /**
-     * งานที่ "ปิด" ต่องวด + MTTR + SLA ตรงเวลา + CSAT — as-reported (F1): bucket ตาม event `ticket_resolved`
+     * งานที่ "ปิด" ต่องวด + MTTR + SLA ตรงเวลา + CSAT — as-reported: bucket ตาม event `ticket_resolved`
      * (immutable) ไม่ใช่ t.resolved_at ที่ reopen NULL ทิ้ง (งานที่ปิดใน ม.ค. แล้วถูกเปิดซ้ำจะไม่หายจากยอด ม.ค.).
      *
      * Multi-resolve de-dup: ยุบ resolve events ของ ticket เดียวเหลือ "ตัวแทนหนึ่งตัวต่อ (ticket, งวด)" =
@@ -757,7 +757,7 @@ class ReportRepository
         }
 
         // visibility + dept/category apply to the ticket row ; exclude backwards timestamps (representative
-        // resolve < requested_at, bad seed/import) so trend MTTR is never negative (F1).
+        // resolve < requested_at, bad seed/import) so trend MTTR is never negative.
         $conditions = [$this->visibilityClause($viewer, $params), 're.resolved_at >= t.requested_at'];
         $this->applyTrendDimensionFilters($conditions, $filters, $params);
         $whereClause = implode(' AND ', $conditions);
@@ -1120,7 +1120,7 @@ class ReportRepository
     public function markExportJobCompleted(int $jobId, string $fileName, ?string $filePath = null): void
     {
         if ($jobId <= 0) {
-            return; // suppressed job (sample-pack preview) — no row to update, skip the no-op UPDATE (perf-review F5)
+            return; // suppressed job (sample-pack preview) — no row to update, skip the no-op UPDATE
         }
 
         $stmt = $this->db->prepare(
@@ -1147,7 +1147,7 @@ class ReportRepository
     public function markExportJobFailed(int $jobId, string $errorMessage): void
     {
         if ($jobId <= 0) {
-            return; // suppressed job (sample-pack preview) — no row to update (perf-review F5)
+            return; // suppressed job (sample-pack preview) — no row to update
         }
 
         $stmt = $this->db->prepare(

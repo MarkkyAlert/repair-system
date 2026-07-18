@@ -19,7 +19,7 @@ try {
     $settings = $container->get(SettingsRepository::class);
     if ($settings instanceof SettingsRepository) {
         $settings->upsert('cron_email_queue_last_run_at', date('Y-m-d H:i:s'), 'string', false, 0);
-        // record the terminal-failure count so the dashboard can warn on FAILURES, not just staleness (error-review F4)
+        // record the terminal-failure count so the dashboard can warn on FAILURES, not just staleness
         $settings->upsert('cron_email_queue_last_failed', (string) $failed, 'string', false, 0);
     }
 
@@ -28,7 +28,7 @@ try {
     echo 'Retried: ' . (int) ($result['retried'] ?? 0) . PHP_EOL;
     echo 'Failed: ' . $failed . PHP_EOL;
 
-    // In production the cron log must not carry recipient PII — print the job id, not the email + subject. (error-review-2 F5)
+    // In production the cron log must not carry recipient PII — print the job id, not the email + subject.
     $isProduction = (string) config('app.env', 'production') === 'production';
     foreach (($result['items'] ?? []) as $item) {
         $who = $isProduction
@@ -39,7 +39,7 @@ try {
 
     // The run completed (heartbeat updated), but a terminal failure — an email that exhausted its retries and
     // will NEVER send — is an unhealthy outcome cron monitoring must see. Distinct exit code (2) so it is not
-    // confused with a crash (1). (error-review F4)
+    // confused with a crash (1).
     exit($failed > 0 ? 2 : 0);
 } catch (Throwable $exception) {
     fwrite(STDERR, (string) $exception . PHP_EOL); // full trace (class + message + file:line) for cron debugging

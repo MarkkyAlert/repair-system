@@ -41,7 +41,7 @@ class CommentsController
 
         $viewer = auth()->user() ?? [];
         // use the shared content-negotiation helper (same one the entry point + AuthMiddleware use) rather than
-        // re-deriving Accept / X-Requested-With here, so the JSON decision can't drift. (consistency-review)
+        // re-deriving Accept / X-Requested-With here, so the JSON decision can't drift.
         $expectsJson = request_wants_json(request()?->server);
 
         try {
@@ -55,7 +55,7 @@ class CommentsController
 
             flash('success', 'อัปเดต comment เรียบร้อยแล้ว');
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
         } catch (DomainException|RuntimeException $exception) {
             if ($expectsJson) {
                 Response::jsonError($exception->getMessage());

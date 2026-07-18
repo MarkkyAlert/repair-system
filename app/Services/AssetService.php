@@ -25,7 +25,7 @@ class AssetService
         $this->assertManageable($viewer);
 
         // The list filter bar only offers category + location — load just those, not the full form reference
-        // (which also fetches departments + custodians the list never uses). (perf-review F8)
+        // (which also fetches departments + custodians the list never uses).
         $reference = $this->assets->getAssetIndexReferenceData();
         $normalizedFilters = $this->normalizeAssetIndexFilters($filters);
         $result = $this->assets->getAssetListPage(max(1, (int) ($filters['page'] ?? 1)), 18, $normalizedFilters);
@@ -119,7 +119,7 @@ class AssetService
         }
 
         $this->assets->regenerateQrToken($assetId, (int) ($viewer['id'] ?? 0) > 0 ? (int) $viewer['id'] : null);
-        $this->purgeQrCache($assetId); // the old token's cached PNG is now stale (perf-review F1)
+        $this->purgeQrCache($assetId); // the old token's cached PNG is now stale
     }
 
     private const PRINT_ASSETS_CAP = 500;
@@ -318,7 +318,7 @@ class AssetService
         // renders up to 500 codes and each <img> is a separate request; rendering a fresh PNG every time is
         // the wall-time cost (measured ~8.7s for 500). Serve cached bytes on repeat requests. The key
         // includes the token hash, so a regenerated token misses the old file — a stale image is never
-        // served — and regenerateQrToken purges the previous file. (perf-review F1)
+        // served — and regenerateQrToken purges the previous file.
         $cachePath = $this->qrCachePath($assetId, $token);
         $cached = @file_get_contents($cachePath);
         if ($cached !== false && $cached !== '') {
@@ -421,7 +421,7 @@ class AssetService
         $assetCode = strtoupper(trim((string) ($input['asset_code'] ?? '')));
         $name = trim((string) ($input['name'] ?? ''));
         $serialNumber = trim((string) ($input['serial_number'] ?? ''));
-        // strict_int so a malformed "1junk" reference is rejected, not coerced to its prefix (round F1)
+        // strict_int so a malformed "1junk" reference is rejected, not coerced to its prefix
         $categoryId = strict_int($input['asset_category_id'] ?? null, 'หมวดหมู่ Asset ');
         $departmentId = strict_int($input['department_id'] ?? null, 'แผนก ');
         $locationId = strict_int($input['location_id'] ?? null, 'สถานที่ ');
@@ -443,7 +443,7 @@ class AssetService
         }
 
         // Optional text fields — bound to their columns so an over-long value is a friendly message, not a
-        // raw DB error under strict mode (serial/brand/model VARCHAR(100), vendor VARCHAR(150)). (F6)
+        // raw DB error under strict mode (serial/brand/model VARCHAR(100), vendor VARCHAR(150)).
         require_max_length($serialNumber, 100, 'Serial Number');
         require_max_length($brand, 100, 'ยี่ห้อ');
         require_max_length($model, 100, 'รุ่น');

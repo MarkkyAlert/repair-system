@@ -22,7 +22,7 @@ class AuthManager
     /**
      * DB-free auth probe: reads the session only — no UserRepository, no PDO resolution. The error-page path
      * must render even when the database is unreachable, so it cannot go through auth() (which resolves the
-     * repository, whose PDO connects eagerly and would throw during an outage). (ux-review-3 F1)
+     * repository, whose PDO connects eagerly and would throw during an outage).
      */
     public static function checkSession(): bool
     {

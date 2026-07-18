@@ -71,7 +71,7 @@ class AuthController
             flash('success', 'เข้าสู่ระบบเรียบร้อยแล้ว');
             Response::redirect($returnTo);
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
         } catch (DomainException|RuntimeException $exception) {
             with_old_input(['login' => $login]);
             flash('error', $exception->getMessage());
@@ -114,12 +114,12 @@ class AuthController
             $this->service->createPasswordReset($email);
             flash('success', 'หากอีเมลนี้มีอยู่ในระบบ ระบบได้สร้างคำขอรีเซ็ตรหัสผ่านให้แล้ว');
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
         } catch (DomainException|RuntimeException $exception) {
             // DomainException = expected (bad email, over the rate limit) → flash only. A RuntimeException is an
             // operational failure (e.g. the reset row was written but the email template/render failed) that was
             // flashed with no trace; log it so the user's "couldn't request a reset" report is debuggable, without
-            // leaking the raw email/token. (error-review-6 F3)
+            // leaking the raw email/token.
             if ($exception instanceof RuntimeException) {
                 log_caught_exception('auth.reset.request', $exception);
             }
@@ -172,11 +172,11 @@ class AuthController
             flash('success', 'ตั้งรหัสผ่านใหม่เรียบร้อยแล้ว กรุณาเข้าสู่ระบบอีกครั้ง');
             Response::redirect('/login');
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
         } catch (DomainException|RuntimeException $exception) {
             // DomainException = expected (bad/expired token, weak password, CSRF) → flash only. A RuntimeException
             // is an operational failure (e.g. session/hash subsystem) that was flashed with no trace; log it so a
-            // user's "couldn't reset" report is debuggable. (error-review-4 F1)
+            // user's "couldn't reset" report is debuggable.
             if ($exception instanceof RuntimeException) {
                 log_caught_exception('auth.reset', $exception);
             }
@@ -210,7 +210,7 @@ class AuthController
             );
             flash('success', 'เปลี่ยนรหัสผ่านเรียบร้อยแล้ว');
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
         }
@@ -275,11 +275,11 @@ class AuthController
                 throw new DomainException('ไม่พบบัญชีผู้ใช้งาน');
             }
             // delegate to the purpose-built service method (NULL the stored token + drop the cookie) instead of
-            // re-implementing it against the repository, so any future revoke behaviour lives in one place. (consistency-review)
+            // re-implementing it against the repository, so any future revoke behaviour lives in one place.
             $this->rememberMe->revokeAllForUser($userId);
             flash('success', 'ยกเลิกการจดจำการเข้าระบบทุกอุปกรณ์เรียบร้อยแล้ว');
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
         }
@@ -297,7 +297,7 @@ class AuthController
             clear_old_input();
             flash('success', 'อัปเดตข้อมูลบัญชีเรียบร้อยแล้ว');
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
         } catch (DomainException|RuntimeException $exception) {
             with_old_input([
                 'full_name' => (string) ($_POST['full_name'] ?? ''),
@@ -347,11 +347,11 @@ class AuthController
         try {
             csrf_validate();
             // delegate the normalization + write to the service that owns the preference repository, so this
-            // mutation goes through a service like every other. (consistency-review F2)
+            // mutation goes through a service like every other.
             $this->notifications->saveUserPreferences($userId, (array) ($_POST['pref'] ?? []));
             flash('success', 'บันทึกการตั้งค่าการแจ้งเตือนเรียบร้อยแล้ว');
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
         }

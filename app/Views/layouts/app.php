@@ -8,7 +8,7 @@
     <meta name="theme-color" content="#6366f1">
     <title><?= e($title ?? $appName) ?></title>
     <?= render_partial('partials/theme-init') ?>
-    <?php // No font preconnect hints: the CSP connect-src is 'self', so they are blocked and only add console noise. The stylesheet below loads under style-src/font-src. (ux-review-5 F3) ?>
+    <?php // No font preconnect hints: the CSP connect-src is 'self', so they are blocked and only add console noise. The stylesheet below loads under style-src/font-src. ?>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?= e(asset('css/app.css')) ?>">
     <!-- Brand colours — edit public/assets/css/theme.css to rebrand (no build step). Loaded last so it wins. -->

@@ -66,7 +66,7 @@ class NotificationRepository
     /**
      * Insert recipient rows for a notification as bounded multi-row INSERTs (one statement per chunk) instead
      * of one execute() per recipient. A broadcast to the whole org was O(recipients) round-trips; this makes it
-     * O(recipients / CHUNK). Chunked to keep the placeholder count well under driver/packet limits. (perf-review F9)
+     * O(recipients / CHUNK). Chunked to keep the placeholder count well under driver/packet limits.
      *
      * @param int[] $recipientIds
      */

@@ -606,7 +606,7 @@ class TicketReadRepository
     /**
      * Batch visibility-scoped fetch of the workflow-policy columns for a set of tickets — for bulk actions
      * (e.g. bulk approve) that would otherwise call findVisibleTicketById once per id. Returns only the
-     * columns the policy + transition need, not the full detail row. (perf-review F2)
+     * columns the policy + transition need, not the full detail row.
      *
      * @param int[] $ticketIds
      * @return array<int, array<string, mixed>>

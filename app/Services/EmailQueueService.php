@@ -45,7 +45,7 @@ class EmailQueueService
     public function queueSystemAnnouncementEmails(array $recipientIds, string $title, string $message): void
     {
         // Build every recipient's message then enqueue them in bounded multi-row INSERTs — a broadcast to the
-        // whole org was one INSERT per recipient (2 writes/recipient with the notification). (perf-review F9)
+        // whole org was one INSERT per recipient (2 writes/recipient with the notification).
         $payloads = [];
         foreach ($this->users->findActiveUsersByIds($recipientIds) as $recipient) {
             $email = $this->templates->buildSystemAnnouncement($recipient, $title, $message);

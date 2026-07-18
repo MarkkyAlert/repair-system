@@ -68,10 +68,10 @@ class Response
         $view = View::exists('errors/' . $status) ? 'errors/' . $status : 'errors/500';
         $reference = request_id();
         http_response_code($status);
-        // carry the request correlation id so the error page can show a reference that matches the server log (error-review F8)
+        // carry the request correlation id so the error page can show a reference that matches the server log
         // Render through the DB-free `error` layout (not `guest`, which calls setting()) so a 500 raised BY a
         // database outage still produces a full styled page. If even that fails, fall back to a self-contained
-        // static shell so the user never sees a blank/raw page. (ux-review-3 F1)
+        // static shell so the user never sees a blank/raw page.
         try {
             View::render($view, ['title' => (string) $status, 'message' => $message, 'reference' => $reference], 'error');
         } catch (\Throwable $renderFailure) {
@@ -83,7 +83,7 @@ class Response
 
     /**
      * Last-resort error shell: pure inline HTML/CSS, no includes, no DB, no helpers that can fail. Only used if
-     * the normal (already DB-free) error render itself throws. (ux-review-3 F1)
+     * the normal (already DB-free) error render itself throws.
      */
     private static function minimalErrorHtml(int $status, string $message, string $reference): string
     {

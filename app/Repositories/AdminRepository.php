@@ -28,7 +28,7 @@ class AdminRepository
 
     /**
      * Paginated users for the admin "users" tab — one page of full rows (each renders an edit form), instead
-     * of every user at once. Bounds the response/DOM as the org grows. (perf-review F8)
+     * of every user at once. Bounds the response/DOM as the org grows.
      *
      * @return array{items: array<int, array<string, mixed>>, total: int, page: int, perPage: int, totalPages: int}
      */
@@ -64,7 +64,7 @@ class AdminRepository
 
     /**
      * Lightweight id + name list of every user — for the audit-log "filter by user" dropdown, which must list
-     * all users even though the users tab itself is paginated. (perf-review F8)
+     * all users even though the users tab itself is paginated.
      *
      * @return array<int, array<string, mixed>>
      */
@@ -219,7 +219,7 @@ class AdminRepository
                 throw new DomainException('ผู้ใช้นี้ยังมี Ticket ที่เป็นผู้แจ้ง กรุณาปิดงานให้เรียบร้อยก่อนปิดบัญชี');
             }
 
-            // Optimistic lock (R7-F3): bump version only when it still matches the form's snapshot, so a stale
+            // Optimistic lock: bump version only when it still matches the form's snapshot, so a stale
             // full-form save (Admin B editing an old page) cannot silently overwrite Admin A's newer change.
             $stmt = $this->db->prepare(
                 'UPDATE users

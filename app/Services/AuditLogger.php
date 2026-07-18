@@ -25,7 +25,7 @@ class AuditLogger
         // Best-effort: every caller records the audit AFTER the primary mutation has committed (or the
         // side-effect — e.g. a broadcast — has already been sent), so a failed audit insert must NOT surface as
         // an error to the user (they'd think the action failed and retry, double-sending). Log it for the admin
-        // Security tab instead and keep the success response. (logic-review R7-F4, owner-confirmed best-effort)
+        // Security tab instead and keep the success response.
         try {
             $this->auditLogs->record([
                 'user_id' => (int) ($viewer['id'] ?? 0),

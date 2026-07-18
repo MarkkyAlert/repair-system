@@ -45,7 +45,6 @@ class UserImportController
 
             // Scope this previewed batch to a one-time token embedded in the confirm form, so opening a second
             // preview in another tab cannot make the first tab's "confirm" import the second tab's rows.
-            // (logic-review F3)
             $token = bin2hex(random_bytes(16));
             Session::put('user_import_batch', ['token' => $token, 'rows' => $preview['valid']]);
 
@@ -58,7 +57,7 @@ class UserImportController
                 'errorMessage' => null,
             ]);
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
         } catch (DomainException|RuntimeException $exception) {
             if ($exception instanceof RuntimeException) {
                 log_caught_exception('controller.operational', $exception, ['path' => (string) (request()?->path ?? '')]);
@@ -80,7 +79,7 @@ class UserImportController
             $batch = Session::get('user_import_batch', []);
             try {
                 // token must match the previewed batch — a mismatch means a newer preview (another tab)
-                // replaced the session; refuse rather than import the wrong rows. (F3)
+                // replaced the session; refuse rather than import the wrong rows.
                 $validRows = verified_import_rows($batch, (string) ($_POST['import_token'] ?? ''));
             } catch (DomainException $exception) {
                 Session::forget('user_import_batch');
@@ -106,7 +105,7 @@ class UserImportController
                 flash('error', 'ส่งอีเมลตั้งรหัสผ่านไม่สำเร็จ ' . count($resetFailures) . ' ผู้ใช้ (' . $names . ') — ผู้ใช้ถูกสร้างแล้วแต่ยังไม่มีรหัสผ่าน กรุณารีเซ็ตรหัสผ่านให้เอง');
             }
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
         } catch (DomainException|RuntimeException $exception) {
             if ($exception instanceof RuntimeException) {
                 log_caught_exception('controller.operational', $exception, ['path' => (string) (request()?->path ?? '')]);

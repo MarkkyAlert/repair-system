@@ -31,9 +31,9 @@ class DemoDataService
     public function load(int $createdByUserId = 0): array
     {
         // ด่านแรก: environment gate — production (ค่าเริ่มต้น) โหลด demo ไม่ได้เด็ดขาด แม้ระบบยังว่าง.
-        // คุมทั้ง Setup และ /admin/demo-data/load จากจุดเดียว (template-review F1).
+        // คุมทั้ง Setup และ /admin/demo-data/load จากจุดเดียว.
         // An EXPECTED policy block (the operator is told to flip a flag) — a DomainException that is flashed, not
-        // an operational RuntimeException the catch would be expected to log. (consistency-review F1)
+        // an operational RuntimeException the catch would be expected to log.
         if (!config('app.allow_demo_data', false)) {
             throw new DomainException('การโหลดข้อมูลตัวอย่างถูกปิดใช้งานบนระบบนี้ — ตั้ง ALLOW_DEMO_DATA=true ใน .env เฉพาะรอบทดลอง/เดโม (อย่าเปิดบน production)');
         }
@@ -271,7 +271,6 @@ class DemoDataService
                 // Duplicate asset_code/serial (or QR-token exhaustion) — an EXPECTED, skippable condition.
                 // A RuntimeException/PDOException is a real failure: let it propagate so load()'s transaction
                 // rolls the whole seed back and the caller sees the error, instead of a silent partial seed.
-                // (error-review-4 F4)
             }
         }
 

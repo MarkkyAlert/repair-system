@@ -38,7 +38,7 @@ if (!function_exists('thai_datetime')) {
      * The single ABSOLUTE Thai date format used for display system-wide: "dd MonthAbbr <พ.ศ.> [HH:MM]"
      * (e.g. "06 ก.พ. 2569 09:05"). Buddhist year. Use this everywhere a date is shown to a user so the
      * whole app reads one calendar — services previously used date('d/m/Y') (ค.ศ.), which clashed with the
-     * Thai พ.ศ. dates on ticket pages. (ux-review F1) Returns "-" for empty/invalid input.
+     * Thai พ.ศ. dates on ticket pages. Returns "-" for empty/invalid input.
      *
      * @param int|string|null $value a unix timestamp, a datetime string, or null
      */
@@ -73,7 +73,7 @@ if (!function_exists('thai_datetime')) {
 if (!function_exists('mb_from_bytes')) {
     /**
      * Format a byte count as a short MB label for UI hints ("5", "1.5") so upload/import limits can be rendered
-     * from config instead of hard-coded in each view. (ux-refactor F6)
+     * from config instead of hard-coded in each view.
      *
      * @param int|string $bytes
      */
@@ -89,7 +89,7 @@ if (!function_exists('thai_year')) {
     /**
      * Display a year in the Buddhist calendar (พ.ศ.) to match thai_datetime() and the reports. Keeps STORED /
      * query year values as Gregorian (ค.ศ.) — this is display-only. A value already in the Buddhist range
-     * (>= 2500) is returned unchanged, so it is safe to double-apply. (ux-review-4 F2)
+     * (>= 2500) is returned unchanged, so it is safe to double-apply.
      *
      * @param int|string $year a Gregorian (or already-Buddhist) year
      */
@@ -121,7 +121,7 @@ if (!function_exists('human_date')) {
             // Not a parseable date — assume it's ALREADY a display string (several services pre-format their
             // date fields, which are then shown raw in some views and passed through human_date() in others).
             // Return it unchanged so human_date() is idempotent on its own output instead of collapsing an
-            // already-formatted Thai date to "-". (ux-review F1)
+            // already-formatted Thai date to "-".
             return trim((string) $value);
         }
 
@@ -145,7 +145,7 @@ if (!function_exists('human_date')) {
             return 'เมื่อวาน' . ($withTime ? ' ' . date('H:i', $ts) : '');
         }
 
-        // beyond "yesterday" → the shared absolute Thai format (single source). (ux-review F1)
+        // beyond "yesterday" → the shared absolute Thai format (single source).
         return thai_datetime($ts, $withTime);
     }
 }

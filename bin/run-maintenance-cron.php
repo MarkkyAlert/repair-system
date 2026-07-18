@@ -31,7 +31,7 @@ try {
         $settings->upsert('cron_overdue_check_last_run_at', $now, 'string', false, 0);
         $settings->upsert('cron_email_queue_last_run_at', $now, 'string', false, 0);
         $settings->upsert('cron_maintenance_last_run_at', $now, 'string', false, 0);
-        // terminal-failure counts so the dashboard warns on failures, not just staleness (error-review F4)
+        // terminal-failure counts so the dashboard warns on failures, not just staleness
         $settings->upsert('cron_email_queue_last_failed', (string) $mailFailed, 'string', false, 0);
         $settings->upsert('cron_sla_notify_last_failed', (string) $slaNotifyFailed, 'string', false, 0);
     }
@@ -45,7 +45,7 @@ try {
     echo 'Emails failed: ' . $mailFailed . PHP_EOL;
 
     // ran to completion (heartbeats updated), but a terminal email failure or an SLA alert that never went out
-    // is an unhealthy outcome — exit 2 (distinct from a crash's 1) so cron monitoring sees it. (error-review F4)
+    // is an unhealthy outcome — exit 2 (distinct from a crash's 1) so cron monitoring sees it.
     exit(($mailFailed > 0 || $slaNotifyFailed > 0) ? 2 : 0);
 } catch (Throwable $exception) {
     fwrite(STDERR, (string) $exception . PHP_EOL); // full trace (class + message + file:line) for cron debugging

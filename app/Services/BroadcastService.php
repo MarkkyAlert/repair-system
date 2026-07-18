@@ -42,7 +42,7 @@ class BroadcastService
         }
 
         // One-time idempotency token from the form — a retry / second tab replays it and is deduped so the
-        // org isn't broadcast to twice. (safety-review R8-F2)
+        // org isn't broadcast to twice.
         $submissionToken = strtolower(trim((string) ($input['submission_token'] ?? '')));
         if (!is_submission_token($submissionToken)) {
             throw new DomainException('แบบฟอร์มหมดอายุ กรุณารีเฟรชหน้าแล้วส่งใหม่');
@@ -57,7 +57,7 @@ class BroadcastService
         );
 
         // Audit the ACTUAL outcome — the trail must not say "sent" when a channel failed (it would contradict
-        // what the controller shows the admin). Record + carry the failure flags. (error-review-3 O4)
+        // what the controller shows the admin). Record + carry the failure flags.
         $inAppFailed = !empty($result['in_app_failed']);
         $emailFailed = !empty($result['email_failed']);
         $action = 'broadcast.sent';
@@ -106,7 +106,7 @@ class BroadcastService
             $this->mailer->send($message);
         } catch (Throwable $exception) {
             // the admin sees a generic message; the real cause (SMTP refused, bad driver, timeout) must be logged
-            // with the mail settings so the diagnostic is actionable — it was discarded before. (error-review F7)
+            // with the mail settings so the diagnostic is actionable — it was discarded before.
             log_caught_exception('email.test.failed', $exception, [
                 'driver' => (string) config('mail.driver', 'log'),
                 'host' => (string) config('mail.host', ''),
@@ -116,7 +116,7 @@ class BroadcastService
         }
 
         // In production the audit trail must not retain the raw recipient address — mask it (the template +
-        // driver are enough to confirm what was sent). Dev keeps the full address for debugging. (error-review-4 F5)
+        // driver are enough to confirm what was sent). Dev keeps the full address for debugging.
         $auditEmail = (string) config('app.env', 'production') === 'production'
             ? MailerService::maskEmail($email)
             : $email;

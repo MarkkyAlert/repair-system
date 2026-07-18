@@ -57,7 +57,7 @@ function asset(string $path): string
 /**
  * The org logo as a base64 data URI for embedding in PDFs — dompdf runs with isRemoteEnabled=false, so a URL
  * can't be fetched; a data URI works regardless of chroot/remote settings. Returns null if no logo is set or
- * the file is missing/unreadable. (ux-refactor F2)
+ * the file is missing/unreadable.
  */
 function branding_logo_data_uri(): ?string
 {

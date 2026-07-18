@@ -31,7 +31,7 @@ class ReportExporter
     /**
      * Write one Excel row, per cell: a pure percentage label ("50.0%", "+25.0%") is stored as a real number
      * (0.5) with a percentage display format so the exec/manager can pivot/sum it — text "50.0%" cannot be
-     * aggregated (BI-review). Everything else keeps the formula-injection guard; numeric-string cells like
+     * aggregated. Everything else keeps the formula-injection guard; numeric-string cells like
      * "4.50"/"2" still become numbers via the default value binder.
      */
     private function writeDataRow(Worksheet $sheet, int $rowNumber, array $row): void
@@ -41,7 +41,7 @@ class ReportExporter
             $coord = Coordinate::stringFromColumnIndex($colIndex) . $rowNumber;
             $string = (string) $value;
             if ($value instanceof \App\Support\ExportText) {
-                // an explicit textual identifier (asset_code, ticket_no) → verbatim text, never number-inferred (R17)
+                // an explicit textual identifier (asset_code, ticket_no) → verbatim text, never number-inferred
                 $sheet->setCellValueExplicit($coord, sanitize_export_cell($string), DataType::TYPE_STRING);
             } elseif (is_int($value) || is_float($value)) {
                 // a TYPED number (count, delta, negative net, bare-number metric) → numeric; it is provably a value,
@@ -52,7 +52,7 @@ class ReportExporter
                 $sheet->getStyle($coord)->getNumberFormat()->setFormatCode('0.0%');
             } elseif (preg_match('/^[+-]?\d{1,3}(,\d{3})+(\.\d+)?$/', $string) === 1) {
                 // thousands-formatted number ("1,234.0" from number_format ≥ 1000) → a real number with a
-                // grouped display, so Excel can sum/pivot it instead of leaving it as text (round-8 F2).
+                // grouped display, so Excel can sum/pivot it instead of leaving it as text.
                 $dotPos = strpos($string, '.');
                 $decimals = $dotPos === false ? 0 : strlen($string) - $dotPos - 1;
                 $sheet->setCellValueExplicit($coord, (float) str_replace(',', '', $string), DataType::TYPE_NUMERIC);
@@ -64,7 +64,7 @@ class ReportExporter
             } else {
                 // EVERYTHING else is text — INCLUDING a digit-only identifier string (asset_code "0028712749",
                 // ticket_no): stored explicitly as text so leading zeros survive and long codes keep precision.
-                // Never let PhpSpreadsheet's default value binder coerce an identifier string to a number (audit F3).
+                // Never let PhpSpreadsheet's default value binder coerce an identifier string to a number.
                 // The formula-injection guard still applies. (A plain-integer METRIC must be passed typed, above.)
                 $sheet->setCellValueExplicit($coord, sanitize_export_cell($value), DataType::TYPE_STRING);
             }

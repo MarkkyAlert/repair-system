@@ -67,7 +67,7 @@ class AssetImportService
             if (strlen($name) > 200) {
                 $errors[] = 'name ยาวเกิน 200 ตัวอักษร';
             }
-            // optional text fields bound to their columns (serial/brand/model VARCHAR(100), vendor VARCHAR(150)) (F6)
+            // optional text fields bound to their columns (serial/brand/model VARCHAR(100), vendor VARCHAR(150))
             foreach (['serial_number' => 100, 'brand' => 100, 'model' => 100, 'vendor' => 150] as $field => $limit) {
                 if (mb_strlen(trim((string) ($row[$field] ?? ''))) > $limit) {
                     $errors[] = $field . ' ยาวเกิน ' . $limit . ' ตัวอักษร';
@@ -177,7 +177,7 @@ class AssetImportService
             } catch (Throwable $exception) {
                 // Expected, reported skips (a duplicate → createAsset translates it to DomainException; or a raw
                 // duplicate-key error) stay silent. Anything else (e.g. a DB outage) is an unexpected failure whose
-                // root cause must be logged — not hidden behind the generic row message. (error-review F6)
+                // root cause must be logged — not hidden behind the generic row message.
                 if (!($exception instanceof DomainException) && !is_duplicate_key_error($exception)) {
                     log_caught_exception('asset.import.row', $exception, ['line' => (int) ($row['line'] ?? 0), 'asset_code' => (string) ($row['asset_code'] ?? '')]);
                 }

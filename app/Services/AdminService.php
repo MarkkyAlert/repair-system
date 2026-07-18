@@ -35,7 +35,7 @@ class AdminService
         $auditFilters = $this->normalizeAuditFilters($query);
         $auditPage = max(1, (int) ($query['audit_page'] ?? 1));
         // Paginate the users tab (each row renders a full edit form) instead of loading every user; the audit
-        // filter dropdown still needs all users, so it gets a lightweight id+name list. (perf-review F8)
+        // filter dropdown still needs all users, so it gets a lightweight id+name list.
         $usersPage = $this->admin->getUsersPage(max(1, (int) ($query['user_page'] ?? 1)), 25);
 
         return [
@@ -82,12 +82,12 @@ class AdminService
             throw new DomainException('กรุณากรอกชื่อและอีเมลผู้ใช้งานให้ครบถ้วน');
         }
 
-        require_max_length($fullName, 150, 'ชื่อผู้ใช้งาน'); // users.full_name VARCHAR(150) (F6)
+        require_max_length($fullName, 150, 'ชื่อผู้ใช้งาน'); // users.full_name VARCHAR(150)
         $phone = trim((string) ($input['phone'] ?? ''));
-        require_max_length($phone, 30, 'เบอร์โทร'); // users.phone VARCHAR(30) (F6)
+        require_max_length($phone, 30, 'เบอร์โทร'); // users.phone VARCHAR(30)
         if ($phone !== '' && !valid_phone_format($phone)) {
             // match the profile/import flows — an admin edit must not accept a malformed phone the user's own
-            // profile edit would reject. (dup-review F2)
+            // profile edit would reject.
             throw new DomainException('รูปแบบเบอร์โทรไม่ถูกต้อง');
         }
 
@@ -100,8 +100,8 @@ class AdminService
         }
 
         // Same guard as createUser — otherwise an invalid department_id reaches the FK and surfaces as a
-        // PDOException/500 (the form wrapper only catches Domain/Runtime), not a friendly message. (round F2)
-        $departmentId = strict_int($input['department_id'] ?? null, 'แผนก '); // round F1: reject "1junk"
+        // PDOException/500 (the form wrapper only catches Domain/Runtime), not a friendly message.
+        $departmentId = strict_int($input['department_id'] ?? null, 'แผนก '); // reject "1junk"
         if ($departmentId > 0 && !$this->admin->departmentExists($departmentId)) {
             throw new DomainException('Department ที่เลือกไม่ถูกต้อง');
         }
@@ -113,7 +113,7 @@ class AdminService
             'role' => $role,
             'department_id' => $departmentId > 0 ? $departmentId : null,
             'is_active' => truthy_input($input['is_active'] ?? '0'),
-            'original_version' => strict_int($input['original_version'] ?? null, 'เวอร์ชันข้อมูล'), // optimistic lock (F3)
+            'original_version' => strict_int($input['original_version'] ?? null, 'เวอร์ชันข้อมูล'), // optimistic lock
         ];
         $this->admin->updateUser($userId, $payload);
         $this->recordAudit($viewer, 'user.updated', 'user', $userId, $payload);
@@ -129,17 +129,17 @@ class AdminService
         $role = trim((string) ($input['role'] ?? 'requester'));
         $password = (string) ($input['password'] ?? '');
         $passwordConfirmation = (string) ($input['password_confirmation'] ?? '');
-        $departmentId = strict_int($input['department_id'] ?? null, 'แผนก '); // round F1: reject "1junk"
+        $departmentId = strict_int($input['department_id'] ?? null, 'แผนก '); // reject "1junk"
 
         if ($username === '' || $fullName === '' || $email === '' || $password === '' || $passwordConfirmation === '') {
             throw new DomainException('กรุณากรอกชื่อผู้ใช้ ชื่อ อีเมล และรหัสผ่านให้ครบถ้วน');
         }
 
-        require_max_length($fullName, 150, 'ชื่อผู้ใช้งาน'); // users.full_name VARCHAR(150) (F6)
+        require_max_length($fullName, 150, 'ชื่อผู้ใช้งาน'); // users.full_name VARCHAR(150)
         $phone = trim((string) ($input['phone'] ?? ''));
-        require_max_length($phone, 30, 'เบอร์โทร'); // users.phone VARCHAR(30) (F6)
+        require_max_length($phone, 30, 'เบอร์โทร'); // users.phone VARCHAR(30)
         if ($phone !== '' && !valid_phone_format($phone)) {
-            // match the profile/import flows — an admin-created user must not accept a malformed phone. (dup-review F2)
+            // match the profile/import flows — an admin-created user must not accept a malformed phone.
             throw new DomainException('รูปแบบเบอร์โทรไม่ถูกต้อง');
         }
 
@@ -198,7 +198,7 @@ class AdminService
                 ['label' => 'อนุมัติ/ปฏิเสธ Ticket ที่รออนุมัติ', 'roles' => ['manager', 'admin']],
                 ['label' => 'มอบหมายช่างและจัดคิวงานซ่อม', 'roles' => ['manager', 'admin']],
                 // Hands-on technician work (accept/start/resolve) is technician-only — TicketPolicy::canTechnicianWork
-                // requires the assigned technician; an admin manages/assigns but does not do the repair. (logic-review F5)
+                // requires the assigned technician; an admin manages/assigns but does not do the repair.
                 ['label' => 'รับงาน เริ่มงาน และปิดงานซ่อม', 'roles' => ['technician']],
                 ['label' => 'เพิ่ม/แก้ไขความคิดเห็นและโน้ตภายในตามสิทธิ์ Ticket', 'roles' => ['requester', 'manager', 'technician', 'admin']],
                 ['label' => 'จัดการทรัพย์สินและแผ่น QR', 'roles' => ['manager', 'admin']],
@@ -268,7 +268,7 @@ class AdminService
     /**
      * Keep raw contact PII (email/phone) out of the persistent audit record in production — the entry already
      * identifies the target by entity id + full_name, so the exact address/number need not be retained there.
-     * Dev/local keeps the full values for debugging, matching the mail-log PII policy. (error-review-4 F5)
+     * Dev/local keeps the full values for debugging, matching the mail-log PII policy.
      *
      * @param array<string, mixed> $context
      * @return array<string, mixed>

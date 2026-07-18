@@ -61,7 +61,7 @@ class NotificationsController
             csrf_validate();
             $this->notifications->markAsRead((int) $notificationId, $viewer);
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
         }
@@ -80,7 +80,7 @@ class NotificationsController
             csrf_validate();
             $this->notifications->markTicketAsRead((int) $ticketId, $viewer);
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL (error-review F1)
+            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
         }

@@ -75,7 +75,7 @@ class EmailQueueRepository
 
     /**
      * Enqueue many messages as bounded multi-row INSERTs (one statement per chunk) instead of one INSERT per
-     * message — for fan-out senders like a system broadcast. Same column defaults as enqueue(). (perf-review F9)
+     * message — for fan-out senders like a system broadcast. Same column defaults as enqueue().
      *
      * @param array<int, array<string, mixed>> $payloads
      */

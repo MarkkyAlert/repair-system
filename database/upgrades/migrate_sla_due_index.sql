@@ -1,5 +1,5 @@
 -- ============================================================
--- SLA breach cron performance — index บนคอลัมน์ที่ scan หา track เกินกำหนด (perf-review F3)
+-- SLA breach cron performance — index บนคอลัมน์ที่ scan หา track เกินกำหนด
 -- ------------------------------------------------------------
 -- processOverdueBreaches → getPendingOverdueSlaBreaches กรอง ts.status='pending' + ts.target_at < NOW()
 -- แล้ว ORDER BY ts.target_at, ts.id. เดิมมีแค่ (metric_type, status) → query เป็น type=ALL + filesort.
