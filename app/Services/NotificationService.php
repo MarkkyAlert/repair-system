@@ -21,8 +21,10 @@ class NotificationService
         'system_announcement' => 'ประกาศจากผู้ดูแลระบบ',
     ];
 
+    // Display-only chips on /profile/notifications — Thai labels (owner decision 2026-07-18, ux-review-7 F3),
+    // consistent with ticket_status_label_th(): resolved=รอตรวจรับ, completed=เสร็จสิ้น.
     public const NOTIFICATION_TYPE_HINTS = [
-        'ticket_status_changed' => 'assigned · started · resolved · completed · reopened · cancelled',
+        'ticket_status_changed' => 'มอบหมาย · เริ่มงาน · รอตรวจรับ · เสร็จสิ้น · เปิดซ้ำ · ยกเลิก',
     ];
 
     public const NOTIFICATION_TYPE_OFF_IMPACT = [
