@@ -29,3 +29,18 @@ test('errors(F8): a signed-in user recovers to the dashboard; a guest is sent to
         auth()->logout();
     }
 });
+
+test('errors(F1-403): the 403 logout CTA is a POST form with CSRF, not a GET /logout link (which 404s)', function (): void {
+    // /logout is POST-only (config/routes.php); a GET link to it renders a 404, so a user recovering from a
+    // 403 by logging out hit ANOTHER error. The CTA is now a real POST form + CSRF. (ux-review-7 F1)
+    $html = (string) file_get_contents(dirname(__DIR__, 2) . '/app/Views/errors/403.php');
+    assert_true(
+        preg_match('/<form method="post"[\s\S]{0,80}logout/', $html) === 1,
+        '403 logout must be a POST form to /logout'
+    );
+    assert_true(str_contains($html, 'csrf_field()'), '403 logout form must include CSRF');
+    assert_false(
+        preg_match("/'href'\s*=>\s*'\/logout'/", $html) === 1,
+        '403 must not use a GET link to /logout (POST-only route → 404)'
+    );
+});
