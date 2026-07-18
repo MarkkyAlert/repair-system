@@ -123,7 +123,7 @@ Performance report and reopen dimension both keep the closure credited to tech 3
 
 Schema: `ticket_sla_tracks` gains `cycle` (UNIQUE → `ticket_id, metric_type, cycle`); `ticket_ratings` gains
 `cycle` (UNIQUE → `ticket_id, cycle`). `database/schema.sql` has it for fresh installs; existing rows default
-to cycle 1. **Upgrading an existing database:** run `database/migrate_sla_rating_cycle.sql` once (it adds the
+to cycle 1. **Upgrading an existing database:** run `database/upgrades/migrate_sla_rating_cycle.sql` once (it adds the
 columns + swaps the UNIQUE keys; safe on live data). Never-reopened tickets stay cycle 1 (the bulk of data).
 A ticket that was **closed → reopened → re-closed before the upgrade** kept only ONE SLA/rating snapshot (the old
 code overwrote in place) reflecting its **latest** resolve, so the migration backfills that surviving row to its

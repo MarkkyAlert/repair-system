@@ -42,7 +42,7 @@ test('migration(cycle): the file backfill moves a reopened ticket\'s snapshot to
         $pdo->prepare('INSERT INTO mig_ratings (ticket_id, cycle) VALUES (?, 1)')->execute([$control]);
 
         // ── run the migration file's OWN backfill UPDATEs (table names remapped onto the temp tables) ──
-        $migration = (string) file_get_contents(BASE_PATH . '/database/migrate_sla_rating_cycle.sql');
+        $migration = (string) file_get_contents(BASE_PATH . '/database/upgrades/migrate_sla_rating_cycle.sql');
         preg_match_all('/UPDATE\b.*?;/is', $migration, $matches);
         $backfills = array_values(array_filter($matches[0], static fn (string $s): bool => str_contains($s, 'latest_cycle')));
         assert_same(2, count($backfills), 'the migration carries two latest-cycle backfill UPDATEs (SLA + ratings)');

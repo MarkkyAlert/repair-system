@@ -38,6 +38,27 @@ test('db-entrypoint(F1): only seed_demo.sql may create user accounts; the legacy
     assert_same([], $offenders, 'these SQL files seed accounts outside the guarded demo path: ' . implode(', ', $offenders));
 });
 
+test('db-entrypoint(F3): fresh-install SQL is separated from legacy upgrades (no migrate_*.sql at the database/ root)', function (): void {
+    $root = dirname(__DIR__, 2);
+
+    // The database/ root ships ONLY the fresh-install entrypoints; one-off upgrades live in database/upgrades/.
+    $rootSql = array_map('basename', glob($root . '/database/*.sql') ?: []);
+    sort($rootSql);
+    assert_same(
+        ['schema.sql', 'seed_demo.sql', 'seed_reference.sql'],
+        $rootSql,
+        'database/ root must contain only the fresh-install entrypoints (upgrades belong in database/upgrades/)'
+    );
+    assert_true(count(glob($root . '/database/upgrades/*.sql') ?: []) > 0, 'legacy upgrade scripts must live in database/upgrades/');
+
+    // .env.example must not tell a FRESH install to run the (non-idempotent) upgrade scripts.
+    $env = (string) file_get_contents($root . '/.env.example');
+    assert_true(
+        preg_match('/run\s+(any\s+)?`?database\/migrate_/i', $env) !== 1,
+        '.env.example must not instruct a fresh install to run migrate_*.sql (they error against the current schema)'
+    );
+});
+
 test('db-entrypoint(F7): the test-DB helper resolves mysql portably (PATH / MYSQL_BIN, not a hardcoded XAMPP default)', function (): void {
     // The shipped helper must run on a buyer's Linux/Windows/other-XAMPP box, not only this dev machine.
     $sh = (string) file_get_contents(dirname(__DIR__) . '/setup_test_db.sh');
