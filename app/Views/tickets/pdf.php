@@ -23,6 +23,7 @@
 </head>
 <body>
 <div class="document-header">
+    <?= render_partial('partials/print/pdf-brand') ?>
     <p class="document-kicker">MAINTENANCE OPERATIONS · ใบสั่งงาน</p>
     <h1>ใบงานซ่อมบำรุง</h1>
     <p>พิมพ์เมื่อ <?= e($printedAt ?? '-') ?> · กระดาษ <?= e($paperLabel ?? 'A4') ?></p>

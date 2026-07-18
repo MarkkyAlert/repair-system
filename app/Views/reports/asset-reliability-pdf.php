@@ -31,6 +31,7 @@
 </head>
 <body>
 <div class="brand-header">
+    <?= render_partial('partials/print/pdf-brand') ?>
     <p class="brand-kicker">ASSET MAINTENANCE</p>
     <h1 class="brand-title">รายงานสุขภาพทรัพย์สิน</h1>
     <p class="brand-meta">สร้างเมื่อ <?= e($generatedAt ?? '-') ?></p>

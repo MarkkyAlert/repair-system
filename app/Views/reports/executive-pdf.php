@@ -31,6 +31,7 @@
 </head>
 <body>
 <div class="brand-header">
+    <?= render_partial('partials/print/pdf-brand') ?>
     <p class="brand-kicker">EXECUTIVE SUMMARY</p>
     <h1 class="brand-title">สรุปผู้บริหาร (เทียบงวด)</h1>
     <p class="brand-meta">สร้างเมื่อ <?= e($generatedAt ?? '-') ?> · งวดนี้ <?= e((string) ($period['this'] ?? '-')) ?> · เทียบงวดก่อน <?= e((string) ($period['prev'] ?? '-')) ?></p>

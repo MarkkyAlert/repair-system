@@ -54,6 +54,39 @@ function asset(string $path): string
     return $url;
 }
 
+/**
+ * The org logo as a base64 data URI for embedding in PDFs — dompdf runs with isRemoteEnabled=false, so a URL
+ * can't be fetched; a data URI works regardless of chroot/remote settings. Returns null if no logo is set or
+ * the file is missing/unreadable. (ux-refactor F2)
+ */
+function branding_logo_data_uri(): ?string
+{
+    $relative = ltrim(trim((string) setting('app_logo_path', '')), '/');
+    if ($relative === '') {
+        return null;
+    }
+
+    foreach ([__DIR__ . '/../../public/' . $relative, __DIR__ . '/../../' . $relative] as $path) {
+        if (!is_file($path)) {
+            continue;
+        }
+        $data = @file_get_contents($path);
+        if ($data === false) {
+            return null;
+        }
+        $mime = match (strtolower((string) pathinfo($path, PATHINFO_EXTENSION))) {
+            'jpg', 'jpeg' => 'image/jpeg',
+            'gif' => 'image/gif',
+            'webp' => 'image/webp',
+            default => 'image/png',
+        };
+
+        return 'data:' . $mime . ';base64,' . base64_encode($data);
+    }
+
+    return null;
+}
+
 function branding_logo_url(): ?string
 {
     $relative = trim((string) setting('app_logo_path', ''));

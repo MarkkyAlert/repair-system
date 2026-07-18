@@ -28,6 +28,7 @@
 </head>
 <body>
 <div class="brand-header">
+    <?= render_partial('partials/print/pdf-brand') ?>
     <p class="brand-kicker">TICKET TREND</p>
     <h1 class="brand-title">แนวโน้มงานซ่อมตามเวลา</h1>
     <p class="brand-meta">สร้างเมื่อ <?= e($generatedAt ?? '-') ?> · ความละเอียด<?= e((string) ($granularityLabel ?? 'รายเดือน')) ?> · งวดล่าสุด <?= e((string) ($summary['latest_label'] ?? '-')) ?></p>

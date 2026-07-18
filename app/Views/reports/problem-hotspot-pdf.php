@@ -31,6 +31,7 @@
 </head>
 <body>
 <div class="brand-header">
+    <?= render_partial('partials/print/pdf-brand') ?>
     <p class="brand-kicker">PROBLEM HOTSPOT</p>
     <h1 class="brand-title">พื้นที่ปัญหา (แผนก / สถานที่)</h1>
     <p class="brand-meta">สร้างเมื่อ <?= e($generatedAt ?? '-') ?> · แยกตาม<?= e((string) ($dimensionLabel ?? 'แผนก')) ?></p>

@@ -27,6 +27,7 @@
 </head>
 <body>
 <div class="brand-header">
+    <?= render_partial('partials/print/pdf-brand') ?>
     <p class="brand-kicker">TECHNICIAN WORKLOAD &amp; PERFORMANCE</p>
     <h1 class="brand-title">ผลงานและภาระงานทีมช่าง</h1>
     <p class="brand-meta">สร้างเมื่อ <?= e($generatedAt ?? '-') ?> · งานค้าง/ค้างเก่าสุด/สัดส่วนโหลด = ณ ตอนนี้</p>
