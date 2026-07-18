@@ -26,7 +26,7 @@
 
 - PHP 8.1+ (วิ่งบน XAMPP/Apache), MySQL
 - Composer (`phpmailer`, `phpoffice/phpspreadsheet`, `dompdf`, `endroid/qr-code`)
-- Tailwind CSS (build ด้วย `tools/tailwindcss`)
+- Tailwind CSS — CSS ที่ compile แล้วแนบมาพร้อมชุดติดตั้ง; ถ้าจะแก้ดีไซน์แล้ว build ใหม่ ใช้ `./build-css.sh` ซึ่งจะดาวน์โหลดตัว Tailwind รุ่นที่ล็อกไว้ให้เอง (ไม่ต้องติดตั้ง Node/npm)
 - Routing แบบเขียนเอง อยู่ที่ `config/routes.php`
 
 ---
@@ -103,9 +103,12 @@
    composer install
    ```
 
-5. **Build CSS** (ครั้งแรกเท่านั้น ถ้ามีของอยู่แล้วข้ามได้)
+5. **Build CSS** — ข้ามได้ ไฟล์ CSS ที่ compile แล้ว (`public/assets/css/app.css`) แนบมากับชุดติดตั้งอยู่แล้ว
+   รันเฉพาะเมื่อคุณแก้ `resources/css/app.css` แล้วอยากสร้างไฟล์ที่เสิร์ฟใหม่ ครั้งแรกสคริปต์จะดาวน์โหลด
+   Tailwind รุ่นที่ล็อกไว้ให้เองลง `tools/` (ไม่ต้องมี Node/npm) แล้วครั้งต่อ ๆ ไปใช้ตัวเดิม
    ```bash
-   ./build-css.sh
+   ./build-css.sh          # macOS / Linux
+   build-css.bat           # Windows
    ```
 
 6. เปิดเบราว์เซอร์ที่ `http://localhost/maintenance/` ระบบจะ redirect ไปหน้า login
