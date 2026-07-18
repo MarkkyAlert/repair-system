@@ -315,7 +315,7 @@ $metricCount = static fn (string $key): int => max(0, (int) ($metrics[$key] ?? 0
         <section class="panel-card stack-md">
             <div class="chart-meta">
                 <h2 class="panel-title">ปริมาณงานรายเดือน</h2>
-                <span class="chart-chip">ปี <?= e((string) ($filterState['year'] ?? date('Y'))) ?></span>
+                <span class="chart-chip">ปี <?= e(thai_year($filterState['year'] ?? date('Y'))) ?></span>
             </div>
             <?php if ($chartHasData($chartPayload['monthlyTickets'] ?? [])): ?>
                 <?php $summary = $chartSummaries['monthlyTickets'] ?? ['total' => '-', 'top' => '-', 'avg' => '-']; ?>

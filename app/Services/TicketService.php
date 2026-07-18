@@ -1168,8 +1168,8 @@ class TicketService
             ], $reference['categories'] ?? [])),
             'statusOptions' => ticket_status_options(true),
             'yearOptions' => array_map(fn (int $year): array => [
-                'value' => (string) $year,
-                'label' => (string) $year,
+                'value' => (string) $year,          // query value stays Gregorian
+                'label' => thai_year($year),        // display in Buddhist year (ux-review-4 F2)
             ], $years),
             'active_count' => $this->countActiveDashboardFilters($filters),
         ];
@@ -1196,7 +1196,8 @@ class TicketService
 
     private function monthLabels(): array
     {
-        return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        // Thai month abbreviations so the dashboard charts read the same calendar as tickets/reports. (ux-review-4 F2)
+        return ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
     }
 
     private function buildMonthlySeries(array $rows, string $valueKey, bool $minutesToHours = false): array

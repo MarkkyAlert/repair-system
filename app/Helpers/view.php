@@ -70,6 +70,22 @@ if (!function_exists('thai_datetime')) {
     }
 }
 
+if (!function_exists('thai_year')) {
+    /**
+     * Display a year in the Buddhist calendar (พ.ศ.) to match thai_datetime() and the reports. Keeps STORED /
+     * query year values as Gregorian (ค.ศ.) — this is display-only. A value already in the Buddhist range
+     * (>= 2500) is returned unchanged, so it is safe to double-apply. (ux-review-4 F2)
+     *
+     * @param int|string $year a Gregorian (or already-Buddhist) year
+     */
+    function thai_year(int|string $year): string
+    {
+        $y = (int) $year;
+
+        return (string) ($y > 0 && $y < 2500 ? $y + 543 : $y);
+    }
+}
+
 if (!function_exists('human_date')) {
     /**
      * Format a datetime to a human-friendly Thai string.
