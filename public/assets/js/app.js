@@ -1403,6 +1403,17 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('resize', function () { clearTimeout(resizeTimer); resizeTimer = setTimeout(sync, 150); });
   })();
 
+  // The notification inbox filter tabs scroll horizontally when they overflow (mobile); fade the right edge
+  // ONLY while there are tabs hidden to the right, so the user knows to scroll. (ux-review-8 F1)
+  document.querySelectorAll('.notification-filter-tabs').forEach(function (tabs) {
+    var sync = function () {
+      tabs.classList.toggle('can-scroll-right', tabs.scrollWidth > tabs.clientWidth + tabs.scrollLeft + 1);
+    };
+    sync();
+    tabs.addEventListener('scroll', sync, { passive: true });
+    window.addEventListener('resize', sync);
+  });
+
   // The status stepper (.workflow-progress) becomes a horizontal scroll region on mobile; make it keyboard-
   // focusable ONLY while it overflows so keyboard users can scroll to steps off-screen (WCAG 2.1.1). It already
   // carries aria-label + <ol> list semantics, so only tabindex is toggled (no role override). (ux-review-5 F1)

@@ -58,7 +58,7 @@ class EmailTemplateController
 
         Response::view('admin/email-templates-edit', [
             'title' => 'แก้ไขเทมเพลตอีเมล',
-            'pageHeading' => 'แก้ไข template: ' . (string) $meta['label'],
+            'pageHeading' => 'แก้ไขเทมเพลต: ' . (string) $meta['label'],
             'currentUser' => $viewer,
             'templateKey' => $templateKey,
             'meta' => $meta,

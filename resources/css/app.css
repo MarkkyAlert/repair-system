@@ -2229,6 +2229,12 @@ select.input::-ms-expand { display: none; }
 }
 
 .notification-filter-tabs::-webkit-scrollbar { display: none; }
+/* Fade the right edge ONLY while there are filter tabs hidden off-screen to scroll to (app.js toggles the
+   class on overflow / scroll position) — signals "scroll for more" without a dead fade when they fit. (ux-review-8 F1) */
+.notification-filter-tabs.can-scroll-right {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 1.75rem), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 1.75rem), transparent);
+}
 
 .notification-filter-tab {
   display: inline-flex;
