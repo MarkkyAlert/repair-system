@@ -2976,6 +2976,12 @@ a.leaderboard-number:hover {
   list-style: none;
   position: relative;
 }
+/* When the stepper is a keyboard-focusable scroll region on mobile (app.js adds tabindex on overflow),
+   show a focus ring — the generic :focus-visible rule only covers a/button/input, not [tabindex]. (ux-review-5 F1) */
+.workflow-progress:focus-visible {
+  outline: 3px solid var(--indigo-500);
+  outline-offset: 2px;
+}
 
 .workflow-progress-step {
   position: relative;
@@ -4701,6 +4707,8 @@ input[type="checkbox"].switch:checked::after { left: 20px; }
   justify-content: center;
   width: 1.2rem;
   height: 1.2rem;
+  min-width: 24px;
+  min-height: 24px;
   border-radius: 50%;
   color: var(--muted);
   transition: background .15s ease, color .15s ease;

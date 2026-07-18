@@ -52,6 +52,25 @@ test.describe('accessibility (axe)', () => {
     expect(blocking, `\n${summary}`).toEqual([]);
   });
 
+  // ux-review-5 F1: on mobile the status stepper (.workflow-progress) becomes a horizontal scroll region and
+  // must be keyboard-focusable (axe scrollable-region-focusable, serious). Desktop doesn't overflow, so this
+  // only surfaces at 375px.
+  test('no serious/critical axe violations: ticket detail on mobile (stepper scroll region)', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto('/tickets');
+    await page.waitForLoadState('networkidle');
+    await page.locator('a.ticket-queue-row').first().click();
+    await page.waitForLoadState('networkidle');
+    const stepper = page.locator('.workflow-progress');
+    await expect(stepper).toBeVisible();
+    // It overflows at 375px, so app.js must have made it focusable.
+    await expect(stepper).toHaveAttribute('tabindex', '0');
+    const results = await analyze(page);
+    const blocking = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
+    const summary = blocking.map((v) => `${v.id} (${v.impact}) x${v.nodes.length}: ${v.nodes[0]?.target?.join(' ')}`).join('\n');
+    expect(blocking, `\n${summary}`).toEqual([]);
+  });
+
   // The confirm-modal summary (<dt> labels, lead) uses muted text (F6 modal state).
   test('no serious/critical axe violations: broadcast confirm modal open', async ({ page }) => {
     await page.goto('/admin/broadcast');

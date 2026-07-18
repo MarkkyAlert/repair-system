@@ -92,5 +92,10 @@ test('css (ux-review-2): forgot-pw collapse, mobile export, priority reflow pres
             preg_match('/\.field-info-icon\s*\{[^}]*width:\s*24px[^}]*height:\s*24px/', $css) === 1,
             "{$label} .field-info-icon must be >= 24x24 (was 22x22 — below WCAG 2.5.8 min target)"
         );
+        // ux-review-5 F2: the filter-chip dismiss button must clear 24x24 (was 1.2rem / 19.2px).
+        assert_true(
+            preg_match('/\.filter-chip-dismiss\s*\{[^}]*min-width:\s*24px[^}]*min-height:\s*24px/', $css) === 1,
+            "{$label} .filter-chip-dismiss must be >= 24x24 (was 1.2rem/19.2px — below WCAG 2.5.8)"
+        );
     }
 });

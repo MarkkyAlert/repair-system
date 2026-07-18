@@ -349,6 +349,33 @@ test('a11y-review accent-contrast: dark-theme indigo accents get a darker light 
     assert_true($ratio >= 4.5, sprintf('--indigo-700 on --canvas is %.2f:1, below AA', $ratio));
 });
 
+test('a11y-review stepper: app.js makes an overflowing .workflow-progress keyboard-focusable', function (): void {
+    // On mobile the status stepper becomes a horizontal scroll region; axe scrollable-region-focusable
+    // (serious) fires if it isn't focusable. app.js adds tabindex only WHILE it overflows (like .table-wrap),
+    // and a focus ring ships in the built CSS. Behaviour covered by the mobile ticket-detail axe e2e. (ux-review-5 F1)
+    $js = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/js/app.js');
+    assert_true(
+        preg_match('/\.workflow-progress[\s\S]{0,300}scrollWidth[\s\S]{0,150}setAttribute\(\s*[\'"]tabindex/', $js) === 1,
+        'app.js must add tabindex to an overflowing .workflow-progress (WCAG 2.1.1 keyboard scroll)'
+    );
+    $built = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/css/app.css');
+    assert_true(str_contains($built, '.workflow-progress:focus-visible'), 'built CSS missing the stepper focus ring');
+});
+
+test('a11y-review fonts-preconnect: layouts drop the CSP-blocked Google-Fonts preconnect (no console noise)', function (): void {
+    // connect-src is 'self', so <link rel="preconnect"> to fonts.googleapis/gstatic is blocked and only adds
+    // console noise that can mask real errors during QA. The hint was removed (NOT the stylesheet, and the CSP
+    // was NOT widened). (ux-review-5 F3)
+    $root = dirname(__DIR__, 2);
+    foreach (['app.php', 'guest.php', 'error.php'] as $layout) {
+        $html = (string) file_get_contents($root . '/app/Views/layouts/' . $layout);
+        assert_false(str_contains($html, 'rel="preconnect"'), "layouts/{$layout} must not preconnect (CSP connect-src 'self' blocks it → console noise)");
+        assert_true(str_contains($html, 'fonts.googleapis.com/css2'), "layouts/{$layout} must still load the font stylesheet");
+    }
+    $csp = (string) file_get_contents($root . '/app/Helpers/security.php');
+    assert_true(str_contains($csp, "connect-src 'self'"), 'CSP connect-src must remain self — the fix removes the hint, it does not widen the policy');
+});
+
 test('a11y-review file-picker: every native file input is wrapped in the Thai .file-field control', function (): void {
     // A bare <input type="file" class="input"> renders the browser-locale "Choose File / No file chosen",
     // clashing with the Thai UI on 5 upload/import flows. Each is now wrapped in .file-field with a Thai

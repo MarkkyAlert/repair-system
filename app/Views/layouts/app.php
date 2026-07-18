@@ -8,8 +8,7 @@
     <meta name="theme-color" content="#6366f1">
     <title><?= e($title ?? $appName) ?></title>
     <?= render_partial('partials/theme-init') ?>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <?php // No font preconnect hints: the CSP connect-src is 'self', so they are blocked and only add console noise. The stylesheet below loads under style-src/font-src. (ux-review-5 F3) ?>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?= e(asset('css/app.css')) ?>">
     <?php if (is_path('/dashboard') || is_path('/reports/trend')): ?>
