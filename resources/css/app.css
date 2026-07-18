@@ -5610,12 +5610,15 @@ code.mono, .mono {
     border-top: 1px dashed var(--line);
   }
 
-  .ticket-create-action-bar {
-    top: 0;
-  }
-
+  /* Stick below the 76px topbar (not at top:0 where the taller, higher-z topbar covered the bar's title/
+     helper), and drop the redundant helper line so the sticky bar isn't a tall block eating the form. (ux-review-7 F2) */
+  .ticket-create-action-bar,
   .asset-create-action-bar {
-    top: 0;
+    top: 76px;
+  }
+  .ticket-create-action-bar .action-bar-left .helper-text,
+  .asset-create-action-bar .action-bar-left .helper-text {
+    display: none;
   }
 
   .asset-qr-preview-card {

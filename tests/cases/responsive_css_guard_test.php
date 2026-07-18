@@ -97,5 +97,15 @@ test('css (ux-review-2): forgot-pw collapse, mobile export, priority reflow pres
             preg_match('/\.filter-chip-dismiss\s*\{[^}]*min-width:\s*24px[^}]*min-height:\s*24px/', $css) === 1,
             "{$label} .filter-chip-dismiss must be >= 24x24 (was 1.2rem/19.2px — below WCAG 2.5.8)"
         );
+        // ux-review-7 F2: the mobile create-form sticky action bars sit BELOW the 76px topbar (was top:0,
+        // hidden behind it) and drop the redundant helper line.
+        assert_true(
+            preg_match('/create-action-bar[^}]*top:\s*76px/', $css) === 1,
+            "{$label} create-form action bars must stick at top:76px on mobile (F2 — were hidden behind the topbar)"
+        );
+        assert_true(
+            str_contains($css, 'create-action-bar .action-bar-left .helper-text'),
+            "{$label} create-form action bars must hide the redundant helper on mobile (F2)"
+        );
     }
 });
