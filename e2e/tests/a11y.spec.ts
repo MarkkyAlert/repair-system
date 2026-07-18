@@ -26,6 +26,8 @@ test.describe('accessibility (axe)', () => {
     // ux-review-2: broadcast (F6 page contrast) + forgot-password (F1 mobile reflow doesn't regress a11y).
     { name: 'broadcast', url: '/admin/broadcast' },
     { name: 'forgot password', url: '/forgot-password' },
+    // ux-review-6: notification preferences (F3 event-chip contrast).
+    { name: 'notification preferences', url: '/profile/notifications' },
   ];
 
   for (const p of pages) {
@@ -65,6 +67,21 @@ test.describe('accessibility (axe)', () => {
     await expect(stepper).toBeVisible();
     // It overflows at 375px, so app.js must have made it focusable.
     await expect(stepper).toHaveAttribute('tabindex', '0');
+    const results = await analyze(page);
+    const blocking = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
+    const summary = blocking.map((v) => `${v.id} (${v.impact}) x${v.nodes.length}: ${v.nodes[0]?.target?.join(' ')}`).join('\n');
+    expect(blocking, `\n${summary}`).toEqual([]);
+  });
+
+  // ux-review-6 F2: the report stat rail (.report-stat-scroll) is a horizontal scroll region on mobile and
+  // must be keyboard-focusable (axe scrollable-region-focusable, serious).
+  test('no serious/critical axe violations: reports on mobile (stat rail scroll region)', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto('/reports');
+    await page.waitForLoadState('networkidle');
+    const rail = page.locator('.report-stat-scroll').first();
+    await expect(rail).toBeVisible();
+    await expect(rail).toHaveAttribute('tabindex', '0');
     const results = await analyze(page);
     const blocking = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
     const summary = blocking.map((v) => `${v.id} (${v.impact}) x${v.nodes.length}: ${v.nodes[0]?.target?.join(' ')}`).join('\n');
@@ -164,5 +181,48 @@ test.describe('keyboard: admin tabs roving tabindex + arrow nav (a11y-review F3)
     await page.keyboard.press('ArrowLeft');
     expect(await tabs.first().evaluate((t) => t === document.activeElement)).toBe(true);
     await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
+  });
+});
+
+test.describe('keyboard: notification popover focus + valid role (ux-review-6 F4)', () => {
+  test.use({ storageState: adminState });
+
+  test('opening the bell moves focus into the dialog; Escape returns it; no aria-allowed-role', async ({ page }) => {
+    await page.goto('/dashboard');
+    const toggle = page.locator('[data-notification-toggle]');
+    const menu = page.locator('[data-notification-menu]');
+
+    await toggle.click();
+    await expect(menu).toBeVisible();
+    // Focus lands inside the popover (not stranded on the bell).
+    expect(await menu.evaluate((m) => m.contains(document.activeElement))).toBe(true);
+
+    // The dialog is a <div>, not an <aside> (aria-allowed-role): no such violation.
+    const results = await new AxeBuilder({ page }).include('[data-notification-menu]').analyze();
+    expect(results.violations.filter((v) => v.id === 'aria-allowed-role')).toEqual([]);
+
+    // Escape closes and returns focus to the bell.
+    await page.keyboard.press('Escape');
+    await expect(menu).toBeHidden();
+    expect(await toggle.evaluate((t) => t === document.activeElement)).toBe(true);
+  });
+});
+
+test.describe('auth: invalid login is announced + wired (ux-review-6 F5)', () => {
+  test('a failed login renders a focused role=alert linked to the fields', async ({ page }) => {
+    await page.goto('/login');
+    await page.fill('#login', 'nobody');
+    await page.fill('#password', 'wrongpassword');
+    await page.locator('form button[type="submit"]').click();
+    await page.waitForLoadState('networkidle');
+
+    const alert = page.locator('[data-auth-error]');
+    await expect(alert).toBeVisible();
+    await expect(alert).toHaveAttribute('role', 'alert');
+    // app.js moves focus to the error so it is announced after the reload.
+    expect(await alert.evaluate((a) => a === document.activeElement)).toBe(true);
+    // The fields point back to the error summary.
+    await expect(page.locator('#login')).toHaveAttribute('aria-describedby', 'auth-error');
+    await expect(page.locator('#login')).toHaveAttribute('aria-invalid', 'true');
   });
 });

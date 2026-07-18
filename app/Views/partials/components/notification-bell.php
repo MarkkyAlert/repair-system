@@ -18,7 +18,7 @@ $recentItems = array_values(array_filter($notificationItems, static fn (array $i
     </button>
 
     <button type="button" class="notification-backdrop" aria-label="ปิดการแจ้งเตือน" hidden data-notification-backdrop></button>
-    <aside class="notification-menu" role="dialog" aria-modal="false" aria-label="รายการแจ้งเตือนล่าสุด" hidden data-notification-menu>
+    <div class="notification-menu" role="dialog" aria-modal="false" aria-label="รายการแจ้งเตือนล่าสุด" hidden data-notification-menu>
         <div class="notification-menu-head">
             <div class="notification-heading">
                 <span class="notification-heading-icon"><?= lucide('bell', 'h-5 w-5') ?></span>
@@ -81,5 +81,5 @@ $recentItems = array_values(array_filter($notificationItems, static fn (array $i
             <span>เปิดศูนย์การแจ้งเตือน</span>
             <?= lucide('arrow-right', 'h-5 w-5') ?>
         </a>
-    </aside>
+    </div>
 </div>

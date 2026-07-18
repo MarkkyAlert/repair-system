@@ -33,13 +33,13 @@
                 <p class="helper-text">กรอกอีเมลที่ใช้กับบัญชีของคุณ หากพบในระบบ เราจะส่งขั้นตอนถัดไปให้</p>
             </div>
             <?php if (!empty($errorMessage)): ?>
-                <div class="stack-md">
+                <div class="stack-md" role="alert" tabindex="-1" data-auth-error>
                     <span class="badge badge-danger">ข้อผิดพลาด</span>
                     <p class="helper-text"><?= e((string) $errorMessage) ?></p>
                 </div>
             <?php endif; ?>
             <?php if (!empty($successMessage)): ?>
-                <div class="stack-md">
+                <div class="stack-md" role="status">
                     <span class="badge badge-success">สำเร็จ</span>
                     <p class="helper-text"><?= e((string) $successMessage) ?></p>
                 </div>

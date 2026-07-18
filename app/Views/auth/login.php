@@ -54,25 +54,26 @@
                 <p class="helper-text">เข้าสู่ระบบเพื่อจัดการงานซ่อมและทรัพย์สินในองค์กร</p>
             </div>
 
-            <?php if (!empty($errorMessage)): ?>
-                <div class="auth-alert auth-alert-danger">
+            <?php $hasAuthError = !empty($errorMessage); ?>
+            <?php if ($hasAuthError): ?>
+                <div class="auth-alert auth-alert-danger" role="alert" id="auth-error" tabindex="-1" data-auth-error>
                     <span class="auth-alert-icon"><?= lucide('triangle-alert', 'h-4 w-4') ?></span>
                     <p><?= e((string) $errorMessage) ?></p>
                 </div>
             <?php endif; ?>
             <?php if (!empty($successMessage)): ?>
-                <div class="auth-alert auth-alert-success">
+                <div class="auth-alert auth-alert-success" role="status">
                     <span class="auth-alert-icon"><?= lucide('check-circle', 'h-4 w-4') ?></span>
                     <p><?= e((string) $successMessage) ?></p>
                 </div>
             <?php endif; ?>
             <div class="field-group">
                 <label for="login" class="field-label">ชื่อผู้ใช้หรืออีเมล</label>
-                <input id="login" name="login" type="text" class="input" placeholder="admin หรือ admin@example.com" value="<?= e((string) (($oldInput['login'] ?? ''))) ?>" autocomplete="username">
+                <input id="login" name="login" type="text" class="input" placeholder="admin หรือ admin@example.com" value="<?= e((string) (($oldInput['login'] ?? ''))) ?>" autocomplete="username"<?= $hasAuthError ? ' aria-invalid="true" aria-describedby="auth-error"' : '' ?>>
             </div>
             <div class="field-group">
                 <label for="password" class="field-label">รหัสผ่าน</label>
-                <input id="password" name="password" type="password" class="input" placeholder="••••••••" autocomplete="current-password">
+                <input id="password" name="password" type="password" class="input" placeholder="••••••••" autocomplete="current-password"<?= $hasAuthError ? ' aria-invalid="true" aria-describedby="auth-error"' : '' ?>>
             </div>
 
             <label class="checkbox-row">

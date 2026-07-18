@@ -154,11 +154,12 @@
             .prefs-switch-wrap { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; cursor: pointer; }
 
             .prefs-label-row { display: inline-flex; align-items: center; gap: .4rem; }
-            .prefs-info-icon { position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 28px; min-height: 28px; color: var(--text-muted, #94a3b8); background: transparent; border: 1px solid transparent; border-radius: 99px; padding: 2px; cursor: pointer; transition: .15s ease; }
+            .prefs-info-icon { position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 28px; min-height: 28px; color: var(--muted); background: transparent; border: 1px solid transparent; border-radius: 99px; padding: 2px; cursor: pointer; transition: .15s ease; }
             /* Expand the tap target to ~44px (WCAG 2.5.5) without enlarging the visible 28px icon or
                loosening the label row — an invisible, absolutely-positioned overlay carries the extra hit area. */
             .prefs-info-icon::after { content: ""; position: absolute; inset: -8px; }
-            .prefs-info-icon:hover, .prefs-info-icon:focus-visible { color: var(--indigo-400, #818cf8); background: rgba(99, 102, 241, .12); border-color: rgba(99, 102, 241, .25); outline: none; }
+            .prefs-info-icon:hover { color: var(--indigo-400, #818cf8); background: rgba(99, 102, 241, .12); border-color: rgba(99, 102, 241, .25); }
+            .prefs-info-icon:focus-visible { color: var(--indigo-400, #818cf8); background: rgba(99, 102, 241, .12); border-color: rgba(99, 102, 241, .25); outline: 3px solid var(--indigo-500); outline-offset: 2px; } /* solid ring ≥3:1 (ux-review-6 F7) */
             .prefs-info-icon[aria-expanded="true"] { color: var(--indigo-400, #818cf8); background: rgba(99, 102, 241, .15); }
 
             .prefs-impact-text { display: flex; align-items: flex-start; gap: .4rem; margin-top: .4rem; padding: .5rem .65rem; border-radius: 8px; background: rgba(234, 179, 8, .08); border: 1px solid rgba(234, 179, 8, .2); color: var(--text); }
@@ -166,7 +167,7 @@
             .prefs-impact-icon { flex-shrink: 0; color: rgb(234, 179, 8); margin-top: 2px; }
 
             .prefs-event-chips { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .35rem; }
-            .prefs-event-chip { display: inline-flex; align-items: center; padding: .15rem .5rem; font-size: .7rem; font-weight: 500; color: var(--text-muted, #94a3b8); background: rgba(99, 102, 241, .08); border: 1px solid rgba(99, 102, 241, .15); border-radius: 99px; line-height: 1.4; }
+            .prefs-event-chip { display: inline-flex; align-items: center; padding: .15rem .5rem; font-size: .7rem; font-weight: 500; color: var(--muted); background: rgba(99, 102, 241, .08); border: 1px solid rgba(99, 102, 241, .15); border-radius: 99px; line-height: 1.4; }
 
             /* N3: Tone down Save button glow scoped to this page */
             .prefs-page .prefs-actions .btn-primary {

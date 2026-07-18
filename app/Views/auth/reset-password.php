@@ -25,13 +25,13 @@
             <input type="hidden" name="email" value="<?= e($email ?? '') ?>">
             <input type="hidden" name="token" value="<?= e($token ?? '') ?>">
             <?php if (!empty($errorMessage)): ?>
-                <div class="stack-md">
+                <div class="stack-md" role="alert" tabindex="-1" data-auth-error>
                     <span class="badge badge-danger">ข้อผิดพลาด</span>
                     <p class="helper-text"><?= e((string) $errorMessage) ?></p>
                 </div>
             <?php endif; ?>
             <?php if (!empty($successMessage)): ?>
-                <div class="stack-md">
+                <div class="stack-md" role="status">
                     <span class="badge badge-success">สำเร็จ</span>
                     <p class="helper-text"><?= e((string) $successMessage) ?></p>
                 </div>

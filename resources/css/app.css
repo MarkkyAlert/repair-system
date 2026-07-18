@@ -1094,7 +1094,7 @@ body > * { position: relative; z-index: 1; }
   transition: .18s ease;
 }
 
-.input::placeholder { color: var(--muted); opacity: .65; }
+.input::placeholder { color: var(--muted); opacity: 1; }  /* opacity:.65 dropped placeholder below AA (2.9:1 light) — full --muted clears 4.5:1 both themes (ux-review-6 F6) */
 .input:hover { border-color: var(--indigo-200); }
 .dark .input:hover { border-color: rgba(165, 180, 252, .3); }
 
@@ -1561,7 +1561,9 @@ select.input::-ms-expand { display: none; }
   width: 100%;
   max-width: 480px;
   padding: 2.5rem 2rem;
-  background: var(--surface);
+  /* Opaque (not translucent --surface): on light theme the .78-alpha card let the aurora bleed through and
+     dropped the heading/body/reference below AA. An opaque card + solid heading keeps them readable. (ux-review-6 F1) */
+  background: var(--surface-strong);
   border: 1px solid var(--glass-border, rgba(255, 255, 255, .12));
   border-radius: 18px;
   box-shadow: var(--shadow-lg, 0 20px 60px -20px rgba(0, 0, 0, .5));
@@ -1572,8 +1574,19 @@ select.input::-ms-expand { display: none; }
   align-items: center;
 }
 .error-card .pill { margin: 0 auto; }
-.error-card .hero-title { margin: .25rem 0 0; font-size: 1.4rem; font-weight: 700; }
+/* Solid heading (the shared .hero-title is a light gradient clipped to text — ~1.1:1 on the light card). */
+.error-card .hero-title {
+  margin: .25rem 0 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+  background: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  -webkit-text-fill-color: var(--text);
+  color: var(--text);
+}
 .error-card .hero-text { margin: 0; color: var(--muted); font-size: .95rem; line-height: 1.6; }
+.error-card .error-reference { font-size: .85rem; color: var(--muted); }
 .error-actions { display: flex; gap: .65rem; flex-wrap: wrap; justify-content: center; margin-top: .5rem; }
 
 /* =========================================================================
@@ -3617,12 +3630,18 @@ input[type="checkbox"].switch:checked::after { left: 20px; }
   vertical-align: middle;
   transition: .15s ease;
 }
-.field-info-icon:hover,
+.field-info-icon:hover {
+  color: var(--indigo-400, #818cf8);
+  background: rgba(99, 102, 241, .12);
+  border-color: rgba(99, 102, 241, .25);
+}
+/* Keep a solid focus ring — the old `outline:none` + translucent bg/border was ~1.2:1 on light. (ux-review-6 F7) */
 .field-info-icon:focus-visible {
   color: var(--indigo-400, #818cf8);
   background: rgba(99, 102, 241, .12);
   border-color: rgba(99, 102, 241, .25);
-  outline: none;
+  outline: 3px solid var(--indigo-500);
+  outline-offset: 2px;
 }
 .field-info-icon[aria-expanded="true"] {
   color: var(--indigo-400, #818cf8);
@@ -6076,6 +6095,11 @@ code.mono, .mono {
   .report-stat-scroll > * {
     flex: 0 0 min(72vw, 240px);
     scroll-snap-align: start;
+  }
+  /* app.js makes this scroll rail keyboard-focusable while it overflows (WCAG 2.1.1); show a focus ring. (ux-review-6 F2) */
+  .report-stat-scroll:focus-visible {
+    outline: 3px solid var(--indigo-500);
+    outline-offset: 2px;
   }
 }
 

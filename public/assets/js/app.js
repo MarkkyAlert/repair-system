@@ -710,6 +710,11 @@ document.addEventListener('DOMContentLoaded', () => {
         backdrop?.toggleAttribute('hidden', !isOpen);
         toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
         document.body.classList.toggle('notification-open', isOpen);
+        // Move focus INTO the dialog on open so keyboard/SR users land on its content (the menu is portaled to
+        // <body>, so a plain Tab from the bell would skip it). (ux-review-6 F4)
+        if (isOpen) {
+          (close || menu.querySelector('a, button') || menu).focus();
+        }
       };
 
       toggle.addEventListener('click', () => {
@@ -720,7 +725,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
 
-      close?.addEventListener('click', () => setMenuOpen(false));
+      close?.addEventListener('click', () => { setMenuOpen(false); toggle.focus(); });
       backdrop?.addEventListener('click', () => setMenuOpen(false));
 
       document.addEventListener('click', (event) => {
@@ -782,6 +787,13 @@ document.addEventListener('DOMContentLoaded', () => {
       nameEl.classList.add('has-file');
     }
   });
+
+  // ── Auth error: move focus to the server-rendered error on load so SR announces it + keyboard lands on it.
+  // The alert already has role="alert"; focusing it guarantees the failure is surfaced after the reload. (ux-review-6 F5)
+  (function () {
+    var authError = document.querySelector('[data-auth-error]');
+    if (authError) authError.focus();
+  })();
 
   // ── Report table sorting (mouse + keyboard) ──
   document.querySelectorAll('.data-table th[data-sort-col]').forEach(function (th) {
@@ -1362,11 +1374,11 @@ document.addEventListener('DOMContentLoaded', () => {
   })();
 
   // ── Keyboard-scrollable table wrappers (WCAG 2.1.1) ──
-  // A .table-wrap whose table overflows horizontally must be reachable + scrollable by keyboard. Make it a
-  // focusable, labelled scroll region ONLY while it actually overflows, so it isn't a dead tab stop when the
-  // table fits (the same report table scrolls at 375px but fits on desktop).
+  // A horizontally-overflowing scroll region (.table-wrap, or the mobile report stat rail .report-stat-scroll)
+  // must be reachable + scrollable by keyboard. Make it a focusable, labelled group ONLY while it actually
+  // overflows, so it isn't a dead tab stop when it fits (both scroll at 375px but fit on desktop). (ux-review-6 F2)
   (function () {
-    var wraps = document.querySelectorAll('.table-wrap');
+    var wraps = document.querySelectorAll('.table-wrap, .report-stat-scroll');
     if (!wraps.length) return;
     var sync = function () {
       wraps.forEach(function (w) {
@@ -1376,7 +1388,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (!w.getAttribute('aria-label')) {
             var head = w.closest('section, .panel-card');
             head = head && head.querySelector('h2, h3, .panel-title, caption');
-            var name = (head && head.textContent.trim()) || 'ตารางข้อมูล';
+            var name = (head && head.textContent.trim()) || 'เนื้อหา';
             w.setAttribute('aria-label', name + ' (เลื่อนแนวนอนได้)');
           }
         } else {

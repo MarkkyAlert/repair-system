@@ -282,6 +282,7 @@ test('a11y-review contrast: the undeclared --text-muted fallback is gone; --mute
         'resources/css/app.css',
         'public/assets/css/app.css',
         'app/Views/admin/broadcast.php',
+        'app/Views/auth/notification-preferences.php',
     ] as $rel) {
         $src = (string) file_get_contents($root . '/' . $rel);
         assert_true(
@@ -374,6 +375,71 @@ test('a11y-review fonts-preconnect: layouts drop the CSP-blocked Google-Fonts pr
     }
     $csp = (string) file_get_contents($root . '/app/Helpers/security.php');
     assert_true(str_contains($csp, "connect-src 'self'"), 'CSP connect-src must remain self — the fix removes the hint, it does not widen the policy');
+});
+
+test('a11y-review-6 error-contrast: opaque error card + solid heading + reference without dimming (F1)', function (): void {
+    $root = dirname(__DIR__, 2);
+    $css = (string) file_get_contents($root . '/public/assets/css/app.css');
+    assert_true(preg_match('/\.error-card\{[^}]*background:var\(--surface-strong\)/', $css) === 1, 'error card must be opaque (--surface-strong)');
+    assert_true(preg_match('/\.error-card \.hero-title\{[^}]*-webkit-text-fill-color:var\(--text\)/', $css) === 1, 'error heading must be solid --text (not the light gradient clipped to text)');
+    assert_false(str_contains((string) file_get_contents($root . '/app/Views/errors/500.php'), 'opacity:.7'), '500 reference must not dim itself below AA (opacity:.7 removed)');
+
+    // --muted (error body + reference) must clear AA on the opaque light card. Light --surface-strong is
+    // #ffffff (the built CSS minifies it to #fff), so composite against white — luminance 1.0.
+    assert_true(preg_match('/--surface-strong:#(fff|ffffff)\b/', $css) === 1, 'light --surface-strong must be white');
+    assert_true(preg_match('/--muted:#([0-9a-fA-F]{6})/', $css, $mm) === 1, 'light --muted hex not found');
+    $lum = static function (string $h): float {
+        $f = static fn (float $c): float => ($c /= 255) <= 0.03928 ? $c / 12.92 : (($c + 0.055) / 1.055) ** 2.4;
+        return 0.2126 * $f((float) hexdec(substr($h, 0, 2))) + 0.7152 * $f((float) hexdec(substr($h, 2, 2))) + 0.0722 * $f((float) hexdec(substr($h, 4, 2)));
+    };
+    $ratio = (1.0 + 0.05) / ($lum($mm[1]) + 0.05);
+    assert_true($ratio >= 4.5, sprintf('--muted on the white error card is %.2f:1, below AA', $ratio));
+});
+
+test('a11y-review-6 placeholder: .input::placeholder is full-opacity (was .65 → below AA) (F6)', function (): void {
+    foreach (['resources/css/app.css', 'public/assets/css/app.css'] as $rel) {
+        $css = (string) file_get_contents(dirname(__DIR__, 2) . '/' . $rel);
+        assert_true(preg_match('/\.input::placeholder\s*\{\s*color:\s*var\(--muted\);\s*opacity:\s*1\b/', $css) === 1, "{$rel} .input::placeholder must be opacity:1");
+        assert_true(preg_match('/\.input::placeholder[^}]*opacity:\s*\.65/', $css) !== 1, "{$rel} placeholder must not use opacity .65");
+    }
+});
+
+test('a11y-review-6 info-focus: info-button focus is a solid outline >= 3:1, not outline:none (F7)', function (): void {
+    $built = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/css/app.css');
+    assert_true(preg_match('/\.field-info-icon:focus-visible\{[^}]*outline:3px solid var\(--indigo-500\)/', $built) === 1, '.field-info-icon:focus-visible must have a solid ring');
+    assert_true(preg_match('/\.field-info-icon:focus-visible\{[^}]*outline:none/', $built) !== 1, '.field-info-icon:focus-visible must not remove the outline');
+    $prefs = (string) file_get_contents(dirname(__DIR__, 2) . '/app/Views/auth/notification-preferences.php');
+    assert_true(preg_match('/\.prefs-info-icon:focus-visible \{[^}]*outline: 3px solid var\(--indigo-500\)/', $prefs) === 1, '.prefs-info-icon:focus-visible must have a solid ring');
+});
+
+test('a11y-review-6 report-stat-scroll: mobile report stat rail is keyboard-focusable on overflow + focus ring (F2)', function (): void {
+    $js = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/js/app.js');
+    assert_true(str_contains($js, '.table-wrap, .report-stat-scroll'), 'app.js overflow enhancer must also cover .report-stat-scroll');
+    foreach (['resources/css/app.css', 'public/assets/css/app.css'] as $rel) {
+        $css = (string) file_get_contents(dirname(__DIR__, 2) . '/' . $rel);
+        assert_true(str_contains($css, '.report-stat-scroll:focus-visible'), "{$rel} missing the .report-stat-scroll focus ring");
+    }
+});
+
+test('a11y-review-6 notif-dialog: notification popover uses a valid role=dialog element + moves focus in on open (F4)', function (): void {
+    $html = (string) file_get_contents(dirname(__DIR__, 2) . '/app/Views/partials/components/notification-bell.php');
+    assert_true(preg_match('/<div class="notification-menu" role="dialog"/', $html) === 1, 'notification menu must be a <div role="dialog"> (an <aside role="dialog"> trips axe aria-allowed-role)');
+    assert_false(str_contains($html, '<aside class="notification-menu"'), 'must not use <aside role="dialog">');
+    $js = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/js/app.js');
+    assert_true(preg_match('/if \(isOpen\)\s*\{[\s\S]{0,160}\.focus\(\)/', $js) === 1, 'app.js must move focus into the popover on open');
+});
+
+test('a11y-review-6 auth-error: login/forgot/reset errors are announced (role=alert), focused + wired to fields (F5)', function (): void {
+    $root = dirname(__DIR__, 2);
+    foreach (['login.php', 'forgot-password.php', 'reset-password.php'] as $view) {
+        $html = (string) file_get_contents($root . '/app/Views/auth/' . $view);
+        assert_true(str_contains($html, 'role="alert"'), "auth/{$view} error must carry role=alert");
+        assert_true(str_contains($html, 'data-auth-error'), "auth/{$view} error must be focus-targetable (data-auth-error)");
+    }
+    $login = (string) file_get_contents($root . '/app/Views/auth/login.php');
+    assert_true(str_contains($login, 'aria-invalid="true"') && str_contains($login, 'aria-describedby="auth-error"'), 'login fields must link to the error summary on failure');
+    $js = (string) file_get_contents($root . '/public/assets/js/app.js');
+    assert_true(str_contains($js, '[data-auth-error]'), 'app.js must focus the auth error on load');
 });
 
 test('a11y-review file-picker: every native file input is wrapped in the Thai .file-field control', function (): void {
