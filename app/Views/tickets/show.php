@@ -579,7 +579,11 @@ if (!empty($workflow['canReview'])) {
                     </div>
                     <div class="field-group">
                         <label for="comment_attachments" class="field-label">แนบรูปเพิ่มเติม</label>
-                        <input id="comment_attachments" name="attachments[]" type="file" class="input" accept="image/jpeg,image/png,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,.pdf,.doc,.docx,.xls,.xlsx,.txt" multiple>
+                        <div class="file-field" data-file-field>
+                            <input id="comment_attachments" name="attachments[]" type="file" class="file-field-input" accept="image/jpeg,image/png,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,.pdf,.doc,.docx,.xls,.xlsx,.txt" multiple>
+                            <label for="comment_attachments" class="file-field-button"><?= lucide('paperclip', 'button-icon') ?><span>เลือกไฟล์</span></label>
+                            <span class="file-field-name" data-file-field-name data-empty="ยังไม่ได้เลือกไฟล์" aria-live="polite">ยังไม่ได้เลือกไฟล์</span>
+                        </div>
                         <p class="field-hint">รองรับรูปภาพและเอกสาร (PDF/Word/Excel/Text) สูงสุด 3 ไฟล์ ไฟล์ละไม่เกิน 5MB</p>
                     </div>
                     <div class="comment-form-actions">

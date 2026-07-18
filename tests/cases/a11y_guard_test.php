@@ -349,6 +349,37 @@ test('a11y-review accent-contrast: dark-theme indigo accents get a darker light 
     assert_true($ratio >= 4.5, sprintf('--indigo-700 on --canvas is %.2f:1, below AA', $ratio));
 });
 
+test('a11y-review file-picker: every native file input is wrapped in the Thai .file-field control', function (): void {
+    // A bare <input type="file" class="input"> renders the browser-locale "Choose File / No file chosen",
+    // clashing with the Thai UI on 5 upload/import flows. Each is now wrapped in .file-field with a Thai
+    // .file-field-button label; app.js mirrors the selected name into the aria-live readout. (ux-review-4 F1)
+    $root = dirname(__DIR__, 2);
+    $views = [
+        'app/Views/tickets/create.php',
+        'app/Views/tickets/show.php',
+        'app/Views/assets/import.php',
+        'app/Views/admin/import-users.php',
+        'app/Views/admin/tabs/settings.php',
+    ];
+    foreach ($views as $rel) {
+        $html = (string) file_get_contents($root . '/' . $rel);
+        assert_true(str_contains($html, 'type="file"'), "{$rel} should still have a file input");
+        assert_true(str_contains($html, 'class="file-field"'), "{$rel} file input must be wrapped in .file-field");
+        assert_true(str_contains($html, 'class="file-field-button"'), "{$rel} must provide a Thai .file-field-button (replaces the browser 'Choose File')");
+        assert_true(str_contains($html, 'class="file-field-input"'), "{$rel} native file input must use .file-field-input (hidden but focusable)");
+        assert_true(
+            preg_match('/type="file"[^>]*class="input"|class="input"[^>]*type="file"/', $html) !== 1,
+            "{$rel} still has a bare native file input (class=\"input\") showing the browser-locale picker"
+        );
+    }
+
+    $js = (string) file_get_contents($root . '/public/assets/js/app.js');
+    assert_true(
+        str_contains($js, "matches('.file-field-input')") && str_contains($js, 'data-file-field-name'),
+        'app.js must mirror the chosen file name into the .file-field-name aria-live readout'
+    );
+});
+
 test('a11y-review setup-labels: first-run setup admin fields carry a visible <label for>, not placeholder-only', function (): void {
     // The /setup admin-account fields had only a group <legend> + placeholders; a placeholder vanishes on
     // input, so the installer loses the field's identity mid-form (WCAG 3.3.2). Each now has an id + label.

@@ -761,6 +761,28 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // ── Custom Thai file picker: echo the chosen file name(s) into the aria-live readout (F1) ──
+  // The native "No file chosen" text is browser-locale and hidden by .file-field-input; mirror the
+  // selection in Thai here so the picker matches the rest of the UI.
+  document.addEventListener('change', function (e) {
+    var input = e.target;
+    if (!input || typeof input.matches !== 'function' || !input.matches('.file-field-input')) return;
+    var field = input.closest('[data-file-field]');
+    var nameEl = field && field.querySelector('[data-file-field-name]');
+    if (!nameEl) return;
+    var files = input.files;
+    if (!files || files.length === 0) {
+      nameEl.textContent = nameEl.getAttribute('data-empty') || 'ยังไม่ได้เลือกไฟล์';
+      nameEl.classList.remove('has-file');
+    } else if (files.length === 1) {
+      nameEl.textContent = files[0].name;
+      nameEl.classList.add('has-file');
+    } else {
+      nameEl.textContent = 'เลือกแล้ว ' + files.length + ' ไฟล์';
+      nameEl.classList.add('has-file');
+    }
+  });
+
   // ── Report table sorting (mouse + keyboard) ──
   document.querySelectorAll('.data-table th[data-sort-col]').forEach(function (th) {
     // Make the header operable + sortable-aware: focusable, and an initial aria-sort=none so a screen

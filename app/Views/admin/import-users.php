@@ -58,7 +58,11 @@ $total = (int) ($preview['total'] ?? 0);
                 <?= csrf_field() ?>
                 <div class="field-group">
                     <label for="csv" class="field-label">ไฟล์ CSV <span class="required">*</span></label>
-                    <input id="csv" name="csv" type="file" accept=".csv,text/csv" class="input" required>
+                    <div class="file-field" data-file-field>
+                        <input id="csv" name="csv" type="file" accept=".csv,text/csv" class="file-field-input" required>
+                        <label for="csv" class="file-field-button"><?= lucide('upload', 'button-icon') ?><span>เลือกไฟล์ CSV</span></label>
+                        <span class="file-field-name" data-file-field-name data-empty="ยังไม่ได้เลือกไฟล์" aria-live="polite">ยังไม่ได้เลือกไฟล์</span>
+                    </div>
                     <p class="field-hint">รองรับเฉพาะนามสกุล .csv (UTF-8 พร้อม BOM)</p>
                 </div>
                 <div class="button-row">

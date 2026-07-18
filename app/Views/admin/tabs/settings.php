@@ -78,7 +78,11 @@
                 <?= csrf_field() ?>
                 <div class="field-group">
                     <label class="field-label" for="logo">เลือกไฟล์โลโก้ใหม่</label>
-                    <input id="logo" class="input" type="file" name="logo" accept="image/png,image/jpeg,image/webp">
+                    <div class="file-field" data-file-field>
+                        <input id="logo" class="file-field-input" type="file" name="logo" accept="image/png,image/jpeg,image/webp">
+                        <label for="logo" class="file-field-button"><?= lucide('upload', 'button-icon') ?><span>เลือกไฟล์รูป</span></label>
+                        <span class="file-field-name" data-file-field-name data-empty="ยังไม่ได้เลือกไฟล์" aria-live="polite">ยังไม่ได้เลือกไฟล์</span>
+                    </div>
                 </div>
                 <div class="button-row">
                     <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'อัปโหลดโลโก้', 'variant' => 'primary', 'icon' => 'upload']) ?>

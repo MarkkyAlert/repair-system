@@ -5368,6 +5368,60 @@ code.mono, .mono {
   gap: .9rem;
 }
 
+/* Custom Thai file picker (ux-review-4 F1): a native <input type=file> renders a browser-locale
+   "Choose File / No file chosen" that clashed with the Thai UI. Visually hide the input (keep it
+   focusable) and drive it with a Thai <label> button + an aria-live filename readout. */
+.file-field {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  flex-wrap: wrap;
+}
+.file-field-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  opacity: 0;
+}
+.file-field-button {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  padding: .6rem 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--glass-border-strong);
+  background: var(--surface-muted);
+  color: var(--text);
+  font-size: .85rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s ease, border-color .15s ease;
+}
+.file-field-button:hover {
+  background: color-mix(in srgb, var(--indigo-50) 40%, var(--surface));
+  border-color: var(--indigo-400);
+}
+.file-field-input:focus-visible + .file-field-button {
+  outline: 3px solid var(--indigo-500);
+  outline-offset: 2px;
+}
+.file-field-name {
+  min-width: 0;
+  color: var(--muted);
+  font-size: .82rem;
+  word-break: break-word;
+}
+.file-field-name.has-file {
+  color: var(--text);
+  font-weight: 600;
+}
+
 .attachment-preview {
   display: flex;
   flex-direction: column;

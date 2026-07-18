@@ -265,7 +265,10 @@
                 </div>
                 <div class="field-group">
                     <label for="attachments" class="field-label">รูปอาการเสีย</label>
-                    <input id="attachments" name="attachments[]" type="file" class="input" accept="image/jpeg,image/png,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,.pdf,.doc,.docx,.xls,.xlsx,.txt" multiple aria-describedby="attachments-help attachments-status" data-ticket-attachment-input>
+                    <div class="file-field" data-file-field>
+                        <input id="attachments" name="attachments[]" type="file" class="file-field-input" accept="image/jpeg,image/png,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,.pdf,.doc,.docx,.xls,.xlsx,.txt" multiple aria-describedby="attachments-help attachments-status" data-ticket-attachment-input>
+                        <label for="attachments" class="file-field-button"><?= lucide('paperclip', 'button-icon') ?><span>เลือกไฟล์</span></label>
+                    </div>
                     <p id="attachments-help" class="field-hint">รองรับรูปภาพ (JPEG/PNG/WebP) และเอกสาร (PDF/Word/Excel/Text) สูงสุด 3 ไฟล์ ไฟล์ละไม่เกิน 5MB</p>
                     <div class="attachment-preview" data-ticket-attachment-root>
                         <p id="attachments-status" class="attachment-preview-status" role="status" aria-live="polite" data-ticket-attachment-status>ยังไม่ได้เลือกรูป</p>
