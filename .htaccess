@@ -1,4 +1,30 @@
+# =============================================================================
+# Root .htaccess — routes every request into public/ (the application web root).
+#
+# RECOMMENDED: point your hosting document root directly at the public/ folder.
+# Then app code, config, .env, storage, database and vendor sit OUTSIDE the web
+# root entirely and can never be requested. The rules below are a fallback for
+# hosts where you must upload the whole project into the web root — they block
+# direct access to sensitive files and folders as defense-in-depth.
+# =============================================================================
+
+# Never serve dotfiles (.env, .git*, .editorconfig, …) or sensitive file types.
+<FilesMatch "^\.|\.(env|sql|lock|neon|sh|bat|md|ya?ml|json)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
 RewriteEngine On
+
+# Block direct access to internal directories (403), even if the docroot is the
+# project root. Routing still works because real routes never start with these.
+RewriteRule ^(\.git|\.github|\.githooks|config|storage|database|app|bin|resources|tests|e2e|tools|vendor)(/|$) - [F]
+
 RewriteRule ^assets/?$ public/index.php [QSA,L]
 RewriteCond %{REQUEST_URI} !^/public/
 RewriteRule ^(.*)$ public/$1 [L]

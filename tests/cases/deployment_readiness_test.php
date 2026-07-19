@@ -48,3 +48,21 @@ test('deploy(D10): .env.production.example ships, covers the same keys, and defa
     assert_true((bool) preg_match('/^MAIL_DRIVER=smtp$/m', $prod), 'MAIL_DRIVER must be smtp (real email)');
     assert_true((bool) preg_match('/^DB_PASSWORD=\S+/m', $prod), 'DB_PASSWORD must not be blank in the production template');
 });
+
+test('deploy(D7): the root .htaccess blocks direct access to secrets + internals, and recommends docroot=public', function (): void {
+    $ht = (string) file_get_contents(dirname(__DIR__, 2) . '/.htaccess');
+
+    // Sensitive files (dotfiles incl. .env, plus .sql/.lock/etc.) must be denied.
+    assert_true((bool) preg_match('/<FilesMatch[^>]*env/i', $ht), '.htaccess must deny .env via a FilesMatch');
+    assert_true((bool) preg_match('/<FilesMatch[^>]*\^\\\\\./', $ht), '.htaccess must deny dotfiles (^\\.) — .git*, .env, etc.');
+    assert_true(stripos($ht, 'Require all denied') !== false || stripos($ht, 'Deny from all') !== false, '.htaccess must actually deny (2.4 or 2.2 syntax)');
+
+    // Internal directories must be forbidden (403) for the whole-folder-in-docroot case.
+    assert_true((bool) preg_match('/RewriteRule\s+\^\([^)]*\)\S*\s+-\s+\[F\]/', $ht, $blk), '.htaccess must have a [F] RewriteRule blocking internal dirs');
+    foreach (['config', 'storage', 'database', 'app', 'vendor'] as $dir) {
+        assert_true(str_contains($blk[0], $dir), ".htaccess [F] rule must block the {$dir} directory");
+    }
+
+    // Primary recommendation must be documented inline for whoever inspects the file.
+    assert_true(stripos($ht, 'public/') !== false && stripos($ht, 'document root') !== false, '.htaccess must recommend pointing the docroot at public/');
+});
