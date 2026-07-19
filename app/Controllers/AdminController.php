@@ -110,7 +110,7 @@ class AdminController
             }
             flash('success', $message);
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
+            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
         }
@@ -308,10 +308,10 @@ class AdminController
             csrf_validate();
             $result = $this->broadcast->sendBroadcast($viewer, $_POST);
             if (!empty($result['in_app_failed'])) {
-                // the in-app write (the primary channel) was swallowed — the announcement did NOT actually post
+                // การเขียนแจ้งเตือนในระบบ (in-app ซึ่งเป็นช่องทางหลัก) ถูกกลืนหายไป — ประกาศไม่ได้ถูกโพสต์จริง
                 flash('error', 'ส่งประกาศไม่สำเร็จ — การบันทึกแจ้งเตือนในระบบมีปัญหา ระบบบันทึกข้อผิดพลาดไว้แล้ว กรุณาลองใหม่');
             } elseif (!empty($result['email_failed'])) {
-                // the announcement posted in-app, but the email enqueue failed — say so, don't claim it was sent
+                // ประกาศขึ้นในระบบ (in-app) แล้ว แต่การนำอีเมลเข้าคิว (enqueue) ล้มเหลว — บอกตามจริง อย่าอ้างว่าส่งสำเร็จ
                 flash('error', sprintf(
                     'ประกาศขึ้นระบบแล้ว (in-app: %d คน) แต่การส่งอีเมลมีปัญหา — ระบบบันทึกข้อผิดพลาดไว้แล้ว กรุณาตรวจสอบการตั้งค่าอีเมล',
                     (int) ($result['in_app_count'] ?? 0)
@@ -325,7 +325,7 @@ class AdminController
             }
             Response::redirect('/admin/broadcast');
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
+            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
         } catch (DomainException|RuntimeException $exception) {
             with_old_input([
                 'title' => (string) ($_POST['title'] ?? ''),
@@ -338,8 +338,8 @@ class AdminController
     }
 
     /**
-     * On-demand database backup the admin can download from the UI — a pure-PHP (PDO) SQL dump, so it works on
-     * shared hosting where mysqldump / proc_open is disabled (the automated cron backup cannot run there).
+     * สำรองฐานข้อมูลแบบ on-demand (สั่งเมื่อต้องการ) ที่ admin ดาวน์โหลดได้จากหน้า UI — เป็น SQL dump ที่ทำด้วย PHP ล้วน (PDO) จึง
+     * ใช้ได้บน shared hosting (โฮสต์ที่แชร์เครื่องกัน) ที่ปิด mysqldump / proc_open ไว้ (ซึ่ง backup อัตโนมัติผ่าน cron รันที่นั่นไม่ได้).
      *
      */
     public function downloadBackup(): void
@@ -357,7 +357,7 @@ class AdminController
             Response::download($gz, 'backup-' . $stamp . '.sql.gz', 'application/gzip');
         }
 
-        // zlib not available → hand over the plain .sql (still fully restorable).
+        // ไม่มี zlib → ส่งไฟล์ .sql แบบธรรมดาให้แทน (ยังกู้คืนได้ครบทุกอย่าง).
         Response::download($sql, 'backup-' . $stamp . '.sql', 'application/sql');
     }
 

@@ -152,9 +152,9 @@ class AssetRepository
     }
 
     /**
-     * Lighter reference set for the asset LIST filters (category + location only). The list's filter bar does
-     * not offer department/custodian, so loading them (as getAssetFormReferenceData does for the create/edit
-     * form) is two wasted queries per list view.
+     * ชุดข้อมูลอ้างอิง (reference set) แบบเบาสำหรับ filter ของหน้า LIST asset (เฉพาะ category + location) แถบ filter
+     * ของ list ไม่มีตัวเลือก department/custodian การโหลดมันมาด้วย (แบบที่ getAssetFormReferenceData ทำสำหรับฟอร์ม
+     * create/edit) จึงเป็น query ที่เสียเปล่าสองครั้งต่อการดูหนึ่ง list
      */
     public function getAssetIndexReferenceData(): array
     {
@@ -318,9 +318,9 @@ class AssetRepository
 
     public function updateAsset(int $assetId, array $payload): void
     {
-        // Optimistic lock on an integer version (not updated_at): a DATETIME token has second granularity, so two
-        // edits in the same second could BOTH match and the later silently overwrote the earlier. version bumps on
-        // every write, so a stale edit form never matches.
+        // Optimistic lock (ล็อกแบบมองโลกในแง่ดี) บน version ที่เป็น integer (ไม่ใช่ updated_at): token แบบ DATETIME ละเอียดแค่ระดับวินาที การแก้
+        // สองครั้งในวินาทีเดียวกันจึงอาจ match ทั้งคู่ แล้วครั้งหลังเขียนทับครั้งแรกแบบเงียบ ๆ version จะเพิ่มขึ้น
+        // ทุกครั้งที่เขียน ฟอร์มแก้ไขที่เก่า (stale) จึงไม่มีวัน match
         $stmt = $this->db->prepare(
             'UPDATE assets
              SET asset_code = :asset_code,
@@ -381,17 +381,17 @@ class AssetRepository
 
     public function regenerateQrToken(int $assetId, ?int $generatedBy = null): string
     {
-        // Keep deactivate+insert in one transaction, and lock the asset row FOR UPDATE first so
-        // concurrent regenerates of the same asset serialize — otherwise both could deactivate the
-        // old token then each insert a new active one, leaving multiple active tokens per asset.
+        // เก็บ deactivate+insert ไว้ใน transaction เดียว และ lock แถว asset ด้วย FOR UPDATE ก่อน เพื่อให้
+        // การ regenerate ของ asset เดียวกันแบบพร้อมกัน (concurrent) ทำงานเรียงทีละอัน (serialize) — ไม่งั้นทั้งคู่อาจ deactivate
+        // token เก่า แล้วต่างก็ insert token active อันใหม่ ทำให้มี token active หลายอันต่อ asset
         $createdAt = date('Y-m-d H:i:s');
         $token = $this->generateUniqueQrToken();
 
         try {
             $this->db->beginTransaction();
 
-            // Serialization point: a second concurrent regenerate blocks here until the first commits,
-            // then its deactivate step sees (and clears) the token the first one just inserted.
+            // จุด serialization: การ regenerate ตัวที่สองที่ทำพร้อมกันจะถูก block ตรงนี้จนกว่าตัวแรกจะ commit
+            // แล้วขั้น deactivate ของมันจึงจะเห็น (และเคลียร์) token ที่ตัวแรกเพิ่ง insert ไป
             $lockStmt = $this->db->prepare('SELECT id FROM assets WHERE id = :asset_id FOR UPDATE');
             $lockStmt->execute(['asset_id' => $assetId]);
 
@@ -557,11 +557,11 @@ class AssetRepository
     }
 
     /**
-     * Insert a fresh random QR token for a just-created asset, relying on the UNIQUE(token) constraint as the
-     * collision backstop instead of a SELECT-per-token existence probe (generateUniqueQrToken) — one write
-     * instead of check + write, which halves the token cost on bulk import. The asset row is already inserted,
-     * so a duplicate-key error here is necessarily the token; on that (astronomically rare) event, regenerate
-     * and retry.
+     * insert QR token แบบสุ่มอันใหม่ให้ asset ที่เพิ่งสร้าง โดยพึ่ง constraint UNIQUE(token) เป็นตัวกันการชนกัน
+     * (collision) แทนที่จะ SELECT ตรวจการมีอยู่ทีละ token (generateUniqueQrToken) — เขียนครั้งเดียว
+     * แทน check + write ซึ่งลดต้นทุน token ลงครึ่งหนึ่งตอน bulk import แถว asset ถูก insert ไปแล้ว
+     * ดังนั้น duplicate-key error ตรงนี้ย่อมมาจาก token แน่นอน; เมื่อเกิดเหตุ (ซึ่งหายากมาก ๆ) นั้น ให้ regenerate
+     * แล้วลองใหม่
      */
     private function insertUniqueQrToken(int $assetId, ?int $generatedBy, string $createdAt): void
     {

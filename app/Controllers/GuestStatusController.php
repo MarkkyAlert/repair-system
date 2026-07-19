@@ -29,8 +29,8 @@ class GuestStatusController
         $result = null;
         $error = null;
         try {
-            // csrf_validate() throws DomainException on a bad/expired token — keep it INSIDE the try so a
-            // missing/stale token on this public guest form renders a friendly error, not a 500.
+            // csrf_validate() จะ throw DomainException เมื่อ token ผิด/หมดอายุ — ต้องวางไว้ข้างใน try เพื่อให้
+            // token ที่หาย/เก่าบนฟอร์ม guest แบบ public นี้แสดง error แบบอ่านง่าย ไม่ใช่ 500.
             csrf_validate();
             $result = $this->guests->lookupGuestStatus($requestNo, $contact, $ip);
             if ($result === null) {
@@ -38,7 +38,7 @@ class GuestStatusController
                 $error = 'ไม่พบข้อมูล — กรุณาตรวจสอบเลขอ้างอิงและเบอร์โทร/อีเมลที่แจ้งไว้อีกครั้ง';
             }
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
+            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
         } catch (DomainException|RuntimeException $exception) {
             $error = $exception->getMessage();
         }

@@ -20,7 +20,7 @@ $detectedBasePath = $detectedBasePath === '/' ? '' : rtrim($detectedBasePath, '/
 $configuredBasePath = is_string($appUrlPath) && $appUrlPath !== '/' ? rtrim($appUrlPath, '/') : '';
 $basePath = $configuredBasePath !== '' ? $configuredBasePath : $detectedBasePath;
 $sessionPath = $basePath !== '' ? $basePath . '/' : '/';
-// Secure cookies by default when the request is served over HTTPS (server-terminated TLS).
+// ตั้งคุกกี้ให้ปลอดภัย (secure) โดยอัตโนมัติเมื่อ request มาผ่าน HTTPS (เซิร์ฟเวอร์จบการเข้ารหัส TLS ให้แล้ว)
 // Stays false on plain HTTP (local dev) so login isn't broken; override explicitly with SESSION_SECURE.
 // Behind a TLS-terminating proxy, set SESSION_SECURE=true since $_SERVER['HTTPS'] won't be set here.
 $isHttps = ($_SERVER['HTTPS'] ?? '') !== '' && strtolower((string) ($_SERVER['HTTPS'] ?? '')) !== 'off';
@@ -72,19 +72,18 @@ return [
         'idle_timeout_minutes' => (int) Env::get('SESSION_IDLE_TIMEOUT_MINUTES', 60),
     ],
     'uploads' => [
-        // Ticket attachment limits (per submission). Buyers commonly raise these for their environment.
+        // เพดานไฟล์แนบต่อการแจ้งซ่อมหนึ่งครั้ง. ผู้ซื้อมักปรับเพิ่มค่านี้ให้เข้ากับองค์กรตัวเอง
         'attachment_max_files' => (int) Env::get('UPLOAD_ATTACHMENT_MAX_FILES', 3),
         'attachment_max_bytes' => (int) Env::get('UPLOAD_ATTACHMENT_MAX_BYTES', 5 * 1024 * 1024),
-        // CSV import limits (asset registry + user import).
+        // เพดานการนำเข้าไฟล์ CSV (ทะเบียนทรัพย์สิน + นำเข้าผู้ใช้)
         'import_asset_max_bytes' => (int) Env::get('UPLOAD_IMPORT_ASSET_MAX_BYTES', 2 * 1024 * 1024),
         'import_asset_max_rows' => (int) Env::get('UPLOAD_IMPORT_ASSET_MAX_ROWS', 500),
         'import_user_max_bytes' => (int) Env::get('UPLOAD_IMPORT_USER_MAX_BYTES', 1 * 1024 * 1024),
-        // Synchronous default kept modest: each imported user is bcrypt-hashed in-request (deliberately slow),
-        // so a large batch makes the admin wait and risks a web-server timeout mid-import (partial result).
-        // ~50 rows is a few seconds; raise via env only on a fast host with a generous max_execution_time. (perf-review F1)
+        // ตั้งค่าเริ่มต้นแบบทำทันที (synchronous) ไว้ไม่สูง เพราะผู้ใช้ที่นำเข้าแต่ละคนจะถูก bcrypt-hash ในคำขอเดียวกัน (จงใจให้ช้าเพื่อความปลอดภัย)
+        // ถ้าชุดใหญ่เกินไป admin ต้องรอนาน และเสี่ยงที่ web server จะ timeout กลางคัน (ได้ผลลัพธ์ไม่ครบ)
+        // ~50 แถวใช้เวลาไม่กี่วินาที; จะเพิ่มผ่าน env ก็ต่อเมื่ออยู่บนโฮสต์ที่เร็วและตั้ง max_execution_time ไว้เผื่อพอ
         'import_user_max_rows' => (int) Env::get('UPLOAD_IMPORT_USER_MAX_ROWS', 50),
-        // Where the organisation logo is stored (relative to the app root). Overridable so a deploy can point it
-        // at a writable/shared volume.
+        // ที่เก็บโลโก้องค์กร (path อ้างอิงจากรากของแอป). ปรับได้ เผื่อการ deploy อยากชี้ไปยัง volume ที่เขียนได้/ใช้ร่วมกัน
         'branding_dir' => trim((string) Env::get('BRANDING_UPLOAD_DIR', 'storage/uploads/branding'), '/'),
     ],
     'paths' => [
@@ -93,8 +92,8 @@ return [
         'public' => BASE_PATH . '/public',
     ],
     'security' => [
-        // Ship the Content-Security-Policy in Report-Only mode (observe violations, block nothing) when set.
-        // Default is enforcing. Flip via CSP_REPORT_ONLY=true if a deploy surfaces an unexpected violation.
+        // ส่ง Content-Security-Policy (CSP) แบบ Report-Only เมื่อเปิดค่านี้ (แค่เฝ้าดูการละเมิด ไม่บล็อกอะไร)
+        // ค่าเริ่มต้นคือบังคับใช้จริง. เปิด CSP_REPORT_ONLY=true เมื่อการ deploy เจอการละเมิดที่ไม่คาดคิด
         'csp_report_only' => Env::bool('CSP_REPORT_ONLY', false),
     ],
     'reports' => [

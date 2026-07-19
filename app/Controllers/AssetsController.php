@@ -70,8 +70,8 @@ class AssetsController
         ]);
     }
 
-    // Not handleUpdate(): success redirects to the new asset's detail page (needs the created id),
-    // while errors redirect back to the create form with old input — a split target handleUpdate can't express.
+    // ไม่ใช้ handleUpdate(): เมื่อสำเร็จจะ redirect ไปหน้ารายละเอียดของ asset ที่เพิ่งสร้าง (ต้องใช้ id ที่สร้างได้),
+    // ส่วนเมื่อ error จะ redirect กลับไปหน้าฟอร์มสร้างพร้อมค่าเดิม — เป็นปลายทางที่แยกกัน ซึ่ง handleUpdate ทำไม่ได้.
     public function store(): void
     {
         AuthMiddleware::handle();
@@ -86,7 +86,7 @@ class AssetsController
             flash('success', 'สร้าง Asset และ QR token เรียบร้อยแล้ว');
             Response::redirect('/asset-registry/' . $assetId);
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
+            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
         } catch (DomainException|RuntimeException $exception) {
             if ($exception instanceof RuntimeException) {
                 log_caught_exception('controller.operational', $exception, ['path' => (string) (request()?->path ?? '')]);
@@ -151,8 +151,8 @@ class AssetsController
         ]);
     }
 
-    // Not handleUpdate(): success redirects to the asset detail page, errors back to the edit form
-    // with old input — split success/error targets that handleUpdate's single redirect can't express.
+    // ไม่ใช้ handleUpdate(): เมื่อสำเร็จจะ redirect ไปหน้ารายละเอียด asset ส่วนเมื่อ error จะกลับไปหน้าฟอร์มแก้ไข
+    // พร้อมค่าเดิม — ปลายทางสำเร็จ/error แยกกัน ซึ่ง redirect เดียวของ handleUpdate แสดงออกมาไม่ได้.
     public function update(string $assetId): void
     {
         AuthMiddleware::handle();
@@ -166,7 +166,7 @@ class AssetsController
             $this->assets->updateAsset((int) $assetId, $viewer, $_POST);
             flash('success', 'อัปเดต Asset เรียบร้อยแล้ว');
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
+            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
         } catch (DomainException|RuntimeException $exception) {
             if ($exception instanceof RuntimeException) {
                 log_caught_exception('controller.operational', $exception, ['path' => (string) (request()?->path ?? '')]);
@@ -200,7 +200,7 @@ class AssetsController
             $png = $this->assets->generateQrPng((int) $assetId, $viewer);
             Response::download($png, 'asset-qr-' . (int) $assetId . '.png', 'image/png', 'inline');
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
+            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
         } catch (DomainException|RuntimeException $exception) {
             if ($exception instanceof RuntimeException) {
                 log_caught_exception('controller.operational', $exception, ['path' => (string) (request()?->path ?? '')]);
@@ -250,7 +250,7 @@ class AssetsController
                 (string) ($export['content_type'] ?? 'text/csv; charset=UTF-8')
             );
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
+            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
         } catch (DomainException|RuntimeException $exception) {
             if ($exception instanceof RuntimeException) {
                 log_caught_exception('controller.operational', $exception, ['path' => (string) (request()?->path ?? '')]);
@@ -275,7 +275,7 @@ class AssetsController
                 (string) ($export['content_type'] ?? 'application/octet-stream')
             );
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
+            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
         } catch (DomainException|RuntimeException $exception) {
             if ($exception instanceof RuntimeException) {
                 log_caught_exception('controller.operational', $exception, ['path' => (string) (request()?->path ?? '')]);
@@ -311,7 +311,7 @@ class AssetsController
             $rows = $this->importer->parseUploadedFile($_FILES['csv'] ?? []);
             $preview = $this->importer->validateRows($rows);
 
-            // Token-scope the batch so a second preview in another tab can't hijack this tab's confirm.
+            // ผูก batch นี้ไว้กับ token เพื่อไม่ให้การ preview ครั้งที่สองในอีกแท็บมาแย่งยืนยัน (confirm) ของแท็บนี้ได้.
             $token = bin2hex(random_bytes(16));
             Session::put('asset_import_batch', ['token' => $token, 'rows' => $preview['valid']]);
 
@@ -324,7 +324,7 @@ class AssetsController
                 'errorMessage' => null,
             ]);
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
+            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
         } catch (DomainException|RuntimeException $exception) {
             if ($exception instanceof RuntimeException) {
                 log_caught_exception('controller.operational', $exception, ['path' => (string) (request()?->path ?? '')]);
@@ -360,7 +360,7 @@ class AssetsController
             }
             flash('success', $summary);
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
+            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
         } catch (DomainException|RuntimeException $exception) {
             if ($exception instanceof RuntimeException) {
                 log_caught_exception('controller.operational', $exception, ['path' => (string) (request()?->path ?? '')]);

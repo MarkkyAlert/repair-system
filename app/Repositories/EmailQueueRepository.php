@@ -74,8 +74,8 @@ class EmailQueueRepository
     }
 
     /**
-     * Enqueue many messages as bounded multi-row INSERTs (one statement per chunk) instead of one INSERT per
-     * message — for fan-out senders like a system broadcast. Same column defaults as enqueue().
+     * enqueue ข้อความจำนวนมากด้วย multi-row INSERT ที่จำกัดขนาด (หนึ่ง statement ต่อ chunk) แทนที่จะ INSERT ทีละ
+     * ข้อความ — สำหรับผู้ส่งแบบ fan-out เช่น broadcast ของระบบ ใช้ค่า default ของคอลัมน์ชุดเดียวกับ enqueue()
      *
      * @param array<int, array<string, mixed>> $payloads
      */
@@ -175,11 +175,11 @@ class EmailQueueRepository
         }
     }
 
-    // A terminal update (markSent/releaseForRetry/markFailed) must only touch the row THIS worker still holds.
-    // It compares-and-sets on the claim: status='processing' AND attempts=:claim_attempt (the attempts value the
-    // claim assigned). If another worker reclaimed the row after the stale timeout (attempts bumped again), the
-    // stale worker's terminal update matches 0 rows and no-ops instead of clobbering the new claim. Returns
-    // whether the row was still held (rowCount > 0).
+    // การ update ขั้นสุดท้าย (markSent/releaseForRetry/markFailed) ต้องแตะเฉพาะแถวที่ worker ตัวนี้ (THIS) ยังถือครองอยู่
+    // มันทำ compare-and-set บน claim: status='processing' AND attempts=:claim_attempt (ค่า attempts ที่
+    // claim กำหนดไว้) ถ้ามี worker อื่น claim แถวนี้ไปใหม่หลังหมด stale timeout (attempts ถูกเพิ่มอีก)
+    // การ update ขั้นสุดท้ายของ worker ที่ค้าง (stale) จะ match 0 แถวและไม่ทำอะไร (no-op) แทนที่จะไปทับ claim ใหม่ คืนค่า
+    // ว่าแถวยังถูกถือครองอยู่หรือไม่ (rowCount > 0)
     public function markSent(int $emailId, int $claimAttempt): bool
     {
         $now = date('Y-m-d H:i:s');

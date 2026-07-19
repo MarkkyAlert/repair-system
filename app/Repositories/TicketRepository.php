@@ -16,8 +16,8 @@ class TicketRepository
 
     public function markSlaBreachedById(int $slaTrackId, string $breachedAt): bool
     {
-        // NOTE: :overdue_before binds the same value as :breached_at but must be a DISTINCT placeholder —
-        // native prepared statements (PDO::ATTR_EMULATE_PREPARES=false) reject a reused named parameter (HY093).
+        // NOTE: :overdue_before bind ค่าเดียวกับ :breached_at แต่ต้องเป็น placeholder ที่แยกกัน (DISTINCT) —
+        // native prepared statement (PDO::ATTR_EMULATE_PREPARES=false) จะปฏิเสธ named parameter ที่ใช้ซ้ำ (HY093)
         $stmt = $this->db->prepare(
             'UPDATE ticket_sla_tracks
              SET breached_at = COALESCE(breached_at, :breached_at),
@@ -301,27 +301,27 @@ class TicketRepository
 
         try {
             $this->db->beginTransaction();
-            // accepted/in_progress: mid-work reassign when the technician became unavailable.
-            // Branch on the LOCKED status, not the pre-lock snapshot passed by the caller — a concurrent
-            // accept/start between the service's read and this lock must not make a reassign look like a first
-            // assign (which would skip the response-SLA reset and log a wrong from_status).
+            // accepted/in_progress: การ reassign กลางงานเมื่อช่างไม่พร้อมทำต่อ
+            // ให้ตัดสินใจจากสถานะที่ถูก lock (LOCKED) ไม่ใช่ snapshot ก่อน lock ที่ caller ส่งมา — การ accept/start
+            // ที่เกิดพร้อมกันระหว่างที่ service อ่านค่ากับตอน lock นี้ ต้องไม่ทำให้ reassign ดูเหมือนการ assign ครั้งแรก
+            // (ซึ่งจะข้ามการ reset response-SLA และ log from_status ผิด)
             $lockedStatus = $this->lockTicketForTransition($ticketId, ['approved', 'assigned', 'accepted', 'in_progress'], 'approved');
 
             $isReassign = in_array($lockedStatus, ['assigned', 'accepted', 'in_progress'], true);
 
-            // Authoritative under-lock re-check of the mid-work-reassign reason rule. The service checks this
-            // BEFORE the lock, but a concurrent accept/start could move the ticket into a mid-work state after
-            // that check — enforce it here on the LOCKED status so a reason can never be skipped by a race.
+            // ตรวจซ้ำกฎ "เหตุผลการ reassign กลางงาน" อีกครั้งแบบมีอำนาจตัดสิน (authoritative) ภายใต้ lock service ตรวจกฎนี้
+            // ก่อน (BEFORE) lock แต่การ accept/start ที่เกิดพร้อมกันอาจย้าย ticket เข้าสู่สถานะกลางงานหลัง
+            // การตรวจนั้น — จึงบังคับกฎตรงนี้บนสถานะที่ถูก lock (LOCKED) เพื่อไม่ให้ race ข้ามการใส่เหตุผลได้
             if (in_array($lockedStatus, ['accepted', 'in_progress'], true) && $instructions === '') {
                 throw new DomainException('กรุณาระบุเหตุผลในการย้ายงานที่ช่างรับไปแล้ว');
             }
 
-            // Lock the chosen technician's row and re-verify role+active INSIDE the transaction. The service
-            // checks this BEFORE the lock, but a concurrent admin deactivate/role-change (which locks the user
-            // row + rechecks open work under its own lock) could otherwise interleave: the deactivate sees no
-            // open work yet (this assign uncommitted) and disables the account, then this assign commits →
-            // is_active=0 + status=assigned, work stuck on a dead account. Locking the user row here serialises
-            // the two flows so exactly one wins.
+            // lock แถวของช่างที่เลือกและตรวจ role+active ซ้ำภายใน (INSIDE) transaction service ตรวจ
+            // ก่อน (BEFORE) lock แต่การ deactivate/เปลี่ยน role โดย admin ที่เกิดพร้อมกัน (ซึ่ง lock แถว user
+            // + ตรวจงานค้างซ้ำภายใต้ lock ของมันเอง) อาจสลับจังหวะกันได้: ตัว deactivate เห็นว่ายังไม่มี
+            // งานค้าง (การ assign นี้ยังไม่ commit) แล้วปิดบัญชี จากนั้นการ assign นี้ commit →
+            // is_active=0 + status=assigned งานค้างอยู่บนบัญชีที่ตายแล้ว การ lock แถว user ตรงนี้ทำให้สอง flow เรียงกัน (serialise)
+            // ให้มีฝ่ายเดียวที่ชนะพอดี
             $techStmt = $this->db->prepare('SELECT role, is_active FROM users WHERE id = :id LIMIT 1 FOR UPDATE');
             $techStmt->execute(['id' => $technicianId]);
             $tech = $techStmt->fetch(PDO::FETCH_ASSOC) ?: null;
@@ -331,7 +331,7 @@ class TicketRepository
 
             $existingResponseDueAt = '';
             if ($isReassign) {
-                // Refresh response_due_at within the locked row so the SLA reset uses the current target.
+                // refresh response_due_at ในแถวที่ถูก lock เพื่อให้การ reset SLA ใช้ target ปัจจุบัน
                 $dueStmt = $this->db->prepare(
                     'SELECT response_due_at FROM tickets WHERE id = :ticket_id LIMIT 1'
                 );
@@ -454,8 +454,8 @@ class TicketRepository
             $this->insertActivityLog($ticketId, $actorId, 'technician_assigned', $lockedStatus, 'assigned', $details);
 
             if ($isReassign && $existingResponseDueAt !== '') {
-                // Reassigning a ticket invalidates the previous technician's first response;
-                // reset the response SLA row so the new technician starts from pending state.
+                // การ reassign ticket ทำให้ first response ของช่างคนก่อนใช้ไม่ได้;
+                // reset แถว response SLA เพื่อให้ช่างคนใหม่เริ่มจากสถานะ pending
                 $this->resetSlaTrack($ticketId, 'response', $existingResponseDueAt);
             }
 
@@ -532,8 +532,8 @@ class TicketRepository
 
         try {
             $this->db->beginTransaction();
-            // multi-status lock → log from the LOCKED status, not the caller's pre-lock snapshot, so a concurrent
-            // accept between the service read and this lock can't record a wrong from_status.
+            // lock แบบหลายสถานะ → log จากสถานะที่ถูก lock (LOCKED) ไม่ใช่ snapshot ก่อน lock ของ caller เพื่อให้การ
+            // accept ที่เกิดพร้อมกันระหว่างที่ service อ่านค่ากับ lock นี้ ไม่บันทึก from_status ผิด
             $lockedStatus = $this->lockTicketForTransition($ticketId, ['assigned', 'accepted'], 'approved', 'assigned_technician_id', $actorId);
 
             $ticketStmt = $this->db->prepare(
@@ -591,7 +591,7 @@ class TicketRepository
 
         try {
             $this->db->beginTransaction();
-            // multi-status lock → log from the LOCKED status, not the caller's pre-lock snapshot.
+            // lock แบบหลายสถานะ → log จากสถานะที่ถูก lock (LOCKED) ไม่ใช่ snapshot ก่อน lock ของ caller
             $lockedStatus = $this->lockTicketForTransition($ticketId, ['accepted', 'in_progress'], 'approved', 'assigned_technician_id', $actorId);
 
             $ticketStmt = $this->db->prepare(
@@ -741,9 +741,9 @@ class TicketRepository
                 'ticket_id' => $ticketId,
             ]);
 
-            // labor_minutes is intentionally NOT reset here: labor already spent on earlier cycles is real,
-            // paid effort (as-reported — same principle as the frozen SLA/rating cycles below). The next
-            // resolve ADDS its minutes on top, so a reopen never erases recorded labor from the reports.
+            // จงใจ NOT reset labor_minutes ตรงนี้: แรงงานที่ใช้ไปแล้วใน cycle ก่อน ๆ เป็นความพยายามจริงที่จ่ายไปแล้ว
+            // (as-reported — หลักการเดียวกับ SLA/rating cycle ที่ถูก freeze ด้านล่าง) การ resolve
+            // ครั้งถัดไปจะ ADD นาทีเพิ่มทับเข้าไป ดังนั้น reopen จะไม่มีวันลบ labor ที่บันทึกไว้ออกจาก report
             $workOrderStmt = $this->db->prepare(
                 'UPDATE work_orders
                  SET status = :status,
@@ -767,9 +767,9 @@ class TicketRepository
                 throw new RuntimeException('ไม่พบ work order สำหรับ ticket นี้');
             }
 
-            // As-reported (F1 Phase 2): the previous cycle's rating stays (a re-rate APPENDS a new cycle), and
-            // the previous cycle's SLA rows stay frozen — reopen APPENDS a fresh pending cycle instead of
-            // resetting, so a past period's SLA verdict / CSAT is immutable.
+            // As-reported (F1 Phase 2): rating ของ cycle ก่อนหน้ายังคงอยู่ (การ re-rate จะ APPEND cycle ใหม่) และ
+            // แถว SLA ของ cycle ก่อนหน้ายังถูก freeze ไว้ — reopen จะ APPEND cycle pending อันใหม่แทนการ
+            // reset ดังนั้นผลตัดสิน SLA / CSAT ของงวดในอดีตจึงไม่เปลี่ยนแปลง (immutable)
             $nextCycle = $this->currentTicketCycle($ticketId) + 1;
             $this->appendSlaCycle($ticketId, 'response', $responseDueAt, $nextCycle);
             $this->appendSlaCycle($ticketId, 'resolution', $resolutionDueAt, $nextCycle);
@@ -880,7 +880,7 @@ class TicketRepository
         return (int) $this->db->lastInsertId();
     }
 
-    /** Seed work order (labor) — idempotent ผ่าน UNIQUE(ticket_id)/UNIQUE(work_order_no). ใช้ตอนโหลด demo data. */
+    /** สร้าง work order เริ่มต้น (seed) (labor) — idempotent ผ่าน UNIQUE(ticket_id)/UNIQUE(work_order_no). ใช้ตอนโหลด demo data. */
     public function createSeedWorkOrder(int $ticketId, int $technicianId, int $assignedBy, string $status, int $laborMinutes, string $assignedAt, ?string $completedAt): void
     {
         $stmt = $this->db->prepare(
@@ -900,7 +900,7 @@ class TicketRepository
         ]);
     }
 
-    /** Seed SLA track (response/resolution) — idempotent ผ่าน UNIQUE(ticket_id, metric_type). ใช้ตอนโหลด demo data. */
+    /** สร้าง SLA track เริ่มต้น (seed) (response/resolution) — idempotent ผ่าน UNIQUE(ticket_id, metric_type). ใช้ตอนโหลด demo data. */
     public function createSeedSlaTrack(int $ticketId, string $metricType, string $targetAt, ?string $achievedAt, ?string $breachedAt, string $status): void
     {
         $stmt = $this->db->prepare(
@@ -918,7 +918,7 @@ class TicketRepository
         ]);
     }
 
-    /** Seed activity log (เช่น ticket_resolved / ticket_reopened) — ใช้ตอนโหลด demo data. */
+    /** สร้าง activity log เริ่มต้น (seed) (เช่น ticket_resolved / ticket_reopened) — ใช้ตอนโหลด demo data. */
     public function createSeedActivityLog(int $ticketId, int $actorId, string $action, ?string $fromStatus, ?string $toStatus, string $createdAt): void
     {
         $stmt = $this->db->prepare(
@@ -1105,16 +1105,16 @@ class TicketRepository
             $stmt = $this->db->prepare('SELECT RELEASE_LOCK(:name)');
             $stmt->execute(['name' => $name]);
         } catch (Throwable) {
-            // Releasing a connection-scoped lock must not hide the original operation result.
+            // การปล่อย lock ที่ผูกกับ connection ต้องไม่บดบังผลลัพธ์ของ operation เดิม
         }
     }
 
     /**
-     * Lock the ticket row FOR UPDATE and verify it is in an allowed state, then RETURN its real locked status.
-     * Callers must branch on the returned value — never on a status read before the lock — so a concurrent
-     * transition that lands the row on a different (still-allowed) status cannot drive stale branch logic
-     * (e.g. reassign's SLA reset / audit from_status). The lock only guarantees the transition is valid; the
-     * returned status is what makes the *consequences* match reality.
+     * lock แถว ticket ด้วย FOR UPDATE และตรวจว่าอยู่ในสถานะที่อนุญาต จากนั้น RETURN สถานะที่ถูก lock จริงของมัน
+     * ผู้เรียกต้องตัดสินใจจากค่าที่คืนกลับมา — ห้ามใช้สถานะที่อ่านก่อน lock — เพื่อให้ transition ที่เกิดพร้อมกัน
+     * ซึ่งพา ticket ไปอยู่สถานะอื่น (ที่ยังอนุญาต) ไม่สามารถขับ logic การแตกกิ่งที่ล้าสมัย (stale) ได้
+     * (เช่น การ reset SLA ของ reassign / from_status ใน audit) lock แค่รับประกันว่า transition ถูกต้อง; สถานะ
+     * ที่คืนกลับมาคือสิ่งที่ทำให้ *ผลลัพธ์* ตรงกับความเป็นจริง
      */
     private function lockTicketForTransition(
         int $ticketId,
@@ -1174,10 +1174,10 @@ class TicketRepository
 
     private function upsertTicketRating(int $ticketId, int $requesterId, ?int $technicianId, int $score, string $feedback, string $createdAt): void
     {
-        // As-reported (F1 Phase 2): one rating per lifecycle CYCLE. A re-rate after a reopen APPENDS a new
-        // cycle's rating (its own created_at) instead of overwriting the previous cycle's — so a past period's
-        // CSAT (windowed on created_at) is immutable. Idempotent WITHIN a cycle (re-confirming the same cycle
-        // updates that cycle's row rather than violating UNIQUE(ticket_id, cycle)).
+        // As-reported (F1 Phase 2): หนึ่ง rating ต่อหนึ่ง CYCLE ของ lifecycle การ re-rate หลัง reopen จะ APPEND
+        // rating ของ cycle ใหม่ (created_at ของมันเอง) แทนการเขียนทับของ cycle ก่อน — ดังนั้น CSAT ของงวดในอดีต
+        // (ที่ window บน created_at) จึงไม่เปลี่ยนแปลง (immutable) idempotent ภายใน (WITHIN) cycle เดียวกัน (การยืนยัน cycle เดิมซ้ำ
+        // จะ update แถวของ cycle นั้นแทนที่จะละเมิด UNIQUE(ticket_id, cycle))
         $cycle = $this->currentTicketCycle($ticketId);
 
         $lookupStmt = $this->db->prepare(
@@ -1230,11 +1230,11 @@ class TicketRepository
 
     private function markSlaAchieved(int $ticketId, string $metricType, string $achievedAt): void
     {
-        // As-reported (F1 Phase 2): SLA tracks are per-cycle; a resolve concludes the LATEST cycle's verdict.
-        // An earlier cycle's met/breached record stays frozen. RISK MAP: idempotent from the achieved timestamp.
+        // As-reported (F1 Phase 2): SLA track เป็นแบบราย cycle; การ resolve จะสรุปผลตัดสินของ cycle ล่าสุด (LATEST)
+        // บันทึก met/breached ของ cycle ก่อนหน้ายังถูก freeze ไว้ RISK MAP: idempotent จาก achieved timestamp
         $cycle = $this->latestSlaCycle($ticketId, $metricType);
         if ($cycle === 0) {
-            return; // no SLA row (should not happen in the real flow — every ticket seeds cycle 1 at creation)
+            return; // ไม่มีแถว SLA (ไม่ควรเกิดใน flow จริง — ทุก ticket จะ seed cycle 1 ตอนสร้าง)
         }
         $stmt = $this->db->prepare(
             'UPDATE ticket_sla_tracks
@@ -1264,8 +1264,8 @@ class TicketRepository
     }
 
     /**
-     * Reset the LATEST cycle's SLA row to pending (WITHIN-cycle — used by a reassign, which invalidates the
-     * previous technician's response but does NOT start a new lifecycle cycle; a reopen APPENDS a cycle instead).
+     * reset แถว SLA ของ cycle ล่าสุด (LATEST) กลับเป็น pending (ภายใน cycle เดิม — ใช้โดยการ reassign ซึ่งทำให้ response
+     * ของช่างคนก่อนใช้ไม่ได้ แต่ไม่ (NOT) เริ่ม cycle ใหม่ของ lifecycle; ส่วน reopen จะ APPEND cycle แทน)
      */
     private function resetSlaTrack(int $ticketId, string $metricType, string $targetAt): void
     {
@@ -1290,7 +1290,7 @@ class TicketRepository
         ]);
     }
 
-    /** Highest SLA cycle for (ticket, metric); 0 if none. */
+    /** cycle ของ SLA ที่สูงสุดสำหรับ (ticket, metric); เป็น 0 ถ้าไม่มี. */
     private function latestSlaCycle(int $ticketId, string $metricType): int
     {
         $stmt = $this->db->prepare(
@@ -1301,7 +1301,7 @@ class TicketRepository
         return (int) $stmt->fetchColumn();
     }
 
-    /** The ticket's current lifecycle cycle = highest SLA cycle across metrics (>=1). */
+    /** cycle ปัจจุบันของ lifecycle ของ ticket = cycle SLA สูงสุดข้าม metric ทั้งหมด (>=1). */
     private function currentTicketCycle(int $ticketId): int
     {
         $stmt = $this->db->prepare('SELECT COALESCE(MAX(cycle), 1) FROM ticket_sla_tracks WHERE ticket_id = :ticket_id');
@@ -1310,7 +1310,7 @@ class TicketRepository
         return max(1, (int) $stmt->fetchColumn());
     }
 
-    /** Append a fresh (pending) SLA row for a new lifecycle cycle — as-reported: never overwrites a past cycle. */
+    /** append แถว SLA ใหม่ (pending) สำหรับ cycle ใหม่ของ lifecycle — as-reported: ไม่มีวันเขียนทับ cycle ในอดีต. */
     private function appendSlaCycle(int $ticketId, string $metricType, string $targetAt, int $cycle): void
     {
         $stmt = $this->db->prepare(

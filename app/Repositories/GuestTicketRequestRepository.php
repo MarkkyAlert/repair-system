@@ -129,11 +129,11 @@ class GuestTicketRequestRepository
     }
 
     /**
-     * Atomically mark a 'new' request converted AND link its ticket in ONE statement — status และ
+     * ทำเครื่องหมายว่า request สถานะ 'new' ถูก converted และ link ticket ของมันแบบ atomic ใน statement เดียว — status และ
      * converted_ticket_id ถูก set พร้อมกัน จึงไม่มีทางเกิด request 'converted' ที่ converted_ticket_id
-     * เป็น NULL (invariant นี้บังคับด้วยโครงสร้าง SQL). Ticket ต้องถูกสร้าง (commit) มาก่อนเรียก.
-     * Returns false เมื่อ concurrent convert/reject ชิงไปแล้ว (status ไม่ใช่ 'new') — caller ควร
-     * surface + ตรวจสอบ ticket ที่สร้างไว้ (ticket ยังเป็น valid record).
+     * เป็น NULL (invariant นี้บังคับด้วยโครงสร้าง SQL) Ticket ต้องถูกสร้าง (commit) มาก่อนเรียก
+     * คืน false เมื่อ concurrent convert/reject ชิงไปแล้ว (status ไม่ใช่ 'new') — caller ควร
+     * แจ้ง (surface) + ตรวจสอบ ticket ที่สร้างไว้ (ticket ยังเป็น valid record)
      */
     public function claimAndLink(int $id, int $ticketId, int $reviewerId): bool
     {
@@ -169,9 +169,9 @@ class GuestTicketRequestRepository
     }
 
     /**
-     * Connection-scoped advisory lock ต่อ 1 guest request — serialize convert/reject ที่แข่งกัน
-     * (mirror TicketRepository::acquireNamedLock). ถือ lock ระหว่างตรวจ status + สร้าง ticket + link
-     * เพื่อกันการสร้าง orphan ticket จาก concurrent convert.
+     * advisory lock (ล็อกแบบ advisory) ผูกกับ connection ต่อ guest request 1 อัน — ทำให้ convert/reject ที่แข่งกันทำงานเรียงทีละอัน (serialize)
+     * (สะท้อนแบบเดียวกับ TicketRepository::acquireNamedLock) ถือ lock ระหว่างตรวจ status + สร้าง ticket + link
+     * เพื่อกันการสร้าง orphan ticket จาก concurrent convert
      */
     public function acquireConvertLock(int $requestId): void
     {
@@ -188,7 +188,7 @@ class GuestTicketRequestRepository
             $stmt = $this->db->prepare('SELECT RELEASE_LOCK(:name)');
             $stmt->execute(['name' => 'guest-req-convert-' . $requestId]);
         } catch (Throwable) {
-            // Releasing a connection-scoped lock must not hide the original operation result.
+            // การปล่อย lock ที่ผูกกับ connection ต้องไม่บดบังผลลัพธ์ของ operation เดิม
         }
     }
 }

@@ -50,9 +50,9 @@ class EmailTemplateRepository
     }
 
     /**
-     * Persist several fields of one template as a single all-or-nothing save: the per-field upserts run in one
-     * transaction so a failure partway through rolls the earlier fields back (never a half-saved template, e.g.
-     * a new subject with the old body). $fieldValues is fieldKey => value.
+     * บันทึกหลาย field ของ template หนึ่งอันเป็นการเซฟแบบทั้งหมดหรือไม่ทำเลย (all-or-nothing): การ upsert แต่ละ field ทำใน
+     * transaction เดียว ดังนั้นเมื่อเกิดข้อผิดพลาดกลางคัน จะ rollback field ก่อนหน้ากลับ (ไม่มีทางได้ template ที่เซฟครึ่งเดียว เช่น
+     * subject ใหม่กับ body เก่า) $fieldValues คือ fieldKey => value
      *
      * @param array<string, string> $fieldValues
      */

@@ -54,8 +54,8 @@ class AttachmentRepository
     }
 
     /**
-     * Attachments belonging to a specific set of comment ids — for the live-poll feed which already knows
-     * which (new) comments it is rendering, so it needn't scan every attachment on the ticket.
+     * ไฟล์แนบ (attachments) ที่อยู่กับชุด comment id ที่ระบุ — สำหรับ live-poll feed (ฟีดที่ดึงข้อมูลใหม่เป็นระยะ) ที่รู้อยู่แล้วว่า
+     * กำลัง render comment (ใหม่) ตัวไหน จึงไม่ต้องสแกนไฟล์แนบทุกอันบน ticket
      *
      * @param int[] $commentIds
      * @return array<int, array<string, mixed>>

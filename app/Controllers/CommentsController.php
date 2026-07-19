@@ -33,15 +33,15 @@ class CommentsController
         );
     }
 
-    // Not handleUpdate(): dual-mode response — returns JSON for the inline AJAX editor
-    // (X-Requested-With) or falls back to flash+redirect for a plain form POST.
+    // ไม่ใช้ handleUpdate(): ตอบได้สองแบบ (dual-mode) — คืน JSON ให้ตัวแก้ไขแบบ AJAX ในหน้า
+    // (X-Requested-With) หรือถอยไปใช้ flash+redirect เมื่อเป็นการ POST ฟอร์มธรรมดา.
     public function update(string $ticketId, string $commentId): void
     {
         AuthMiddleware::handle();
 
         $viewer = auth()->user() ?? [];
-        // use the shared content-negotiation helper (same one the entry point + AuthMiddleware use) rather than
-        // re-deriving Accept / X-Requested-With here, so the JSON decision can't drift.
+        // ใช้ helper กลางสำหรับ content-negotiation (ตัวเลือกว่าจะตอบ format ไหน — ตัวเดียวกับที่ entry point + AuthMiddleware ใช้) แทนที่จะ
+        // มาไล่เช็ก Accept / X-Requested-With ใหม่ตรงนี้ เพื่อไม่ให้การตัดสินใจว่าจะตอบ JSON หรือไม่คลาดเคลื่อนไปคนละทาง.
         $expectsJson = request_wants_json(request()?->server);
 
         try {
@@ -55,7 +55,7 @@ class CommentsController
 
             flash('success', 'อัปเดต comment เรียบร้อยแล้ว');
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
+            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
         } catch (DomainException|RuntimeException $exception) {
             if ($expectsJson) {
                 Response::jsonError($exception->getMessage());

@@ -6,10 +6,10 @@ namespace App\Repositories;
 use PDO;
 
 /**
- * Read-side ticket queries split out of TicketRepository (read-only — no mutations/locks/transactions):
- * dashboard aggregates, list/queue pagination, ticket detail, comments/activity, reference data, and
- * asset/notification-context reads. Grouped by the section comments below. The mutation side lives in
- * TicketRepository; the visibility + filter query-builders live here as private helpers.
+ * query ฝั่งอ่าน (read-side) ของ ticket ที่แยกออกมาจาก TicketRepository (อ่านอย่างเดียว — ไม่มี mutation/lock/transaction):
+ * ค่าสรุป (aggregate) ของ dashboard, การแบ่งหน้า list/queue, รายละเอียด ticket, comment/activity, ข้อมูลอ้างอิง และ
+ * การอ่าน context ของ asset/notification จัดกลุ่มตาม section comment ด้านล่าง ฝั่งที่แก้ไขข้อมูล (mutation) อยู่ใน
+ * TicketRepository; ตัวสร้าง query สำหรับ visibility + filter อยู่ที่นี่ในรูป private helper
  */
 class TicketReadRepository
 {
@@ -18,10 +18,10 @@ class TicketReadRepository
     }
 
     /**
-     * As-reported (F1 Phase 2): ticket_sla_tracks / ticket_ratings now hold one row per lifecycle CYCLE
-     * (reopen / re-rate append instead of overwrite). Every CURRENT-STATE surface here (dashboard overdue,
-     * ticket detail SLA + rating, "breached" list filter) must read only the ticket's LATEST cycle, or an old
-     * cycle's verdict/rating would leak into the current view. These pin an aliased reference to that cycle.
+     * As-reported (F1 Phase 2): ตอนนี้ ticket_sla_tracks / ticket_ratings เก็บหนึ่งแถวต่อหนึ่ง CYCLE ของ lifecycle
+     * (การ reopen / re-rate จะ append เพิ่มแทนการเขียนทับ) ทุกจุดที่แสดงสถานะปัจจุบัน (CURRENT-STATE) ตรงนี้ (overdue บน dashboard,
+     * SLA + rating ในรายละเอียด ticket, filter "breached" ของ list) ต้องอ่านเฉพาะ cycle ล่าสุด (LATEST) ของ ticket ไม่งั้นผลตัดสิน/rating
+     * ของ cycle เก่าจะรั่วเข้ามาในมุมมองปัจจุบัน โค้ดพวกนี้จึงตรึง (pin) reference ที่มี alias ไว้กับ cycle นั้น
      */
     private function latestSlaCycleClause(string $a): string
     {
@@ -33,7 +33,7 @@ class TicketReadRepository
         return "$a.cycle = (SELECT MAX(rtc.cycle) FROM ticket_ratings rtc WHERE rtc.ticket_id = $a.ticket_id)";
     }
 
-    // ── Dashboard reads — metrics, recent, trends, breakdowns, CSAT ──
+    // ── การอ่านข้อมูล Dashboard — metrics, recent, trends, breakdowns, CSAT ──
     public function getDashboardMetrics(array $viewer, array $filters = []): array
     {
         $params = [];
@@ -385,7 +385,7 @@ class TicketReadRepository
         ];
     }
 
-    // ── Private query helpers — dashboard filters + row visibility ──
+    // ── private query helper — filter ของ dashboard + การมองเห็นแถว (row visibility) ──
     private function applyDashboardFilters(array &$conditions, array $filters, array &$params): void
     {
         $fromDate = is_string($filters['from_datetime'] ?? null) ? trim((string) $filters['from_datetime']) : '';
@@ -466,7 +466,7 @@ class TicketReadRepository
         return '0 = 1';
     }
 
-    // ── Ticket list / queue — pagination + filters ──
+    // ── รายการ / คิว ของ ticket — การแบ่งหน้า (pagination) + filter ──
     public function getVisibleTicketsPage(array $viewer, array $filters, int $page, int $perPage): array
     {
         $params = [];
@@ -520,7 +520,7 @@ class TicketReadRepository
         ];
     }
 
-    // ── SLA breach reads ──
+    // ── การอ่านข้อมูล SLA breach (การละเมิด SLA) ──
     public function getPendingOverdueSlaBreaches(): array
     {
         $closed = ticket_terminal_statuses_sql();
@@ -551,7 +551,7 @@ class TicketReadRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    // ── Reference data — create form ──
+    // ── ข้อมูลอ้างอิง (reference data) — ฟอร์มสร้าง ──
     public function getCreateFormReferenceData(): array
     {
         $priorities = $this->db->query(
@@ -602,11 +602,11 @@ class TicketReadRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    // ── Ticket detail — single ticket, comments, activity ──
+    // ── รายละเอียด ticket — ticket เดี่ยว, comment, activity ──
     /**
-     * Batch visibility-scoped fetch of the workflow-policy columns for a set of tickets — for bulk actions
-     * (e.g. bulk approve) that would otherwise call findVisibleTicketById once per id. Returns only the
-     * columns the policy + transition need, not the full detail row.
+     * ดึงข้อมูลคอลัมน์ที่ workflow-policy ใช้ของ ticket หลายใบพร้อมกัน (batch) โดยจำกัดตาม visibility — สำหรับ bulk action
+     * (เช่น อนุมัติแบบกลุ่ม) ที่ไม่งั้นต้องเรียก findVisibleTicketById ทีละ id คืนเฉพาะคอลัมน์
+     * ที่ policy + transition ต้องใช้ ไม่ใช่แถวรายละเอียดทั้งหมด
      *
      * @param int[] $ticketIds
      * @return array<int, array<string, mixed>>
@@ -754,7 +754,7 @@ class TicketReadRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    // ── Counters & bounds ──
+    // ── ตัวนับ (counters) & ขอบเขต (bounds) ──
     public function countAllTickets(): int
     {
         return (int) $this->db->query('SELECT COUNT(*) FROM tickets')->fetchColumn();
@@ -776,7 +776,7 @@ class TicketReadRepository
         return (int) $stmt->fetchColumn();
     }
 
-    // ── Asset-related ticket reads ──
+    // ── การอ่าน ticket ที่เกี่ยวข้องกับ asset ──
     public function findRecentTicketsByAssetId(int $assetId, int $limit = 10): array
     {
         $limit = max(1, min($limit, 50));
@@ -818,7 +818,7 @@ class TicketReadRepository
         return (int) $stmt->fetchColumn();
     }
 
-    // ── Notification context reads ──
+    // ── การอ่าน context ของ notification ──
     public function findTicketNotificationContextById(int $ticketId): ?array
     {
         $stmt = $this->db->prepare(
@@ -844,7 +844,7 @@ class TicketReadRepository
         return array_map(static fn (mixed $id): int => (int) $id, $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
     }
 
-    // ── Private query helper — ticket list filters ──
+    // ── private query helper — filter ของรายการ ticket ──
     private function applyTicketIndexFilters(array &$conditions, array $filters, array &$params): void
     {
         $search = trim((string) ($filters['q'] ?? ''));

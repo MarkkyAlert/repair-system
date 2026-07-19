@@ -109,9 +109,9 @@ class PasswordResetRepository
                 return 'invalid';
             }
 
-            // Revoke every remember-me session in the same transaction: a reset is the "I lost control of this
-            // account" path, so any outstanding remember cookie (possibly the attacker's) must stop working the
-            // instant the password changes — NULL token means findByRememberToken can never match again.
+            // เพิกถอน (revoke) ทุก remember-me session ใน transaction เดียวกัน: การ reset คือเส้นทางแบบ "ฉันคุมบัญชีนี้
+            // ไม่ได้แล้ว" ดังนั้น remember cookie ที่ค้างอยู่ (อาจเป็นของผู้โจมตี) ต้องหยุดใช้งานได้ทันที
+            // ที่รหัสผ่านเปลี่ยน — token เป็น NULL หมายความว่า findByRememberToken จะไม่มีวัน match ได้อีก
             $userStmt = $this->db->prepare(
                 'UPDATE users
                  SET password_hash = :password_hash,

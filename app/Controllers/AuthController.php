@@ -71,7 +71,7 @@ class AuthController
             flash('success', 'เข้าสู่ระบบเรียบร้อยแล้ว');
             Response::redirect($returnTo);
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
+            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
         } catch (DomainException|RuntimeException $exception) {
             with_old_input(['login' => $login]);
             flash('error', $exception->getMessage());
@@ -114,12 +114,12 @@ class AuthController
             $this->service->createPasswordReset($email);
             flash('success', 'หากอีเมลนี้มีอยู่ในระบบ ระบบได้สร้างคำขอรีเซ็ตรหัสผ่านให้แล้ว');
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
+            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
         } catch (DomainException|RuntimeException $exception) {
-            // DomainException = expected (bad email, over the rate limit) → flash only. A RuntimeException is an
-            // operational failure (e.g. the reset row was written but the email template/render failed) that was
-            // flashed with no trace; log it so the user's "couldn't request a reset" report is debuggable, without
-            // leaking the raw email/token.
+            // DomainException = กรณีที่คาดไว้ (อีเมลผิด, เกิน rate limit) → แค่ flash พอ. ส่วน RuntimeException คือ
+            // ความผิดพลาดระดับปฏิบัติการ (เช่น เขียนแถวข้อมูลรีเซ็ตแล้ว แต่ template/การ render อีเมลพัง) ที่ถูก
+            // flash ไปโดยไม่มีร่องรอย; ให้ log ไว้ เพื่อให้รายงาน "ขอรีเซ็ตไม่ได้" ของผู้ใช้ตรวจสอบได้ โดยไม่
+            // หลุดอีเมล/token ดิบออกไป.
             if ($exception instanceof RuntimeException) {
                 log_caught_exception('auth.reset.request', $exception);
             }
@@ -172,11 +172,11 @@ class AuthController
             flash('success', 'ตั้งรหัสผ่านใหม่เรียบร้อยแล้ว กรุณาเข้าสู่ระบบอีกครั้ง');
             Response::redirect('/login');
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
+            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
         } catch (DomainException|RuntimeException $exception) {
-            // DomainException = expected (bad/expired token, weak password, CSRF) → flash only. A RuntimeException
-            // is an operational failure (e.g. session/hash subsystem) that was flashed with no trace; log it so a
-            // user's "couldn't reset" report is debuggable.
+            // DomainException = กรณีที่คาดไว้ (token ผิด/หมดอายุ, รหัสผ่านอ่อนเกินไป, CSRF) → แค่ flash พอ. ส่วน RuntimeException
+            // คือความผิดพลาดระดับปฏิบัติการ (เช่น ระบบย่อย session/hash) ที่ถูก flash ไปโดยไม่มีร่องรอย; ให้ log ไว้ เพื่อให้
+            // รายงาน "รีเซ็ตไม่ได้" ของผู้ใช้ตรวจสอบได้.
             if ($exception instanceof RuntimeException) {
                 log_caught_exception('auth.reset', $exception);
             }
@@ -210,7 +210,7 @@ class AuthController
             );
             flash('success', 'เปลี่ยนรหัสผ่านเรียบร้อยแล้ว');
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
+            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
         }
@@ -274,12 +274,12 @@ class AuthController
             if ($userId <= 0) {
                 throw new DomainException('ไม่พบบัญชีผู้ใช้งาน');
             }
-            // delegate to the purpose-built service method (NULL the stored token + drop the cookie) instead of
-            // re-implementing it against the repository, so any future revoke behaviour lives in one place.
+            // มอบหมายให้ method ของ service ที่ทำมาเพื่อการนี้โดยเฉพาะ (เซ็ต token ที่เก็บไว้เป็น NULL + ลบ cookie) แทนที่จะ
+            // ไปเขียนซ้ำเองโดยยิงตรงที่ repository เพื่อให้พฤติกรรมการยกเลิก (revoke) ในอนาคตอยู่รวมที่เดียว.
             $this->rememberMe->revokeAllForUser($userId);
             flash('success', 'ยกเลิกการจดจำการเข้าระบบทุกอุปกรณ์เรียบร้อยแล้ว');
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
+            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
         }
@@ -297,7 +297,7 @@ class AuthController
             clear_old_input();
             flash('success', 'อัปเดตข้อมูลบัญชีเรียบร้อยแล้ว');
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
+            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
         } catch (DomainException|RuntimeException $exception) {
             with_old_input([
                 'full_name' => (string) ($_POST['full_name'] ?? ''),
@@ -346,12 +346,12 @@ class AuthController
 
         try {
             csrf_validate();
-            // delegate the normalization + write to the service that owns the preference repository, so this
-            // mutation goes through a service like every other.
+            // มอบหมายการปรับข้อมูลให้เป็นมาตรฐาน (normalization) + การเขียน ให้ service ที่เป็นเจ้าของ preference repository เพื่อให้การ
+            // แก้ไขข้อมูล (mutation) นี้ผ่าน service เหมือนที่อื่นทุกจุด.
             $this->notifications->saveUserPreferences($userId, (array) ($_POST['pref'] ?? []));
             flash('success', 'บันทึกการตั้งค่าการแจ้งเตือนเรียบร้อยแล้ว');
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
+            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
         }

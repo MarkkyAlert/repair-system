@@ -45,7 +45,7 @@ class UserRepository
     }
 
     /**
-     * Batch existence check for import validation — 1 query แทน 2N queries (findByLogin/findByEmail ต่อแถว).
+     * ตรวจการมีอยู่แบบ batch สำหรับ validation ตอน import — 1 query แทน 2N queries (findByLogin/findByEmail ต่อแถว).
      * คืน 2 set (lowercase): 'logins' = username/email ที่มีอยู่ (findByLogin match username OR email),
      * 'emails' = email ที่มีอยู่ (findByEmail match email).
      *
@@ -94,7 +94,7 @@ class UserRepository
     }
 
     /**
-     * Batch resolve login → user id (สำหรับ asset import custodian lookup, แทน findByLogin ต่อแถว).
+     * resolve login → user id แบบ batch (สำหรับ asset import custodian lookup, แทน findByLogin ต่อแถว).
      * แมปทั้ง username และ email → id (findByLogin match ทั้งคู่).
      *
      * @param string[] $logins
@@ -185,9 +185,9 @@ class UserRepository
     }
 
     /**
-     * Clear the remember token ONLY for the row whose stored hash equals $tokenHash. Used on logout so a caller
-     * cannot revoke someone else's persistent login by forging a cookie with another user's id — a mismatched
-     * (or forged) hash matches no row and clears nothing.
+     * ล้าง remember token เฉพาะ (ONLY) แถวที่ hash ที่เก็บไว้เท่ากับ $tokenHash ใช้ตอน logout เพื่อไม่ให้ผู้เรียก
+     * ไปเพิกถอน persistent login ของคนอื่นได้ด้วยการปลอม cookie ให้มี id ของผู้ใช้อื่น — hash ที่ไม่ตรง
+     * (หรือถูกปลอม) จะไม่ match แถวใดเลยและไม่ล้างอะไรทั้งสิ้น
      */
     public function clearRememberTokenByHash(string $tokenHash): void
     {
@@ -218,13 +218,13 @@ class UserRepository
         return array_map('intval', array_column($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [], 'id'));
     }
 
-    /** True when at least one active admin exists — the first-run setup gate's "is this already provisioned?" check. */
+    /** คืน true เมื่อมี admin ที่ active อย่างน้อยหนึ่งคน — เป็นเช็คของ first-run setup gate ว่า "ระบบถูกตั้งค่าไว้แล้วหรือยัง?". */
     public function hasActiveAdmin(): bool
     {
         return (int) $this->db->query("SELECT COUNT(*) FROM users WHERE role = 'admin' AND is_active = 1")->fetchColumn() > 0;
     }
 
-    /** The earliest active admin as [id, username, email], or null when there is none. */
+    /** admin ที่ active คนแรกสุดในรูป [id, username, email] หรือ null เมื่อไม่มีเลย. */
     public function firstActiveAdmin(): ?array
     {
         $row = $this->db->query(
@@ -266,9 +266,9 @@ class UserRepository
 
     public function updatePassword(int $userId, string $passwordHash): bool
     {
-        // Revoke every remember-me session in the SAME statement as the password write, so the two can never
-        // diverge: a separate revoke call could fail after the password already changed, leaving an old cookie
-        // still able to log in. One UPDATE = password change and token revocation are atomic.
+        // เพิกถอน (revoke) ทุก remember-me session ใน statement เดียวกัน (SAME) กับการเขียน password เพื่อไม่ให้ทั้งสอง
+        // เกิดความไม่สอดคล้องกัน: การเรียก revoke แยกต่างหากอาจล้มเหลวหลัง password เปลี่ยนไปแล้ว ทำให้ cookie เก่า
+        // ยังใช้ login ได้ UPDATE เดียว = การเปลี่ยน password และการเพิกถอน token เป็น atomic
         $stmt = $this->db->prepare(
             'UPDATE users
              SET password_hash = :password_hash,
@@ -291,9 +291,9 @@ class UserRepository
 
     public function updateProfile(int $userId, array $data): bool
     {
-        // Same optimistic-lock contract as the admin user edit: profile and admin write the SAME row,
-        // so profile must also bump version WHERE it still matches — otherwise a profile save (or a second tab)
-        // silently overwrites a newer admin change, and vice versa.
+        // ใช้สัญญา optimistic-lock (ล็อกแบบมองโลกในแง่ดี) แบบเดียวกับหน้าแก้ไขผู้ใช้ของ admin: profile และ admin เขียนแถวเดียวกัน (SAME)
+        // ดังนั้น profile ต้องเพิ่ม version โดยมีเงื่อนไข WHERE ว่ายังตรงอยู่ด้วย — ไม่งั้นการเซฟ profile (หรือแท็บที่สอง)
+        // จะไปเขียนทับการเปลี่ยนแปลงที่ใหม่กว่าของ admin แบบเงียบ ๆ และในทางกลับกันก็เช่นเดียวกัน
         $stmt = $this->db->prepare(
             'UPDATE users
              SET full_name = :full_name,

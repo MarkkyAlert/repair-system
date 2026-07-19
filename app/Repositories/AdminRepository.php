@@ -27,8 +27,8 @@ class AdminRepository
     }
 
     /**
-     * Paginated users for the admin "users" tab — one page of full rows (each renders an edit form), instead
-     * of every user at once. Bounds the response/DOM as the org grows.
+     * ผู้ใช้แบบแบ่งหน้าสำหรับแท็บ "users" ของ admin — แสดงแถวเต็มทีละหน้า (แต่ละแถว render ฟอร์มแก้ไข) แทนที่จะ
+     * แสดงผู้ใช้ทุกคนพร้อมกัน จำกัดขนาด response/DOM เมื่อองค์กรโตขึ้น
      *
      * @return array{items: array<int, array<string, mixed>>, total: int, page: int, perPage: int, totalPages: int}
      */
@@ -63,8 +63,8 @@ class AdminRepository
     }
 
     /**
-     * Lightweight id + name list of every user — for the audit-log "filter by user" dropdown, which must list
-     * all users even though the users tab itself is paginated.
+     * รายการ id + ชื่อ แบบเบาของผู้ใช้ทุกคน — สำหรับ dropdown "filter by user" ของ audit-log ซึ่งต้องแสดง
+     * ผู้ใช้ทุกคน แม้แท็บ users เองจะแบ่งหน้าอยู่ก็ตาม
      *
      * @return array<int, array<string, mixed>>
      */
@@ -219,8 +219,8 @@ class AdminRepository
                 throw new DomainException('ผู้ใช้นี้ยังมี Ticket ที่เป็นผู้แจ้ง กรุณาปิดงานให้เรียบร้อยก่อนปิดบัญชี');
             }
 
-            // Optimistic lock: bump version only when it still matches the form's snapshot, so a stale
-            // full-form save (Admin B editing an old page) cannot silently overwrite Admin A's newer change.
+            // Optimistic lock (ล็อกแบบมองโลกในแง่ดี): เพิ่ม version เฉพาะเมื่อมันยังตรงกับ snapshot ของฟอร์ม เพื่อไม่ให้การเซฟฟอร์มเต็ม
+            // ที่เก่า (stale) (Admin B แก้จากหน้าเก่า) ไปเขียนทับการเปลี่ยนแปลงที่ใหม่กว่าของ Admin A แบบเงียบ ๆ
             $stmt = $this->db->prepare(
                 'UPDATE users
                  SET full_name = :full_name,
@@ -260,8 +260,8 @@ class AdminRepository
                 throw $exception;
             }
 
-            // The row was locked FOR UPDATE above (so it exists); 0 rows changed means only the version
-            // predicate failed → the submitted form was built from a stale snapshot. Reject, don't overwrite.
+            // แถวถูก lock ด้วย FOR UPDATE ไปแล้วข้างบน (จึงมีอยู่แน่นอน); การที่ 0 แถวถูกเปลี่ยน หมายความว่าเงื่อนไข version
+            // เท่านั้นที่ไม่ผ่าน → ฟอร์มที่ส่งมาถูกสร้างจาก snapshot ที่เก่า ให้ปฏิเสธ อย่าเขียนทับ
             if ($stmt->rowCount() === 0) {
                 throw new DomainException('ข้อมูลผู้ใช้ถูกแก้ไขโดยผู้ใช้อื่นแล้ว กรุณารีเฟรชหน้าแล้วลองอีกครั้ง');
             }
@@ -292,9 +292,9 @@ class AdminRepository
 
     private function hasOpenRequesterTickets(int $userId): bool
     {
-        // Requester-facing "still has open work" set — intentionally NOT ticket_terminal_statuses():
-        // 'resolved' is excluded here because a resolved ticket still awaits the requester's own
-        // confirm/reopen action, so it counts as open for them. Do not swap in the terminal set.
+        // ชุดสถานะ "ยังมีงานค้าง" ในมุมของผู้แจ้ง — จงใจ NOT ใช้ ticket_terminal_statuses():
+        // 'resolved' ถูกตัดออกตรงนี้เพราะ ticket ที่ resolved แล้วยังรอให้ผู้แจ้งกด
+        // confirm/reopen เอง จึงนับเป็นงานค้างสำหรับเขา อย่าสลับไปใช้ชุด terminal
         $stmt = $this->db->prepare(
             "SELECT EXISTS(
                 SELECT 1 FROM tickets

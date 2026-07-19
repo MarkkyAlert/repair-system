@@ -12,7 +12,7 @@ class NotificationRepository
     {
     }
 
-    /** True if a broadcast with this idempotency token was already sent (retry / second-tab guard, R8-F2). */
+    /** คืน true ถ้า broadcast ที่มี idempotency token นี้ถูกส่งไปแล้ว (กัน retry / เปิดแท็บซ้ำ, R8-F2). */
     public function broadcastTokenExists(string $submissionToken): bool
     {
         if ($submissionToken === '') {
@@ -42,7 +42,7 @@ class NotificationRepository
                 'payload' => $payload['payload'] ?? null,
                 'related_type' => $payload['related_type'] ?? null,
                 'related_id' => $payload['related_id'] ?? null,
-                // idempotency token (broadcasts only); NULL for everything else — nullable UNIQUE allows many NULLs
+                // idempotency token (เฉพาะ broadcast); กรณีอื่นเป็น NULL — UNIQUE ที่ nullable ยอมให้มี NULL ได้หลายค่า
                 'submission_token' => ($payload['submission_token'] ?? '') !== '' ? $payload['submission_token'] : null,
                 'created_at' => $createdAt,
             ]);
@@ -64,9 +64,9 @@ class NotificationRepository
     }
 
     /**
-     * Insert recipient rows for a notification as bounded multi-row INSERTs (one statement per chunk) instead
-     * of one execute() per recipient. A broadcast to the whole org was O(recipients) round-trips; this makes it
-     * O(recipients / CHUNK). Chunked to keep the placeholder count well under driver/packet limits.
+     * insert แถวผู้รับของ notification ด้วย multi-row INSERT ที่จำกัดขนาด (หนึ่ง statement ต่อ chunk) แทนที่จะ
+     * execute() ทีละผู้รับ การ broadcast ไปทั้งองค์กรเดิมใช้ round-trip แบบ O(recipients); วิธีนี้ทำให้เหลือ
+     * O(recipients / CHUNK) แบ่งเป็น chunk เพื่อคุมจำนวน placeholder ให้ต่ำกว่าขีดจำกัดของ driver/packet มาก ๆ
      *
      * @param int[] $recipientIds
      */

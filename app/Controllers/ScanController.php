@@ -48,8 +48,8 @@ class ScanController
             Response::abort(404, 'ไม่พบ QR token หรือ Asset ที่เกี่ยวข้อง');
         }
 
-        // Staff who are logged in belong in the authenticated ticket flow (asset prefilled),
-        // not the "no login needed" guest report form.
+        // เจ้าหน้าที่ที่ล็อกอินอยู่ควรอยู่ในเส้นทางสร้าง ticket แบบล็อกอิน (กรอกข้อมูล asset ให้ล่วงหน้า),
+        // ไม่ใช่ฟอร์มแจ้งปัญหาแบบ guest ที่ "ไม่ต้องล็อกอิน".
         if (auth()->check()) {
             Response::redirect((string) $data['ticket_create_path']);
         }
@@ -98,7 +98,7 @@ class ScanController
                 'requestNo' => (string) ($result['request_no'] ?? ''),
             ], $layout);
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
+            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
         } catch (DomainException|RuntimeException $exception) {
             with_old_input([
                 'guest_name' => (string) ($_POST['guest_name'] ?? ''),

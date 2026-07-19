@@ -48,8 +48,8 @@ class NotificationsController
         Response::json($this->notifications->getFeedData($viewer));
     }
 
-    // Not handleUpdate(): marking read is silent on success (no flash toast — it's an incidental
-    // side effect of opening a notification), whereas handleUpdate always flashes a success message.
+    // ไม่ใช้ handleUpdate(): การทำเครื่องหมายว่าอ่านแล้วจะเงียบเมื่อสำเร็จ (ไม่มี flash toast — เพราะเป็นผลพลอยได้
+    // ที่เกิดขึ้นจากการเปิดการแจ้งเตือน) ขณะที่ handleUpdate จะ flash ข้อความสำเร็จเสมอ.
     public function read(string $notificationId): void
     {
         AuthMiddleware::handle();
@@ -61,7 +61,7 @@ class NotificationsController
             csrf_validate();
             $this->notifications->markAsRead((int) $notificationId, $viewer);
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
+            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
         }
@@ -80,7 +80,7 @@ class NotificationsController
             csrf_validate();
             $this->notifications->markTicketAsRead((int) $ticketId, $viewer);
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
+            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
         }

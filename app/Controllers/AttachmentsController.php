@@ -23,11 +23,11 @@ class AttachmentsController
             $file = $this->attachments->getVisibleAttachment((int) $attachmentId, auth()->user() ?? []);
             Response::download($file['content'], $file['file_name'], $file['content_type'], 'inline');
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
+            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
         } catch (DomainException|RuntimeException $exception) {
-            // A DomainException here is "not found / no permission" (expected → 404, quiet). A RuntimeException
-            // is operational — e.g. the row exists but the file is missing from disk — and must be logged, not
-            // silently masked as a 404.
+            // DomainException ตรงนี้คือ "ไม่พบ / ไม่มีสิทธิ์" (คาดไว้ → 404, ไม่ต้อง log). ส่วน RuntimeException
+            // เป็นความผิดพลาดระดับปฏิบัติการ — เช่น มีแถวข้อมูลอยู่ แต่ไฟล์หายไปจากดิสก์ — ต้อง log ไว้ ไม่ใช่
+            // เงียบ ๆ แล้วปิดบังเป็น 404.
             if ($exception instanceof RuntimeException) {
                 log_caught_exception('attachment.serve', $exception, ['attachment' => (int) $attachmentId]);
             }

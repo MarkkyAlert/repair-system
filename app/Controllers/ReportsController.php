@@ -20,8 +20,8 @@ class ReportsController
         AuthMiddleware::handle();
 
         $viewer = auth()->user() ?? [];
-        // Gate at the controller too (consistent with guide()/samplePack()); ReportService::ensureCanViewReports
-        // stays as the defense-in-depth boundary that also covers the export endpoints.
+        // กั้นสิทธิ์ (gate) ที่ controller ด้วย (ให้สอดคล้องกับ guide()/samplePack()); ส่วน ReportService::ensureCanViewReports
+        // ยังคงเป็นด่านป้องกันเชิงลึก (defense-in-depth) ที่ครอบคลุมถึง endpoint สำหรับ export ด้วย.
         if (!is_manager_or_admin((string) ($viewer['role'] ?? 'guest'))) {
             flash('error', 'หน้านี้สงวนสำหรับผู้จัดการและผู้ดูแลระบบเท่านั้น');
             Response::redirect('/dashboard');
@@ -81,7 +81,7 @@ class ReportsController
         try {
             $pack = $this->reports->generateSamplePack($viewer);
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
+            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
         } catch (DomainException|RuntimeException $exception) {
             if ($exception instanceof RuntimeException) {
                 log_caught_exception('controller.operational', $exception, ['path' => (string) (request()?->path ?? '')]);
@@ -522,7 +522,7 @@ class ReportsController
                 (string) ($export['content_type'] ?? $fallbackType)
             );
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
+            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
         } catch (DomainException|RuntimeException $exception) {
             if ($exception instanceof RuntimeException) {
                 log_caught_exception('controller.operational', $exception, ['path' => (string) (request()?->path ?? '')]);

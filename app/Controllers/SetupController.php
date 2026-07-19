@@ -76,7 +76,7 @@ class SetupController
             flash('success', $message . ' กรุณาเข้าสู่ระบบ');
             Response::redirect('/login');
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
+            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
         } catch (DomainException|RuntimeException $exception) {
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
@@ -94,13 +94,13 @@ class SetupController
     }
 
     /**
-     * Provision the first-run state (app name → first admin → optional demo → completed flag) atomically,
-     * serialised by a DB named lock with an admin/flag RE-CHECK INSIDE the lock so two concurrent setups can
-     * never each create an admin (unique keys are per username/email, not "only one admin"). No HTTP/redirect,
-     * so it is directly testable. Throws DomainException if setup is already done (the race loser) or the admin
-     * input is invalid; returns the demo summary (or null).
+     * เตรียมสถานะการตั้งค่าครั้งแรก (ชื่อระบบ → admin คนแรก → demo ถ้าเลือก → flag ว่าตั้งค่าเสร็จ) แบบ atomic (ทำสำเร็จทั้งหมดหรือไม่ทำเลย),
+     * เรียงลำดับด้วย named lock ของ DB พร้อม RE-CHECK admin/flag ซ้ำ "ข้างใน" lock เพื่อไม่ให้การตั้งค่าที่ทำพร้อมกันสองชุด
+     * ต่างฝ่ายต่างสร้าง admin ได้ (unique key ผูกกับ username/email แต่ละตัว ไม่ใช่ "มี admin ได้แค่คนเดียว"). ไม่มี HTTP/redirect
+     * จึงทดสอบได้โดยตรง. throw DomainException ถ้าตั้งค่าเสร็จไปแล้ว (ฝ่ายที่แพ้การแข่งกันทำพร้อมกัน) หรือข้อมูล admin
+     * ที่กรอกมาไม่ถูกต้อง; คืนค่าสรุปข้อมูล demo (หรือ null).
      *
-     * @param array<string, mixed> $input raw admin_* / load_demo fields
+     * @param array<string, mixed> $input ฟิลด์ admin_* / load_demo แบบดิบ
      * @return array<string, mixed>|null
      */
     public function runFirstRunSetup(string $appName, array $input): ?array
@@ -109,7 +109,7 @@ class SetupController
 
         try {
             if ($this->isSetupCompleted() || $this->adminExists()) {
-                // the other request in the race already finished setup — do not create a second admin
+                // อีก request ที่แข่งกันทำ ตั้งค่าเสร็จไปแล้ว — อย่าสร้าง admin คนที่สอง
                 throw new DomainException('ระบบถูกตั้งค่าเรียบร้อยแล้ว กรุณาเข้าสู่ระบบ');
             }
 
@@ -121,7 +121,7 @@ class SetupController
             if ($username === '' || $email === '' || $fullName === '' || $password === '') {
                 throw new DomainException('กรุณากรอกข้อมูลผู้ดูแลระบบให้ครบถ้วน');
             }
-            require_max_length($fullName, 150, 'ชื่อ-นามสกุล'); // users.full_name VARCHAR(150) — match the other user flows
+            require_max_length($fullName, 150, 'ชื่อ-นามสกุล'); // users.full_name VARCHAR(150) — ให้ตรงกับ flow อื่น ๆ ที่เกี่ยวกับ user
             if (!is_valid_username($username)) {
                 throw new DomainException('ชื่อผู้ใช้ต้องมี 3-50 ตัว (a-z, 0-9, จุด, ขีดกลาง, ขีดล่าง)');
             }
@@ -133,7 +133,7 @@ class SetupController
             }
 
             try {
-                // all-or-nothing first-run write (bootstrap exception to the "transactions live in services" rule)
+                // เขียนข้อมูลตั้งค่าครั้งแรกแบบทำทั้งหมดหรือไม่ทำเลย (all-or-nothing) (เป็นข้อยกเว้นช่วง bootstrap ของกฎ "transaction ต้องอยู่ใน service")
                 $this->db->beginTransaction();
                 $this->settings->upsert('app_name', $appName, 'string', true, 0);
 
@@ -178,9 +178,9 @@ class SetupController
     }
 
     /**
-     * True if at least one active admin already exists (a seed/manual deploy already has one). Static +
-     * PDO-arg because the setup gate (public/index.php) runs before the container wires controllers; the
-     * SQL itself lives in UserRepository so no query text sits in this controller.
+     * คืน true ถ้ามี admin ที่ active อยู่แล้วอย่างน้อยหนึ่งคน (การ deploy แบบ seed/ทำเอง มีอยู่แล้ว). เป็น static +
+     * รับ PDO เป็น argument เพราะด่านกั้น setup (public/index.php) รันก่อนที่ container จะประกอบ controller; ตัว
+     * SQL เองอยู่ใน UserRepository จึงไม่มีข้อความ query อยู่ใน controller นี้.
      */
     public static function hasActiveAdmin(PDO $db): bool
     {
@@ -188,9 +188,9 @@ class SetupController
     }
 
     /**
-     * Whether a request must be redirected to /setup. Setup counts as done once the flag is set OR an
-     * active admin already exists — the SAME rule show()/execute() use to guard /setup. Keeping the gate
-     * (public/index.php) in sync prevents the /setup ↔ /login loop on seed/admin-provisioned deploys.
+     * บอกว่า request ต้องถูก redirect ไป /setup หรือไม่. ถือว่า setup เสร็จเมื่อ flag ถูกตั้ง หรือมี
+     * admin ที่ active อยู่แล้ว — เป็นกฎเดียวกับที่ show()/execute() ใช้กั้น /setup. การให้ด่านกั้น
+     * (public/index.php) สอดคล้องกัน ป้องกันการวนลูป /setup ↔ /login บน deploy แบบ seed/มี admin ให้อยู่แล้ว.
      */
     public static function requiresSetupRedirect(SettingsRepository $settings, PDO $db): bool
     {
@@ -207,14 +207,14 @@ class SetupController
         return self::hasActiveAdmin($this->db);
     }
 
-    /** Connection-scoped named lock serialising first-run setup (auto-released on connection close). */
+    /** named lock ที่ผูกกับ connection สำหรับเรียงลำดับการตั้งค่าครั้งแรกไม่ให้ทำซ้อนกัน (ปล่อยอัตโนมัติเมื่อปิด connection). */
     private function acquireSetupLock(): void
     {
         $stmt = $this->db->prepare('SELECT GET_LOCK(:name, 10)');
         $stmt->execute(['name' => 'maintenance-first-run-setup']);
         if ((int) $stmt->fetchColumn() !== 1) {
-            // a concurrent setup holds the lock — an EXPECTED "try again" condition, not an operational failure,
-            // so it's a DomainException (flashed, retryable) per the taxonomy.
+            // มีการตั้งค่าที่ทำพร้อมกันถือ lock อยู่ — เป็นสถานการณ์ "ลองใหม่" ที่คาดไว้ (EXPECTED) ไม่ใช่ความผิดพลาดระดับปฏิบัติการ
+            // จึงเป็น DomainException (แจ้งผ่าน flash, ลองใหม่ได้) ตามการจัดหมวดหมู่ (taxonomy).
             throw new DomainException('ระบบกำลังตั้งค่าอยู่ กรุณาลองใหม่อีกครั้ง');
         }
     }
@@ -225,7 +225,7 @@ class SetupController
             $stmt = $this->db->prepare('SELECT RELEASE_LOCK(:name)');
             $stmt->execute(['name' => 'maintenance-first-run-setup']);
         } catch (Throwable) {
-            // releasing a connection-scoped lock must not mask the setup result
+            // การปล่อย lock ที่ผูกกับ connection ต้องไม่ไปบดบังผลลัพธ์ของการ setup
         }
     }
 }

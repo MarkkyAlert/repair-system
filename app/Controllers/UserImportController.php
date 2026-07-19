@@ -43,8 +43,8 @@ class UserImportController
             $rows = $this->userImporter->parseUploadedFile($_FILES['csv'] ?? []);
             $preview = $this->userImporter->validateRows($rows);
 
-            // Scope this previewed batch to a one-time token embedded in the confirm form, so opening a second
-            // preview in another tab cannot make the first tab's "confirm" import the second tab's rows.
+            // ผูก batch ที่ preview นี้ไว้กับ token ใช้ครั้งเดียวที่ฝังอยู่ในฟอร์มยืนยัน เพื่อไม่ให้การเปิด preview ครั้งที่สอง
+            // ในอีกแท็บ ทำให้การ "ยืนยัน" ของแท็บแรกไปนำเข้าข้อมูลแถวของแท็บที่สองแทน.
             $token = bin2hex(random_bytes(16));
             Session::put('user_import_batch', ['token' => $token, 'rows' => $preview['valid']]);
 
@@ -57,7 +57,7 @@ class UserImportController
                 'errorMessage' => null,
             ]);
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
+            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
         } catch (DomainException|RuntimeException $exception) {
             if ($exception instanceof RuntimeException) {
                 log_caught_exception('controller.operational', $exception, ['path' => (string) (request()?->path ?? '')]);
@@ -78,8 +78,8 @@ class UserImportController
 
             $batch = Session::get('user_import_batch', []);
             try {
-                // token must match the previewed batch — a mismatch means a newer preview (another tab)
-                // replaced the session; refuse rather than import the wrong rows.
+                // token ต้องตรงกับ batch ที่ preview ไว้ — ถ้าไม่ตรงแปลว่ามี preview ใหม่กว่า (จากอีกแท็บ)
+                // มาแทนที่ session แล้ว; ให้ปฏิเสธแทนที่จะนำเข้าข้อมูลแถวที่ผิด.
                 $validRows = verified_import_rows($batch, (string) ($_POST['import_token'] ?? ''));
             } catch (DomainException $exception) {
                 Session::forget('user_import_batch');
@@ -105,7 +105,7 @@ class UserImportController
                 flash('error', 'ส่งอีเมลตั้งรหัสผ่านไม่สำเร็จ ' . count($resetFailures) . ' ผู้ใช้ (' . $names . ') — ผู้ใช้ถูกสร้างแล้วแต่ยังไม่มีรหัสผ่าน กรุณารีเซ็ตรหัสผ่านให้เอง');
             }
         } catch (\PDOException $__infra) {
-            throw $__infra; // infra error → global handler logs + generic 500, never leaks SQL
+            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
         } catch (DomainException|RuntimeException $exception) {
             if ($exception instanceof RuntimeException) {
                 log_caught_exception('controller.operational', $exception, ['path' => (string) (request()?->path ?? '')]);

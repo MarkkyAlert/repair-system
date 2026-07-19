@@ -50,9 +50,9 @@ class CommentRepository
     }
 
     /**
-     * Live-poll variant: only comments newer than $afterId (id > afterId), for the ticket-detail feed.
-     * Bounds the read to what the client is missing instead of loading the whole thread and filtering in
-     * PHP — auto-increment ids mean id > afterId == "posted after the last one the client has".
+     * แบบสำหรับ live-poll: เฉพาะ comment ที่ใหม่กว่า $afterId (id > afterId) สำหรับ feed หน้ารายละเอียด ticket
+     * จำกัดการอ่านไว้เฉพาะส่วนที่ client ยังไม่มี แทนที่จะโหลดทั้ง thread แล้วค่อยกรองใน
+     * PHP — id ที่เป็น auto-increment ทำให้ id > afterId เท่ากับ "ถูกโพสต์หลังอันสุดท้ายที่ client มี"
      *
      * @return array<int, array<string, mixed>>
      */
@@ -127,9 +127,9 @@ class CommentRepository
 
     public function updateComment(int $commentId, string $body, bool $isInternal, int $originalVersion): void
     {
-        // Optimistic lock on an integer version, not updated_at: the DATETIME token had second granularity, so
-        // two edits within the same second (and the row last touched that second) could BOTH match and the later
-        // one silently overwrote the earlier. version increments on every write, so a stale editor never matches.
+        // Optimistic lock (ล็อกแบบมองโลกในแง่ดี) บน version ที่เป็น integer ไม่ใช่ updated_at: token แบบ DATETIME ละเอียดแค่ระดับวินาที ดังนั้น
+        // การแก้สองครั้งภายในวินาทีเดียวกัน (และแถวถูกแตะครั้งสุดท้ายในวินาทีนั้น) อาจ match ทั้งคู่ แล้วครั้งหลัง
+        // เขียนทับครั้งแรกแบบเงียบ ๆ version จะเพิ่มขึ้นทุกครั้งที่เขียน ตัวแก้ไขที่เก่า (stale) จึงไม่มีวัน match
         $stmt = $this->db->prepare(
             'UPDATE ticket_comments
              SET body = :body,
