@@ -118,10 +118,10 @@ if (!function_exists('human_date')) {
         }
         $ts = strtotime((string) $value);
         if ($ts === false || $ts <= 0) {
-            // Not a parseable date — assume it's ALREADY a display string (several services pre-format their
-            // date fields, which are then shown raw in some views and passed through human_date() in others).
-            // Return it unchanged so human_date() is idempotent on its own output instead of collapsing an
-            // already-formatted Thai date to "-".
+            // แปลงเป็นวันที่ไม่ได้ — ถือว่าเป็นข้อความที่จัดรูปแบบไว้แล้ว (หลาย service จัดรูปแบบช่องวันที่ล่วงหน้า
+            // ซึ่งบางหน้าเอาไปแสดงดิบ ๆ แต่บางหน้าส่งผ่าน human_date() อีกที)
+            // จึงคืนค่าเดิมโดยไม่แตะ เพื่อให้ human_date() ทำซ้ำกับผลลัพธ์ตัวเองได้ (idempotent) แทนที่จะยุบ
+            // วันที่ไทยที่จัดรูปแบบมาแล้วให้กลายเป็น "-"
             return trim((string) $value);
         }
 
@@ -145,7 +145,7 @@ if (!function_exists('human_date')) {
             return 'เมื่อวาน' . ($withTime ? ' ' . date('H:i', $ts) : '');
         }
 
-        // beyond "yesterday" → the shared absolute Thai format (single source).
+        // เก่ากว่า "เมื่อวาน" → ใช้รูปแบบวันที่ไทยแบบเต็ม (absolute) ที่เป็นแหล่งเดียวร่วมกัน
         return thai_datetime($ts, $withTime);
     }
 }

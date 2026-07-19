@@ -371,8 +371,8 @@ CREATE TABLE ticket_sla_tracks (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     ticket_id BIGINT UNSIGNED NOT NULL,
     metric_type ENUM('response','resolution') NOT NULL,
-    -- As-reported (F1 Phase 2): one SLA row per lifecycle CYCLE. cycle 1 at creation; reopen APPENDS a new
-    -- cycle instead of resetting the row, so a past cycle's due-date / met-breached verdict is immutable.
+    -- รายงานตามที่เกิดจริง (as-reported): SLA หนึ่งแถวต่อหนึ่ง "รอบ (cycle)" ของงาน. รอบ 1 ตอนสร้างงาน; การเปิดงานซ้ำ (reopen)
+    -- จะเพิ่มรอบใหม่แทนการรีเซ็ตแถวเดิม เพื่อให้กำหนดเวลา/ผลทัน-เกินกำหนดของรอบที่ผ่านไปแล้วนิ่งถาวร (immutable).
     cycle INT UNSIGNED NOT NULL DEFAULT 1,
     target_at DATETIME NOT NULL,
     achieved_at DATETIME NULL,
@@ -392,8 +392,8 @@ CREATE TABLE ticket_ratings (
     ticket_id BIGINT UNSIGNED NOT NULL,
     requester_id BIGINT UNSIGNED NOT NULL,
     technician_id BIGINT UNSIGNED NULL,
-    -- As-reported (F1 Phase 2): one rating per lifecycle CYCLE. A re-rate after a reopen APPENDS a new cycle
-    -- instead of overwriting, so a past period's CSAT (windowed on created_at) is immutable.
+    -- รายงานตามที่เกิดจริง (as-reported): ให้คะแนนหนึ่งครั้งต่อหนึ่ง "รอบ (cycle)" ของงาน. การให้คะแนนใหม่หลังเปิดงานซ้ำ (reopen)
+    -- จะเพิ่มรอบใหม่แทนการเขียนทับ เพื่อให้ค่า CSAT ของงวดที่ผ่านไปแล้ว (นับตาม created_at) นิ่งถาวร (immutable).
     cycle INT UNSIGNED NOT NULL DEFAULT 1,
     score TINYINT UNSIGNED NOT NULL,
     feedback TEXT NULL,

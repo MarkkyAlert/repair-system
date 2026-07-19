@@ -121,8 +121,8 @@ class ReportRepository
                     WHEN t.resolved_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at)
                     ELSE NULL
                 END), 0), 1) AS avg_resolution_minutes,
-                -- base for the MTTR average: how many tickets actually have a resolved_at. 0 → no data ('-');
-                -- >0 with a 0-minute average → a real same-minute resolution ('0.0'), not 'no data'.
+                -- ฐานสำหรับค่าเฉลี่ย MTTR: มีกี่ ticket ที่มี resolved_at จริง ๆ. 0 → ไม่มีข้อมูล ('-');
+                -- >0 แต่ค่าเฉลี่ยเป็น 0 นาที → ปิดงานภายในนาทีเดียวจริง ('0.0') ไม่ใช่ 'ไม่มีข้อมูล'.
                 SUM(CASE WHEN t.resolved_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN 1 ELSE 0 END) AS resolution_base,
                 ROUND(COALESCE(AVG(tr.score), 0), 1) AS avg_rating,
                 COUNT(tr.score) AS rating_count

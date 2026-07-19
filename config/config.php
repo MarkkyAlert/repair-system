@@ -21,8 +21,8 @@ $configuredBasePath = is_string($appUrlPath) && $appUrlPath !== '/' ? rtrim($app
 $basePath = $configuredBasePath !== '' ? $configuredBasePath : $detectedBasePath;
 $sessionPath = $basePath !== '' ? $basePath . '/' : '/';
 // ตั้งคุกกี้ให้ปลอดภัย (secure) โดยอัตโนมัติเมื่อ request มาผ่าน HTTPS (เซิร์ฟเวอร์จบการเข้ารหัส TLS ให้แล้ว)
-// Stays false on plain HTTP (local dev) so login isn't broken; override explicitly with SESSION_SECURE.
-// Behind a TLS-terminating proxy, set SESSION_SECURE=true since $_SERVER['HTTPS'] won't be set here.
+// จะเป็น false เมื่อรันบน HTTP ธรรมดา (เครื่อง dev) เพื่อไม่ให้ login พัง; ถ้าต้องการบังคับ ให้ตั้งค่า SESSION_SECURE เอง
+// ถ้าอยู่หลัง proxy ที่จบการเข้ารหัส TLS ให้แทน (TLS-terminating proxy) ต้องตั้ง SESSION_SECURE=true เพราะ $_SERVER['HTTPS'] จะไม่ถูกเซ็ตตรงนี้
 $isHttps = ($_SERVER['HTTPS'] ?? '') !== '' && strtolower((string) ($_SERVER['HTTPS'] ?? '')) !== 'off';
 
 return [

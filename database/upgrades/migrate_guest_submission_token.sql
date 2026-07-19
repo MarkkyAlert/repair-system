@@ -1,5 +1,5 @@
 -- ============================================================
--- Guest QR submit idempotency — submission_token (UNIQUE)
+-- กันการส่งซ้ำของงานแขก (idempotency) ผ่าน submission_token (UNIQUE)
 -- ------------------------------------------------------------
 -- กัน double-submit/replay สร้าง guest request ซ้ำ ที่ระดับ DB
 -- (defense-in-depth คู่กับ one-time session form token ใน ScanController).
