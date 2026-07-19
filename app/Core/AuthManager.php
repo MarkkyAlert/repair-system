@@ -20,9 +20,9 @@ class AuthManager
     }
 
     /**
-     * DB-free auth probe: reads the session only — no UserRepository, no PDO resolution. The error-page path
-     * must render even when the database is unreachable, so it cannot go through auth() (which resolves the
-     * repository, whose PDO connects eagerly and would throw during an outage).
+     * ตรวจสถานะล็อกอินแบบไม่แตะฐานข้อมูล: อ่านจาก session อย่างเดียว — ไม่เรียก UserRepository ไม่ resolve PDO.
+     * หน้า error ต้องเรนเดอร์ได้แม้ตอนต่อฐานข้อมูลไม่ได้ จึงห้ามไปผ่าน auth() (ซึ่งจะ resolve repository ที่ PDO
+     * ต่อฐานข้อมูลทันที และจะโยน exception ตอนฐานข้อมูลล่ม)
      */
     public static function checkSession(): bool
     {
@@ -78,12 +78,12 @@ class AuthManager
         $storedStamp = (string) (Session::get(self::PASSWORD_STAMP_KEY) ?? '');
         $currentStamp = (string) ($user['password_changed_at'] ?? '');
         if ($storedStamp !== $currentStamp) {
-            // Password changed in another session after this one was issued -> force re-login
+            // รหัสผ่านถูกเปลี่ยนใน session อื่นหลังจาก session นี้ถูกสร้าง -> บังคับให้ล็อกอินใหม่
             $this->logout();
             return false;
         }
 
-        // Refresh cached user data while preserving the original session stamp.
+        // อัปเดตข้อมูลผู้ใช้ที่ cache ไว้ให้สดใหม่ โดยยังเก็บ stamp ของ session เดิมไว้
         unset($user['password_hash'], $user['remember_token']);
         Session::put(self::SESSION_KEY, $user);
 

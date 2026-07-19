@@ -29,17 +29,17 @@ class Response
     }
 
     /**
-     * JSON envelope for command (mutation) endpoints: {"success":true,"message":...,...$data}.
-     * Use this + jsonError() for anything a form/AJAX action submits. Polling/read endpoints
-     * (ticket state, comment feed, {max_id}, notification feed) keep their own field-specific
-     * shapes by design — their JS clients read named fields, not this envelope.
+     * รูปแบบ JSON มาตรฐานสำหรับ endpoint ที่ "เปลี่ยนข้อมูล" (mutation เช่น สร้าง/แก้/ลบ): {"success":true,"message":...,...$data}.
+     * ใช้ตัวนี้คู่กับ jsonError() กับทุก action ที่ฟอร์ม/AJAX ส่งมา. ส่วน endpoint แบบ "อ่าน/ดึงสถานะเป็นระยะ" (polling)
+     * เช่น สถานะ ticket, ฟีดคอมเมนต์, {max_id}, ฟีดแจ้งเตือน — จงใจใช้รูปแบบเฉพาะของตัวเอง
+     * (JS ฝั่งนั้นอ่านค่าตามชื่อฟิลด์ ไม่ได้อ่าน envelope นี้)
      */
     public static function jsonSuccess(array $data = [], string $message = '', int $status = 200): never
     {
         self::json(['success' => true, 'message' => $message] + $data, $status);
     }
 
-    /** JSON envelope for a failed command: {"success":false,"message":...,...$data}. */
+    /** รูปแบบ JSON มาตรฐานสำหรับคำสั่งที่ "ล้มเหลว": {"success":false,"message":...,...$data}. */
     public static function jsonError(string $message, int $status = 422, array $data = []): never
     {
         self::json(['success' => false, 'message' => $message] + $data, $status);
@@ -48,9 +48,9 @@ class Response
     public static function download(string $content, string $fileName, string $contentType, string $disposition = 'attachment', int $status = 200): never
     {
         http_response_code($status);
-        // Download-signal cookie: echo the client's token back so the export overlay JS can detect
-        // the download has started and hide its spinner. Attachment responses don't navigate away or
-        // fire blur/unload reliably, so this cookie is the robust "download started" signal.
+        // คุกกี้สัญญาณ "เริ่มดาวน์โหลด": ส่งโทเคนของ client กลับไป เพื่อให้ JS ของหน้าจอ export รู้ว่าดาวน์โหลดเริ่มแล้ว
+        // จะได้ซ่อนวงล้อหมุนรอ. การตอบกลับแบบไฟล์แนบ (attachment) ไม่พาออกจากหน้า และไม่ยิง event blur/unload
+        // ที่เชื่อถือได้ คุกกี้นี้จึงเป็นสัญญาณ "ดาวน์โหลดเริ่มแล้ว" ที่แน่นอนกว่า
         $downloadToken = preg_replace('/[^A-Za-z0-9._-]/', '', (string) ($_POST['_download_token'] ?? $_GET['_download_token'] ?? ''));
         if ($downloadToken !== '' && !headers_sent()) {
             setcookie('fileDownload', substr($downloadToken, 0, 64), ['expires' => 0, 'path' => '/', 'samesite' => 'Lax']);
@@ -68,10 +68,10 @@ class Response
         $view = View::exists('errors/' . $status) ? 'errors/' . $status : 'errors/500';
         $reference = request_id();
         http_response_code($status);
-        // carry the request correlation id so the error page can show a reference that matches the server log
-        // Render through the DB-free `error` layout (not `guest`, which calls setting()) so a 500 raised BY a
-        // database outage still produces a full styled page. If even that fails, fall back to a self-contained
-        // static shell so the user never sees a blank/raw page.
+        // แนบรหัสอ้างอิงของ request (correlation id) ไว้ เพื่อให้หน้า error โชว์รหัสที่ตรงกับ log ฝั่งเซิร์ฟเวอร์
+        // เรนเดอร์ผ่าน layout `error` ที่ไม่แตะฐานข้อมูล (ไม่ใช่ `guest` ซึ่งเรียก setting()) เพื่อให้ 500 ที่เกิด
+        // "เพราะ" ฐานข้อมูลล่ม ยังแสดงหน้าเต็มที่มีสไตล์ได้. ถ้าแม้แต่ตัวนั้นยังพังอีก ให้ถอยไปใช้ HTML สำเร็จรูป
+        // ในตัว (static shell) ผู้ใช้จะได้ไม่เห็นหน้าว่างหรือหน้าดิบ ๆ
         try {
             View::render($view, ['title' => (string) $status, 'message' => $message, 'reference' => $reference], 'error');
         } catch (\Throwable $renderFailure) {
@@ -82,8 +82,8 @@ class Response
     }
 
     /**
-     * Last-resort error shell: pure inline HTML/CSS, no includes, no DB, no helpers that can fail. Only used if
-     * the normal (already DB-free) error render itself throws.
+     * หน้า error ทางเลือกสุดท้าย: HTML/CSS แบบ inline ล้วน ไม่มี include ไม่แตะฐานข้อมูล ไม่เรียก helper ที่อาจพังได้
+     * ใช้เฉพาะกรณีที่การเรนเดอร์หน้า error ปกติ (ซึ่งไม่แตะฐานข้อมูลอยู่แล้ว) ดันโยน exception ซ้ำอีก
      */
     private static function minimalErrorHtml(int $status, string $message, string $reference): string
     {
