@@ -7,16 +7,16 @@ namespace App\Services;
 use PDO;
 
 /**
- * การ export ฐานข้อมูลแบบ PHP-native (ใช้ PDO ล้วน) — สร้างไฟล์ MySQL .sql dump ที่กู้คืนได้ โดยไม่ต้องเรียก
- * mysqldump ผ่าน shell. shared hosting (โฮสต์ที่ใช้ทรัพยากรร่วมกัน) มักปิด proc_open/exec และไม่มี binary ของ mysqldump มาให้ ทำให้
- * แอปไม่มีวิธีสำรองข้อมูลในตัวก่อนอัปเดต; ตัวนี้อุดช่องว่างนั้นเพื่อให้ admin ดาวน์โหลด
+ * export ฐานข้อมูลด้วย PHP ล้วน (ใช้ PDO) — สร้างไฟล์ MySQL .sql dump ที่กู้คืนได้ โดยไม่ต้องเรียก
+ * mysqldump ผ่าน shell. บน shared hosting มักปิด proc_open/exec และไม่มี binary ของ mysqldump ให้ แอปเลย
+ * ไม่มีทางสำรองข้อมูลในตัวก่อนอัปเดต. ตัวนี้มาอุดช่องว่างนั้น ให้ admin ดาวน์โหลด
  * backup จาก UI ได้เสมอ.
  */
 class DatabaseExportService
 {
     private const ROWS_PER_INSERT = 200;
 
-    // จำกัดขนาดแต่ละ INSERT ให้ต่ำกว่า max_allowed_packet เริ่มต้น (มักเป็น 4 MB) มาก ๆ เพื่อให้ dump กู้คืนได้บนทุกโฮสต์.
+    // คุมขนาดแต่ละ INSERT ให้ต่ำกว่า max_allowed_packet ค่าเริ่มต้น (มักราว 4 MB) เยอะ ๆ ไฟล์ dump จะได้กู้คืนได้ทุกโฮสต์.
     private const MAX_INSERT_BYTES = 512000;
 
     public function __construct(private PDO $db)
@@ -63,7 +63,7 @@ class DatabaseExportService
         $out .= 'DROP TABLE IF EXISTS ' . $quoted . ";\n";
         $out .= $createSql . ";\n\n";
 
-        // ดึง row แบบ stream เพื่อไม่ให้ตารางขนาดใหญ่ค้างอยู่ใน memory ทั้งหมด. รวม INSERT เป็นชุด (batch) เพื่อให้ไฟล์เล็กลง.
+        // ดึง row ทีละแถวแบบ stream กันตารางใหญ่ ๆ กินหน่วยความจำทั้งก้อน. แล้วรวม INSERT เป็นชุด ไฟล์จะได้เล็กลง.
         $stmt = $this->db->query('SELECT * FROM ' . $quoted);
         $batch = [];
         $batchBytes = 0;
@@ -72,7 +72,7 @@ class DatabaseExportService
             $tuple = $this->rowValues($row);
             $batch[] = $tuple;
             $batchBytes += strlen($tuple);
-            // flush เมื่อถึงเพดานจำนวน row หรือเพดานขนาด byte อย่างใดอย่างหนึ่ง เพื่อไม่ให้ row ที่กว้างมาก ๆ แถวเดียวสร้าง INSERT ที่ใหญ่เกิน.
+            // flush เมื่อชนเพดานจำนวน row หรือเพดานขนาด byte อย่างใดอย่างหนึ่ง กัน row เดียวที่กว้างมาก ๆ ทำให้ INSERT ใหญ่เกิน.
             if (count($batch) >= self::ROWS_PER_INSERT || $batchBytes >= self::MAX_INSERT_BYTES) {
                 $out .= $this->insertStatement($quoted, $batch);
                 $batch = [];
@@ -99,8 +99,8 @@ class DatabaseExportService
             if ($value === null) {
                 $values[] = 'NULL';
             } else {
-                // PDO::quote จะ escape และครอบด้วย quote; MySQL จะแปลงค่าตัวเลขที่อยู่ใน quote ตอน insert ให้เอง ดังนั้นการ quote
-                // ทุกค่าที่ไม่ใช่ null จึงทั้งปลอดภัยและถูกต้องสำหรับ schema ที่มีแต่ text/ตัวเลข/datetime นี้.
+                // PDO::quote จะ escape ให้แล้วครอบ quote ให้; ตัวเลขที่อยู่ใน quote MySQL แปลงให้เองตอน insert. เลย quote
+                // ทุกค่าที่ไม่ใช่ null ได้เลย ทั้งปลอดภัยและถูกต้องสำหรับ schema นี้ที่มีแต่ text/ตัวเลข/datetime.
                 $values[] = $this->db->quote((string) $value);
             }
         }

@@ -24,8 +24,8 @@ class AssetService
     {
         $this->assertManageable($viewer);
 
-        // แถบ filter ของหน้า list มีให้เลือกแค่ category + location — โหลดแค่นั้นพอ ไม่ต้องดึง reference ของฟอร์มทั้งชุด
-        // (ซึ่งจะดึง departments + custodians (ผู้ดูแล) ที่หน้า list ไม่ได้ใช้มาด้วย).
+        // แถบ filter ของหน้า list เลือกได้แค่ category + location — โหลดแค่นั้นพอ ไม่ต้องดึง reference ของฟอร์มทั้งชุด
+        // เพราะชุดเต็มจะมี departments + custodians ที่หน้า list ไม่ได้ใช้ติดมาด้วย.
         $reference = $this->assets->getAssetIndexReferenceData();
         $normalizedFilters = $this->normalizeAssetIndexFilters($filters);
         $result = $this->assets->getAssetListPage(max(1, (int) ($filters['page'] ?? 1)), 18, $normalizedFilters);
@@ -260,7 +260,7 @@ class AssetService
 
     private function sanitizeExportRow(array $values): array
     {
-        // การป้องกัน CSV/spreadsheet injection (การแทรกสูตรอันตรายในเซลล์) อยู่ที่ helper sanitize_export_cell() ตัวกลาง (single source of truth)
+        // กัน CSV/spreadsheet injection (คนยัดสูตรอันตรายลงเซลล์) รวมไว้ที่ helper sanitize_export_cell() ที่เดียว
         return array_map(static fn (mixed $value): string => sanitize_export_cell($value), $values);
     }
 
@@ -314,11 +314,11 @@ class AssetService
 
         $token = (string) $asset['qr_token'];
 
-        // cache รูป PNG ที่ render แล้วไว้บน private filesystem (พื้นที่เก็บไฟล์ที่เข้าถึงจากภายนอกไม่ได้) โดยใช้ asset id + token hash เป็น key. หน้าพิมพ์
-        // render QR ได้ถึง 500 รหัส และ <img> แต่ละอันคือ request แยกกัน; การ render PNG ใหม่ทุกครั้งคือ
-        // ต้นทุนเวลาที่แท้จริง (วัดได้ ~8.7 วินาที สำหรับ 500 รหัส). request ซ้ำจึงเสิร์ฟ byte จาก cache. key
-        // มี token hash อยู่ด้วย ดังนั้น token ที่สร้างใหม่จะไม่เจอไฟล์เดิม — ไม่มีทางเสิร์ฟรูปที่ล้าสมัย —
-        // และ regenerateQrToken จะลบไฟล์เดิมทิ้ง.
+        // cache รูป PNG ที่ render แล้วไว้บน private filesystem (โฟลเดอร์ที่เข้าถึงจากนอกไม่ได้) โดยใช้ asset id + token hash เป็น key. หน้าพิมพ์
+        // render QR ได้ถึง 500 รหัส แต่ละ <img> คือหนึ่ง request แยกกัน. การ render PNG ใหม่ทุกครั้งคือ
+        // ต้นทุนเวลาจริง (วัดได้ ~8.7 วินาที ต่อ 500 รหัส) request ซ้ำเลยเสิร์ฟ byte จาก cache แทน. token hash
+        // อยู่ใน key ด้วย token ที่สร้างใหม่จึงไม่ชนไฟล์เดิม ไม่มีทางเสิร์ฟรูปเก่าที่หมดอายุ
+        // และ regenerateQrToken ก็ลบไฟล์เดิมทิ้งอยู่แล้ว.
         $cachePath = $this->qrCachePath($assetId, $token);
         $cached = @file_get_contents($cachePath);
         if ($cached !== false && $cached !== '') {
@@ -339,13 +339,13 @@ class AssetService
         return $png;
     }
 
-    /** path ของ cache รูป QR PNG ของ asset บน private filesystem, แยก namespace ด้วย token hash เพื่อให้ token ที่สร้างใหม่ไม่เจอไฟล์เดิม. */
+    /** path ของ cache รูป QR PNG บน private filesystem แยกด้วย token hash เพื่อไม่ให้ token ใหม่ไปเจอไฟล์เดิม. */
     private function qrCachePath(int $assetId, string $token): string
     {
         return storage_path('qr-cache/' . $assetId . '-' . substr(hash('sha256', $token), 0, 16) . '.png');
     }
 
-    /** เขียนรูป PNG ที่ render แล้วลง cache แบบ atomic (เขียนไฟล์ temp แล้ว rename) เพื่อไม่ให้ผู้อ่านพร้อมกัน (concurrent reader) เห็นไฟล์ที่เขียนค้างครึ่งทาง. */
+    /** เขียน PNG ลง cache แบบ atomic (เขียนไฟล์ temp แล้ว rename) กันไม่ให้คนที่อ่านพร้อมกันเห็นไฟล์ที่เขียนค้างครึ่งทาง. */
     private function writeQrCache(string $path, string $png): void
     {
         $dir = dirname($path);
@@ -442,8 +442,8 @@ class AssetService
             throw new DomainException('รหัสหรือชื่อ Asset ยาวเกินกว่าที่ระบบรองรับ');
         }
 
-        // ฟิลด์ข้อความที่ไม่บังคับ — จำกัดความยาวให้ตรงกับ column เพื่อให้ค่าที่ยาวเกินได้ข้อความแจ้งที่เป็นมิตร ไม่ใช่
-        // error ดิบจาก DB ภายใต้ strict mode (serial/brand/model VARCHAR(100), vendor VARCHAR(150)).
+        // ฟิลด์ข้อความที่ไม่บังคับ — จำกัดความยาวให้ตรงกับ column ค่าที่ยาวเกินจะได้ข้อความแจ้งอ่านง่าย ไม่ใช่
+        // error ดิบจาก DB ตอนเปิด strict mode (serial/brand/model VARCHAR(100), vendor VARCHAR(150)).
         require_max_length($serialNumber, 100, 'Serial Number');
         require_max_length($brand, 100, 'ยี่ห้อ');
         require_max_length($model, 100, 'รุ่น');

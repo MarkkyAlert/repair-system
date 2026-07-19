@@ -174,12 +174,12 @@ class UserImportService
                         $this->auth->createPasswordReset((string) $row['email']);
                         $sentResetEmails++;
                     } catch (Throwable $exception) {
-                        // user ถูกสร้างในสถานะ active พร้อมรหัสผ่านสุ่ม; การส่ง reset-email ล้มเหลวต้องไม่
-                        // ทำให้ import พัง แต่ก็ต้องไม่ถูกกลืนหายแบบเงียบ ๆ — บันทึกว่าใครที่ไม่ได้รับ
-                        // reset เพื่อให้ admin รีเซ็ตให้เองได้ และ log ต้นเหตุด้วย (เดิม
-                        // object ของ exception ถูกทิ้งไป).
-                        // ระบุตัว user โดยไม่เขียน email ดิบ (PII — ข้อมูลระบุตัวตน) ลง log ของ server — username +
-                        // email ที่ mask (ปิดบัง) แล้ว ก็พอให้ดำเนินการต่อได้.
+                        // user ถูกสร้างในสถานะ active พร้อมรหัสผ่านสุ่มแล้ว; ส่ง reset-email ล้มเหลวต้องไม่
+                        // ทำให้ import พัง แต่ก็ต้องไม่กลืนหายเงียบ ๆ — บันทึกไว้ว่าใครไม่ได้รับ
+                        // reset admin จะได้รีเซ็ตให้เองได้ แล้ว log ต้นเหตุไว้ด้วย (เดิม
+                        // ตัว exception ถูกทิ้งไปเฉย ๆ).
+                        // ระบุตัว user โดยไม่เขียน email ดิบ (เป็น PII) ลง log ของ server — username +
+                        // email ที่ mask แล้ว ก็พอให้ตามงานต่อได้.
                         log_caught_exception('user.import.reset', $exception, [
                             'username' => (string) ($row['username'] ?? ''),
                             'email' => \App\Services\MailerService::maskEmail((string) ($row['email'] ?? '')),
@@ -193,8 +193,8 @@ class UserImportService
                 }
             } catch (Throwable $exception) {
                 // การข้ามที่คาดไว้และรายงานแล้ว (ข้อมูลซ้ำ → createUser แปลงเป็น DomainException; หรือ error
-                // duplicate-key ดิบ ๆ) ให้เงียบไว้. อย่างอื่น (เช่น DB ล่ม) คือความล้มเหลวที่ไม่คาดคิดซึ่ง
-                // ต้อง log ต้นเหตุไว้ — ไม่ใช่ซ่อนไว้หลังข้อความ row กลาง ๆ.
+                // duplicate-key ดิบ ๆ) ปล่อยเงียบไว้. อย่างอื่น (เช่น DB ล่ม) เป็นความล้มเหลวที่ไม่คาดคิด
+                // ต้อง log ต้นเหตุไว้ — ไม่ใช่ซ่อนหลังข้อความ row กลาง ๆ.
                 if (!($exception instanceof DomainException) && !is_duplicate_key_error($exception)) {
                     log_caught_exception('user.import.row', $exception, ['line' => (int) ($row['line'] ?? 0), 'username' => (string) ($row['username'] ?? '')]);
                 }

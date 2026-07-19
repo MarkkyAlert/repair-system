@@ -36,8 +36,8 @@ class SystemSettingsService
         'category_sla_',  // /admin/categories/*
     ];
 
-    /** ความยาวสูงสุดของชื่อระบบ — เป็นแหล่งเดียวที่ใช้ทั้งตอน setup ครั้งแรกและตอนแก้ system-settings เพื่อไม่ให้
-     *  ค่าเดียวกันถูกยอมรับในทางหนึ่งแต่ถูกปฏิเสธในอีกทางหนึ่ง. */
+    /** ความยาวสูงสุดของชื่อระบบ — แหล่งเดียวที่ใช้ทั้งตอน setup ครั้งแรกและตอนแก้ system-settings จะได้ไม่
+     *  ยอมรับชื่อเดียวกันในที่หนึ่งแต่ปฏิเสธในอีกที่. */
     public const APP_NAME_MAX_LENGTH = 100;
 
     public function __construct(
@@ -116,7 +116,7 @@ class SystemSettingsService
             throw new DomainException('กรุณากรอกชื่อระบบ');
         }
 
-        // ให้ตรงกับลิมิตของ setup ครั้งแรก — ชื่อเดียวกันต้องไม่ถูกปฏิเสธที่นั่นแต่ยอมรับที่นี่.
+        // ใช้ลิมิตเดียวกับ setup ครั้งแรก — ชื่อเดียวกันจะได้ไม่ถูกยอมรับที่หนึ่งแต่ปฏิเสธอีกที่.
         if (mb_strlen($appName) > self::APP_NAME_MAX_LENGTH) {
             throw new DomainException('ชื่อระบบยาวเกินกำหนด (สูงสุด ' . self::APP_NAME_MAX_LENGTH . ' ตัวอักษร)');
         }
@@ -178,8 +178,8 @@ class SystemSettingsService
 
         $remove = truthy_input($input['remove_logo'] ?? '0');
         if ($remove) {
-            // ทำ swap อ่านค่าปัจจุบัน → upsert → ลบไฟล์เดิม แบบทีละราย (serialize) (ดู withLogoPathLock) เพื่อไม่ให้
-            // การเปลี่ยนโลโก้พร้อมกันทิ้งไฟล์ที่ไม่มีอะไรอ้างถึงไว้.
+            // swap ทีละราย: อ่านค่าปัจจุบัน → upsert → ลบไฟล์เดิม (ดู withLogoPathLock) กันการเปลี่ยนโลโก้
+            // พร้อมกันทิ้งไฟล์กำพร้าที่ไม่มี setting อ้างถึง.
             $this->withLogoPathLock(function () use ($viewer): void {
                 $currentLogoPath = $this->currentLogoFilePath();
                 $this->settings->upsert('app_logo_path', '', 'string', true, (int) ($viewer['id'] ?? 0));
@@ -228,11 +228,11 @@ class SystemSettingsService
         }
 
         $relativeStoredPath = $relativeDirectory . '/' . $storedName;
-        // ไฟล์อยู่บนดิสก์แล้ว. ทำ อ่านค่าปัจจุบัน → upsert → ลบไฟล์เดิม แบบทีละราย (serialize) เพื่อไม่ให้ admin สองคนที่อัปโหลด
-        // พร้อมกันทิ้งไฟล์กำพร้า (orphan) (คนที่รันทีหลังจะอ่าน path ของคนแรกว่าเป็น "ปัจจุบัน" แล้วลบมันทิ้ง).
-        // try/catch รอบนอกจะล้างไฟล์ที่เพิ่งย้ายมา ถ้าการ "ขอ lock" (ACQUIRING THE LOCK) หรือ upsert ล้มเหลว — ไม่งั้น
-        // ไฟล์ ≤1MB นั้นจะค้างอยู่โดยไม่มี setting อ้างถึง. $committed คุมกรณีที่ path ใหม่
-        // ถูกบันทึกไปแล้ว: การลบไฟล์เดิมแบบ best-effort ทีหลังต้องไม่ไปลบไฟล์ที่กำลังถูกอ้างถึงเด็ดขาด.
+        // ไฟล์อยู่บนดิสก์แล้ว. ทำ swap ทีละราย: อ่านค่าปัจจุบัน → upsert → ลบไฟล์เดิม กัน admin สองคนที่อัปโหลด
+        // พร้อมกันทิ้งไฟล์กำพร้า (คนที่รันทีหลังจะอ่าน path ของคนแรกเป็น "ปัจจุบัน" แล้วลบทิ้ง).
+        // try/catch รอบนอกล้างไฟล์ที่เพิ่งย้ายมา ถ้าตอนขอ lock หรือ upsert ล้มเหลว — ไม่งั้น
+        // ไฟล์ ≤1MB จะค้างอยู่โดยไม่มี setting อ้างถึง. $committed คุมกรณีที่ path ใหม่
+        // ถูกบันทึกแล้ว: การลบไฟล์เดิมแบบ best-effort ทีหลังต้องไม่ลบไฟล์ที่กำลังถูกอ้างถึงเด็ดขาด.
         $committed = false;
         try {
             $this->withLogoPathLock(function () use ($relativeStoredPath, $viewer, &$committed): void {
@@ -257,11 +257,11 @@ class SystemSettingsService
     }
 
     /**
-     * รัน swap ของ logo path (อ่านค่าปัจจุบัน → upsert → ลบไฟล์เดิม) ภายใต้ named lock ระดับ connection เพื่อให้ admin สอง
-     * คนที่เปลี่ยนโลโก้พร้อมกันทำทีละคน (serialize) แทนที่ต่างคนต่างลบ path เดิมที่ใช้ร่วมกันจนทำให้
-     * ไฟล์ที่เพิ่งเขียนของคนที่แพ้ไม่มีอะไรอ้างถึง (กลายเป็น orphan). ทำแบบเดียวกับรูปแบบ GET_LOCK ที่ใช้กับ
+     * รัน swap ของ logo path (อ่านค่าปัจจุบัน → upsert → ลบไฟล์เดิม) ใต้ named lock ระดับ connection ให้ admin สอง
+     * คนที่เปลี่ยนโลโก้พร้อมกันทำทีละคน ไม่ใช่ต่างคนต่างลบ path เดิมที่ใช้ร่วมกันจน
+     * ไฟล์ที่คนแพ้เพิ่งเขียนกลายเป็นไฟล์กำพร้า. ใช้รูปแบบ GET_LOCK เดียวกับที่ใช้กับ
      * เลขรันนิ่ง. ไฟล์ที่อัปโหลดถูกย้ายลงดิสก์ "ก่อน" lock (ชื่อสุ่มไม่ซ้ำ ไม่แย่งกัน);
-     * มีแค่การอ่าน/เขียน setting + การลบไฟล์เดิมเท่านั้นที่ต้องทำทีละราย.
+     * มีแค่การอ่าน/เขียน setting กับการลบไฟล์เดิมเท่านั้นที่ต้องทำทีละราย.
      */
     /** โฟลเดอร์เก็บโลโก้ อ้างอิงจาก root ของแอป (กำหนดผ่าน config เพื่อให้ตอน deploy — หรือ test — เปลี่ยนปลายทางได้). */
     private function brandingRelativeDir(): string
@@ -275,8 +275,8 @@ class SystemSettingsService
         $lockStmt = $this->db->prepare('SELECT GET_LOCK(:name, 5)');
         $lockStmt->execute(['name' => $lockName]);
         if ((int) $lockStmt->fetchColumn() !== 1) {
-            // มีการอัปเดตโลโก้พร้อมกันถือ lock อยู่ — เป็นเงื่อนไข "ลองใหม่" ที่คาดไว้ (EXPECTED) จึงเป็น
-            // DomainException (แสดงผ่าน flash, ลองใหม่ได้) เหมือนกับ lock ของ setup.
+            // มีการอัปเดตโลโก้พร้อมกันถือ lock อยู่ — เป็นเคสที่คาดไว้ว่าให้ "ลองใหม่" เลยเป็น
+            // DomainException (โชว์ผ่าน flash, ลองใหม่ได้) เหมือน lock ของ setup.
             throw new DomainException('ระบบกำลังอัปเดตโลโก้ กรุณาลองอีกครั้ง');
         }
 
@@ -287,7 +287,7 @@ class SystemSettingsService
                 $releaseStmt = $this->db->prepare('SELECT RELEASE_LOCK(:name)');
                 $releaseStmt->execute(['name' => $lockName]);
             } catch (Throwable) {
-                // การปล่อย lock ที่ผูกกับ connection ต้องไม่บดบังผลลัพธ์ของการ swap
+                // การปล่อย lock ที่ผูกกับ connection ต้องไม่กลบผลลัพธ์ของ swap
             }
         }
     }
@@ -325,8 +325,8 @@ class SystemSettingsService
 
     private function deleteLogoFile(?string $path): void
     {
-        // การ unlink (ลบไฟล์) ที่ล้มเหลวจะทิ้งไฟล์โลโก้กำพร้าไว้โดยไม่มีร่องรอย — log ไว้ (โดยไม่ทำให้การเซฟ settings ล้มเหลว)
-        // เพื่อให้ทีมซัพพอร์ตตามไปลบทีหลังได้.
+        // unlink ที่ล้มเหลวจะทิ้งไฟล์โลโก้กำพร้าไว้แบบไม่มีร่องรอย — log ไว้ (ไม่ให้การเซฟ settings ล้มตาม)
+        // ทีมซัพพอร์ตจะได้ตามไปลบทีหลังได้.
         if ($path !== null && is_file($path) && !@unlink($path)) {
             log_caught_exception(
                 'settings.logo.cleanup',

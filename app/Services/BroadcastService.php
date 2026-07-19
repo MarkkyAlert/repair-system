@@ -7,8 +7,8 @@ use DomainException;
 use Throwable;
 
 /**
- * การสื่อสารของ admin: การประกาศ broadcast ทั่วทั้งระบบ และการส่งอีเมลทดสอบ SMTP.
- * แยกออกมาจาก AdminService เพื่อให้ส่วนส่งข้อความแยกจาก CRUD ของ settings/entity.
+ * งานส่งข้อความฝั่ง admin: ประกาศ broadcast ทั้งระบบ และส่งอีเมลทดสอบ SMTP.
+ * แยกออกจาก AdminService ให้งานส่งข้อความไม่ปนกับ CRUD ของ settings/entity.
  */
 class BroadcastService
 {
@@ -41,8 +41,8 @@ class BroadcastService
             throw new DomainException('Role filter ไม่ถูกต้อง');
         }
 
-        // idempotency token แบบใช้ครั้งเดียวจากฟอร์ม — การลองใหม่ / แท็บที่สอง จะส่งค่านี้ซ้ำแล้วถูกกรองซ้ำออก เพื่อไม่ให้
-        // ทั้งองค์กรได้รับ broadcast ซ้ำสองครั้ง.
+        // token ใช้ครั้งเดียวจากฟอร์ม กันส่งซ้ำ — พอกดลองใหม่หรือเปิดอีกแท็บ ค่าเดิมจะถูกส่งมาซ้ำแล้วโดนกรองทิ้ง
+        // ไม่งั้นทั้งองค์กรจะได้ broadcast ซ้ำสองรอบ.
         $submissionToken = strtolower(trim((string) ($input['submission_token'] ?? '')));
         if (!is_submission_token($submissionToken)) {
             throw new DomainException('แบบฟอร์มหมดอายุ กรุณารีเฟรชหน้าแล้วส่งใหม่');
@@ -56,8 +56,8 @@ class BroadcastService
             $submissionToken
         );
 
-        // บันทึก audit ตามผลลัพธ์จริง — ร่องรอยต้องไม่บอกว่า "sent" ทั้งที่ช่องทางหนึ่งล้มเหลว (จะขัดกับ
-        // สิ่งที่ controller แสดงให้ admin เห็น). บันทึก + ส่งต่อ flag ของความล้มเหลวไปด้วย.
+        // บันทึก audit ตามผลจริง — อย่าให้ log บอกว่า "sent" ทั้งที่ช่องทางหนึ่งส่งไม่ผ่าน เพราะจะขัดกับ
+        // ที่ controller แสดงให้ admin เห็น. เลยเก็บ flag ของช่องที่ล้มเหลวติดไปด้วย.
         $inAppFailed = !empty($result['in_app_failed']);
         $emailFailed = !empty($result['email_failed']);
         $action = 'broadcast.sent';
@@ -105,8 +105,8 @@ class BroadcastService
         try {
             $this->mailer->send($message);
         } catch (Throwable $exception) {
-            // admin เห็นข้อความกลาง ๆ; แต่ต้นเหตุจริง (SMTP ปฏิเสธ, driver ผิด, timeout) ต้องถูก log
-            // พร้อมค่า mail settings เพื่อให้ข้อมูลวินิจฉัยนำไปแก้ได้ — เดิมมันถูกทิ้งไป.
+            // admin เห็นแค่ข้อความกลาง ๆ แต่ต้นเหตุจริง (SMTP ปฏิเสธ, ตั้ง driver ผิด, timeout) ต้อง log ไว้
+            // พร้อมค่า mail settings จะได้มีข้อมูลไล่หาสาเหตุ — เมื่อก่อนปล่อยหลุดหายไปเฉย ๆ.
             log_caught_exception('email.test.failed', $exception, [
                 'driver' => (string) config('mail.driver', 'log'),
                 'host' => (string) config('mail.host', ''),
@@ -115,8 +115,8 @@ class BroadcastService
             throw new DomainException('ส่งอีเมลทดสอบไม่สำเร็จ: กรุณาตรวจสอบค่า SMTP/MAIL_DRIVER และลองใหม่');
         }
 
-        // บน production ร่องรอย audit ต้องไม่เก็บ address ผู้รับแบบดิบ — ปิดบัง (mask) มันซะ (template +
-        // driver ก็พอยืนยันได้แล้วว่าส่งอะไรไป). Dev เก็บ address เต็มไว้เพื่อ debug.
+        // บน production ห้ามเก็บอีเมลผู้รับแบบเต็มใน audit — mask ทิ้งซะ (แค่ template กับ
+        // driver ก็รู้แล้วว่าส่งอะไรไป). ฝั่ง dev เก็บอีเมลเต็มไว้ไล่ debug.
         $auditEmail = (string) config('app.env', 'production') === 'production'
             ? MailerService::maskEmail($email)
             : $email;

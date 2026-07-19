@@ -24,16 +24,16 @@ class DemoDataService
     }
 
     /**
-     * seed (ใส่ข้อมูลตั้งต้น) ชุดข้อมูลตัวอย่างทั้งชุดสำหรับการติดตั้งใหม่. เป็น idempotent ต่อ row ของ master-data
-     * (ข้ามตัวที่ซ้ำ). ควบคุมการ seed ทีละขั้นต่อ entity — เพิ่ม entity ใหม่ได้ด้วยการ
-     * เพิ่ม method seedX() และเพิ่มบรรทัดตรงนี้.
+     * seed ชุดข้อมูลตัวอย่างทั้งชุดสำหรับติดตั้งใหม่. รันซ้ำได้ปลอดภัยเพราะ row ของ master-data ที่ซ้ำจะถูกข้าม
+     * (idempotent). seed ทีละ entity เรียงตามลำดับ — อยากเพิ่ม entity ใหม่ก็เขียน method seedX()
+     * แล้วมาเพิ่มบรรทัดตรงนี้.
      */
     public function load(int $createdByUserId = 0): array
     {
-        // ด่านแรก: environment gate — production (ค่าเริ่มต้น) โหลด demo ไม่ได้เด็ดขาด แม้ระบบยังว่าง.
+        // ด่านแรก: environment gate — production (ค่าเริ่มต้น) โหลด demo ไม่ได้เด็ดขาด ถึงระบบจะยังว่างก็ตาม.
         // คุมทั้ง Setup และ /admin/demo-data/load จากจุดเดียว.
-        // เป็นการบล็อกตามนโยบายที่คาดไว้ (บอกให้ operator ไปสลับ flag) — เป็น DomainException ที่ถูก flash ให้เห็น ไม่ใช่
-        // RuntimeException เชิงปฏิบัติการที่ catch ควรจะ log.
+        // เป็นการบล็อกตามนโยบายที่ตั้งใจไว้ (บอก operator ให้ไปสลับ flag เอง) เลยใช้ DomainException ที่ flash ขึ้นให้เห็น ไม่ใช่
+        // RuntimeException แบบระบบพังที่ catch ควรเก็บ log.
         if (!config('app.allow_demo_data', false)) {
             throw new DomainException('การโหลดข้อมูลตัวอย่างถูกปิดใช้งานบนระบบนี้ — ตั้ง ALLOW_DEMO_DATA=true ใน .env เฉพาะรอบทดลอง/เดโม (อย่าเปิดบน production)');
         }
@@ -186,8 +186,8 @@ class DemoDataService
      */
     private function seedTechnician(array $departmentIds): array
     {
-        // สุ่มรหัสผ่านต่อการโหลดหนึ่งครั้ง — ห้ามใช้ค่าคงที่ที่เปิดเผยใน source (BAC/known-password).
-        // caller (setup/admin) จะ surface รหัสนี้ให้ operator เห็น "ครั้งเดียว" หลังโหลด. ช่างทุกคนใช้รหัสเดียวกัน (demo).
+        // สุ่มรหัสผ่านใหม่ทุกครั้งที่โหลด — ห้าม hardcode ค่าคงที่ไว้ใน source เพราะใครเปิด source ก็รู้รหัสทันที.
+        // caller (setup/admin) จะโชว์รหัสนี้ให้ operator เห็นครั้งเดียวหลังโหลด. ช่าง demo ทุกคนใช้รหัสเดียวกัน.
         $plainPassword = bin2hex(random_bytes(8));
         $techs = [
             ['username' => 'tech_demo', 'full_name' => 'สมชาย ช่างเทคนิค', 'dept' => 'IT'],
@@ -268,9 +268,9 @@ class DemoDataService
                 $assetIds[$spec['code']] = $assetId;
                 $count++;
             } catch (DomainException) {
-                // asset_code/serial ซ้ำ (หรือ QR-token หมด) — เป็นเงื่อนไขที่คาดไว้และข้ามได้.
-                // ส่วน RuntimeException/PDOException คือความล้มเหลวจริง: ปล่อยให้มันโยนต่อไป เพื่อให้ transaction ของ load()
-                // rollback การ seed ทั้งหมด และผู้เรียกเห็น error แทนที่จะได้ seed ที่สำเร็จแค่บางส่วนแบบเงียบ ๆ.
+                // asset_code/serial ซ้ำ (หรือ QR-token หมด) — คาดไว้อยู่แล้ว ข้ามได้.
+                // ส่วน RuntimeException/PDOException คือพังจริง ปล่อยให้โยนต่อไป ให้ transaction ของ load()
+                // rollback การ seed ทั้งหมด ผู้เรียกจะได้เห็น error ไม่ใช่ได้ seed ที่สำเร็จแค่บางส่วนแบบเงียบ ๆ.
             }
         }
 
@@ -420,7 +420,7 @@ class DemoDataService
                 $creator($row);
                 $count++;
             } catch (DomainException) {
-                // มีอยู่แล้ว — ข้ามแบบเงียบ ๆ (idempotent re-run — รันซ้ำได้ผลเหมือนเดิม)
+                // มีอยู่แล้ว — ข้ามแบบเงียบ ๆ รันซ้ำกี่ครั้งผลก็เหมือนเดิม (idempotent)
             }
         }
         return $count;

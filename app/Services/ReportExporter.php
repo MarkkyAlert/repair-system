@@ -13,12 +13,12 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use RuntimeException;
 
 /**
- * ชั้นผลิตไฟล์ที่ใช้ร่วมกันสำหรับ export รายงาน: แปลงแถวที่ map แล้วให้เป็นไฟล์ไบนารี .xlsx / .csv / .pdf.
- * ไม่มี state (ไม่มี DB, ไม่มี request state) จึง unit-test ได้ง่ายมากและ exporter ตัวไหนก็นำไปใช้ซ้ำได้.
+ * ชั้นผลิตไฟล์กลางสำหรับ export รายงาน: แปลงแถวที่ map แล้วเป็นไฟล์ไบนารี .xlsx / .csv / .pdf.
+ * ไม่มี state (ไม่แตะ DB, ไม่แตะ request) เลย unit-test ง่ายมากและ exporter ตัวไหนก็ใช้ซ้ำได้.
  *
- * ทุกเส้นทางส่งแต่ละแถวผ่าน sanitizeExportRow() ดังนั้น guard กัน CSV/formula-injection จึงไม่มีทางถูก
- * เมธอด export ตัวใดตัวหนึ่งลืม — ป้อนแถวเข้าไป ได้ไฟล์ที่ปลอดภัยออกมา. การติดตาม job (audit ใน
- * export_jobs) เป็นคนละเรื่อง และอยู่กับตัวเรียก.
+ * ทุกเส้นทางส่งแต่ละแถวผ่าน sanitizeExportRow() — guard กัน CSV/formula-injection เลยไม่มีทางถูก
+ * เมธอด export ตัวไหนลืม ป้อนแถวเข้าไปได้ไฟล์ปลอดภัยออกมา. ส่วนการติดตาม job (audit ใน
+ * export_jobs) เป็นคนละเรื่อง อยู่กับตัวเรียก.
  */
 class ReportExporter
 {
@@ -29,10 +29,10 @@ class ReportExporter
     }
 
     /**
-     * เขียน Excel หนึ่งแถว ทีละเซลล์: ป้ายที่เป็นเปอร์เซ็นต์ล้วน ("50.0%", "+25.0%") ถูกเก็บเป็นตัวเลขจริง
-     * (0.5) พร้อม format แสดงผลแบบเปอร์เซ็นต์ เพื่อให้ผู้บริหาร/ผู้จัดการ pivot/sum ได้ — text "50.0%" นำไป
-     * aggregate ไม่ได้. ที่เหลือทั้งหมดยังคง guard กัน formula-injection ไว้; เซลล์ที่เป็น string ตัวเลขอย่าง
-     * "4.50"/"2" ยังกลายเป็นตัวเลขผ่าน default value binder.
+     * เขียน Excel ทีละเซลล์: ป้ายที่เป็นเปอร์เซ็นต์ล้วน ("50.0%", "+25.0%") เก็บเป็นตัวเลขจริง
+     * (0.5) พร้อม format แสดงผลเป็นเปอร์เซ็นต์ ให้ผู้บริหาร/ผู้จัดการ pivot/sum ได้ — text "50.0%" เอาไป
+     * aggregate ไม่ได้. ที่เหลือยัง guard กัน formula-injection อยู่; เซลล์ที่เป็น string ตัวเลขอย่าง
+     * "4.50"/"2" ก็ยังกลายเป็นตัวเลขผ่าน default value binder.
      */
     private function writeDataRow(Worksheet $sheet, int $rowNumber, array $row): void
     {
@@ -51,19 +51,19 @@ class ReportExporter
                 $sheet->setCellValueExplicit($coord, (float) rtrim($string, '%') / 100, DataType::TYPE_NUMERIC);
                 $sheet->getStyle($coord)->getNumberFormat()->setFormatCode('0.0%');
             } elseif (preg_match('/^[+-]?\d{1,3}(,\d{3})+(\.\d+)?$/', $string) === 1) {
-                // ตัวเลขที่ format หลักพันแล้ว ("1,234.0" จาก number_format ≥ 1000) → เป็นตัวเลขจริงที่มีการ
-                // แสดงผลแบบจัดกลุ่มหลัก เพื่อให้ Excel sum/pivot ได้ แทนที่จะปล่อยเป็น text.
+                // ตัวเลขที่ format หลักพันแล้ว ("1,234.0" จาก number_format ≥ 1000) → เก็บเป็นตัวเลขจริง
+                // แล้วแสดงผลแบบคั่นหลักพัน ให้ Excel sum/pivot ได้ ไม่ปล่อยเป็น text.
                 $dotPos = strpos($string, '.');
                 $decimals = $dotPos === false ? 0 : strlen($string) - $dotPos - 1;
                 $sheet->setCellValueExplicit($coord, (float) str_replace(',', '', $string), DataType::TYPE_NUMERIC);
                 $sheet->getStyle($coord)->getNumberFormat()->setFormatCode('#,##0' . ($decimals > 0 ? '.' . str_repeat('0', $decimals) : ''));
             } elseif (preg_match('/^-?\d+\.\d+$/', $string) === 1) {
-                // ป้าย metric ที่เป็นทศนิยม format แล้ว ("5.0", "9.0") — string ทศนิยมไม่มีทางเป็น identifier ที่ขึ้นต้น
-                // ด้วยเลขศูนย์ จึงปลอดภัยที่จะเก็บเป็น numeric ไว้ pivot/sum.
+                // ป้าย metric ที่เป็นทศนิยม format แล้ว ("5.0", "9.0") — string ทศนิยมไม่มีทางเป็น identifier ที่นำหน้า
+                // ด้วยเลขศูนย์ เก็บเป็น numeric ไว้ pivot/sum ได้ปลอดภัย.
                 $sheet->setCellValueExplicit($coord, (float) $string, DataType::TYPE_NUMERIC);
             } else {
-                // ที่เหลือทั้งหมดเป็น text — รวมถึง string identifier ที่เป็นตัวเลขล้วน (asset_code "0028712749",
-                // ticket_no): เก็บเป็น text อย่างชัดเจน เพื่อให้เลขศูนย์นำหน้าไม่หายและ code ยาว ๆ คงความแม่นยำ.
+                // ที่เหลือเป็น text — รวมถึง string identifier ที่เป็นตัวเลขล้วน (asset_code "0028712749",
+                // ticket_no): เก็บเป็น text ชัด ๆ เลขศูนย์นำหน้าจะได้ไม่หายและ code ยาว ๆ คงความแม่นยำ.
                 // อย่าปล่อยให้ default value binder ของ PhpSpreadsheet แปลง string identifier เป็นตัวเลข.
                 // guard กัน formula-injection ยังมีผลอยู่. (metric ที่เป็น integer ล้วนต้องส่งแบบ typed ตามด้านบน.)
                 $sheet->setCellValueExplicit($coord, sanitize_export_cell($value), DataType::TYPE_STRING);
@@ -73,8 +73,8 @@ class ReportExporter
     }
 
     /**
-     * สร้างไฟล์ .xlsx แบบ sheet เดียวจากแถวที่ map แล้ว. sanitise ทุกแถวเสมอ ดังนั้น export แบบ *Excel ตัวไหน
-     * ก็ไม่มีทางลืม guard กัน formula-injection.
+     * สร้างไฟล์ .xlsx แบบ sheet เดียวจากแถวที่ map แล้ว. sanitise ทุกแถวเสมอ export แบบ *Excel ตัวไหน
+     * เลยไม่มีทางลืม guard กัน formula-injection.
      *
      * @param array<int, string>            $headers
      * @param array<int, array<int, mixed>> $rows
@@ -107,10 +107,10 @@ class ReportExporter
     }
 
     /**
-     * เขียน title + แถว header + แถวข้อมูล ลงใน worksheet ผ่าน writer ทีละเซลล์ที่ใช้ร่วมกัน
-     * (writeDataRow) เพื่อให้ทุก sheet ได้การจัดการ numeric-percentage + formula-injection แบบเดียวกัน —
-     * ทั้ง export sheet เดียว, sheet เสริม, หรือ active sheet ของ exporter แบบหลาย sheet เอง. เป็น public เพื่อให้ตัวเรียก
-     * ที่จัดการ Spreadsheet ของตัวเอง (เช่น export 2 sheet ของ CSAT) เติม active sheet ของตัวเองผ่าน writer
+     * เขียน title + แถว header + แถวข้อมูล ลง worksheet ผ่าน writer ทีละเซลล์ตัวกลาง
+     * (writeDataRow) ทุก sheet จะได้จัดการ numeric-percentage + formula-injection เหมือนกันหมด —
+     * ทั้ง export sheet เดียว, sheet เสริม, หรือ active sheet ของ exporter หลาย sheet. เป็น public ให้ตัวเรียก
+     * ที่ถือ Spreadsheet ของตัวเอง (เช่น export 2 sheet ของ CSAT) เติม active sheet ของตัวเองผ่าน writer
      * ตัวเดียวนี้ แทนการเขียน fromArray() เองซึ่งจะทำให้เปอร์เซ็นต์กลายเป็น text.
      *
      * @param array<int, string>            $headers
@@ -134,8 +134,8 @@ class ReportExporter
     }
 
     /**
-     * สร้าง CSV แบบ UTF-8 (มี BOM) จากแถวที่ map แล้ว. sanitise ทุกแถวเสมอ ดังนั้น export แบบ *Csv ตัวไหน
-     * ก็ไม่มีทางลืม guard กัน formula-injection.
+     * สร้าง CSV แบบ UTF-8 (มี BOM) จากแถวที่ map แล้ว. sanitise ทุกแถวเสมอ export แบบ *Csv ตัวไหน
+     * เลยไม่มีทางลืม guard กัน formula-injection.
      *
      * @param array<int, string>            $headers
      * @param array<int, array<int, mixed>> $rows
@@ -146,9 +146,9 @@ class ReportExporter
     }
 
     /**
-     * CSV แบบหลาย section: มี UTF-8 BOM หนึ่งตัว (เพื่อให้ Excel อ่านไทยได้) แล้วแต่ละ section เป็นแถว title (มีหรือไม่ก็ได้) + แถว
-     * header + แถวข้อมูลที่ sanitise แล้ว คั่นด้วยบรรทัดว่าง. ทำให้ CSV ของ /reports พกทั้งตาราง ticket และ
-     * บล็อก analytics (parity กับ sheet ของ Excel / หน้าจอ) โดยแต่ละบล็อกยังเป็นตาราง pivot ได้สะอาด ๆ.
+     * CSV แบบหลาย section: มี UTF-8 BOM ตัวเดียว (ให้ Excel อ่านไทยได้) แล้วแต่ละ section เป็นแถว title (จะมีหรือไม่ก็ได้) + แถว
+     * header + แถวข้อมูลที่ sanitise แล้ว คั่นด้วยบรรทัดว่าง. CSV ของ /reports เลยพกทั้งตาราง ticket และ
+     * บล็อก analytics (ตรงกับ sheet ของ Excel / หน้าจอ) โดยแต่ละบล็อกยังเป็นตาราง pivot สะอาด ๆ ได้.
      * แต่ละ section = ['headers' => string[], 'rows' => array<array>, 'title' => ?string].
      */
     public function buildCsvSections(array $sections): string
@@ -181,10 +181,10 @@ class ReportExporter
     }
 
     /**
-     * เรนเดอร์ HTML string ให้เป็นไฟล์ไบนารี PDF ผ่าน Dompdf ด้วยค่า default ร่วมของรายงาน: A4 แนวนอน,
-     * ฟอนต์ไทย 'sarabun' (เพื่อให้ข้อความไทยแสดงผลได้ ไม่เป็นกล่อง tofu), ปิด remote assets และใช้
-     * temp dir ที่เขียนได้ (fallback ไป /tmp แล้วต่อด้วย storage/uploads เมื่อ temp dir ของระบบใช้ไม่ได้).
-     * เป็น single source of truth ของ exporter PDF ทุกรายงาน — ไม่มีเส้นทาง export ไหนหลุดเรื่อง font/paper/temp ได้.
+     * เรนเดอร์ HTML string เป็นไฟล์ไบนารี PDF ผ่าน Dompdf ด้วยค่า default กลางของรายงาน: A4 แนวนอน,
+     * ฟอนต์ไทย 'sarabun' (ให้ข้อความไทยแสดงผลได้ ไม่เป็นกล่อง tofu), ปิด remote assets และใช้
+     * temp dir ที่เขียนได้ (ถ้า temp dir ของระบบใช้ไม่ได้ก็ fallback ไป /tmp แล้วต่อด้วย storage/uploads).
+     * เป็นแหล่งเดียวของ exporter PDF ทุกรายงาน — ไม่มีเส้นทาง export ไหนหลุดเรื่อง font/paper/temp ได้.
      */
     public function renderPdf(string $html): string
     {
@@ -196,8 +196,8 @@ class ReportExporter
         $options->setTempDir($dompdfTmp);
         $options->set('isRemoteEnabled', false);
         $options->set('defaultFont', 'sarabun');
-        // โหลดฟอนต์ไทย sarabun จากไฟล์ที่ commit ใน repo (resources/fonts) ไม่พึ่ง vendor ที่ gitignored —
-        // มิฉะนั้น fresh deploy (composer install) ไม่มีฟอนต์ → ไทยเป็น tofu. metrics cache ลง temp ที่ write ได้.
+        // โหลดฟอนต์ไทย sarabun จากไฟล์ที่ commit ไว้ใน repo (resources/fonts) ไม่พึ่ง vendor ที่ gitignored —
+        // ไม่งั้น fresh deploy (composer install) จะไม่มีฟอนต์ → ไทยเป็น tofu. metrics cache ลง temp ที่ write ได้.
         $options->setChroot([BASE_PATH]);
         $options->set('fontCache', $dompdfTmp);
         $dompdf = new Dompdf($options);

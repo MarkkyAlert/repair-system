@@ -36,8 +36,8 @@ class TicketService
         );
         $year = (int) ($normalizedFilters['year'] ?? (int) date('Y'));
 
-        // Breakdowns/CSAT: scope ตามปีที่เลือก (consistent กับกราฟรายเดือน + ใช้ index idx_tickets_requested_at
-        // แทน aggregate ทั้งระบบ) เมื่อผู้ใช้ไม่ได้ตั้งช่วงวันที่เอง. metrics + recent คง all-time (current state).
+        // Breakdowns/CSAT: จำกัดขอบเขตตามปีที่เลือกเมื่อผู้ใช้ไม่ได้ตั้งช่วงวันที่เอง — ให้ตรงกับกราฟรายเดือน
+        // และได้ใช้ index idx_tickets_requested_at แทนการ aggregate ทั้งระบบ. metrics กับ recent ยังเป็น all-time (สถานะปัจจุบัน).
         $breakdownFilters = $normalizedFilters;
         if (($normalizedFilters['from_datetime'] ?? '') === '' && ($normalizedFilters['to_datetime'] ?? '') === '') {
             $breakdownFilters['from_datetime'] = sprintf('%04d-01-01 00:00:00', $year);
@@ -111,7 +111,7 @@ class TicketService
         ];
     }
 
-    /** ปุ่ม CTA หลัก (call-to-action = ปุ่มกระตุ้นให้ทำงานต่อ) ตาม role สำหรับหัว dashboard (view-model = ข้อมูลที่จัดรูปไว้ให้หน้าจอแสดง). */
+    /** ปุ่ม CTA หลักตาม role สำหรับหัว dashboard (view-model = ข้อมูลที่จัดรูปไว้ให้หน้าจอแสดง). */
     private function buildDashboardPrimaryCta(string $role): array
     {
         return match ($role) {
@@ -121,7 +121,7 @@ class TicketService
         };
     }
 
-    /** เฉพาะ admin: cron job (งานตั้งเวลาอัตโนมัติ) ที่ยังไม่ได้รันภายในช่วงเวลาที่ควรจะสด (freshness window) (view-model). */
+    /** เฉพาะ admin: cron ที่ยังไม่รันภายในช่วงเวลาที่ควรจะยังสด — view-model. */
     private function buildDashboardCronHealth(string $role): array
     {
         if ($role !== 'admin') {
@@ -148,9 +148,9 @@ class TicketService
     }
 
     /**
-     * คำเตือน "ผลลัพธ์" (OUTCOME) ของ cron — คนละเรื่องกับความเก่าค้าง (staleness): รอบล่าสุดรันจบแต่ยังทิ้ง
-     * ความล้มเหลวขั้นสุดท้ายไว้ — อีเมลที่ลองส่งครบจำนวนครั้งแล้วแต่ยังไม่สำเร็จ หรือ SLA ที่เกินกำหนดแต่แจ้งเตือนไม่เคยถูกส่ง.
-     * แค่ heartbeat (สัญญาณว่ายังทำงานอยู่) ที่ดูปกติอย่างเดียวปิดบังสิ่งเหล่านี้ไว้ dashboard จึงต้องแสดงให้เห็น.
+     * คำเตือนเรื่อง "ผลลัพธ์" ของ cron — คนละเรื่องกับการที่มันค้างไม่รัน: รอบล่าสุดรันจบแล้ว แต่ยังทิ้ง
+     * ความล้มเหลวขั้นสุดท้ายไว้ เช่น อีเมลที่ลองส่งครบจำนวนครั้งแต่ยังไม่สำเร็จ หรือ SLA เกินกำหนดที่แจ้งเตือนไม่เคยถูกส่ง.
+     * แค่ heartbeat ที่ดูปกติอย่างเดียวจะบังปัญหาพวกนี้ไว้ dashboard เลยต้องดึงมาโชว์.
      *
      * @return array<int, array{label: string, detail: string, href: string}>
      */
@@ -160,8 +160,8 @@ class TicketService
             return [];
         }
 
-        // อ่านค่าสด (LIVE) ผ่าน repository ไม่ใช่ helper setting() ที่ cache ไว้ต่อ request — ความล้มเหลวของ cron ที่เพิ่งถูกบันทึก
-        // ต้องแสดงผลทันที และยังทำให้สัญญาณนี้ตรวจสอบได้จากเทสต์ (test-observable).
+        // อ่านค่าสดผ่าน repository ตรง ๆ ไม่ผ่าน helper setting() ที่ cache ไว้ต่อ request — ความล้มเหลวของ cron ที่เพิ่งถูกบันทึก
+        // ต้องโชว์ทันที และยังทำให้เทสต์ตรวจสัญญาณนี้ได้ด้วย.
         $settings = app(\App\Repositories\SettingsRepository::class);
         $count = static function (string $key) use ($settings): int {
             if (!$settings instanceof \App\Repositories\SettingsRepository) {
@@ -185,8 +185,8 @@ class TicketService
         if ($backupFailed > 0) {
             $failures[] = ['label' => 'สำรอง database', 'detail' => $backupFailed . ' ไฟล์เก่าลบไม่สำเร็จ (พื้นที่อาจเต็ม)', 'href' => '/admin#tab-backup'];
         }
-        // รอบล้างไฟล์ที่รันจบแล้ว (COMPLETED) แต่ลบไฟล์กำพร้า (orphan = ไฟล์ที่ไม่มีใครอ้างถึง) บางไฟล์ไม่ได้ (สิทธิ์/ดิสก์เต็ม) —
-        // แค่ heartbeat เรื่องความสดอย่างเดียวแสดงว่ามันปกติดี.
+        // รอบล้างไฟล์ที่รันจบแล้ว แต่ลบไฟล์กำพร้า (orphan = ไฟล์ที่ไม่มีใครอ้างถึง) บางไฟล์ไม่ได้ เพราะสิทธิ์หรือดิสก์เต็ม —
+        // ถ้าดูแค่ heartbeat เรื่องความสดอย่างเดียวจะเห็นว่ามันปกติดี.
         $orphanFailed = $count('cron_orphan_cleanup_last_failed');
         if ($orphanFailed > 0) {
             $failures[] = ['label' => 'ล้างไฟล์แนบกำพร้า', 'detail' => $orphanFailed . ' ไฟล์กำพร้าลบไม่สำเร็จ (สิทธิ์/พื้นที่อาจมีปัญหา)', 'href' => '/admin/email-queue'];
@@ -328,8 +328,8 @@ class TicketService
     }
 
     /**
-     * chip ของฟิลเตอร์ที่กำลังใช้งาน (view-model): แต่ละฟิลเตอร์ที่ถูกใช้จะมี label + URL สำหรับปิด (dismiss).
-     * ย้ายออกมาจาก tickets/index.php เพื่อให้ template ทำหน้าที่แค่แสดงผลอย่างเดียว.
+     * chip ของฟิลเตอร์ที่กำลังใช้อยู่ (view-model): แต่ละฟิลเตอร์มี label กับ URL สำหรับกดปิด.
+     * ย้ายออกมาจาก tickets/index.php ให้ template ทำหน้าที่แค่แสดงผลอย่างเดียว.
      */
     private function buildTicketFilterChips(array $filters, array $technicians): array
     {
@@ -470,9 +470,9 @@ class TicketService
         $assetId = strict_int($input['asset_id'] ?? null, 'Asset ');
         $impactLevel = strtolower(trim((string) ($input['impact_level'] ?? 'medium')));
         $urgencyLevel = strtolower(trim((string) ($input['urgency_level'] ?? 'medium')));
-        // ช่องทางที่มา (channel) เป็นอาร์กิวเมนต์ที่เชื่อถือได้ (TRUSTED) ซึ่งตั้งโดยผู้เรียก (web controller → ค่าเริ่มต้น 'web'; guest QR
+        // channel (ช่องทางที่มา) เป็นค่าที่เชื่อถือได้เพราะผู้เรียกเป็นคนตั้งเอง (web controller → ค่าเริ่มต้น 'web'; guest QR
         // convert → 'qr') ห้ามอ่านจาก $input ของผู้ใช้เด็ดขาด — ไม่งั้น web POST ที่ถูกปั้นขึ้นมาอาจปลอมแหล่งที่มา
-        // (channel=phone/email/walk_in) และทำให้ข้อมูลแหล่งที่มาในหน้ารายละเอียด/รายงานเพี้ยน.
+        // เป็น channel=phone/email/walk_in แล้วทำให้ข้อมูลแหล่งที่มาในหน้ารายละเอียดและรายงานเพี้ยน.
         $channel = in_array($channel, ['web', 'qr', 'phone', 'email', 'walk_in'], true) ? $channel : 'web';
         $submissionToken = $this->submissionToken((string) ($input['submission_token'] ?? ''), false);
 
@@ -523,12 +523,12 @@ class TicketService
         $storedPaths = [];
         $ticketId = 0;
         $created = false;
-        // ถ้าผู้เรียกเปิด transaction ครอบไว้อยู่แล้วก็ร่วมใช้ transaction นั้น (guest-request convert ครอบ
-        // การสร้าง ticket + claim/link ให้เป็นก้อนเดียวแบบ atomic); จะ commit/rollback/notify เองเฉพาะตอนที่เราเป็นคนเริ่ม transaction เท่านั้น.
+        // ถ้าผู้เรียกเปิด transaction ครอบไว้อยู่แล้ว ก็ร่วมใช้ transaction นั้น (guest-request convert ครอบ
+        // การสร้าง ticket กับ claim/link ให้เป็นก้อน atomic เดียว); เราจะ commit/rollback/notify เองเฉพาะตอนที่เป็นคนเริ่ม transaction เท่านั้น.
         $startedTransaction = !$this->db->inTransaction();
 
         try {
-            // RISK MAP: การ insert ticket + แถว/ไฟล์แนบต้องอยู่เป็นก้อนเดียวแบบ atomic; ต้องล้าง storedPaths ไปพร้อมกับทุกครั้งที่ rollback.
+            // RISK MAP: การ insert ticket กับแถว/ไฟล์แนบต้องอยู่เป็นก้อน atomic เดียว; ทุกครั้งที่ rollback ต้องล้าง storedPaths ตามไปด้วย.
             if ($startedTransaction) {
                 $this->db->beginTransaction();
             }
@@ -569,8 +569,8 @@ class TicketService
             throw $exception;
         }
 
-        // เมื่อร่วมใช้ transaction ที่ครอบอยู่ ticket จะยังไม่ถูกบันทึกจริงจนกว่าผู้เรียกจะ commit — ผู้เรียกนั้น
-        // จึงเป็นฝ่ายรับผิดชอบการแจ้งเตือนเอง. จะแจ้งเตือนตรงนี้เฉพาะตอนที่เรา commit ไปข้างบนแล้วเท่านั้น.
+        // ตอนร่วมใช้ transaction ที่ครอบอยู่ ticket จะยังไม่ถูกบันทึกจริงจนกว่าผู้เรียกจะ commit — ผู้เรียก
+        // เลยเป็นฝ่ายส่งแจ้งเตือนเอง. เราจะแจ้งเตือนตรงนี้เฉพาะตอนที่ commit ไปข้างบนแล้วเท่านั้น.
         if ($created && $startedTransaction) {
             try {
                 $this->notifications->notifyTicketEvent($ticketId, 'ticket.created', (int) ($viewer['id'] ?? 0));
@@ -603,8 +603,8 @@ class TicketService
     }
 
     /**
-     * ข้อมูลสถานะแบบเบา (lightweight) สำหรับ live poll ในหน้า ticket detail — status + จำนวน comment ที่ผู้ดูเห็น.
-     * คืน null ถ้าไม่มีสิทธิ์เห็น ticket (visibility เดียวกับ getTicketDetailData).
+     * ข้อมูลสถานะแบบเบา ๆ สำหรับ live poll ในหน้า ticket detail — status กับจำนวน comment ที่ผู้ดูเห็น.
+     * คืน null ถ้าไม่มีสิทธิ์เห็น ticket (ใช้ visibility เดียวกับ getTicketDetailData).
      *
      * @return array{status: string, comment_count: int}|null
      */
@@ -624,8 +624,8 @@ class TicketService
     }
 
     /**
-     * comment ใหม่ (id > afterId) ที่ผู้ดูเห็น — สำหรับ live-append (chat-like) ในหน้า ticket detail.
-     * map เหมือน getTicketDetailData (reuse mapComment + attachments). null ถ้าไม่มีสิทธิ์เห็น ticket.
+     * comment ใหม่ (id > afterId) ที่ผู้ดูเห็น — สำหรับ live-append แบบแชทในหน้า ticket detail.
+     * map เหมือน getTicketDetailData (reuse mapComment กับ attachments). คืน null ถ้าไม่มีสิทธิ์เห็น ticket.
      *
      * @return array<int, array<string, mixed>>|null
      */
@@ -638,9 +638,9 @@ class TicketService
 
         $includeInternal = (string) ($viewer['role'] ?? 'guest') !== 'requester';
 
-        // ดึงเฉพาะ comment ที่ใหม่กว่า $afterId เท่านั้น ไม่ใช่ดึงทั้ง thread มากรองใน PHP. ตอน poll ที่ไม่มีอะไรเปลี่ยน
-        // (ไม่มี comment ใหม่ — กรณีที่พบบ่อยเมื่อ poll ทุก 20 วินาที) จะ return ออกก่อนโดยไม่อ่านไฟล์แนบ ดังนั้น
-        // ticket ที่เงียบ ๆ จึงเสียแค่ query เดียวที่จำกัดขอบเขต แทนที่จะสแกนทุก comment + ไฟล์แนบ.
+        // ดึงเฉพาะ comment ที่ใหม่กว่า $afterId ไม่ได้ดึงทั้ง thread มากรองใน PHP. ตอน poll แล้วไม่มีอะไรเปลี่ยน
+        // (ไม่มี comment ใหม่ — เจอบ่อยเพราะ poll ทุก 20 วินาที) จะ return ออกก่อนโดยไม่แตะไฟล์แนบ
+        // ticket ที่เงียบ ๆ เลยเสียแค่ query เดียวที่จำกัดขอบเขต ไม่ต้องสแกนทุก comment กับไฟล์แนบ.
         $comments = $this->comments->getCommentsAfterId($ticketId, $afterId, $includeInternal);
         if ($comments === []) {
             return [];
@@ -901,8 +901,8 @@ class TicketService
             'visibility_label' => $isInternal ? 'ภายใน' : 'สาธารณะ',
             'visibility_tone' => $isInternal ? 'warning' : 'default',
             'created_at' => $this->formatDateTime($comment['created_at'] ?? null),
-            // integer version สำหรับ optimistic-lock ตอนแก้ไข (hidden original_version) — กัน same-second lost
-            // update ที่ token แบบ updated_at (วินาที) ทำไม่ได้ (WHERE version = :original_version)
+            // integer version สำหรับ optimistic-lock ตอนแก้ไข (มาจาก hidden original_version) — กันเคส lost update
+            // ในวินาทีเดียวกันที่ token แบบ updated_at (ละเอียดแค่วินาที) จับไม่ได้ (WHERE version = :original_version)
             'version' => (int) ($comment['version'] ?? 1),
             'can_manage' => $this->canManageComment($comment, $viewer),
         ];
@@ -1049,9 +1049,9 @@ class TicketService
         }
 
         if ($achievedTimestamp !== false) {
-            // การที่งานสำเร็จ (achieved) ก่อนเวลาที่แจ้ง ticket เป็นข้อมูลที่เป็นไปไม่ได้ (seed/import ผิด) — ตัดสิน
-            // ว่าตรงเวลา (met) หรือเกินกำหนด (breached) ไม่ได้ จึงถือว่า SLA ใช้งานไม่ได้ (unavailable) แทนการบอกว่า "met" แบบผิด ๆ. ทำให้การจัดหมวด
-            // ในหน้ารายละเอียด ticket นี้สอดคล้องกับของรายงาน (ReportService::buildSlaMetricState).
+            // งานที่ทำเสร็จก่อนเวลาที่แจ้ง ticket เป็นข้อมูลที่เป็นไปไม่ได้ มักมาจาก seed หรือ import ผิด — จะตัดสิน
+            // ว่าตรงเวลาหรือเกินกำหนดก็ไม่ได้ เลยถือว่า SLA ใช้งานไม่ได้ ดีกว่าไปบอกว่า "met" แบบผิด ๆ. ทำให้การจัดหมวด
+            // ในหน้ารายละเอียด ticket นี้ตรงกับของรายงาน (ReportService::buildSlaMetricState).
             if ($requestedTimestamp !== false && $achievedTimestamp < $requestedTimestamp) {
                 return [
                     'name' => $name,
@@ -1083,7 +1083,7 @@ class TicketService
             'label' => $isBreached ? 'เกินกำหนด' : 'รอดำเนินการ',
             'tone' => $isBreached ? 'danger' : 'warning',
             'target_at' => $this->formatDateTime($targetAt),
-            'target_ts' => $targetTimestamp, // Unix epoch สำหรับ client-side countdown (timezone-safe)
+            'target_ts' => $targetTimestamp, // Unix epoch สำหรับ countdown ฝั่ง client โดยไม่ต้องห่วง timezone
             'achieved_at' => '-',
         ];
     }
@@ -1168,8 +1168,8 @@ class TicketService
             ], $reference['categories'] ?? [])),
             'statusOptions' => ticket_status_options(true),
             'yearOptions' => array_map(fn (int $year): array => [
-                'value' => (string) $year,          // ค่าที่ใช้ query ยังเป็นปี ค.ศ. (Gregorian)
-                'label' => thai_year($year),        // แสดงผลเป็นปี พ.ศ. (Buddhist year)
+                'value' => (string) $year,          // ค่าที่ใช้ query ยังเป็นปี ค.ศ.
+                'label' => thai_year($year),        // แสดงผลเป็นปี พ.ศ.
             ], $years),
             'active_count' => $this->countActiveDashboardFilters($filters),
         ];

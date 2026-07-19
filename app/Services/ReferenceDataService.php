@@ -10,9 +10,9 @@ use PDO;
 use Throwable;
 
 /**
- * CRUD ข้อมูลหลัก/ข้อมูลอ้างอิง (master/reference-data) สำหรับ admin: แผนก, หมวดหมู่ ticket, หมวดหมู่ asset,
- * สถานที่ และ priority. แยกออกมาจาก AdminService; ส่วนการอ่านข้อมูลของหน้า admin ยังอยู่
- * ใน AdminService. ข้อความแจ้งเตือนกรณีค่าซ้ำ (unique-violation) จัดการอยู่ภายใน AdminRepository.
+ * CRUD ข้อมูลหลัก/ข้อมูลอ้างอิงสำหรับ admin: แผนก, หมวดหมู่ ticket, หมวดหมู่ asset,
+ * สถานที่ และ priority. แยกออกมาจาก AdminService ส่วนการอ่านข้อมูลของหน้า admin ยังอยู่
+ * ใน AdminService. ข้อความแจ้งเตือนตอนค่าซ้ำจัดการอยู่ใน AdminRepository.
  */
 class ReferenceDataService
 {
@@ -226,8 +226,8 @@ class ReferenceDataService
             throw new DomainException('กรุณากรอกรหัสและชื่อ' . $label . 'ให้ครบถ้วน');
         }
 
-        // จำกัดตามคอลัมน์ใน DB (code VARCHAR(50); name VARCHAR(150), categories VARCHAR(100)) เพื่อให้
-        // ค่าที่ยาวเกินได้ข้อความแจ้งที่เข้าใจง่าย ไม่ใช่ DB error ดิบ ๆ จาก strict-mode.
+        // จำกัดตามคอลัมน์ใน DB (code VARCHAR(50); name VARCHAR(150), categories VARCHAR(100)) ค่าที่
+        // ยาวเกินจะได้ข้อความแจ้งอ่านง่าย ไม่ใช่ DB error ดิบ ๆ ตอนเปิด strict-mode.
         require_max_length($code, 50, 'รหัส' . $label);
         require_max_length($name, $nameMax, 'ชื่อ' . $label);
 
@@ -256,9 +256,9 @@ class ReferenceDataService
 
     private function encodeSlaPayload(array $input): string
     {
-        // ใช้ strict_float เพื่อให้ค่าที่ไม่ใช่ตัวเลขอย่าง "abc" ถูกปฏิเสธ ไม่ใช่แอบแปลงเป็น SLA 0 นาทีเงียบ ๆ.
-        // เดิมค่าติดลบจะถูกบีบเป็น 0 เงียบ ๆ — ตอนนี้ถูกปฏิเสธ. is_numeric() ยังรับ "1e999"
-        // (→ INF → (int) 0 นาที) และค่าจำกัดที่ล้น INT UNSIGNED ด้วย ทั้งคู่ถูกดักไว้ข้างล่าง.
+        // ใช้ strict_float ค่าที่ไม่ใช่ตัวเลขอย่าง "abc" จะถูกปฏิเสธ ไม่ใช่แอบแปลงเป็น SLA 0 นาทีเงียบ ๆ.
+        // เดิมค่าติดลบจะถูกบีบเป็น 0 เงียบ ๆ ตอนนี้ปฏิเสธเลย. is_numeric() ยังรับ "1e999"
+        // (→ INF → (int) 0 นาที) และค่าที่ล้น INT UNSIGNED ด้วย สองอันนี้ถูกดักไว้ข้างล่าง.
         $responseHours = strict_float($input['response_hours'] ?? null, 'เวลาตอบรับ (SLA) ');
         $resolutionHours = strict_float($input['resolution_hours'] ?? null, 'เวลาแก้ไข (SLA) ');
         if ($responseHours < 0 || $resolutionHours < 0) {
@@ -272,8 +272,8 @@ class ReferenceDataService
     }
 
     /**
-     * แปลงค่า SLA หน่วยชั่วโมงที่ตรวจแล้วเป็นจำนวนนาทีเต็ม โดยปฏิเสธค่าที่ไม่ finite (is_numeric() ปล่อย
-     * "1e999" ผ่านเป็น INF ซึ่ง cast เป็น 0 นาที) และค่าใด ๆ ที่จะล้นคอลัมน์
+     * แปลงค่า SLA หน่วยชั่วโมงที่ตรวจแล้วให้เป็นจำนวนนาทีเต็ม. ค่าที่ไม่ finite จะถูกปฏิเสธ (is_numeric() ปล่อย
+     * "1e999" ผ่านเป็น INF แล้ว cast เหลือ 0 นาที) รวมถึงค่าที่จะล้นคอลัมน์
      * response_time_minutes / resolution_time_minutes ชนิด INT UNSIGNED (สูงสุด 4294967295).
      */
     private function slaMinutes(float $hours, string $label): int
@@ -333,8 +333,8 @@ class ReferenceDataService
             throw new DomainException('กรุณากรอกชื่อ Priority');
         }
 
-        // จำกัดตามคอลัมน์ของ priorities (name VARCHAR(100), color VARCHAR(30), sort_order TINYINT ≤255) เพื่อให้
-        // ค่าที่จงใจทำให้ยาวเกินได้ข้อความแจ้งที่เข้าใจง่าย ไม่ใช่ DB error ดิบ ๆ จาก strict-mode.
+        // จำกัดตามคอลัมน์ของ priorities (name VARCHAR(100), color VARCHAR(30), sort_order TINYINT ≤255) ค่าที่
+        // จงใจใส่ยาวเกินจะได้ข้อความแจ้งอ่านง่าย ไม่ใช่ DB error ดิบ ๆ ตอนเปิด strict-mode.
         require_max_length($name, 100, 'ชื่อ Priority');
         require_max_length($color, 30, 'สี');
 
@@ -347,8 +347,8 @@ class ReferenceDataService
         if ($responseHours < 0 || $resolutionHours < 0) {
             throw new DomainException('SLA ต้องไม่ติดลบ');
         }
-        // is_numeric() รับ "1e999" (→ INF → 0 นาที) และค่าจำกัดที่ล้นคอลัมน์นาทีชนิด INT UNSIGNED —
-        // slaMinutes ปฏิเสธทั้งคู่ก่อนถึงขั้น cast/DB.
+        // is_numeric() รับ "1e999" (→ INF → 0 นาที) และค่าที่ล้นคอลัมน์นาทีชนิด INT UNSIGNED ด้วย
+        // slaMinutes ดักปฏิเสธทั้งคู่ก่อนถึงขั้น cast/DB.
         $responseMinutes = $this->slaMinutes($responseHours, 'เวลาตอบรับ (SLA) ');
         $resolutionMinutes = $this->slaMinutes($resolutionHours, 'เวลาแก้ไข (SLA) ');
 

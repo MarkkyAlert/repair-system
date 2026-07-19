@@ -39,7 +39,7 @@ class ReportService
                 'resolved' => (int) ($summary['resolved_tickets'] ?? 0),
                 'overdue' => (int) ($summary['overdue_tickets'] ?? 0),
                 'avgResolutionHours' => round(((float) ($summary['avg_resolution_minutes'] ?? 0)) / 60, 1),
-                // คุม (gate) ป้าย MTTR ด้วย base ของงานที่ปิดแล้ว: ไม่มีงานที่ปิดเลย → '-' (ไม่ใช่ 0.0 หลอก)
+                // ป้าย MTTR อิง base ของงานที่ปิดแล้ว: ไม่มีงานปิดเลย → '-' (ไม่ใช่ 0.0 หลอก)
                 'avgResolutionHoursLabel' => (int) ($summary['resolution_base'] ?? 0) > 0
                     ? number_format(round(((float) ($summary['avg_resolution_minutes'] ?? 0)) / 60, 1), 1)
                     : '-',
@@ -110,7 +110,7 @@ class ReportService
         // แล้วตารางค่อยแสดงแค่ top N (buyer ปรับได้). เดิมสรุปสร้างจากแถวที่ถูก cap
         // จึงนับ fleet (จำนวนทรัพย์สินทั้งหมด) / downtime / แรงงาน ต่ำกว่าจริงเมื่อเกิน cap
         //
-        // ให้คะแนน asset ทุกตัวลง record แบบ LIGHTWEIGHT (แถวดิบ + key สำหรับ ranking/summary) แล้วสร้าง array
+        // ให้คะแนน asset ทุกตัวลง record แบบ lightweight (แถวดิบ + key สำหรับ ranking/summary) แล้วสร้าง array
         // แสดงผลตัวหนักเฉพาะ slice ที่โชว์จริง — ไม่ใช่ทุกแถวถึง 100k แถว. คะแนนเดียวกัน (ใช้ assetHealth ร่วมกัน),
         // ranking เดียวกัน, summary เดียวกัน; แค่ไม่ต้องจัดสรร label/format รายแถวสำหรับแถวที่ไม่มีใครเห็น
         $displayLimit = max(1, (int) config('reports.asset_display_limit', self::ASSET_REPORT_LIMIT));
@@ -169,7 +169,7 @@ class ReportService
 
     /**
      * Health score + metric ที่คำนวณจากแถวดิบ ที่ทั้ง row mapper ตัวเต็มและ scan แบบ lightweight (ranking/summary)
-     * ของหน้าต่างใช้ร่วมกัน — single source สองทางนี้จึงไม่มีทางขัดกัน. ทำให้หน้าให้คะแนน
+     * ของหน้าใช้ร่วมกัน — single source สองทางนี้จึงไม่มีทางขัดกัน. ทำให้หน้าให้คะแนน
      * asset ทุกตัวไว้ทำ summary ได้ ขณะที่สร้าง array แสดงผลตัวหนักเฉพาะ slice ที่โชว์จริง
      *
      * @return array{health: array<string, mixed>, failureCount: int, avgHours: float, ageYears: ?float, warranty: array<string, mixed>, mtbfDays: ?float}
@@ -248,7 +248,7 @@ class ReportService
             'mtbf_days_label' => $mtbfDays !== null ? number_format(round($mtbfDays, 0), 0) . ' วัน' : '-',
             'avg_resolution_hours_label' => (int) ($row['resolved_count'] ?? 0) > 0 ? number_format($avgHours, 1) : '-',
             'downtime_minutes' => $downtimeMinutes,
-            // presence = มี incident ที่ปิดจริง (resolved_count) ไม่ใช่ค่าผลรวม > 0 — งานที่ซ่อมเสร็จในนาทีเดียว
+            // การมีอยู่ = มี incident ที่ปิดจริง (resolved_count) ไม่ใช่ค่าผลรวม > 0 — งานที่ซ่อมเสร็จในนาทีเดียว
             // มี downtime จริง 0.0 ชม. ต้องไม่อ่านเป็น "ไม่มีข้อมูล"
             'downtime_hours_label' => (int) ($row['resolved_count'] ?? 0) > 0 ? number_format(round($downtimeMinutes / 60, 1), 1) : '-',
             'labor_minutes' => $laborMinutes,
@@ -375,7 +375,7 @@ class ReportService
         }
         $first = strtotime((string) $firstAt);
         $last = strtotime((string) $lastAt);
-        // ปฏิเสธวันเสียที่สลับด้าน (reversed) หรืออยู่ในอนาคต — "การเสีย" ปี 2030 จะปั้น MTBF ก้อนใหญ่ที่ดูสุขภาพดี
+        // ปฏิเสธวันเสียที่สลับกันหรืออยู่ในอนาคต — "การเสีย" ปี 2030 จะปั้น MTBF ก้อนใหญ่ที่ดูสุขภาพดี
         // เกินจริงขึ้นมา
         if ($first === false || $last === false || $last < $first || $last > time()) {
             return null;
@@ -474,7 +474,7 @@ class ReportService
      * ทำเครื่องหมายเซลล์ text ที่ผู้ใช้กำหนดเอง (ป้าย dimension, ชื่อ entity, feedback แบบพิมพ์อิสระ, code) เพื่อให้ XLSX writer
      * เก็บเป็น text ตามตัวอักษรเป๊ะ ๆ ไม่เดาเป็นตัวเลขเมื่อค่าหน้าตาเหมือนตัวเลข (เช่น สถานที่ชื่อ
      * "00970705.25") — ทำให้ไฟล์ byte ตรงกับหน้าจอ/CSV (audit R18). เซลล์ metric ไม่ต้อง wrap
-     * (เป็นตัวเลขจริงโดยชอบธรรม). ป้าย enum ของระบบ (status/health/warranty) เป็น string ไทยตายตัวและ
+     * (เป็นตัวเลขจริงอยู่แล้ว). ป้าย enum ของระบบ (status/health/warranty) เป็น string ไทยตายตัวและ
      * ไม่ต้อง wrap แต่ wrap ไปก็ไม่เสียหาย.
      */
     private function txt(mixed $value): ExportText
@@ -643,7 +643,7 @@ class ReportService
      */
     private function collectTechnicianPerformanceRows(array $viewer, array $normalizedFilters): array
     {
-        // As-reported (Phase 2 + R13): ทุก performance metric ถูกยกให้ผู้กระทำ resolve-event (คนปิดงาน) โดย key ด้วย
+        // As-reported (Phase 2 + R13): ทุก performance metric ยกให้คนปิดงาน (resolver) โดย key ด้วย
         // resolver id — ไม่ขึ้นกับว่าตอนนี้ ticket ถูก assign ให้ใคร. query ของ resolver พก full_name มาด้วย
         $resolver = [];
         foreach ($this->reports->getTechnicianResolverStats($viewer, $normalizedFilters) as $row) {
@@ -658,7 +658,7 @@ class ReportService
         }
         $teamSize = count($live);
 
-        // ฐานของแถว = UNION ของช่างที่ยัง active อยู่ (live) รวมกับทุกคนที่ปิดงาน (RESOLVED) ในช่วงนั้น
+        // ฐานของแถว = UNION ของช่างที่ยัง active อยู่ (live) รวมกับทุกคนที่ปิดงานในช่วงนั้น
         // (resolver). ช่างที่ถูกปิดใช้งานหรือลดบทบาทภายหลังจะไม่อยู่ใน `live` แล้ว แต่ผลงานในอดีตแบบ immutable
         // ของเขายังโชว์อยู่เพราะยังอยู่ใน `resolver` — มิฉะนั้นการปิดบัญชีจะลบ
         // ประวัติทั้งหมดของคนคนนั้น + ทำให้ยอดรวมทีมหด. ช่างที่มีแต่ใน live ได้ performance เป็น 0; ช่างที่มีแต่
@@ -684,9 +684,9 @@ class ReportService
     private function mapTechnicianPerformanceRow(string $fullName, array $resolver, array $live, int $totalOpenNow, int $teamSize): array
     {
         $openNow = (int) ($live['open_now'] ?? 0);
-        // As-reported (Phase 2 + R13): ทุก performance metric มาจากผู้กระทำ resolve-event (คนปิดงาน)
+        // As-reported (Phase 2 + R13): ทุก performance metric มาจากคนปิดงาน (resolver)
         // (getTechnicianResolverStats) บน "ticket ที่ช่างคนนี้ปิดจริงในช่วงนั้น" — resolved + MTTR
-        // + SLA-on-time (เทียบเป้าต่อรอบที่ถูก FROZEN ไว้) + CSAT (rating ต่อรอบ). ดังนั้น reopen/reassign ภายหลังจะไม่มีทาง
+        // + SLA-on-time (เทียบกับเป้าที่ล็อกไว้ต่อรอบ) + CSAT (rating ต่อรอบ). ดังนั้น reopen/reassign ภายหลังจะไม่มีทาง
         // restate งวดที่ผ่านมา และหน้าภาพรวม /reports + หน้าเต็มอ่านแถวชุดเดียวกันแบบ immutable. คอลัมน์
         // %ปิดงานต่อช่าง, เวลาตอบรับครั้งแรก, ชั่วโมงแรงงาน และคอลัมน์ "รับ"(assigned) ที่กรองตามวันที่ ถูก
         // เอาออก — ไม่มีตัวไหนเป็น metric แบบ immutable/ปัจจุบันที่สะอาดได้. $live อาจว่างสำหรับ resolver
@@ -1536,7 +1536,7 @@ class ReportService
             // period-scoped breach count (ticket ที่แจ้งในงวดแล้ว breach) — ไม่ใช่ overdue_tickets ที่เป็น
             // snapshot "ค้างเกินตอนนี้" (งวดก่อนปิดไปหมด → baseline ≈ 0 ทำให้เทียบงวดเพี้ยน)
             $this->execKpiCard('เกิน SLA', (int) ($thisSum['breached_tickets'] ?? 0), (int) ($prevSum['breached_tickets'] ?? 0), 'down_good', 0, '', (string) (int) ($thisSum['breached_tickets'] ?? 0)),
-            // MTTR/คะแนน เป็น avg → presence = มีงานปิด/มีรีวิวจริงไหม (base count) ไม่ใช่ค่า avg>0 —
+            // MTTR/คะแนน เป็น avg → การมีอยู่ = มีงานปิด/มีรีวิวจริงไหม (base count) ไม่ใช่ค่า avg>0 —
             // งานปิด <1 นาที (MTTR 0.0) ยังต้องนับว่ามีข้อมูล ไม่งั้นเดลต้าหาย/โชว์ '-' ทั้งที่มีงาน
             $this->execKpiCard('เวลาซ่อมเฉลี่ย (ชม.)', $tMttr, $pMttr, 'down_good', 1, '', $tMttrBase > 0 ? number_format($tMttr, 1) : '-', $tMttrBase > 0, $pMttrBase > 0),
             $this->execKpiCard('คะแนนเฉลี่ย', $tRating, $pRating, 'up_good', 1, '', $tRating > 0 ? number_format($tRating, 1) : '-', $tRating > 0, $pRating > 0, $tRatingCount > 0 ? 'จาก ' . number_format($tRatingCount) . ' รีวิว' : null),
@@ -1644,7 +1644,7 @@ class ReportService
         // เป็น true เสมอ (0 คือค่าจริง) จึงยังเป็นตัวเลข. single source → หน้าจอ + CSV/XLSX/PDF อ่านค่านี้เหมือนกัน.
         $prevLabel = $prevHasData ? number_format($prevVal, $decimals) . $unit : '-';
 
-        // ค่า export ที่กำหนด type แล้วเพื่อให้เซลล์ XLSX เป็นตัวเลขจริง ไม่ใช่ text: KPI แบบ COUNT (ไม่มีหน่วย ไม่มีทศนิยม —
+        // ค่า export ที่กำหนด type แล้วเพื่อให้เซลล์ XLSX เป็นตัวเลขจริง ไม่ใช่ text: KPI แบบนับจำนวน (ไม่มีหน่วย ไม่มีทศนิยม —
         // total/resolved/breach) export เป็น int แบบ typed เพื่อให้ Excel SUM/pivot ได้; ป้าย rate/avg ("75.0%", "5.0")
         // คงเป็น string ที่ format ไว้ (การจัดการ %/ทศนิยม ของ exporter คงความเป็นตัวเลขให้); "-" (ไม่มี base) → text.
         $isCount = $unit === '' && $decimals === 0;
@@ -1692,7 +1692,7 @@ class ReportService
     private function execExportRow(array $kpi): array
     {
         // 'ฐานตัวอย่าง' = sample_label (เช่น "จาก N รีวิว") ให้ export ตรงกับจอ/PDF ; KPI อื่นเว้นว่าง.
-        // value/prev = ค่า export ที่กำหนด type แล้ว เพื่อให้ KPI แบบ COUNT เป็นตัวเลขจริงใน Excel ไม่ใช่ text.
+        // value/prev = ค่า export ที่กำหนด type แล้ว เพื่อให้ KPI แบบนับจำนวนเป็นตัวเลขจริงใน Excel ไม่ใช่ text.
         return [$kpi['label'], $kpi['value_export'] ?? $kpi['value_label'], $kpi['prev_value_export'] ?? $kpi['prev_value_label'], $kpi['delta_label'], $kpi['pct_label'], (string) ($kpi['sample_label'] ?? '')];
     }
 
@@ -2398,7 +2398,7 @@ class ReportService
     }
 
     /**
-     * 4 section ของ CSAT (summary / distribution / breakdown / feedback) ในรูป title+headers+rows — SINGLE SOURCE
+     * 4 section ของ CSAT (summary / distribution / breakdown / feedback) ในรูป title+headers+rows — single source
      * เพื่อให้ทุกรูปแบบ export พก section เดียวกับที่หน้าจอแสดง (parity: เดิม CSV มีแต่ breakdown
      * อย่างเดียว, Excel ไม่มี distribution, PDF ไม่มี feedback). ลำดับตรงกับหน้าจอ.
      */
@@ -3120,7 +3120,7 @@ class ReportService
     }
 
     /**
-     * 4 section ของ analytics (title / headers / rows) — SINGLE SOURCE เพื่อให้ sheet ของ Excel, บล็อกใน CSV และ
+     * 4 section ของ analytics (title / headers / rows) — single source เพื่อให้ sheet ของ Excel, บล็อกใน CSV และ
      * panel บนหน้าจอ พกข้อมูลชุดเดียวกันทั้งหมด (export parity โดยโครงสร้าง). แต่ละตัว = ['title','headers','rows'].
      */
     private function reportAnalyticsSections(array $analytics): array
@@ -3159,8 +3159,8 @@ class ReportService
         try {
             $this->reports->markExportJobFailed($jobId, $exception->getMessage());
         } catch (\Throwable $auditFailure) {
-            // ตัวเรียกจะ re-throw error export ตัวเดิมอยู่แล้ว; แค่ทำให้แน่ใจว่าความล้มเหลวของการเขียน audit เอง
-            // ไม่เงียบหาย — การเขียน export_jobs ที่ล้มเหลวเป็นระบบ มิฉะนั้นจะไม่ทิ้งร่องรอยไว้เลย
+            // ตัวเรียกจะ re-throw error export ตัวเดิมอยู่แล้ว แค่ทำให้แน่ใจว่าการเขียน audit ที่ล้มเหลวเอง
+            // จะไม่เงียบหาย — log การเขียน export_jobs ที่พังไว้ ไม่งั้นจะไม่เหลือร่องรอยอะไรเลย
             log_caught_exception('report.export.failure', $auditFailure, ['job' => $jobId]);
         }
     }

@@ -74,9 +74,9 @@ class EmailTemplateService
     }
 
     /**
-     * บันทึกการแก้ไขของ admin ลงในฟิลด์ของ template ที่ override ได้. ตรวจสอบ template key เทียบกับ
-     * registry (อย่าเชื่อ key ที่ส่งมามั่ว ๆ จาก request) แล้วเขียนทุกฟิลด์ที่ลงทะเบียนไว้
-     * โดย trim ค่าให้ด้วย. ล้าง cache ของ override เพื่อให้การอ่านครั้งถัดไปใน request เดียวกันได้ค่าสด.
+     * บันทึก override ที่ admin แก้ลงในฟิลด์ของ template. เช็ค template key กับ registry ก่อน
+     * อย่าเชื่อ key ที่ส่งมาจาก request ตรง ๆ แล้ว trim ทุกฟิลด์ที่ลงทะเบียนไว้ก่อนเขียน.
+     * เคลียร์ cache override ให้การอ่านครั้งถัดไปใน request เดียวกันได้ค่าล่าสุด.
      *
      * @param array<string, mixed> $input input ดิบจาก request ที่ key ด้วยชื่อฟิลด์
      * @throws DomainException เมื่อ template key ไม่มีอยู่ใน registry
@@ -88,8 +88,8 @@ class EmailTemplateService
             throw new DomainException('ไม่พบ template ที่ต้องการบันทึก');
         }
 
-        // ทำแบบ all-or-nothing (สำเร็จทั้งหมดหรือไม่สำเร็จเลย): บันทึกทุกฟิลด์ที่ลงทะเบียนไว้ใน transaction เดียว (ดู upsertFields) เพื่อไม่ให้
-        // การล้มเหลวกลางคันทำให้ template อัปเดตค้างครึ่ง ๆ (เช่น subject ใหม่แต่จับคู่กับ body เดิม).
+        // เขียนทุกฟิลด์ใน transaction เดียว (ดู upsertFields) — สำเร็จหมดหรือไม่ก็ไม่เขียนเลย ไม่ให้
+        // ล้มกลางคันแล้ว template อัปเดตค้างครึ่ง ๆ เช่น subject ใหม่แต่ body ยังเป็นอันเก่า.
         $fieldValues = [];
         foreach ($meta['fields'] as $fieldKey) {
             $fieldValues[$fieldKey] = trim((string) ($input[$fieldKey] ?? ''));
@@ -100,8 +100,8 @@ class EmailTemplateService
     }
 
     /**
-     * รีเซ็ต template กลับไปเป็นค่าเริ่มต้นในตัว (ลบ override ทั้งหมด). ตรวจสอบ key เทียบกับ
-     * registry และล้าง cache ของ override.
+     * รีเซ็ต template กลับไปใช้ค่าเริ่มต้นในโค้ด (ลบ override ทั้งหมด). เช็ค key กับ
+     * registry แล้วเคลียร์ cache override.
      *
      * @throws DomainException เมื่อ template key ไม่มีอยู่ใน registry
      */
@@ -290,7 +290,7 @@ class EmailTemplateService
         ];
     }
 
-    /** ตัวอย่างสำหรับ preview/ทดสอบส่งของอีเมล password-reset โดยใช้ admin ปัจจุบันเป็นผู้รับ. */
+    /** อีเมล password-reset ตัวอย่างสำหรับ preview/ทดสอบส่ง โดยใช้ admin ปัจจุบันเป็นผู้รับ. */
     public function buildSamplePasswordReset(array $viewer): array
     {
         return $this->buildPasswordReset(
@@ -304,7 +304,7 @@ class EmailTemplateService
         );
     }
 
-    /** ตัวอย่างสำหรับ preview/ทดสอบส่งของอีเมล ticket-event โดยใช้ admin ปัจจุบันเป็นผู้รับ. */
+    /** อีเมล ticket-event ตัวอย่างสำหรับ preview/ทดสอบส่ง โดยใช้ admin ปัจจุบันเป็นผู้รับ. */
     public function buildSampleTicketEvent(array $viewer): array
     {
         return $this->buildTicketEvent(

@@ -75,8 +75,8 @@ class GuestTicketService
         try {
             $id = $this->requests->create([
                 'request_no' => $requestNo,
-                // submission_token (UNIQUE) — DB-level idempotency กัน double-submit/replay
-                // ที่หลุด session check (defense-in-depth คู่กับ one-time form token)
+                // submission_token (คอลัมน์ UNIQUE) — idempotency ระดับ DB กัน double-submit/replay
+                // ที่หลุด session check มาได้ เป็นชั้นกันซ้อนคู่กับ one-time form token
                 'submission_token' => (string) ($input['form_token'] ?? ''),
                 'asset_id' => (int) ($asset['id'] ?? 0) > 0 ? (int) $asset['id'] : null,
                 'location_id' => (int) ($asset['location_id'] ?? 0) > 0 ? (int) $asset['location_id'] : null,
@@ -139,18 +139,18 @@ class GuestTicketService
 
     public function convertToTicket(int $requestId, array $viewer, int|string $priorityId, int|string $categoryId, TicketService $tickets): int
     {
-        // input ที่จำเป็นสำหรับการแปลง — ตรวจสอบตรงนี้ (ไม่ใช่ที่ controller) เพื่อให้กฎนี้ใช้กับทุกผู้เรียก
-        // convertToTicket และตรวจก่อนจะทำงานเกี่ยวกับ lock/DB ใด ๆ. strict_int ปฏิเสธค่าที่ผิดรูปอย่าง
-        // "1junk" แทนที่จะเป็นแบบเดิมที่ (int) cast ของ controller แอบเก็บแค่ส่วนหน้า "1" ไว้เงียบ ๆ.
+        // input ที่จำเป็นต่อการแปลง — เช็คตรงนี้ ไม่ใช่ที่ controller กฎจะได้ใช้กับทุกคนที่เรียก
+        // convertToTicket และเช็คก่อนแตะ lock/DB. strict_int ปฏิเสธค่าผิดรูปอย่าง
+        // "1junk" ไม่เหมือน (int) cast เดิมของ controller ที่แอบเก็บแค่ "1" เงียบ ๆ.
         $priorityId = strict_int($priorityId, 'ความสำคัญ');
         $categoryId = strict_int($categoryId, 'หมวดหมู่');
         if ($priorityId <= 0 || $categoryId <= 0) {
             throw new DomainException('กรุณาเลือกความสำคัญและหมวดหมู่');
         }
 
-        // Serialize convert/reject บน request เดียวกันด้วย advisory lock — ตรวจ status='new' + สร้าง
-        // ticket + link ทั้งหมดภายใต้ lock เดียว จึงไม่มีทางที่ concurrent convert 2 คน (หรือ convert
-        // แข่ง reject) จะสร้าง ticket ที่ไม่ถูกผูกกับ request (orphan).
+        // จับ convert/reject ของ request เดียวกันทำทีละคนด้วย advisory lock — เช็ค status='new' + สร้าง
+        // ticket + link ทั้งหมดใต้ lock เดียว จะได้ไม่มีทางที่ convert 2 คนพร้อมกัน (หรือ convert
+        // แข่งกับ reject) สร้าง ticket ที่ไม่ถูกผูกกับ request แล้วกลายเป็น orphan.
         $this->requests->acquireConvertLock($requestId);
         try {
             $request = $this->requests->findById($requestId);
@@ -164,9 +164,9 @@ class GuestTicketService
 
             $contact = trim(((string) $request['guest_email']) . ' ' . ((string) $request['guest_phone']));
             $originalTitle = (string) $request['title'];
-            // ข้อความที่ประกอบ "[จาก Guest: name] {title}" อาจยาวเกินลิมิต 200 ตัวอักษรของ ticket-title (name ≤150 +
-            // title ≤200) ซึ่งจะทำให้ guest request ที่ส่งสำเร็จแล้วแปลงไม่ผ่าน. จึงตัด (cap)
-            // title ไว้ที่ 200 และเก็บต้นฉบับเต็ม ๆ ไว้ใน description เพื่อไม่ให้ข้อมูลหาย.
+            // ข้อความ "[จาก Guest: name] {title}" ที่ประกอบขึ้นอาจยาวเกินลิมิต 200 ตัวของ ticket-title (name ≤150 +
+            // title ≤200) ทำให้ guest request ที่ส่งสำเร็จแล้วแปลงไม่ผ่าน. เลยตัด
+            // title ไว้ที่ 200 แล้วเก็บต้นฉบับเต็มไว้ใน description ข้อมูลจะได้ไม่หาย.
             $composedTitle = '[จาก Guest: ' . (string) $request['guest_name'] . '] ' . $originalTitle;
             if (mb_strlen($composedTitle) > 200) {
                 $composedTitle = mb_substr($composedTitle, 0, 200);
@@ -224,8 +224,8 @@ class GuestTicketService
 
     public function rejectRequest(int $requestId, array $viewer, string $note): void
     {
-        // ใช้ lock ตัวเดียวกับ convert → reject กับ convert serialize กัน (กัน reject แทรกระหว่าง
-        // convert ตรวจ status กับ claimAndLink ซึ่งเป็นต้นตอ orphan ticket เดิม)
+        // ใช้ lock ตัวเดียวกับ convert → reject กับ convert เลยทำทีละคน (กัน reject แทรกกลางระหว่าง
+        // ตอน convert เช็ค status กับตอน claimAndLink ซึ่งเคยเป็นต้นตอ orphan ticket)
         $this->requests->acquireConvertLock($requestId);
         try {
             $request = $this->requests->findById($requestId);
@@ -236,8 +236,8 @@ class GuestTicketService
                 throw new DomainException('Request นี้ถูกดำเนินการแล้ว');
             }
 
-            // update แบบมีเงื่อนไขที่เป็น atomic (WHERE status='new'); ถ้าได้ false แปลว่ามี convert/reject ที่ทำพร้อมกัน
-            // เคลม (claim) ไปแล้ว จึงต้องแจ้งเรื่องนั้นแทนที่จะรายงานว่าสำเร็จซึ่งชวนเข้าใจผิด.
+            // update แบบมีเงื่อนไข atomic (WHERE status='new'); ถ้าได้ false แปลว่ามี convert/reject พร้อมกัน
+            // เคลมไปก่อนแล้ว ต้องแจ้งเรื่องนั้นแทนที่จะบอกว่าสำเร็จซึ่งชวนเข้าใจผิด.
             if (!$this->requests->markRejected($requestId, (int) ($viewer['id'] ?? 0), $note)) {
                 throw new DomainException('Request นี้ถูกดำเนินการแล้ว');
             }
@@ -248,7 +248,7 @@ class GuestTicketService
 
     /**
      * เช็คสถานะคำขอ guest แบบ public — ต้องมี second factor (เบอร์/อีเมลที่แจ้งไว้) เพราะ request_no เดาได้.
-     * คืน null เมื่อไม่พบ/second factor ไม่ตรง (เรียกใช้ควรแสดง error กลาง ๆ กัน enumeration). throw เมื่อ rate-limit เกิน.
+     * คืน null เมื่อไม่พบ/second factor ไม่ตรง (ผู้เรียกควรโชว์ error กลาง ๆ กัน enumeration). throw เมื่อ rate-limit เกิน.
      * @return array{request_no:string, guest_name:string, created_at:string, status:string, status_label:string,
      *   status_tone:string, ticket_no:?string, ticket_status_label:?string, ticket_status_tone:?string, review_note:?string}|null
      */

@@ -46,9 +46,9 @@ class NotificationService
     }
 
     /**
-     * ทำให้ฟอร์มตั้งค่าการแจ้งเตือนดิบ (matrix `pref` ของ checkbox email/in_app) เป็นมาตรฐาน (normalise) ให้เป็น matrix
-     * เต็มแยกตามประเภท แล้วบันทึกลงฐานข้อมูล. เป็นเจ้าของทั้งการ normalize + การเขียน เพื่อให้ controller แค่มอบงานต่อ —
-     * preference repository เป็น dependency ของ service นี้อยู่แล้ว.
+     * รับค่าดิบจากฟอร์มตั้งค่าการแจ้งเตือน (matrix `pref` ของ checkbox email/in_app) มา normalize ให้เป็น matrix
+     * เต็มแยกตามประเภท แล้วบันทึกลง database. service นี้คุมทั้งการ normalize และการเขียนเอง controller แค่มอบงานต่อ —
+     * preference repository ก็เป็น dependency ของ service นี้อยู่แล้ว.
      *
      * @param array<string, mixed> $rawInput map ดิบของ $_POST['pref'] (type => ['email'=>on, 'in_app'=>on])
      */
@@ -133,9 +133,9 @@ class NotificationService
 
     public function notifyTicketEvent(int $ticketId, string $eventType, int $actorId): void
     {
-        // การแจ้งเตือนเป็นผลข้างเคียงแบบ best-effort (พยายามให้ดีที่สุดเท่าที่ทำได้): ความล้มเหลวตรงนี้ต้องไม่ทำให้การเปลี่ยนสถานะ ticket ที่ commit
-        // ไปแล้วกลายเป็น error ที่ผู้ใช้เห็น (dispatch/email กลืน + log ความล้มเหลวของตัวเองอยู่แล้ว;
-        // ตรงนี้ป้องกันการอ่านที่เหลือ). ทุกการเปลี่ยนสถานะใน workflow เรียกอันนี้ได้ตรง ๆ โดยไม่ต้องมี try-catch.
+        // การแจ้งเตือนเป็นผลข้างเคียงแบบ best-effort: ถ้าตรงนี้ล้มเหลว ต้องไม่ทำให้การเปลี่ยนสถานะ ticket ที่ commit
+        // ไปแล้วเด้ง error ให้ผู้ใช้เห็น (ตัว dispatch กับ email กลืน error แล้ว log ของตัวเองอยู่แล้ว;
+        // ตรงนี้แค่กันพลาดที่เหลือ). ทุกจุดที่เปลี่ยนสถานะใน workflow เลยเรียกอันนี้ได้ตรง ๆ ไม่ต้องมี try-catch.
         try {
             $this->dispatchTicketEvent($ticketId, $eventType, $actorId);
         } catch (Throwable $exception) {
@@ -293,9 +293,9 @@ class NotificationService
 
     public function notifySystemAnnouncement(string $title, string $message, int $actorId, ?string $roleFilter = null, string $submissionToken = ''): array
     {
-        // Idempotency (เรียกซ้ำแล้วผลไม่เปลี่ยน): การลองใหม่หลังเน็ตสะดุด หรือแท็บที่สอง จะ re-POST token ใช้ครั้งเดียวตัวเดิม —
-        // ให้ return แบบไม่ทำอะไร (no-op) เพื่อไม่ให้แจ้งเตือนทั้งองค์กรซ้ำ (in-app + email). คอลัมน์ UNIQUE ที่รับ null ได้เป็น
-        // ตัวกันชนกรณีชนกัน (race); การเช็คล่วงหน้านี้ครอบคลุมการลองใหม่แบบเรียงลำดับที่พบบ่อย.
+        // Idempotency (เรียกซ้ำแล้วผลไม่เปลี่ยน): ถ้าลองใหม่หลังเน็ตสะดุด หรือเปิดแท็บที่สอง จะ re-POST token ตัวเดิมที่ใช้ได้ครั้งเดียว —
+        // ให้ return เฉย ๆ ไม่ทำอะไร กันไม่ให้แจ้งเตือนทั้งองค์กรซ้ำทั้ง in-app และ email. คอลัมน์ UNIQUE ที่รับ null ได้เป็น
+        // ตัวกันตอนแย่งกันเขียนพร้อมกัน; ส่วนการเช็คล่วงหน้าตรงนี้ครอบคลุมการลองใหม่แบบเรียงลำดับที่เจอบ่อย.
         if ($submissionToken !== '' && $this->notifications->broadcastTokenExists($submissionToken)) {
             return ['in_app_count' => 0, 'email_count' => 0, 'duplicate' => true];
         }
@@ -310,8 +310,8 @@ class NotificationService
         $inAppRecipients = $this->filterByPreference($recipientIds, 'system_announcement', 'in_app');
         $emailRecipients = $this->filterByPreference($recipientIds, 'system_announcement', 'email');
 
-        // รายงานผลลัพธ์ in-app ที่เกิดขึ้นจริง (ACTUAL) ไม่ใช่จำนวนผู้รับที่ตั้งใจ: ถ้าการเขียนถูกกลืน (dispatch
-        // log + คืน false) flash ของ admin ต้องไม่บอกว่า "in-app: N" ทั้งที่เขียนไปศูนย์ราย.
+        // รายงานผล in-app ที่เกิดขึ้นจริง ไม่ใช่จำนวนผู้รับที่ตั้งใจจะส่ง: ถ้าการเขียนถูกกลืน (dispatch
+        // log แล้วคืน false) flash ของ admin ต้องไม่ขึ้นว่า "in-app: N" ทั้งที่เขียนไปศูนย์ราย.
         $inAppWritten = $this->dispatchNotification([
             'type' => 'system.announcement',
             'title' => $title,
@@ -325,8 +325,8 @@ class NotificationService
             'submission_token' => $submissionToken,
         ], $inAppRecipients);
 
-        // รายงานผลลัพธ์ email ที่เกิดขึ้นจริง (ACTUAL) ไม่ใช่จำนวนผู้รับที่ตั้งใจ: ถ้าการเข้าคิวล้มเหลว ผู้เรียก
-        // (flash ของ admin) ต้องไม่บอกว่า "email: N sent" ทั้งที่เข้าคิวไปศูนย์ราย.
+        // รายงานผล email ที่เกิดขึ้นจริง ไม่ใช่จำนวนผู้รับที่ตั้งใจจะส่ง: ถ้าเข้าคิวล้มเหลว ผู้เรียก
+        // (flash ของ admin) ต้องไม่ขึ้นว่า "email: N sent" ทั้งที่เข้าคิวไปศูนย์ราย.
         $emailQueued = true;
         try {
             $this->emails->queueSystemAnnouncementEmails($emailRecipients, $title, $message);
@@ -343,7 +343,7 @@ class NotificationService
         ];
     }
 
-    /** @return bool ว่าการแจ้งเตือน SLA breach แบบ in-app ถูกเขียนจริงหรือไม่ (เพื่อให้ SLA cron นับ notification จริง ไม่ใช่ที่ตั้งใจไว้) */
+    /** @return bool ว่าการแจ้งเตือน SLA breach แบบ in-app ถูกเขียนจริงไหม (ให้ SLA cron นับ notification ที่ส่งจริง ไม่ใช่ที่ตั้งใจไว้) */
     public function notifySlaBreached(int $ticketId, string $metricType): bool
     {
         $context = $this->reads->findTicketNotificationContextById($ticketId);
@@ -385,16 +385,16 @@ class NotificationService
             $emailDelivered = false;
         }
 
-        // "notified" ต้องสะท้อนทุกช่องทาง (EVERY channel) ที่มีผู้รับ — ผู้รับที่รับทางอีเมลอย่างเดียว (ปิด in-app)
-        // ที่การเข้าคิวอีเมลล้มเหลวถือเป็นความล้มเหลวในการแจ้งเตือนจริง แม้ dispatch in-app ที่ว่างเปล่าจะ
-        // สำเร็จแบบง่าย ๆ. dispatchNotification/queue คืน true เมื่อช่องทางนั้นไม่มีผู้รับ ดังนั้น
-        // การ AND ตรงนี้ == "ทุกช่องทางที่มีผู้รับส่งสำเร็จ".
+        // "notified" ต้องสะท้อนทุกช่องทางที่มีผู้รับ — คนที่รับทางอีเมลอย่างเดียว (ปิด in-app ไว้)
+        // แล้วอีเมลเข้าคิวไม่สำเร็จ ถือว่าแจ้งเตือนไม่สำเร็จจริง ๆ ถึงแม้ dispatch in-app ที่ไม่มีผู้รับจะ
+        // ผ่านแบบง่าย ๆ ก็ตาม. dispatchNotification กับ queue คืน true เมื่อช่องทางนั้นไม่มีผู้รับ
+        // การเอามา AND กันตรงนี้เลยเท่ากับ "ทุกช่องทางที่มีผู้รับส่งสำเร็จ".
         return $inAppDelivered && $emailDelivered;
     }
 
     /**
-     * แจ้ง manager/admin (ผู้ moderate guest request) ทันทีที่มีคำขอแจ้งซ่อมใหม่จาก QR guest —
-     * เดิม guest submit เงียบ ไม่มีใครรู้จนกว่าจะเปิดหน้าคิวเอง. in-app เสมอ (หน้าที่ moderation).
+     * แจ้ง manager/admin ที่คอยดูแล guest request ทันทีที่มีคำขอแจ้งซ่อมใหม่จาก QR guest —
+     * เดิม guest submit เงียบ ๆ ไม่มีใครรู้จนกว่าจะเปิดหน้าคิวเอง. ส่ง in-app เสมอเพราะเป็นงาน moderation.
      */
     public function notifyGuestRequestSubmitted(int $requestId, string $requestNo, string $guestName): void
     {
@@ -417,10 +417,10 @@ class NotificationService
     }
 
     /**
-     * เขียน notification แบบ in-app ให้ผู้รับ. คืนค่าว่าสำเร็จหรือไม่ (SUCCEEDED) — ยังเป็น best-effort อยู่ (ความ
-     * ล้มเหลวถูก log ไว้ ไม่เคยถูก re-throw จนไปยกเลิกงานที่ผู้เรียก commit ไปแล้ว) แต่ค่า boolean นี้ช่วยให้ผู้เรียก
-     * ที่ต้องรายงานจำนวนที่ส่ง (SLA cron, broadcast) แยกได้ว่าสำเร็จหรือเป็นความล้มเหลวที่ถูกกลืน แทนที่จะ
-     * อ้างจำนวนที่ตั้งใจไว้เสมอ. ไม่มีผู้รับ = ไม่มีอะไรต้องทำ = ถือว่าสำเร็จ.
+     * เขียน notification แบบ in-app ให้ผู้รับ. คืนค่าว่าสำเร็จหรือไม่ — ยังเป็น best-effort อยู่ (ถ้า
+     * ล้มเหลวก็แค่ log ไว้ ไม่เคย re-throw จนไปยกเลิกงานที่ผู้เรียก commit ไปแล้ว) แต่ค่า boolean นี้ช่วยให้ผู้เรียก
+     * ที่ต้องรายงานจำนวนที่ส่ง (SLA cron, broadcast) แยกออกว่าส่งสำเร็จ หรือเป็นความล้มเหลวที่ถูกกลืนไว้ ไม่ใช่
+     * เอาจำนวนที่ตั้งใจไว้มารายงานเสมอ. ไม่มีผู้รับ = ไม่มีอะไรต้องทำ = ถือว่าสำเร็จ.
      */
     private function dispatchNotification(array $payload, array $recipientIds): bool
     {
@@ -473,8 +473,8 @@ class NotificationService
             return [];
         }
 
-        // โหลดผู้รับที่ปิดการแจ้งเตือนไว้ชัดเจนทีเดียวเป็น batch ใน query เดียว (โมเดล opt-out: ไม่มีแถว = เปิดอยู่)
-        // แทนที่จะเรียก isEnabled() ทีละผู้รับ (N+1 — แย่ที่สุดตอน broadcast หาผู้ใช้ทุกคน).
+        // โหลดรายชื่อผู้รับที่ปิดการแจ้งเตือนไว้ทีเดียวเป็น batch ใน query เดียว (โมเดลแบบ opt-out: ไม่มีแถว = เปิดอยู่)
+        // ไม่ไปเรียก isEnabled() ทีละผู้รับ (N+1 — หนักสุดตอน broadcast ที่หาผู้ใช้ทุกคน).
         $disabled = array_flip($this->preferences->disabledUserIds($recipientIds, $notificationType, $channel));
 
         return array_values(array_filter(

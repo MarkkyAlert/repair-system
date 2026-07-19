@@ -34,8 +34,8 @@ class AdminService
         $categorySla = $this->extractCategorySlaMap($settings);
         $auditFilters = $this->normalizeAuditFilters($query);
         $auditPage = max(1, (int) ($query['audit_page'] ?? 1));
-        // ทำ pagination (แบ่งหน้า) ให้แท็บ users (แต่ละแถว render ฟอร์มแก้ไขเต็มรูปแบบ) แทนที่จะโหลด user ทุกคน; ส่วน dropdown
-        // filter ของ audit ยังต้องใช้ user ทั้งหมด จึงให้ list แบบเบา ๆ ที่มีแค่ id+name.
+        // แบ่งหน้าแท็บ users (แต่ละแถว render ฟอร์มแก้ไขเต็ม ๆ) ไม่โหลด user ทุกคนพร้อมกัน; ส่วน dropdown
+        // filter ของ audit ยังต้องใช้ user ทั้งหมด เลยดึง list เบา ๆ ที่มีแค่ id+name.
         $usersPage = $this->admin->getUsersPage(max(1, (int) ($query['user_page'] ?? 1)), 25);
 
         return [
@@ -86,8 +86,8 @@ class AdminService
         $phone = trim((string) ($input['phone'] ?? ''));
         require_max_length($phone, 30, 'เบอร์โทร'); // users.phone VARCHAR(30)
         if ($phone !== '' && !valid_phone_format($phone)) {
-            // ให้สอดคล้องกับ flow ของ profile/import — การแก้ไขโดย admin ต้องไม่รับเบอร์ที่ผิดรูป ซึ่งการแก้ไข profile
-            // ของ user เองก็จะปฏิเสธ.
+            // ให้ตรงกับ flow ของ profile/import — admin แก้ก็ต้องไม่รับเบอร์ที่ผิดรูปเหมือนตอน user
+            // แก้ profile ของตัวเองที่ก็ปฏิเสธเหมือนกัน.
             throw new DomainException('รูปแบบเบอร์โทรไม่ถูกต้อง');
         }
 
@@ -99,8 +99,8 @@ class AdminService
             throw new DomainException('Role ผู้ใช้งานไม่ถูกต้อง');
         }
 
-        // guard ตัวเดียวกับ createUser — ไม่งั้น department_id ที่ไม่ถูกต้องจะไปถึง FK (foreign key) แล้วโผล่มาเป็น
-        // PDOException/500 (ตัวห่อฟอร์มดักจับแค่ Domain/Runtime), ไม่ใช่ข้อความที่เป็นมิตร.
+        // guard ตัวเดียวกับ createUser — ไม่งั้น department_id ที่ผิดจะหลุดไปชน FK แล้วเด้งเป็น
+        // PDOException/500 (ตัวห่อฟอร์มดักแค่ Domain/Runtime) แทนที่จะเป็นข้อความที่เข้าใจง่าย.
         $departmentId = strict_int($input['department_id'] ?? null, 'แผนก '); // ปฏิเสธค่าอย่าง "1junk"
         if ($departmentId > 0 && !$this->admin->departmentExists($departmentId)) {
             throw new DomainException('Department ที่เลือกไม่ถูกต้อง');
@@ -139,7 +139,7 @@ class AdminService
         $phone = trim((string) ($input['phone'] ?? ''));
         require_max_length($phone, 30, 'เบอร์โทร'); // users.phone VARCHAR(30)
         if ($phone !== '' && !valid_phone_format($phone)) {
-            // ให้สอดคล้องกับ flow ของ profile/import — user ที่ admin สร้างต้องไม่รับเบอร์ที่ผิดรูป.
+            // ให้ตรงกับ flow ของ profile/import — user ที่ admin สร้างก็ต้องไม่รับเบอร์ที่ผิดรูป.
             throw new DomainException('รูปแบบเบอร์โทรไม่ถูกต้อง');
         }
 
@@ -266,9 +266,9 @@ class AdminService
     }
 
     /**
-     * กันข้อมูลติดต่อดิบที่เป็น PII (personally identifiable information — ข้อมูลระบุตัวตน เช่น email/phone) ออกจาก audit record ที่เก็บถาวรบน production — เพราะ entry นั้น
-     * ระบุเป้าหมายด้วย entity id + full_name อยู่แล้ว จึงไม่จำเป็นต้องเก็บ address/เบอร์ที่แท้จริงไว้ตรงนั้น.
-     * Dev/local เก็บค่าเต็มไว้เพื่อ debug ให้ตรงกับนโยบาย PII ของ mail-log.
+     * กันข้อมูลติดต่อดิบ (PII อย่าง email/phone) ออกจาก audit record ที่เก็บถาวรบน production — เพราะ entry นั้น
+     * ระบุเป้าหมายด้วย entity id + full_name อยู่แล้ว ไม่ต้องเก็บที่อยู่/เบอร์จริงไว้ตรงนั้นซ้ำ.
+     * Dev/local เก็บค่าเต็มไว้ debug ให้ตรงกับนโยบาย PII ของ mail-log.
      *
      * @param array<string, mixed> $context
      * @return array<string, mixed>

@@ -13,9 +13,9 @@ use Endroid\QrCode\Encoding\Encoding;
 use Endroid\QrCode\Writer\PngWriter;
 
 /**
- * ส่วนงานพิมพ์/export ของ ticket ที่แยกออกมาจาก TicketService: view-model ของ HTML ที่พิมพ์ได้,
- * PDF ใบสั่งงาน (Job Order) ที่ทำด้วย Dompdf, และ QR PNG สำหรับพิมพ์. ใช้ TicketService::mapTicketDetail() ซ้ำ
- * สำหรับการ map รายละเอียด ticket ที่ใช้ร่วมกัน (single source) และใช้ TicketReadRepository สำหรับสิทธิ์การมองเห็น.
+ * งานพิมพ์/export ของ ticket แยกออกมาจาก TicketService: view-model ของ HTML ที่พิมพ์ได้,
+ * PDF ใบสั่งงาน (Job Order) ทำด้วย Dompdf, และ QR PNG สำหรับพิมพ์. เรียก TicketService::mapTicketDetail() ซ้ำ
+ * เพื่อ map รายละเอียด ticket จากที่เดียวกัน และใช้ TicketReadRepository เช็คสิทธิ์การมองเห็น.
  */
 class TicketPrintService
 {
@@ -60,8 +60,8 @@ class TicketPrintService
         ]);
 
         $options = new Options();
-        // temp dir ที่เขียนได้และพกพาข้ามระบบได้สำหรับ Dompdf. sys_get_temp_dir() อาจว่างหรือเขียนไม่ได้บน
-        // macOS Apache; /tmp เขียนได้โดยทุกคนบน Linux + macOS. ถ้าไม่ได้จริง ๆ ค่อยตกไปใช้ dir ที่แอปเขียนได้เป็นตัวสุดท้าย.
+        // หา temp dir ที่เขียนได้และใช้ได้ทุกระบบให้ Dompdf. sys_get_temp_dir() บางที่ว่างหรือเขียนไม่ได้บน
+        // macOS Apache; ส่วน /tmp ใคร ๆ ก็เขียนได้ทั้ง Linux และ macOS. ถ้ายังไม่ได้จริง ๆ ค่อยตกมาใช้ dir ที่แอปเขียนได้เป็นตัวสุดท้าย.
         $dompdfTmp = sys_get_temp_dir();
         if ($dompdfTmp === '' || !@is_writable($dompdfTmp)) {
             $dompdfTmp = is_dir('/tmp') ? '/tmp' : BASE_PATH . '/storage/uploads';

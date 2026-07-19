@@ -176,8 +176,8 @@ class AssetImportService
                 $imported++;
             } catch (Throwable $exception) {
                 // การข้ามที่คาดไว้และรายงานแล้ว (ข้อมูลซ้ำ → createAsset แปลงเป็น DomainException; หรือ error
-                // duplicate-key ดิบ ๆ) ให้เงียบไว้. อย่างอื่น (เช่น DB ล่ม) คือความล้มเหลวที่ไม่คาดคิดซึ่ง
-                // ต้อง log ต้นเหตุไว้ — ไม่ใช่ซ่อนไว้หลังข้อความ row กลาง ๆ.
+                // duplicate-key ดิบ ๆ) ปล่อยเงียบไว้. อย่างอื่น (เช่น DB ล่ม) เป็นความล้มเหลวที่ไม่คาดคิด
+                // ต้อง log ต้นเหตุไว้ — ไม่ใช่ซ่อนหลังข้อความ row กลาง ๆ.
                 if (!($exception instanceof DomainException) && !is_duplicate_key_error($exception)) {
                     log_caught_exception('asset.import.row', $exception, ['line' => (int) ($row['line'] ?? 0), 'asset_code' => (string) ($row['asset_code'] ?? '')]);
                 }

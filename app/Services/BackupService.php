@@ -6,16 +6,16 @@ namespace App\Services;
 use App\Repositories\SettingsRepository;
 
 /**
- * สถานะการสำรองฐานข้อมูล (read-only) — ใช้ในแท็บ admin "สำรอง & กู้คืน" และ dashboard cron health.
- * อ่านข้อมูลจริงจาก storage/backups/ + เวลา `cron_backup_last_run_at` ที่ bin/backup-database.php บันทึกไว้.
- * ไม่สั่งสำรอง/กู้คืนเอง (การสำรองทำผ่าน cron/CLI; การกู้คืนทำบน server ด้วย mysql CLI).
+ * อ่านสถานะการสำรองฐานข้อมูลอย่างเดียว — ใช้ในแท็บ admin "สำรอง & กู้คืน" และ dashboard cron health.
+ * อ่านค่าจริงจาก storage/backups/ กับเวลา `cron_backup_last_run_at` ที่ bin/backup-database.php เขียนไว้.
+ * คลาสนี้ไม่สั่งสำรอง/กู้คืนเอง — การสำรองรันผ่าน cron/CLI ส่วนการกู้คืนทำบน server ด้วย mysql CLI.
  */
 class BackupService
 {
-    /** ถือว่า backup "เก่า" ถ้าไม่ได้รันเกินช่วงนี้ (นาที) — single source ให้ TicketService cron health อ้างด้วย. */
+    /** ถือว่า backup "เก่า" ถ้าไม่ได้รันนานเกินค่านี้ (นาที) — เป็นค่ากลางให้ TicketService cron health อ้างด้วย. */
     public const STALE_MINUTES = 60 * 24 * 2; // 2 วัน
 
-    /** จำนวนชุดที่ bin/backup-database.php เก็บไว้ (rotation default) — ใช้แสดงผลอย่างเดียว. */
+    /** จำนวนชุด backup ที่ bin/backup-database.php เก็บไว้ (ค่า rotation เริ่มต้น) — ใช้แค่แสดงผล. */
     public const DEFAULT_RETENTION = 14;
 
     public function __construct(private SettingsRepository $settings)
@@ -25,13 +25,13 @@ class BackupService
     /** view-model สถานะ backup — ปลอดภัยส่งเข้า view ตรง ๆ. */
     public function getStatus(): array
     {
-        // อ่านสดจาก repo (ไม่ผ่าน setting() ที่ static-cache) เพื่อให้หน้าสถานะสะท้อนค่าปัจจุบันเสมอ
+        // อ่านสดจาก repo ไม่ผ่าน setting() ที่ cache ค่าไว้ หน้าสถานะจะได้เห็นค่าล่าสุดเสมอ
         $row = $this->settings->getByKey('cron_backup_last_run_at');
         $lastRunAt = trim((string) ($row['setting_value'] ?? ''));
         $lastTs = $lastRunAt !== '' ? strtotime($lastRunAt) : false;
 
-        // นับเฉพาะไฟล์ที่กู้คืนได้จริง (RESTORABLE) — คือ gzip จริงที่ไม่ว่างเปล่า. ไฟล์ db-*.sql.gz ที่ขาดครึ่ง/ว่าง/เสีย
-        // (เช่นตัวที่ backup พัง ๆ ทิ้งไว้) ต้องไม่ถูกอ่านว่าเป็น backup ที่สดและใช้ได้.
+        // นับเฉพาะไฟล์ที่กู้คืนได้จริง — คือ gzip จริงที่ไม่ว่างเปล่า. ไฟล์ db-*.sql.gz ที่ขาดครึ่ง/ว่าง/เสีย
+        // (เช่นตัวที่ backup พังคาไว้) ต้องไม่ถูกนับเป็น backup ที่สดและใช้ได้.
         $paths = array_values(array_filter(
             glob(storage_path('backups') . '/db-*.sql.gz') ?: [],
             fn (string $path): bool => $this->isRestorableBackup($path)
@@ -55,8 +55,8 @@ class BackupService
         $newest = $paths[0] ?? null;
         $newestTs = $newest !== null ? (int) @filemtime($newest) : null;
 
-        // "เก่า" ดูจากหลักฐานล่าสุดของการสำรองจริง — เวลาที่ cron บันทึก หรือ mtime ของไฟล์ล่าสุด แล้วแต่ตัวไหนใหม่กว่า.
-        // ไฟล์สดทำให้ไม่ stale แม้ cron ไม่ได้บันทึกเวลา ; ไม่มีหลักฐานเลย (ไม่มีทั้ง setting และไฟล์) = stale.
+        // ดู "เก่า" จากหลักฐานการสำรองล่าสุด — เวลาที่ cron บันทึก หรือ mtime ของไฟล์ใหม่สุด เอาอันที่ใหม่กว่า.
+        // มีไฟล์สดอยู่ก็ยังไม่ stale แม้ cron ไม่ได้บันทึกเวลา. ไม่มีหลักฐานสักอย่าง (ทั้ง setting และไฟล์) ถือว่า stale.
         $evidenceTs = max($lastTs !== false ? $lastTs : 0, $newestTs ?? 0);
         $isStale = $evidenceTs === 0 || $evidenceTs < (time() - self::STALE_MINUTES * 60);
 
@@ -84,9 +84,9 @@ class BackupService
     }
 
     /**
-     * คืน true เฉพาะเมื่อเป็น gzip จริงที่ไม่ว่างเปล่า — เป็นการตรวจว่ากู้คืนได้แบบราคาถูก ไม่ต้อง decompress (คลายบีบอัด) ใช้กัน
-     * ไฟล์ db-*.sql.gz ที่ว่าง/ขาดครึ่ง/เสีย ออกจากจำนวน "backup ที่ใช้ได้". ตรวจ magic bytes ของ gzip และตรวจว่า
-     * ISIZE ของ trailer (ขนาดก่อนบีบอัด, mod 2^32) > 0 ดังนั้น gzip ของ input ที่ว่าง (ISIZE 0) จะถูกปฏิเสธ.
+     * คืน true เฉพาะไฟล์ที่เป็น gzip จริงและไม่ว่าง — เป็นการเช็คว่ากู้คืนได้แบบถูก ๆ ไม่ต้องคลายไฟล์จริง เอาไว้กัน
+     * ไฟล์ db-*.sql.gz ที่ว่าง/ขาดครึ่ง/เสีย ออกจากจำนวน "backup ที่ใช้ได้". ดูจาก magic bytes ของ gzip แล้วเช็คว่า
+     * ISIZE ใน trailer (ขนาดก่อนบีบอัด, mod 2^32) > 0. ถ้าเป็น gzip ของ input ที่ว่าง (ISIZE 0) จะโดนปฏิเสธ.
      *
      */
     private function isRestorableBackup(string $path): bool

@@ -6,10 +6,10 @@ namespace App\Services;
 use DomainException;
 
 /**
- * ตัว parse ไฟล์ CSV ที่อัปโหลด ใช้ร่วมกันสำหรับ import service (AssetImportService / UserImportService):
- * ตรวจสอบไฟล์ที่อัปโหลด, บังคับนามสกุล .csv + จำกัดขนาด, อ่านและ normalize (ปรับให้เป็นมาตรฐาน)
- * header, ตรวจว่ามีทุก column ที่จำเป็นครบ แล้วคืน row แบบ assoc หนึ่งแถวต่อบรรทัดข้อมูลหนึ่งบรรทัด
- * โดย key ด้วยชื่อ column (บวก `_line` ที่เริ่มนับจาก 1 ไว้สำหรับรายงาน error).
+ * ตัว parse ไฟล์ CSV ที่อัปโหลด ใช้ร่วมกันในงาน import (AssetImportService / UserImportService):
+ * เช็คไฟล์ที่อัปโหลด, บังคับนามสกุล .csv กับจำกัดขนาด, อ่าน header แล้ว normalize ให้เป็นมาตรฐาน,
+ * ดูว่ามี column ที่จำเป็นครบไหม แล้วคืน row แบบ assoc หนึ่งแถวต่อข้อมูลหนึ่งบรรทัด
+ * โดย key ด้วยชื่อ column (แถม `_line` นับจาก 1 ไว้ใช้ตอนรายงาน error).
  */
 trait ParsesCsvUpload
 {
