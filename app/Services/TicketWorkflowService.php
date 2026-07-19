@@ -23,6 +23,15 @@ class TicketWorkflowService
     ) {
     }
 
+    /**
+     * manager/admin อนุมัติคำขอที่รออนุมัติ (pending_approval → approved).
+     * แยกหน้าที่ (separation of duties): manager อนุมัติคำขอที่ตัวเองแจ้งไม่ได้ (admin ยกเว้น).
+     * ผลข้างเคียง: เปลี่ยนสถานะ + เขียน approval/activity log ใน transaction แล้วยิง in-app notification 'ticket.approved'.
+     * @param array<string, mixed> $viewer ผู้อนุมัติ (role manager/admin — บังคับผ่าน TicketPolicy)
+     * @param array<string, mixed> $input รับคีย์ 'note' (หมายเหตุอนุมัติ, ไม่บังคับ)
+     * @param array<string, mixed>|null $ticket แถว ticket ที่โหลด visibility มาแล้ว (bulkApproveTickets ส่งมา); null = ให้เมธอดโหลด + เช็คสิทธิ์เอง
+     * @throws DomainException เมื่อไม่มีสิทธิ์ / ไม่อยู่สถานะ pending_approval / อนุมัติคำขอที่ตัวเองแจ้ง
+     */
     public function approveTicket(int $ticketId, array $viewer, array $input, ?array $ticket = null): void
     {
         // $ticket อาจถูก bulkApproveTickets โหลดมาล่วงหน้า (ดึงสิทธิ์การมองเห็นทีเดียวเป็น batch ไม่ต้องอ่าน
@@ -50,6 +59,15 @@ class TicketWorkflowService
         $this->notifications->notifyTicketEvent($ticketId, 'ticket.approved', (int) ($viewer['id'] ?? 0));
     }
 
+    /**
+     * อนุมัติหลายรายการในคำขอเดียว (สูงสุด 50) — รายตัวที่ล้มไม่ทำให้ตัวอื่นล้ม เก็บเหตุผลไว้รายงานผล.
+     * ผลข้างเคียง: อนุมัติแต่ละใบผ่าน approveTicket (เขียน DB + ยิง notification 'ticket.approved' ต่อใบที่สำเร็จ).
+     * @param array<int, int|string> $ticketIds id ที่จะอนุมัติ (เมธอดคัดเฉพาะ >0 + ตัดซ้ำให้เอง)
+     * @param array<string, mixed>   $viewer ผู้อนุมัติ (role manager/admin)
+     * @param string                 $note หมายเหตุอนุมัติ ใช้กับทุกใบ
+     * @return array{approved: int, failed: list<array{ticket_id: int, reason: string}>} จำนวนที่สำเร็จ + รายการที่ล้มพร้อมเหตุผล
+     * @throws DomainException เมื่อไม่ได้เลือกรายการเลย หรือเลือกเกิน 50 รายการ
+     */
     public function bulkApproveTickets(array $ticketIds, array $viewer, string $note = ''): array
     {
         $ticketIds = array_values(array_unique(array_filter(array_map('intval', $ticketIds), static fn (int $id): bool => $id > 0)));
@@ -93,7 +111,12 @@ class TicketWorkflowService
         ];
     }
 
-    /** manager/admin ปฏิเสธ ticket ที่รออนุมัติ (→ rejected). ต้องระบุหมายเหตุการปฏิเสธ. */
+    /**
+     * manager/admin ปฏิเสธ ticket ที่รออนุมัติ (pending_approval → rejected).
+     * ผลข้างเคียง: เปลี่ยนสถานะ + เขียน approval/activity log ใน transaction แล้วยิง notification 'ticket.rejected'.
+     * @param array<string, mixed> $input ต้องมี 'note' (เหตุผลการปฏิเสธ, ห้ามว่าง)
+     * @throws DomainException เมื่อไม่มีสิทธิ์ / ไม่อยู่สถานะ pending_approval / ไม่ได้ระบุเหตุผล
+     */
     public function rejectTicket(int $ticketId, array $viewer, array $input): void
     {
         $ticket = $this->requireManageableTicket($ticketId, $viewer);
@@ -112,8 +135,11 @@ class TicketWorkflowService
     }
 
     /**
-     * manager/admin มอบหมายช่างที่ยัง active ให้กับ ticket ที่อนุมัติแล้ว (→ assigned).
-     * ต้องมี technician_id ที่ถูกต้อง; แจ้งเตือน ticket.assigned.
+     * manager/admin มอบหมายช่างที่ยัง active ให้ ticket ที่อนุมัติแล้ว (approved/assigned/accepted/in_progress → assigned).
+     * มอบหมายใหม่กลางงาน (reassign ตอนช่าง accepted/in_progress) ได้ แต่ต้องระบุเหตุผล.
+     * ผลข้างเคียง: อัปเดตช่าง + สร้าง/อัปเดต work order + reset response-SLA ถ้าเป็น reassign ใน transaction แล้วยิง notification 'ticket.assigned'.
+     * @param array<string, mixed> $input ต้องมี 'technician_id' (>0); 'instructions' บังคับเมื่อ reassign งานที่ช่างรับ/เริ่มไปแล้ว
+     * @throws DomainException เมื่อไม่มีสิทธิ์ / ยังไม่พร้อมมอบหมาย / ไม่เลือกช่าง / ช่างไม่ active / reassign โดยไม่ระบุเหตุผล
      */
     public function assignTechnician(int $ticketId, array $viewer, array $input): void
     {
@@ -152,7 +178,12 @@ class TicketWorkflowService
         $this->notifications->notifyTicketEvent($ticketId, 'ticket.assigned', (int) ($viewer['id'] ?? 0));
     }
 
-    /** ช่างที่ถูกมอบหมายกดรับ ticket ของตัวเอง (assigned → accepted). */
+    /**
+     * ช่างที่ถูกมอบหมายกดรับ ticket ของตัวเอง (assigned → accepted).
+     * ผลข้างเคียง: เปลี่ยนสถานะ + บันทึก first_response_at/ปิด SLA ตอบสนอง + อัปเดต work order ใน transaction แล้วยิง notification 'ticket.accepted'.
+     * @param array<string, mixed> $input รับ 'accept_note' (ไม่บังคับ)
+     * @throws DomainException เมื่อไม่ใช่ช่างเจ้าของงาน / ไม่อยู่สถานะ assigned
+     */
     public function acceptAssignedWork(int $ticketId, array $viewer, array $input): void
     {
         $ticket = $this->requireTechnicianTicket($ticketId, $viewer);
@@ -166,7 +197,12 @@ class TicketWorkflowService
         $this->notifications->notifyTicketEvent($ticketId, 'ticket.accepted', (int) ($viewer['id'] ?? 0));
     }
 
-    /** ช่างที่ถูกมอบหมายเริ่มงาน (assigned/accepted → in_progress — เริ่มได้เลยแม้ยังไม่กดรับ). */
+    /**
+     * ช่างที่ถูกมอบหมายเริ่มงาน (assigned/accepted → in_progress — เริ่มได้เลยแม้ยังไม่กดรับ).
+     * ผลข้างเคียง: เปลี่ยนสถานะ + backfill first_response_at/started_at + อัปเดต work order ใน transaction แล้วยิง notification 'ticket.started'.
+     * @param array<string, mixed> $input รับ 'start_note' (ไม่บังคับ)
+     * @throws DomainException เมื่อไม่ใช่ช่างเจ้าของงาน / ไม่อยู่สถานะ assigned|accepted
+     */
     public function startAssignedWork(int $ticketId, array $viewer, array $input): void
     {
         $ticket = $this->requireTechnicianTicket($ticketId, $viewer);
@@ -182,7 +218,9 @@ class TicketWorkflowService
 
     /**
      * ช่างที่ถูกมอบหมายส่งผลวิเคราะห์ (diagnosis) + วิธีแก้ไข (resolution) (accepted/in_progress → resolved).
-     * ต้องกรอกสรุปทั้งสองอย่าง; labor_minutes (นาทีที่ใช้ทำงาน) ต้อง >= 0.
+     * ผลข้างเคียง: เปลี่ยนสถานะ + เขียน resolution + สะสม labor_minutes ทับเข้า work order + ปิด SLA resolution ใน transaction แล้วยิง notification 'ticket.resolved'.
+     * @param array<string, mixed> $input ต้องมี 'diagnosis_summary' + 'resolution_summary' (ห้ามว่างทั้งคู่); 'labor_minutes' ต้อง >= 0
+     * @throws DomainException เมื่อไม่ใช่ช่างเจ้าของงาน / ไม่อยู่สถานะ accepted|in_progress / สรุปไม่ครบ / labor ติดลบ
      */
     public function resolveAssignedWork(int $ticketId, array $viewer, array $input): void
     {
@@ -215,7 +253,12 @@ class TicketWorkflowService
         $this->notifications->notifyTicketEvent($ticketId, 'ticket.resolved', (int) ($viewer['id'] ?? 0));
     }
 
-    /** ผู้แจ้งยืนยัน ticket ที่ซ่อมเสร็จและให้คะแนนความพึงพอใจ 1–5 (resolved → completed). */
+    /**
+     * ผู้แจ้งยืนยันปิดงานที่ซ่อมเสร็จ + ให้คะแนนความพึงพอใจ 1–5 (resolved → completed).
+     * ผลข้างเคียง: เปลี่ยนสถานะ + บันทึกคะแนน (append rating ของรอบปัจจุบัน) ใน transaction แล้วยิง notification 'ticket.completed'.
+     * @param array<string, mixed> $input ต้องมี 'score' (1–5); 'closure_note'/'feedback' ไม่บังคับ
+     * @throws DomainException เมื่อไม่ใช่ผู้แจ้ง / ไม่อยู่สถานะ resolved / คะแนนไม่อยู่ช่วง 1–5
+     */
     public function completeResolvedTicket(int $ticketId, array $viewer, array $input): void
     {
         $ticket = $this->requireRequesterTicket($ticketId, $viewer);
@@ -244,7 +287,12 @@ class TicketWorkflowService
         $this->notifications->notifyTicketEvent($ticketId, 'ticket.completed', (int) ($viewer['id'] ?? 0));
     }
 
-    /** ผู้แจ้งส่ง ticket ที่ซ่อมเสร็จกลับไปแก้ใหม่; คำนวณกำหนดเวลา SLA ใหม่. ต้องระบุเหตุผล. */
+    /**
+     * ผู้แจ้งส่ง ticket ที่ซ่อมเสร็จกลับไปแก้ใหม่ (resolved → assigned) + คำนวณกำหนด SLA รอบใหม่. ต้องระบุเหตุผล.
+     * ผลข้างเคียง: เปลี่ยนสถานะ + เคลียร์ resolved/first_response + append SLA cycle ใหม่ (คง labor/rating รอบเก่าไว้) ใน transaction แล้วยิง notification 'ticket.reopened'.
+     * @param array<string, mixed> $input ต้องมี 'reopen_note' (เหตุผล, ห้ามว่าง)
+     * @throws DomainException เมื่อไม่ใช่ผู้แจ้ง / ไม่อยู่สถานะ resolved / ไม่ได้ระบุเหตุผล
+     */
     public function reopenTicket(int $ticketId, array $viewer, array $input): void
     {
         $ticket = $this->requireRequesterTicket($ticketId, $viewer);
@@ -273,7 +321,12 @@ class TicketWorkflowService
         $this->notifications->notifyTicketEvent($ticketId, 'ticket.reopened', (int) ($viewer['id'] ?? 0));
     }
 
-    /** ผู้แจ้งยกเลิก ticket ของตัวเอง (→ cancelled). ต้องระบุเหตุผล. */
+    /**
+     * ผู้แจ้งยกเลิก ticket ของตัวเอง (pending_approval|approved → cancelled). ต้องระบุเหตุผล.
+     * ผลข้างเคียง: เปลี่ยนสถานะ + ลบคำขออนุมัติที่ค้าง (ถ้ายกเลิกตอนรออนุมัติ) ใน transaction แล้วยิง notification 'ticket.cancelled'.
+     * @param array<string, mixed> $input ต้องมี 'cancel_note' (เหตุผล, ห้ามว่าง)
+     * @throws DomainException เมื่อไม่ใช่ผู้แจ้ง / ไม่อยู่สถานะที่ยกเลิกได้ / ไม่ได้ระบุเหตุผล
+     */
     public function cancelTicket(int $ticketId, array $viewer, array $input): void
     {
         $ticket = $this->requireRequesterTicket($ticketId, $viewer);
