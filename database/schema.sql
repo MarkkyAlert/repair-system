@@ -371,8 +371,8 @@ CREATE TABLE ticket_sla_tracks (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     ticket_id BIGINT UNSIGNED NOT NULL,
     metric_type ENUM('response','resolution') NOT NULL,
-    -- รายงานตามที่เกิดจริง (as-reported): SLA หนึ่งแถวต่อหนึ่ง "รอบ (cycle)" ของงาน. รอบ 1 ตอนสร้างงาน; การเปิดงานซ้ำ (reopen)
-    -- จะเพิ่มรอบใหม่แทนการรีเซ็ตแถวเดิม เพื่อให้กำหนดเวลา/ผลทัน-เกินกำหนดของรอบที่ผ่านไปแล้วนิ่งถาวร (immutable).
+    -- รายงานตามที่เกิดจริง: SLA มีหนึ่งแถวต่อหนึ่งรอบ (cycle) ของงาน รอบแรกคือตอนสร้างงาน ส่วนการ reopen
+    -- จะเพิ่มรอบใหม่ ไม่รีเซ็ตแถวเดิม กำหนดเวลาและผลทัน/เกินกำหนดของรอบเก่าเลยนิ่งถาวรแก้ไม่ได้
     cycle INT UNSIGNED NOT NULL DEFAULT 1,
     target_at DATETIME NOT NULL,
     achieved_at DATETIME NULL,
@@ -392,8 +392,8 @@ CREATE TABLE ticket_ratings (
     ticket_id BIGINT UNSIGNED NOT NULL,
     requester_id BIGINT UNSIGNED NOT NULL,
     technician_id BIGINT UNSIGNED NULL,
-    -- รายงานตามที่เกิดจริง (as-reported): ให้คะแนนหนึ่งครั้งต่อหนึ่ง "รอบ (cycle)" ของงาน. การให้คะแนนใหม่หลังเปิดงานซ้ำ (reopen)
-    -- จะเพิ่มรอบใหม่แทนการเขียนทับ เพื่อให้ค่า CSAT ของงวดที่ผ่านไปแล้ว (นับตาม created_at) นิ่งถาวร (immutable).
+    -- รายงานตามที่เกิดจริง: ให้คะแนนหนึ่งครั้งต่อหนึ่งรอบ (cycle) ของงาน ถ้าให้คะแนนใหม่หลัง reopen
+    -- จะเพิ่มรอบใหม่ ไม่เขียนทับของเดิม ค่า CSAT ของงวดเก่า (นับตาม created_at) เลยนิ่งถาวรแก้ไม่ได้
     cycle INT UNSIGNED NOT NULL DEFAULT 1,
     score TINYINT UNSIGNED NOT NULL,
     feedback TEXT NULL,

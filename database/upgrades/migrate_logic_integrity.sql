@@ -1,4 +1,4 @@
--- รันครั้งเดียวกับฐานข้อมูลที่สร้างก่อนการแก้ logic-integrity (ความถูกต้องเชิงตรรกะ).
+-- รันครั้งเดียวบนฐานข้อมูลที่สร้างก่อนแพตช์ logic-integrity (ความถูกต้องเชิงตรรกะ)
 
 ALTER TABLE tickets
     ADD COLUMN submission_token CHAR(64) NULL AFTER ticket_no,

@@ -141,10 +141,10 @@ textarea:focus-visible {
   outline: 3px solid var(--indigo-500);
   outline-offset: 2px;
 }
-/* ทำให้ปุ่ม + แท็บ admin ได้ focus ring สี indigo หนา 3px เหมือนช่องกรอก (input)
-   ต้องใส่ transition:none — component พวกนี้ใช้ `transition: .15s/.18s ease`
-   (เท่ากับ `all` โดยปริยาย) ซึ่งไม่งั้นจะค่อย ๆ วาด outline จาก currentColor แบบเคลื่อนไหว
-   ทำให้ ring ดูบางเหมือนค่าเริ่มต้นของเบราว์เซอร์ (UA) — focus ring ต้องโผล่ทันที */
+/* ทำให้ปุ่ม + แท็บ admin ได้ focus ring สี indigo หนา 3px เหมือนช่องกรอก
+   ต้องใส่ transition:none ด้วย เพราะพวกนี้ตั้ง `transition: .15s/.18s ease`
+   ค่านี้เท่ากับ `all` มันเลยจะค่อย ๆ วาด outline จาก currentColor เป็นอนิเมชัน
+   ring จะดูบางเหมือน default ของเบราว์เซอร์ — เราอยากให้ ring โผล่มาทันที */
 .btn:focus-visible,
 .admin-tab:focus-visible {
   outline: 3px solid var(--indigo-500) !important;
@@ -1190,9 +1190,9 @@ select.input::-ms-expand { display: none; }
   border-collapse: collapse;
 }
 
-/* ตารางกระดานอันดับอยู่ในกริด 2 คอลัมน์ (แคบ) มีแค่ 3-4 คอลัมน์สั้น ๆ
-   จึงไม่ต้องมีความกว้างขั้นต่ำ 760px แบบตาราง admin ที่กว้าง — เอาออกเพื่อไม่ให้
-   คอลัมน์ขวาถูกตัดขาดอยู่ในพาเนล */
+/* ตารางกระดานอันดับอยู่ในกริด 2 คอลัมน์แคบ ๆ มีแค่ 3-4 คอลัมน์สั้น ๆ
+   เลยไม่ต้องมี min-width 760px แบบตาราง admin ที่กว้าง เอาออกไป
+   ไม่งั้นคอลัมน์ขวาจะโดนตัดขาดอยู่ในพาเนล */
 .insight-table.leaderboard-table { min-width: 0; }
 
 /* โหมดการ์ดสำหรับมือถือ เฉพาะตารางที่ขอเข้าร่วม (แอตทริบิวต์ data-mobile-card)
@@ -1561,8 +1561,8 @@ select.input::-ms-expand { display: none; }
   width: 100%;
   max-width: 480px;
   padding: 2.5rem 2rem;
-  /* ทึบ (ไม่ใช่ --surface แบบโปร่งแสง): บนธีมสว่าง การ์ดที่ alpha .78 ปล่อยให้ aurora ทะลุขึ้นมา และทำให้
-     หัวเรื่อง/เนื้อหา/เลขอ้างอิงต่ำกว่า AA การ์ดทึบ + หัวเรื่องสีทึบช่วยให้อ่านออก */
+  /* ใช้สีทึบ ไม่ใช่ --surface แบบโปร่งแสง: บนธีมสว่าง การ์ด alpha .78 ปล่อยให้ aurora ทะลุขึ้นมา ดัน
+     หัวเรื่อง/เนื้อหา/เลขอ้างอิงให้ต่ำกว่า AA การ์ดทึบ + หัวเรื่องสีทึบเลยช่วยให้อ่านออก */
   background: var(--surface-strong);
   border: 1px solid var(--glass-border, rgba(255, 255, 255, .12));
   border-radius: 18px;
@@ -1595,8 +1595,8 @@ select.input::-ms-expand { display: none; }
 .confirm-modal { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 1rem; }
 .confirm-modal[hidden] { display: none; }
 .confirm-modal-backdrop { position: absolute; inset: 0; background: rgba(7, 6, 26, .9); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
-/* พื้นผิวทึบ (ไม่ใช่ --surface แบบโปร่งแสง): การ์ดที่ alpha .78 ปล่อยให้ฉากหลังสีเข้มทะลุขึ้นมา
-   และทำให้ข้อความสรุปกลายเป็นสีเทา ~4:1 บนธีมสว่าง การ์ดทึบช่วยให้ป้าย dt/dd ผ่าน AA เต็ม */
+/* ใช้พื้นผิวทึบ ไม่ใช่ --surface แบบโปร่งแสง: การ์ด alpha .78 ปล่อยให้ฉากหลังสีเข้มทะลุขึ้นมา
+   ดันข้อความสรุปให้กลายเป็นสีเทา ~4:1 บนธีมสว่าง การ์ดทึบเลยช่วยให้ป้าย dt/dd ผ่าน AA เต็ม */
 .confirm-modal-card { position: relative; width: min(520px, 100%); background: var(--surface-strong); border: 1px solid var(--glass-border, rgba(255,255,255,.12)); border-radius: 16px; box-shadow: var(--shadow-lg, 0 20px 60px -20px rgba(0,0,0,.5)); overflow: hidden; }
 .confirm-modal-head { padding: 1.1rem 1.35rem .75rem; border-bottom: 1px solid var(--glass-border, rgba(255,255,255,.08)); }
 .confirm-modal-title { display: flex; align-items: center; gap: .5rem; margin: 0; font-size: 1.05rem; font-weight: 700; color: var(--text); }
@@ -2229,8 +2229,8 @@ select.input::-ms-expand { display: none; }
 }
 
 .notification-filter-tabs::-webkit-scrollbar { display: none; }
-/* จางขอบขวาเฉพาะตอนที่ยังมีแท็บตัวกรองซ่อนอยู่นอกจอให้เลื่อนไปดู (app.js สลับ
-   class ตามการล้น / ตำแหน่งการเลื่อน) — บอกใบ้ว่า "เลื่อนดูเพิ่มได้" โดยไม่จางค้างเมื่อแท็บพอดีจอ */
+/* ไล่จางขอบขวาเฉพาะตอนที่ยังมีแท็บตัวกรองซ่อนอยู่นอกจอ (app.js สลับ
+   class ตามการล้น / ตำแหน่งการเลื่อน) — เป็นสัญญาณว่า "เลื่อนดูเพิ่มได้" แล้วเลิกจางเมื่อแท็บพอดีจอ */
 .notification-filter-tabs.can-scroll-right {
   -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 1.75rem), transparent);
   mask-image: linear-gradient(to right, #000 calc(100% - 1.75rem), transparent);
@@ -2651,9 +2651,9 @@ select.input::-ms-expand { display: none; }
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1.1rem;
 }
-/* item ในกริดมีค่าเริ่มต้น min-width:auto จึงอาจไม่ยอมย่อเล็กกว่าเนื้อหา ทำให้ล้น
-   track บนจอแคบ (การ์ดกราฟดันหน้าจอมือถือกว้างเกิน ~6px ที่ /dashboard และ
-   /reports/trend) จับคู่ minmax(0,1fr) กับ min-width:0 บน item เพื่อให้ย่อพอดี track */
+/* item ในกริดมีค่าเริ่มต้น min-width:auto เลยไม่ยอมย่อให้เล็กกว่าเนื้อหา พอเจอจอแคบ
+   ก็ล้น track (การ์ดกราฟดันจอมือถือกว้างเกิน ~6px ที่ /dashboard และ
+   /reports/trend) แก้ด้วย minmax(0,1fr) คู่กับ min-width:0 บน item ให้ย่อพอดี track */
 .dashboard-chart-grid > * { min-width: 0; }
 
 .chart-shell { position: relative; min-height: 300px; }
@@ -3063,8 +3063,8 @@ a.leaderboard-number:hover {
   animation: workflow-pulse-active 1.6s ease-out infinite;
 }
 
-/* ผลลัพธ์สุดทาง (เชิงลบ) — ถูกปฏิเสธ / ยกเลิก งานออกจากเส้นทางปกติ
-   ตรงนี้ จุดนี้จึงแสดงเป็นสีแดงแทน indigo */
+/* ปลายทางแบบเชิงลบ — โดนปฏิเสธ / ยกเลิก งานหลุดจากเส้นทางปกติตรงนี้
+   จุดนี้เลยแสดงเป็นสีแดงแทน indigo */
 .workflow-progress-step.is-terminal { color: #be123c; }
 .dark .workflow-progress-step.is-terminal { color: #fda4af; }
 
@@ -3151,10 +3151,10 @@ a.leaderboard-number:hover {
 .sidebar-collapsed .nav-link { padding: .7rem; }
 .sidebar-collapsed .sidebar-collapse-button svg { transform: rotate(180deg); }
 
-/* Tooltip — เมนู sidebar แบบยุบ ทำงานเมื่อ hover และตอนโฟกัสด้วยคีย์บอร์ด
-   สำหรับ screen reader: ลิงก์เมนูยังคงชื่อที่อ่านออกไว้ผ่าน span
-   `.nav-label` ที่ซ่อนจากสายตา (ยังอยู่ใน DOM แค่ถูกตัดด้วย .sr-only)
-   ดังนั้น tooltip จึงเป็นแค่ของประดับสำหรับผู้ใช้ที่มองเห็น */
+/* Tooltip — เมนู sidebar แบบยุบ โผล่ตอน hover และตอนโฟกัสด้วยคีย์บอร์ด
+   ฝั่ง screen reader ไม่ต้องพึ่ง tooltip เพราะลิงก์เมนูยังเก็บชื่อไว้ใน span
+   `.nav-label` ที่ซ่อนด้วย .sr-only (ยังอยู่ใน DOM แค่มองไม่เห็น)
+   tooltip เลยเป็นแค่ของประดับให้คนที่มองเห็นเท่านั้น */
 .sidebar-collapsed .nav-label,
 .sidebar-collapsed .nav-section-label {
   position: absolute;
@@ -3166,7 +3166,7 @@ a.leaderboard-number:hover {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
-  display: inline;        /* ลบล้าง display:none ก่อนหน้า — เก็บไว้ให้ AT (assistive tech — เทคโนโลยีช่วยเหลือ) */
+  display: inline;        /* ลบล้าง display:none ก่อนหน้า — เก็บไว้ให้เทคโนโลยีช่วยเหลือ (screen reader) อ่านได้ */
 }
 
 .sidebar-collapsed .nav-link {
@@ -3292,10 +3292,10 @@ a.leaderboard-number:hover {
   .topbar { padding: .75rem 1rem; }
   .mobile-only { display: inline-flex !important; }
   .hero-card { grid-template-columns: 1fr; }
-  /* .auth-reset-panel กำหนดกริด 2 คอลัมน์ให้ hero-card ที่ specificity (0,2,0) (~บรรทัด 1756) ซึ่ง
-     ชนะการ override .hero-card ด้วยคลาสเดียวข้างบน แม้อยู่ใน media query นี้ก็ตาม — จึงต้องระบุการ
-     ยุบซ้ำที่ specificity เท่ากัน ไม่งั้น /forgot-password จะยังเป็น 2 คอลัมน์บนมือถือ (track ที่สอง
-     ต้องการ 360px จนบีบเนื้อหา hero เหลือ ~13px) */
+  /* .auth-reset-panel เซ็ตกริด 2 คอลัมน์ให้ hero-card ด้วย specificity (0,2,0) (~บรรทัด 1756)
+     แรงกว่ากฎ .hero-card คลาสเดียวข้างบน แม้จะอยู่ใน media query นี้ก็ยังชนะ ต้องเขียนกฎ
+     ยุบเป็นคอลัมน์เดียวซ้ำที่ specificity เท่ากัน ไม่งั้น /forgot-password จะยังเป็น 2 คอลัมน์บนมือถือ (track ที่สอง
+     กิน 360px จนบีบเนื้อหา hero เหลือ ~13px) */
   .auth-reset-panel .hero-card { grid-template-columns: 1fr; }
   .hero-copy { min-height: 320px; }
   .auth-reset-panel .hero-copy { min-height: 360px; }
@@ -3851,9 +3851,9 @@ input[type="checkbox"].switch:checked::after { left: 20px; }
 }
 .collapsible[open] > .collapsible-summary .collapsible-chevron { transform: rotate(180deg); color: var(--indigo-600); background: var(--surface-muted); }
 
-/* บนมือถือ summary แถวเดียวบีบคอลัมน์เนื้อหา: ไอคอน + เนื้อหาหลัก + (2 badge + chevron) แย่ง
-   พื้นที่ 375px กันหมด จนหัวเรื่องย่อย SLA ตกบรรทัดเหลือคำ/ตัวเลขละบรรทัด ให้ส่วน meta หล่นไป
-   อยู่แถวของตัวเอง เพื่อให้หัวเรื่อง + ข้อความ SLA ได้ความกว้างเต็ม */
+/* บนมือถือ summary แถวเดียวบีบคอลัมน์เนื้อหาจนแน่น: ไอคอน + เนื้อหาหลัก + (2 badge + chevron)
+   แย่งพื้นที่ 375px กันหมด จนหัวเรื่องย่อย SLA ตกบรรทัด เหลือคำ/ตัวเลขละบรรทัด เลยดันส่วน meta
+   ลงไปอยู่แถวของตัวเอง หัวเรื่อง + ข้อความ SLA จะได้ความกว้างเต็ม */
 @media (max-width: 700px) {
   .collapsible-summary { flex-wrap: wrap; }
   .collapsible-meta { flex-basis: 100%; justify-content: flex-start; }
@@ -5137,8 +5137,8 @@ input[type="checkbox"].switch:checked::after { left: 20px; }
     justify-content: start;
   }
 }
-/* ตัวสำรองแบบสะดุดตาเมื่อไอคอน Lucide หาย — ไม่ปล่อยให้ขึ้นวงกลมเปล่าเงียบ ๆ
-   สีแดง + เต้น (pulse) ให้นักพัฒนาเห็นทันที ซ่อนตอนพิมพ์เพื่อไม่ให้รก */
+/* ตัวสำรองแบบสะดุดตาเมื่อไอคอน Lucide หาย — ไม่ปล่อยให้เหลือวงกลมเปล่าเงียบ ๆ
+   ทำเป็นสีแดง + เต้นเป็นจังหวะ ให้นักพัฒนาเห็นทันที ตอนพิมพ์ซ่อนไว้กันรก */
 .lucide-missing {
   color: #dc2626 !important;
   background: rgba(220, 38, 38, .08);
@@ -5401,9 +5401,9 @@ code.mono, .mono {
   gap: .9rem;
 }
 
-/* ตัวเลือกไฟล์ภาษาไทยแบบทำเอง: <input type=file> ของเบราว์เซอร์แสดงข้อความตามภาษาเบราว์เซอร์
-   "Choose File / No file chosen" ซึ่งขัดกับ UI ไทย จึงซ่อน input จากสายตา (แต่ยังโฟกัสได้)
-   แล้วขับด้วยปุ่ม <label> ภาษาไทย + ช่องอ่านชื่อไฟล์แบบ aria-live */
+/* ตัวเลือกไฟล์ภาษาไทยทำเอง: <input type=file> ของเบราว์เซอร์ขึ้นข้อความตามภาษาเบราว์เซอร์
+   อย่าง "Choose File / No file chosen" ไม่เข้ากับ UI ไทย เลยซ่อน input ไว้ (ยังโฟกัสได้)
+   แล้วขับผ่านปุ่ม <label> ภาษาไทย + ช่องโชว์ชื่อไฟล์แบบ aria-live */
 .file-field {
   display: flex;
   align-items: center;
@@ -5571,9 +5571,9 @@ code.mono, .mono {
     padding: 0;
   }
 
-  /* คง summary เป็นแถวกะทัดรัด — ลบล้างกฎ .panel-head แบบคอลัมน์ที่ใช้กับ
-     panel-head ทุกอันบนมือถือ (ซึ่งกระจายหัวเรื่อง/ไอคอน/chevron ในแนวตั้ง
-     จนเหลือการ์ดยุบสูง ๆ ว่างเปล่า) */
+  /* คง summary เป็นแถวกะทัดรัด — ลบล้างกฎ .panel-head แบบคอลัมน์ที่บังคับใช้กับ
+     panel-head ทุกอันบนมือถือ กฎนั้นจับหัวเรื่อง/ไอคอน/chevron มาเรียงแนวตั้ง
+     ทำให้การ์ดยุบพองสูงจนโล่ง */
   .ticket-create-info-summary {
     cursor: pointer;
     gap: .75rem;
@@ -5616,8 +5616,8 @@ code.mono, .mono {
     border-top: 1px dashed var(--line);
   }
 
-  /* ให้ติดใต้ topbar สูง 76px (ไม่ใช่ที่ top:0 ซึ่ง topbar ที่สูงกว่าและ z สูงกว่าจะบังหัวเรื่อง/
-     ตัวช่วยของแถบ) และตัดบรรทัดตัวช่วยที่ซ้ำออก เพื่อไม่ให้แถบลอยเป็นก้อนสูงกินพื้นที่ฟอร์ม */
+  /* ให้ติดใต้ topbar สูง 76px ไม่ใช่ top:0 เพราะ topbar สูงกว่าและ z สูงกว่าจะไปบังหัวเรื่อง/
+     ตัวช่วยของแถบ และตัดบรรทัดตัวช่วยที่ซ้ำออก กันไม่ให้แถบลอยพองสูงกินที่ฟอร์ม */
   .ticket-create-action-bar,
   .asset-create-action-bar {
     top: 76px;
@@ -6066,7 +6066,7 @@ code.mono, .mono {
 
 @media (max-width: 700px) {
   /* คงปุ่ม export รายงานให้กดได้บนมือถือ — กฎมือถือของ .action-bar จัดเรียงเต็มความกว้างให้แล้ว;
-     ถ้าซ่อนไว้จะทำให้หัวหน้าที่รีวิวรายงานบนมือถือดาวน์โหลดไม่ได้ */
+     ถ้าซ่อนไว้ หัวหน้าที่เปิดรีวิวรายงานบนมือถือจะดาวน์โหลดไม่ได้ */
   .report-export-bar .action-bar-left .helper-text { display: none; }
 
   .report-filter-summary {
@@ -6127,8 +6127,8 @@ code.mono, .mono {
   border: 0;
 }
 
-/* ลิงก์ข้าม (skip link) สำหรับคีย์บอร์ด — เป็นสิ่งแรกใน <body> ที่โฟกัสได้ อยู่นอกจอจนกว่าจะถูกโฟกัส แล้วจะปักที่
-   มุมซ้ายบน เพื่อให้ผู้ใช้คีย์บอร์ด/SR ข้ามเมนู sidebar ไปที่ <main id="main-content"> ได้เลย */
+/* ลิงก์ข้าม (skip link) สำหรับคีย์บอร์ด — เป็นตัวแรกใน <body> ที่โฟกัสได้ ปกติซ่อนนอกจอ พอโฟกัสจะเด้งมาปักที่
+   มุมซ้ายบน ให้คนใช้คีย์บอร์ด/SR ข้ามเมนู sidebar ตรงไปที่ <main id="main-content"> ได้เลย */
 .skip-link {
   position: absolute;
   left: -9999px;
@@ -6311,8 +6311,8 @@ code.mono, .mono {
     max-width: 22ch;
     font-size: .78rem;
     line-height: 1.2;
-    /* บังคับใช้หมึกสีเข้มบนแผ่นพิมพ์สีขาว — ค่า --text ของธีมเป็นสีสว่าง
-       ในโหมด dark ซึ่งถ้าพิมพ์ลงกระดาษจะแทบมองไม่เห็น */
+    /* บังคับใช้หมึกสีเข้มบนแผ่นพิมพ์สีขาว — ในโหมด dark ค่า --text ของธีมเป็นสีสว่าง
+       ถ้าพิมพ์ลงกระดาษจะแทบมองไม่เห็น */
     color: #111827 !important;
   }
   .qr-label-code {
@@ -6352,8 +6352,8 @@ code.mono, .mono {
   font-weight: 600;
   font-size: .9rem;
 }
-/* [hidden] ต้องชนะ .ticket-live-banner{display:flex} (specificity เท่ากันแต่ class มาทีหลัง)
-   → ระบุ [hidden] คู่ class ให้ specificity สูงกว่า ไม่งั้น banner โชว์ทั้งที่ตั้ง hidden */
+/* [hidden] ต้องชนะ .ticket-live-banner{display:flex} — specificity เท่ากันแต่ class มาทีหลัง
+   เลยเขียน [hidden] คู่กับ class ให้ specificity สูงขึ้น ไม่งั้น banner โผล่ทั้งที่สั่ง hidden ไว้ */
 .ticket-live-banner[hidden] { display: none; }
 .ticket-live-banner .btn { margin-left: auto; }
 .dark .ticket-live-banner { background: rgba(99, 102, 241, .12); color: var(--indigo-300); }
@@ -6371,8 +6371,8 @@ code.mono, .mono {
 /* F5: ให้รหัส ticket อยู่บรรทัดเดียว เพื่อไม่ให้ badge สถานะที่อยู่ติดกันดันจนตกบรรทัด */
 .ticket-no { white-space: nowrap; }
 
-/* F2: stepper บอกสถานะเลื่อนแนวนอนบนมือถือ — กำหนดตัวห่อเป็น relative
-   เพื่อให้ขอบขวาแบบจาง (fade) วางทับขอบที่เลื่อนได้ (ซ่อนบนเดสก์ท็อป) */
+/* F2: stepper บอกสถานะเลื่อนแนวนอนบนมือถือ — ตั้งตัวห่อเป็น relative
+   ให้ขอบขวาที่ไล่จางวางทับขอบฝั่งที่เลื่อนได้ (เดสก์ท็อปซ่อนไว้) */
 .workflow-progress-wrap { position: relative; }
 .workflow-scroll-fade { display: none; }
 
@@ -6380,7 +6380,7 @@ code.mono, .mono {
   /* F3: การ์ดสถิติวางสองต่อแถวบนมือถือ (กฎ media ที่มาทีหลังเคยบังคับให้เหลือหนึ่งต่อแถว) */
   .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
-  /* F2: ขอบจาง (fade) บอกว่า stepper ยังมีขั้นตอนอื่นอยู่นอกจอ */
+  /* F2: ขอบไล่จางเป็นสัญญาณว่า stepper ยังมีขั้นตอนอื่นเลยขอบจอออกไป */
   .workflow-scroll-fade {
     display: block;
     position: absolute;
@@ -6409,9 +6409,9 @@ code.mono, .mono {
 .guest-track-result-ref { font-size: 1.25rem; font-weight: 800; color: var(--indigo-600); margin: .25rem 0 .75rem; font-family: var(--font-mono, monospace); }
 .dark .guest-track-result-ref { color: var(--indigo-300); }
 
-/* F6: จัดกลุ่มแท็บ admin ทั้ง 12 อันเป็นแถวที่มีป้ายกำกับ (จัดการข้อมูล · สิทธิ์ & ตรวจสอบ · ระบบ) แต่ละป้าย
-   กว้างเต็มแถวเพื่อบังคับให้ขึ้นแถวของตัวเอง และแท็บที่ตามมาจะไหลลงข้างล่างจนถึงป้ายถัดไป ป้ายพวกนี้เป็น
-   role="presentation"/aria-hidden เพื่อให้ tablist เปิดเผยเฉพาะแท็บให้เทคโนโลยีช่วยเหลือ (assistive tech) */
+/* F6: จัดแท็บ admin ทั้ง 12 อันเป็นแถวที่มีป้ายกำกับ (จัดการข้อมูล · สิทธิ์ & ตรวจสอบ · ระบบ) แต่ละป้าย
+   กว้างเต็มแถวเพื่อดันตัวเองขึ้นบรรทัดใหม่ แท็บที่ตามมาก็ไหลลงข้างล่างจนถึงป้ายถัดไป ป้ายพวกนี้ตั้ง
+   role="presentation"/aria-hidden ให้ tablist เผยเฉพาะตัวแท็บกับเทคโนโลยีช่วยเหลือ */
 .admin-tab-grouplabel {
   flex: 0 0 100%;
   margin: .55rem 0 .15rem;
@@ -6424,14 +6424,14 @@ code.mono, .mono {
 }
 .admin-tab-grouplabel-first { margin-top: .05rem; }
 
-/* มือถือ: ยุบ tablist แบบจัดกลุ่ม 3 แถว (ที่กินพื้นที่ ~45% ของ viewport 375px แบบติดหนึบ) ให้เหลือแถวเดียว
-   ที่เลื่อนแนวนอน คำบรรยายกลุ่มกลายเป็นตัวคั่นในบรรทัดที่เลื่อนไปพร้อมแท็บ แทนที่จะบังคับขึ้นแถวของตัวเอง;
-   เดสก์ท็อปยังคงแถวที่มีป้ายกำกับไว้ */
+/* มือถือ: ยุบ tablist แบบ 3 แถว (ที่ติดหนึบกินพื้นที่ ~45% ของจอ 375px) ให้เหลือแถวเดียว
+   เลื่อนแนวนอน คำบรรยายกลุ่มไม่ขึ้นแถวใหม่แล้ว กลายเป็นตัวคั่นที่เลื่อนไปพร้อมแท็บในบรรทัดเดียว;
+   ส่วนเดสก์ท็อปยังเป็นแถวที่มีป้ายกำกับเหมือนเดิม */
 @media (max-width: 700px) {
   .admin-tabs { flex-wrap: nowrap; overflow-x: auto; }
   .admin-tab-grouplabel { flex: 0 0 auto; margin: 0 .1rem 0 .35rem; align-self: center; }
   .admin-tab-grouplabel-first { margin: 0 .1rem 0 .1rem; }
-  /* topbar แบบติดหนึบสูง 76px ที่ top:0 (z-index 30); แถวแท็บที่ติดหนึบที่ top:0 เช่นกัน (z-index 20) จะถูก
-     บังจนมิดเมื่อเลื่อนหน้าหรือเข้าลิงก์ลึก จึงให้แถวแท็บติดหนึบไว้ใต้ topbar */
+  /* topbar ติดหนึบสูง 76px ที่ top:0 (z-index 30); แถวแท็บก็ติดหนึบที่ top:0 เหมือนกัน (z-index 20) จะโดน
+     topbar บังมิดเวลาเลื่อนหน้าหรือเข้าลิงก์ลึก เลยดันแถวแท็บให้ไปติดใต้ topbar */
   .admin-tabs-scroller { top: 76px; }
 }

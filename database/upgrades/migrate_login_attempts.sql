@@ -1,5 +1,5 @@
--- log ความพยายามล็อกอิน (login attempts) — บันทึกสำเร็จ/ล้มเหลว เพื่อความชัดเจนด้านความปลอดภัย
--- รันหลังจาก schema หลัก. idempotent (รันซ้ำได้ผลเดิม): ข้ามถ้าตารางมีอยู่แล้ว.
+-- log ความพยายามล็อกอิน — เก็บทั้งที่สำเร็จและล้มเหลว ไว้ตามรอยด้านความปลอดภัย
+-- รันหลัง schema หลัก เป็น idempotent (รันซ้ำได้ผลเดิม) — ข้ามให้ถ้าตารางมีอยู่แล้ว
 
 CREATE TABLE IF NOT EXISTS login_attempts (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,

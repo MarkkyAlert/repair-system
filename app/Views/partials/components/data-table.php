@@ -1,6 +1,6 @@
 <?php
 /**
- * ตัวห่อ (wrapper) มาตรฐานของ data-table บนเว็บ — แหล่งเดียวที่กำหนดว่าตารางรายการฝั่ง admin/report จะเขียน markup อย่างไร.
+ * ตัวห่อมาตรฐานของ data-table บนเว็บ — แหล่งเดียวที่กำหนดว่าตารางรายการฝั่ง admin/report จะเขียน markup อย่างไร
  * ยึดตามแบบแผนที่ใช้อยู่แล้วในหน้า audit/roles/settings/reports:
  *   .table-wrap (กล่องเลื่อน) > table.data-table > <caption> แบบ sr-only ถ้ามี > $slot.
  *

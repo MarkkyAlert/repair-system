@@ -155,8 +155,8 @@
 
             .prefs-label-row { display: inline-flex; align-items: center; gap: .4rem; }
             .prefs-info-icon { position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 28px; min-height: 28px; color: var(--muted); background: transparent; border: 1px solid transparent; border-radius: 99px; padding: 2px; cursor: pointer; transition: .15s ease; }
-            /* ขยายพื้นที่กด (tap target) ให้ราว 44px (ตามเกณฑ์การเข้าถึง WCAG 2.5.5) โดยไม่ทำให้ icon ที่เห็น 28px ใหญ่ขึ้น
-               หรือทำให้แถว label หลวม — ใช้ overlay ที่มองไม่เห็นวางทับแบบ absolute เพื่อรับพื้นที่กดส่วนที่เพิ่ม. */
+            /* ขยายพื้นที่กด (tap target) ให้ราว 44px ตามเกณฑ์ WCAG 2.5.5 โดยไม่ทำให้ icon ที่เห็น 28px ใหญ่ขึ้น
+               หรือทำให้แถว label หลวม — วาง overlay ใสแบบ absolute ทับไว้เพื่อรับพื้นที่กดส่วนที่เพิ่ม */
             .prefs-info-icon::after { content: ""; position: absolute; inset: -8px; }
             .prefs-info-icon:hover { color: var(--indigo-400, #818cf8); background: rgba(99, 102, 241, .12); border-color: rgba(99, 102, 241, .25); }
             .prefs-info-icon:focus-visible { color: var(--indigo-400, #818cf8); background: rgba(99, 102, 241, .12); border-color: rgba(99, 102, 241, .25); outline: 3px solid var(--indigo-500); outline-offset: 2px; } /* วงขอบทึบ contrast ≥3:1 */

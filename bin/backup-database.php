@@ -8,8 +8,8 @@ declare(strict_types=1);
  * storage/backups/db-YYYY-MM-DD_HHMMSS.sql.gz จากนั้นลบไฟล์เก่าสุดที่
  * เกินจำนวน --keep (ค่าเริ่มต้น 14) ออก.
  *
- * รหัสผ่านถูกส่งผ่าน environment variable ชื่อ MYSQL_PWD จึงไม่มีทาง
- * โผล่ใน `ps`/รายการ process (process listings).
+ * รหัสผ่านส่งผ่าน environment variable ชื่อ MYSQL_PWD เลยไม่มีทาง
+ * ไปโผล่ใน `ps` หรือรายการ process
  *
  * วิธีใช้:
  *   php bin/backup-database.php                # สำรองข้อมูล + เก็บ 14 ไฟล์ล่าสุด
@@ -75,12 +75,12 @@ echo '[backup] mode=' . ($dryRun ? 'dry-run' : 'live')
 echo '[backup] target: ' . $absolutePath . PHP_EOL;
 
 if (!$dryRun) {
-    // เลี่ยงรหัสผ่านรั่วในรายการ process (process listings) — ใช้ env var ชื่อ MYSQL_PWD แทน --password=
+    // เลี่ยงรหัสผ่านรั่วในรายการ process — ใช้ env var ชื่อ MYSQL_PWD แทน --password=
     putenv('MYSQL_PWD=' . $password);
 
-    // รัน mysqldump ตรง ๆ (proc_open แบบ array — ไม่ผ่าน shell) แล้ว gzip เอา stdout ของมันในตัว process เอง (PHP zlib) เพื่อให้
-    // ความล้มเหลวของ mysqldump ถูกจับผ่าน exit code ของมันเอง. การต่อท่อแบบ shell `mysqldump | gzip` จะรายงานสถานะของ gzip
-    // (ยังเป็น 0 แม้ mysqldump ล้มเหลว) ซึ่งทำให้ gzip เปล่า ๆ ผ่านเป็น backup ที่ "สำเร็จ" ได้.
+    // รัน mysqldump ตรง ๆ (proc_open แบบ array ไม่ผ่าน shell) แล้ว gzip เอา stdout ของมันในโปรเซสนี้เอง (PHP zlib) จะได้
+    // จับ error ของ mysqldump จาก exit code ของมันเองได้ ถ้าต่อท่อแบบ shell `mysqldump | gzip` มันจะรายงาน status ของ gzip
+    // (ยังเป็น 0 แม้ mysqldump ล้มเหลว) กลายเป็นว่า gzip เปล่า ๆ ผ่านเป็น backup ที่ "สำเร็จ" ได้
     $dumpArgs = [
         $mysqldumpBin,
         '--host=' . $host,
@@ -174,7 +174,7 @@ if (!$dryRun) {
         exit(1);
     }
     if ($sqlBytes === 0) {
-        // dump จบด้วย exit code 0 แต่ไม่ได้ผลิต SQL ออกมา — ปฏิเสธที่จะบันทึก backup เปล่าว่าสำเร็จ
+        // dump จบด้วย exit code 0 แต่ไม่มี SQL ออกมาเลย — ไม่ยอมบันทึก backup เปล่า ๆ ว่าสำเร็จ
         fwrite(STDERR, 'mysqldump produced no SQL output — refusing to write an empty backup.' . PHP_EOL);
         @unlink($absolutePath);
         exit(1);
@@ -205,10 +205,10 @@ foreach ($toDelete as $oldFile) {
 }
 
 if (!$dryRun) {
-    // ตัว dump + การหมุนเวียนไฟล์ (rotation) สำเร็จไปแล้ว; การบันทึก heartbeat ต้องใช้ DB ซึ่งอาจติดต่อไม่ได้ ณ
-    // จุดนี้ (connection หลุด, system_settings ใช้ไม่ได้). การ throw ตรงนี้จะหลุดออกไปเป็น fatal ที่ไม่ถูกจับ (UNCAUGHT)
-    // (exit 255) — สคริปต์ CLI นี้ไม่มีขอบเขตดักจับ exception ระดับ global — จึงดักมันไว้แล้ว exit(1) อย่างสะอาด เพื่อให้
-    // ตัวจัดตารางงาน (scheduler) เห็นความล้มเหลวที่ควบคุมได้ แทนที่จะเป็นการ crash.
+    // ตัว dump กับการหมุนเวียนไฟล์ (rotation) สำเร็จไปแล้ว การบันทึก heartbeat ต้องใช้ DB ซึ่งอาจติดต่อไม่ได้ ณ
+    // จุดนี้ (connection หลุด, system_settings ใช้ไม่ได้) ถ้า throw ตรงนี้จะกลายเป็น fatal ที่ไม่มีใครดัก
+    // (exit 255) เพราะสคริปต์ CLI นี้ไม่มีตัวดัก exception ระดับ global — เลยดักเองแล้ว exit(1) ให้เรียบร้อย เพื่อให้
+    // ตัวจัดตารางงาน (scheduler) เห็นเป็นความล้มเหลวที่คุมได้ ไม่ใช่การ crash
     try {
         $settings = $container->get(SettingsRepository::class);
         if ($settings instanceof SettingsRepository) {
@@ -222,12 +222,12 @@ if (!$dryRun) {
     }
 }
 
-// ในโหมด live, glob() ด้านบนรัน *หลังจาก* mysqldump สร้างไฟล์ใหม่แล้ว ดังนั้น
-// count($existing) จึงรวม backup ใหม่ไว้ด้วยแล้ว. ส่วน dry-run ข้ามการสร้างไฟล์
-// ไฟล์ใหม่ (แบบสมมติ) จึงไม่อยู่ใน $existing.
+// ในโหมด live, glob() ด้านบนรัน *หลังจาก* mysqldump สร้างไฟล์ใหม่แล้ว
+// count($existing) เลยรวม backup ใหม่ไว้ด้วย ส่วน dry-run ข้ามการสร้าง
+// ไฟล์ใหม่ (แบบสมมติ) เลยไม่อยู่ใน $existing
 $retained = count($existing) - $deletedCount + ($dryRun ? 1 : 0);
 echo '[backup] done. retained=' . $retained . ' deleted=' . $deletedCount . ' delete_failed=' . $deleteFailures . PHP_EOL;
 
-// ตัว backup เองสำเร็จ แต่การลบระหว่างหมุนเวียนไฟล์ (rotation) ที่ล้มเหลวหมายถึงไฟล์เก่าค้างสะสม (disk เต็ม) — ส่งสัญญาณมัน
-// ด้วย exit ที่ไม่ใช่ศูนย์ (2) ต่างจาก 1 ของการ crash โดยยังคง heartbeat ไว้.
+// ตัว backup เองสำเร็จ แต่ถ้าลบระหว่างหมุนเวียนไฟล์ (rotation) ล้มเหลว แปลว่าไฟล์เก่าค้างสะสม (disk เต็ม) — บอกด้วย
+// exit ที่ไม่ใช่ศูนย์ (2) ต่างจาก 1 ของการ crash โดยยังคง heartbeat ไว้
 exit($deleteFailures > 0 ? 2 : 0);

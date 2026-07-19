@@ -45,7 +45,7 @@ try {
     echo 'Emails failed: ' . $mailFailed . PHP_EOL;
 
     // รันจนจบ (heartbeat อัปเดตแล้ว) แต่ terminal email failure หรือการแจ้งเตือน SLA ที่ไม่เคยส่งออกไป
-    // คือผลลัพธ์ที่ไม่ปกติ — exit 2 (ต่างจาก 1 ของการ crash) เพื่อให้การ monitor cron เห็นมัน.
+    // เป็นสภาพไม่ปกติ — exit 2 (ต่างจาก 1 ของการ crash) เพื่อให้ตัว monitor cron เห็นมัน
     exit(($mailFailed > 0 || $slaNotifyFailed > 0) ? 2 : 0);
 } catch (Throwable $exception) {
     fwrite(STDERR, (string) $exception . PHP_EOL); // trace เต็ม (class + message + file:line) สำหรับ debug cron

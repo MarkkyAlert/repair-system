@@ -8,10 +8,10 @@
     <meta name="theme-color" content="#6366f1">
     <title><?= e($title ?? $appName) ?></title>
     <?= render_partial('partials/theme-init') ?>
-    <?php // ไม่ใส่ preconnect ของฟอนต์: เพราะ CSP connect-src เป็น 'self' อยู่แล้ว จึงถูกบล็อกและมีแต่จะทำให้ console รก. stylesheet ด้านล่างโหลดผ่าน style-src/font-src. ?>
+    <?php // ไม่ใส่ preconnect ของฟอนต์: CSP connect-src เป็น 'self' อยู่แล้ว มันเลยโดนบล็อก ได้แต่ทำให้ console รกเปล่า ๆ. stylesheet ด้านล่างโหลดผ่าน style-src/font-src. ?>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?= e(asset('css/app.css')) ?>">
-    <!-- สีของแบรนด์ — แก้ที่ public/assets/css/theme.css เพื่อเปลี่ยนแบรนด์ (ไม่ต้อง build). โหลดเป็นลำดับสุดท้ายเพื่อให้ทับค่าอื่นได้. -->
+    <!-- สีของแบรนด์ — อยากเปลี่ยนแบรนด์แก้ที่ public/assets/css/theme.css ได้เลย ไม่ต้อง build. โหลดเป็นไฟล์สุดท้ายจะได้ทับค่าอื่นได้. -->
     <link rel="stylesheet" href="<?= e(asset('css/theme.css')) ?>">
     <?php if (is_path('/dashboard') || is_path('/reports/trend')): ?>
         <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>

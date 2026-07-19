@@ -9,19 +9,19 @@ $metricCount = static fn (string $key): int => max(0, (int) ($metrics[$key] ?? 0
 $isFilterActive = $qSearch !== '' || $qStatus !== '' || $qPriority !== '' || $qTechnician > 0 || $qSla !== '';
 $isAdvancedFilterActive = $qStatus !== '' || $qPriority !== '' || $qTechnician > 0 || $qSla !== '';
 $statusValues = ticket_status_values();
-$statusOptions = array_combine($statusValues, array_map('ticket_status_label_th', $statusValues)); // single source — เพิ่ม status ใหม่ filter โผล่เอง
+$statusOptions = array_combine($statusValues, array_map('ticket_status_label_th', $statusValues)); // แหล่งข้อมูลเดียว เพิ่ม status ใหม่แล้วตัวกรองขึ้นเอง
 $priorityOptions = [];
 foreach (['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as $__priorityCode) {
     $priorityOptions[$__priorityCode] = priority_label_th($__priorityCode);
 }
-// $activeFilterChips และ $urgentAlerts เป็น view-model จาก controller (TicketService) — ไม่ derive ใน view แล้ว
+// $activeFilterChips กับ $urgentAlerts เป็น view-model ที่ controller (TicketService) เตรียมมาให้ — ไม่ต้องคำนวณใน view แล้ว
 ?>
 <section class="stack-lg"
     data-ticket-queue-live
     data-ticket-queue-state-url="<?= e(url('/tickets/state')) ?>"
     data-ticket-queue-baseline="<?= e((string) ($queueMaxId ?? 0)) ?>">
     <h1 class="sr-only">รายการแจ้งซ่อม — คิวงานปฏิบัติการ</h1>
-    <!-- Fallback banner: โชว์เฉพาะตอนที่ auto-refresh ทำไม่ได้ (กำลังเลือก bulk / โฟกัสช่องค้นหา) -->
+    <!-- แบนเนอร์สำรอง: โชว์เฉพาะตอนที่ auto-refresh ทำงานไม่ได้ เช่น กำลังเลือก bulk หรือโฟกัสอยู่ในช่องค้นหา -->
     <div class="ticket-live-banner" data-ticket-queue-banner hidden role="status" aria-live="polite">
         <?= lucide('refresh-cw', 'button-icon') ?>
         <span>มีงานแจ้งซ่อมใหม่เข้าคิว</span>
@@ -175,7 +175,7 @@ foreach (['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as $__priorityCode) {
             </details>
         </form>
 
-        <!-- ผลลัพธ์ที่ auto-refresh สลับได้ (ไม่รวม filter form ด้านบน กันลบสิ่งที่ผู้ใช้กำลังพิมพ์) -->
+        <!-- ส่วนผลลัพธ์ที่ auto-refresh สลับเนื้อหาได้ — ไม่รวมฟอร์มกรองด้านบน กันไม่ให้ลบคำที่ผู้ใช้กำลังพิมพ์อยู่ -->
         <div data-ticket-queue-results>
         <?php if ($tickets === []): ?>
             <?php if (!$isFilterActive): ?>

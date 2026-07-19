@@ -5,8 +5,8 @@
 /* F5: ให้รหัส ticket อยู่บรรทัดเดียว เพื่อไม่ให้ badge สถานะที่อยู่ติดกันดันจนตกบรรทัด */
 .ticket-no { white-space: nowrap; }
 
-/* F2: stepper บอกสถานะเลื่อนแนวนอนบนมือถือ — กำหนดตัวห่อเป็น relative
-   เพื่อให้ขอบขวาแบบจาง (fade) วางทับขอบที่เลื่อนได้ (ซ่อนบนเดสก์ท็อป) */
+/* F2: stepper บอกสถานะเลื่อนแนวนอนบนมือถือ — ตั้งตัวห่อเป็น relative
+   ให้ขอบขวาที่ไล่จางวางทับขอบฝั่งที่เลื่อนได้ (เดสก์ท็อปซ่อนไว้) */
 .workflow-progress-wrap { position: relative; }
 .workflow-scroll-fade { display: none; }
 
@@ -14,7 +14,7 @@
   /* F3: การ์ดสถิติวางสองต่อแถวบนมือถือ (กฎ media ที่มาทีหลังเคยบังคับให้เหลือหนึ่งต่อแถว) */
   .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
-  /* F2: ขอบจาง (fade) บอกว่า stepper ยังมีขั้นตอนอื่นอยู่นอกจอ */
+  /* F2: ขอบไล่จางเป็นสัญญาณว่า stepper ยังมีขั้นตอนอื่นเลยขอบจอออกไป */
   .workflow-scroll-fade {
     display: block;
     position: absolute;
@@ -43,9 +43,9 @@
 .guest-track-result-ref { font-size: 1.25rem; font-weight: 800; color: var(--indigo-600); margin: .25rem 0 .75rem; font-family: var(--font-mono, monospace); }
 .dark .guest-track-result-ref { color: var(--indigo-300); }
 
-/* F6: จัดกลุ่มแท็บ admin ทั้ง 12 อันเป็นแถวที่มีป้ายกำกับ (จัดการข้อมูล · สิทธิ์ & ตรวจสอบ · ระบบ) แต่ละป้าย
-   กว้างเต็มแถวเพื่อบังคับให้ขึ้นแถวของตัวเอง และแท็บที่ตามมาจะไหลลงข้างล่างจนถึงป้ายถัดไป ป้ายพวกนี้เป็น
-   role="presentation"/aria-hidden เพื่อให้ tablist เปิดเผยเฉพาะแท็บให้เทคโนโลยีช่วยเหลือ (assistive tech) */
+/* F6: จัดแท็บ admin ทั้ง 12 อันเป็นแถวที่มีป้ายกำกับ (จัดการข้อมูล · สิทธิ์ & ตรวจสอบ · ระบบ) แต่ละป้าย
+   กว้างเต็มแถวเพื่อดันตัวเองขึ้นบรรทัดใหม่ แท็บที่ตามมาก็ไหลลงข้างล่างจนถึงป้ายถัดไป ป้ายพวกนี้ตั้ง
+   role="presentation"/aria-hidden ให้ tablist เผยเฉพาะตัวแท็บกับเทคโนโลยีช่วยเหลือ */
 .admin-tab-grouplabel {
   flex: 0 0 100%;
   margin: .55rem 0 .15rem;

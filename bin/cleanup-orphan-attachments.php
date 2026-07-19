@@ -54,9 +54,9 @@ try {
         $settings = $container->get(SettingsRepository::class);
         if ($settings instanceof SettingsRepository) {
             $settings->upsert('cron_orphan_cleanup_last_run_at', date('Y-m-d H:i:s'), 'string', false, 0);
-            // บันทึกความล้มเหลวของการลบ เพื่อให้ dashboard เตือน แม้ว่างานจะ "รัน" ไปแล้ว (heartbeat ใหม่เพียงอย่างเดียว
-            // ปิดบังรอบที่รันแล้วเหลือ orphan ซึ่งลบไม่ได้). รอบที่สะอาดเขียน '0' เคลียร์คำเตือน —
-            // ให้ตรงกับ cron ของ backup/email/SLA.
+            // บันทึกความล้มเหลวของการลบ เพื่อให้ dashboard เตือน แม้งานจะ "รัน" ไปแล้ว (ถ้าอัป heartbeat อย่างเดียว
+            // จะกลบรอบที่รันแล้วยังเหลือ orphan ลบไม่ออก) รอบที่สะอาดเขียน '0' เคลียร์คำเตือน —
+            // ให้ตรงกับ cron ของ backup/email/SLA
             $settings->upsert('cron_orphan_cleanup_last_failed', (string) (int) $result['errors'], 'string', false, 0);
         }
     }

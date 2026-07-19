@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= e($title ?? $appName) ?></title>
     <link rel="stylesheet" href="<?= e(asset('css/app.css')) ?>">
-    <!-- สีของแบรนด์ — แก้ที่ public/assets/css/theme.css เพื่อเปลี่ยนแบรนด์ (ไม่ต้อง build). โหลดเป็นลำดับสุดท้ายเพื่อให้ทับค่าอื่นได้. -->
+    <!-- สีของแบรนด์ — อยากเปลี่ยนแบรนด์แก้ที่ public/assets/css/theme.css ได้เลย ไม่ต้อง build. โหลดเป็นไฟล์สุดท้ายจะได้ทับค่าอื่นได้. -->
     <link rel="stylesheet" href="<?= e(asset('css/theme.css')) ?>">
 </head>
 <body class="print-body">

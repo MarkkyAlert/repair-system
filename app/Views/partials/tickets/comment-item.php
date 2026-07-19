@@ -1,6 +1,6 @@
 <?php
 // Single comment article — ใช้ร่วมทั้งหน้า ticket detail (show.php) และ live-append feed
-// (GET /tickets/{id}/comments/feed) เพื่อไม่ให้ markup ซ้ำ/หลุดกัน.
+// (GET /tickets/{id}/comments/feed) จะได้ไม่ต้องเขียน markup ซ้ำสองที่แล้วหลุดไม่ตรงกัน.
 $ticketId = (int) ($ticketId ?? 0);
 $isEditing = $isEditing ?? false;
 $editBody = $editBody ?? (string) ($comment['body'] ?? '');

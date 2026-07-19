@@ -1,6 +1,6 @@
 <?php
 /**
- * กล่อง confirm (ยืนยัน) แบบใช้ร่วมกันที่จัดธีมไว้แล้ว. ใช้แทน confirm() ของเบราว์เซอร์ทั่วทั้งแอป.
+ * กล่องยืนยันที่จัดธีมไว้แล้ว ใช้ร่วมกันทั้งแอปแทน confirm() ของเบราว์เซอร์
  *
  * วิธีใช้:
  *   render_partial('partials/components/confirm-modal', [
@@ -14,9 +14,9 @@
  *       'summary_slot'  => '<dl class="confirm-modal-summary">...</dl>',  // HTML (ไม่บังคับ)
  *   ]);
  *
- * ถูกกระตุ้น (trigger) โดย element ใด ๆ ที่มี [data-confirm-modal-trigger="<id>"]. ตัว handler กลาง
- * ใน public/assets/js/app.js จะหา form แม่ (ถ้ามี) แล้ว submit
- * ผ่าน requestSubmit() เพื่อให้ event submit ทำงานได้ถูกต้อง.
+ * เปิดกล่องนี้ด้วย element ที่มี [data-confirm-modal-trigger="<id>"] ตัว handler กลาง
+ * ใน public/assets/js/app.js จะหา form แม่ (ถ้ามี) แล้ว submit ให้
+ * ผ่าน requestSubmit() เพื่อให้ event submit ยิงครบตามปกติ
  */
 $id            = (string) ($id ?? '');
 $title         = (string) ($title ?? 'ยืนยันการดำเนินการ');

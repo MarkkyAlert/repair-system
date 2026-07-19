@@ -64,7 +64,7 @@
     </div>
 </div>
 
-<?php if ((int) ($summary['rating_count'] ?? 0) > 0): // ไม่มีรีวิว → ไม่แสดง distribution (ตรงกับหน้าจอ; กัน 0.0%×5 ที่ทำให้เข้าใจผิด)?>
+<?php if ((int) ($summary['rating_count'] ?? 0) > 0): // ไม่มีรีวิวก็ไม่แสดง distribution — ให้ตรงกับหน้าจอ และกัน 0.0% ห้าแถวที่ชวนเข้าใจผิด?>
 <p class="section-title">การกระจายคะแนน</p>
 <table class="dist-table stack">
     <thead>
@@ -109,7 +109,7 @@
     <?php endforeach; ?>
     </tbody>
 </table>
-<?php if (!empty($feedback ?? [])): // ความคิดเห็นจากผู้ใช้ — ให้ตรงกับหน้าจอ (export parity) ?>
+<?php if (!empty($feedback ?? [])): // ความคิดเห็นจากผู้ใช้ — แสดงให้ตรงกับหน้าจอ ?>
 <p class="section-title">ความคิดเห็นจากผู้ใช้ (คะแนนน้อยสุดก่อน)</p>
 <table class="report-table">
     <thead>

@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-  // ตรวจสอบฟอร์มแบบ inline: ทำเครื่องหมายว่าช่องถูกแตะแล้ว (touched) ตอน blur เพื่อให้สไตล์ :invalid ทำงาน
+  // ตรวจฟอร์มแบบ inline: ตอน blur ทำเครื่องหมายว่าช่องถูกแตะแล้ว สไตล์ :invalid จะได้ทำงาน
   document.querySelectorAll('form').forEach((form) => {
     form.querySelectorAll('input.input, select.input, textarea.input').forEach((field) => {
       const markTouched = () => field.classList.add('was-touched');
@@ -23,9 +23,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const printTriggers = document.querySelectorAll('[data-print-trigger]');
   const toasts = document.querySelectorAll('[data-toast]');
 
-  // Chart.js วาดข้อความของ legend/tick/grid ลงบน <canvas> ดังนั้นการ toggle CSS class จึงเปลี่ยนสีมันไม่ได้ (และ Axe
-  // ก็มองไม่เห็นด้วย). เป็นแหล่งเดียว (single source) ของสีกราฟที่ขึ้นกับ theme ใช้ร่วมกันทั้งตอนสร้างกราฟและ
-  // ตอนเปลี่ยน theme สดด้านล่าง
+  // Chart.js วาด legend/tick/grid ลงบน <canvas> เอง การ toggle CSS class เลยเปลี่ยนสีมันไม่ได้ (Axe
+  // ก็มองไม่เห็น). ตรงนี้เป็นที่เดียวที่เก็บสีกราฟตาม theme ใช้ร่วมกันทั้งตอนสร้างกราฟและ
+  // ตอนสลับ theme สดด้านล่าง
   const dashboardCharts = [];
   const dashboardChartColors = () => {
     const dark = root.classList.contains('dark');
@@ -36,8 +36,8 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   };
 
-  // ดันสีของ theme ปัจจุบันเข้าไปในกราฟ dashboard ทุกอันเมื่อผู้ใช้สลับ light/dark เพื่อให้ legend และ
-  // label ของแกน (axis) ยังอ่านออกโดยไม่ต้อง reload หน้า
+  // พอผู้ใช้สลับ light/dark ดันสีของ theme ปัจจุบันเข้ากราฟ dashboard ทุกอัน ให้ legend และ
+  // label ของแกนยังอ่านออกโดยไม่ต้อง reload หน้า
   const syncDashboardChartTheme = () => {
     if (!dashboardCharts.length) {
       return;
@@ -81,7 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
     syncDashboardChartTheme();
   };
 
-  // sidebar เป็น modal drawer แบบ off-canvas (ลิ้นชักที่เลื่อนออกมานอกจอ) เฉพาะที่ <=1024px เท่านั้น; บน desktop มันเป็นแถบ (rail) ที่อยู่นิ่ง
+  // sidebar: จอ <=1024px เป็น modal drawer แบบ off-canvas ที่เลื่อนออกมาจากขอบจอ; บน desktop เป็นแถบ rail นิ่ง ๆ
   const isSidebarDrawer = () => window.matchMedia('(max-width: 1024px)').matches;
   const sidebarDrawerFocusables = () => (sidebar
     ? [...sidebar.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),[tabindex]:not([tabindex="-1"])')].filter((el) => el.offsetWidth > 0 || el.offsetHeight > 0)
@@ -106,8 +106,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // จัดการ focus สำหรับ modal drawer (บนมือถือ/แท็บเล็ต): ย้าย focus เข้าไปใน nav ตอนเปิด เพื่อให้ผู้ใช้ keyboard/SR
-    // (screen reader โปรแกรมอ่านหน้าจอ) เข้าไปอยู่ข้างใน และคืน focus กลับไปที่ปุ่ม toggle ตอนปิดถ้า focus อยู่ข้างใน (WCAG 2.4.3)
+    // จัดการ focus ของ modal drawer บนมือถือ/แท็บเล็ต: ตอนเปิดย้าย focus เข้าไปใน nav ให้ผู้ใช้ keyboard/screen reader
+    // เข้าไปอยู่ข้างใน; ตอนปิดถ้า focus ยังอยู่ข้างในก็คืนกลับไปที่ปุ่ม toggle (WCAG 2.4.3)
     if (!isSidebarDrawer()) {
       return;
     }
@@ -179,7 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
       setSidebarOpen(false);
       return;
     }
-    // ดักปุ่ม Tab ไว้ในลิ้นชัก (drawer) ที่เปิดอยู่ เพื่อไม่ให้ focus ของ keyboard หลุดไปที่หน้าเว็บที่ถูกบังอยู่ด้านหลัง
+    // ดักปุ่ม Tab ไว้ใน drawer ที่เปิดอยู่ ไม่ให้ focus ของ keyboard หลุดไปที่หน้าเว็บที่ถูกบังอยู่ด้านหลัง
     if (event.key === 'Tab' && drawerOpen) {
       const focusables = sidebarDrawerFocusables();
       if (!focusables.length) {
@@ -553,8 +553,8 @@ document.addEventListener('DOMContentLoaded', () => {
       closeButton.addEventListener('click', dismiss);
     }
 
-    // toast ประเภท error/warning จะค้างไว้จนกว่าจะปิดเอง (ผู้ใช้ต้องอ่าน); ส่วน success/info
-    // จะปิดเองอัตโนมัติหลัง 4.2 วินาที. การเอาเมาส์ไปวาง (hover) จะหยุด timer ที่นับถอยหลังปิดชั่วคราว
+    // toast แบบ error/warning ค้างไว้จนกว่าผู้ใช้จะปิดเอง (ต้องให้อ่านทัน); ส่วน success/info
+    // ปิดเองหลัง 4.2 วินาที. เอาเมาส์ไปวางค้างไว้จะหยุด timer นับถอยหลังไว้ชั่วคราว
     var isPersistent = toast.classList.contains('toast-danger')
       || toast.classList.contains('toast-warning');
     if (!isPersistent) {
@@ -580,8 +580,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const chartData = payload[key || ''];
 
         // รับได้ทั้งชุดข้อมูลเดี่ยว ({data:[]}) หรือหลายชุด ({datasets:[{label,data}]}).
-        // เช็ค !chartData ก่อนเป็นอันดับแรก — canvas ที่ key ของมันไม่มีใน payload ต้องข้ามเฉพาะตัวมันเอง
-        // ไม่ใช่ throw (ซึ่ง try/catch ที่ใช้ร่วมกันจะกลืน error ไป ทำให้กราฟทุกอันในหน้าพังหมด)
+        // เช็ค !chartData ก่อน — canvas ที่ key ไม่มีใน payload ให้ข้ามเฉพาะตัวมันเอง
+        // อย่า throw เพราะ try/catch ที่ใช้ร่วมกันจะกลืน error ทำให้กราฟทุกอันในหน้าพังหมด
         if (!chartData || !Array.isArray(chartData.labels)) {
           return;
         }
@@ -756,8 +756,8 @@ document.addEventListener('DOMContentLoaded', () => {
         backdrop?.toggleAttribute('hidden', !isOpen);
         toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
         document.body.classList.toggle('notification-open', isOpen);
-        // ย้าย focus เข้าไปในกล่อง dialog ตอนเปิด เพื่อให้ผู้ใช้ keyboard/SR ไปอยู่ที่เนื้อหาของมัน (เมนูถูก portal ไปไว้ที่
-        // <body> ดังนั้นการกด Tab ธรรมดาจากปุ่มกระดิ่ง (bell) จะข้ามมันไป)
+        // ตอนเปิดย้าย focus เข้าไปในกล่อง dialog ให้ผู้ใช้ keyboard/screen reader ไปอยู่ที่เนื้อหา (เมนูถูก portal ไปไว้ที่
+        // <body> การกด Tab ธรรมดาจากปุ่มกระดิ่งเลยจะข้ามมันไป)
         if (isOpen) {
           (close || menu.querySelector('a, button') || menu).focus();
         }
@@ -805,16 +805,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // ── dropdown ส่งออก (export): ปิดเมื่อคลิกนอกพื้นที่ ──
+  // ── dropdown export: ปิดเมื่อคลิกนอกพื้นที่ ──
   document.addEventListener('click', function (e) {
     document.querySelectorAll('.export-dropdown[open], .ticket-print-menu[open]').forEach(function (d) {
       if (!d.contains(e.target)) d.removeAttribute('open');
     });
   });
 
-  // ── ตัวเลือกไฟล์ (file picker) ภาษาไทยแบบกำหนดเอง: สะท้อนชื่อไฟล์ที่เลือกไปยังส่วนอ่านออกเสียง aria-live ──
-  // ข้อความ "No file chosen" ที่มากับเบราว์เซอร์เป็นภาษาตาม locale ของเบราว์เซอร์ และถูกซ่อนด้วย .file-field-input; จึงสะท้อน
-  // สิ่งที่เลือกเป็นภาษาไทยตรงนี้แทน เพื่อให้ตัวเลือกไฟล์เข้ากับ UI ส่วนที่เหลือ
+  // ── file picker ภาษาไทยแบบทำเอง: สะท้อนชื่อไฟล์ที่เลือกไปยังส่วน aria-live ให้อ่านออกเสียง ──
+  // ข้อความ "No file chosen" ของเบราว์เซอร์เป็นภาษาตาม locale และถูกซ่อนด้วย .file-field-input; เลยมาสะท้อน
+  // ชื่อไฟล์เป็นภาษาไทยตรงนี้แทน ให้เข้ากับ UI ส่วนที่เหลือ
   document.addEventListener('change', function (e) {
     var input = e.target;
     if (!input || typeof input.matches !== 'function' || !input.matches('.file-field-input')) return;
@@ -834,8 +834,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // ── error การเข้าสู่ระบบ (auth): ย้าย focus ไปที่ error ที่ server render มาตอนโหลด เพื่อให้ SR อ่านออกเสียง + keyboard ไปอยู่ที่มัน
-  // ตัว alert มี role="alert" อยู่แล้ว; การ focus มันช่วยการันตีว่าความล้มเหลวจะถูกแสดงให้เห็นหลังจาก reload
+  // ── error ตอน login: ย้าย focus ไปที่ error ที่ server render มาตอนโหลด ให้ screen reader อ่านออกเสียง + keyboard ไปอยู่ที่มัน
+  // ตัว alert มี role="alert" อยู่แล้ว; การ focus มันช่วยการันตีว่าความล้มเหลวจะถูกแสดงหลัง reload
   (function () {
     var authError = document.querySelector('[data-auth-error]');
     if (authError) authError.focus();
@@ -843,11 +843,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ── การเรียงลำดับตารางรายงาน (ด้วยเมาส์ + คีย์บอร์ด) ──
   document.querySelectorAll('.data-table th[data-sort-col]').forEach(function (th) {
-    // ทำให้ header ใช้งานได้ + รู้ว่าเรียงลำดับได้: focus ได้ และตั้ง aria-sort=none เป็นค่าเริ่มต้น เพื่อให้ screen
-    // reader (โปรแกรมอ่านหน้าจอ) ประกาศว่า "เรียงได้ / ยังไม่เรียง" และสั่งงานได้ด้วยคีย์บอร์ด ไม่ใช่คลิกอย่างเดียว (WCAG 2.1.1).
-    // คง role columnheader ของ <th> เดิมไว้ — มันคือสิ่งที่รองรับ aria-sort; การเขียนทับด้วย role="button" จะ
-    // ตัดการรองรับนั้นออกและทำให้ aria-sort เป็น attribute ที่ไม่ถูกต้อง (axe aria-allowed-attr). แบบ progressive: เพิ่ม
-    // โดย JS จึงประกาศต่อเมื่อ sorter ถูกต่อสายเรียบร้อยแล้วเท่านั้น
+    // ทำให้ header เรียงลำดับได้และใช้งานได้จริง: focus ได้ ตั้ง aria-sort=none เป็นค่าเริ่มต้น ให้ screen
+    // reader ประกาศว่า "เรียงได้ / ยังไม่เรียง" และสั่งได้ด้วยคีย์บอร์ด ไม่ใช่คลิกอย่างเดียว (WCAG 2.1.1).
+    // คง role columnheader ของ <th> เดิมไว้ — มันคือตัวที่รองรับ aria-sort; ถ้าเขียนทับด้วย role="button" จะ
+    // ตัดการรองรับนั้นทิ้ง ทำให้ aria-sort กลายเป็น attribute ที่ไม่ถูกต้อง (axe aria-allowed-attr). ทำแบบ progressive:
+    // ให้ JS เป็นคนเพิ่ม จะได้ประกาศต่อเมื่อ sorter ต่อสายเรียบร้อยแล้วเท่านั้น
     if (!th.hasAttribute('tabindex')) th.setAttribute('tabindex', '0');
     if (!th.hasAttribute('aria-sort')) th.setAttribute('aria-sort', 'none');
 
@@ -877,8 +877,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 - (parseFloat(vb.replace(/[^0-9.\-]/g, '')) || 0)) * (asc ? 1 : -1);
         }
         if (type === 'date') {
-          // ใช้ค่าที่เครื่องอ่านได้ใน data-sort ก่อน (เพื่อให้เซลล์ DISPLAY วันที่เป็น พ.ศ. ไทยได้แต่ยังเรียงลำดับได้);
-          // ถ้าไม่มีก็ถอยไป parse รูปแบบ DD/MM/YYYY (มี HH:MM หรือไม่ก็ได้) จากข้อความที่มองเห็น
+          // ใช้ค่าที่เครื่องอ่านได้ใน data-sort ก่อน (ให้เซลล์แสดงวันที่เป็น พ.ศ. ไทยได้แต่ยังเรียงลำดับถูก);
+          // ถ้าไม่มีก็ถอยไป parse รูปแบบ DD/MM/YYYY (จะมี HH:MM หรือไม่ก็ได้) จากข้อความที่เห็น
           var dateSortValue = function (cell, text) {
             var ds = cell && cell.getAttribute('data-sort');
             if (ds) {
@@ -904,7 +904,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // ── ค้นหา/กรอง สำหรับผู้ดูแลระบบ (admin) ──
+  // ── ค้นหา/กรองสำหรับหน้า admin ──
   document.querySelectorAll('[data-search-target]').forEach(function (input) {
     var targetId = input.getAttribute('data-search-target');
     var container = document.querySelector(targetId);
@@ -945,7 +945,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // ── อนุมัติ ticket แบบเป็นชุด (bulk) ──
+  // ── อนุมัติ ticket ทีละหลายใบ (bulk) ──
   (function () {
     var checkboxes = document.querySelectorAll('[data-bulk-checkbox]');
     var bar = document.getElementById('bulk-action-bar');
@@ -1033,10 +1033,10 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ── ตัวจัดการ confirm modal ที่ใช้ร่วมกัน ──
-  // ถูกกระตุ้นโดย [data-confirm-modal-trigger="<modal-id>"]. หา form แม่
-  // (ถ้ามี) แล้ว submit ผ่าน requestSubmit() ตอนยืนยัน เพื่อให้ submit listener
-  // (เช่น data-warn-unsaved) ทำงานถูกต้อง. ESC และการคลิก backdrop (ฉากหลัง) จะปิด modal.
-  // แต่ละหน้าสามารถเข้ามาเติมข้อมูลได้โดยลงทะเบียน callback ไว้ที่ trigger:
+  // เปิดโดย [data-confirm-modal-trigger="<modal-id>"]. หา form แม่ (ถ้ามี)
+  // แล้วตอนยืนยันค่อย submit ผ่าน requestSubmit() ให้ submit listener
+  // (เช่น data-warn-unsaved) ทำงานถูกต้อง. กด ESC หรือคลิก backdrop จะปิด modal.
+  // แต่ละหน้าเข้ามาเติมข้อมูลเองได้ด้วยการลงทะเบียน callback ไว้ที่ trigger:
   //   trigger.__beforeConfirmOpen = (modal) => { ... };
   (function () {
     var triggers = document.querySelectorAll('[data-confirm-modal-trigger]');
@@ -1055,7 +1055,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('keydown', function (e) {
       if (!activeModal) return;
       if (e.key === 'Escape') { closeModal(); return; }
-      // ดักปุ่ม Tab ไว้ใน modal ที่เปิดอยู่ (WCAG 2.4.3). พื้นหลังไม่ได้ถูกตั้งเป็น inert ดังนั้นถ้าไม่ทำแบบนี้
+      // ดักปุ่ม Tab ไว้ใน modal ที่เปิดอยู่ (WCAG 2.4.3). พื้นหลังไม่ได้ตั้งเป็น inert ถ้าไม่ดักไว้
       // keyboard จะพา focus หลุดออกไปที่หน้าเว็บที่ถูกบังอยู่ด้านหลัง dialog
       if (e.key === 'Tab') {
         var f = activeModal.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])');
@@ -1129,7 +1129,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (message && !window.confirm(message)) { e.preventDefault(); }
   });
 
-  // ── overlay แสดงการโหลดตอนส่งออก (export) ──
+  // ── overlay แสดงตอนกำลังโหลดไฟล์ export ──
   // ลิงก์ export ที่หนัก (Excel/PDF/CSV) ใช้เวลา 5-10 วินาทีในการเตรียมฝั่ง server. แสดง
   // overlay ที่บังหน้าจอไว้ระหว่างที่เบราว์เซอร์รอ response
   (function () {
@@ -1168,10 +1168,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     links.forEach(function (link) {
       link.addEventListener('click', function () {
-        // อย่าดักจับ — ปล่อยให้เบราว์เซอร์จัดการดาวน์โหลดเอง. แสดง overlay แล้วตรวจจับ
-        // "การดาวน์โหลดเริ่มแล้ว" ผ่าน cookie ที่ server สะท้อนกลับมา: response แบบไฟล์แนบไม่ได้ navigate ออกไปไหน
-        // ดังนั้น blur/pagehide จึงเชื่อถือไม่ได้. ส่ง token ไปในฟอร์ม; Response::download จะสะท้อนมัน
-        // กลับมาเป็น cookie ชื่อ `fileDownload`; poll หามัน แล้วซ่อนทันทีที่มันโผล่มา
+        // อย่าดักจับ — ปล่อยให้เบราว์เซอร์ดาวน์โหลดเอง. แสดง overlay แล้วคอยจับสัญญาณ
+        // "ดาวน์โหลดเริ่มแล้ว" ผ่าน cookie ที่ server สะท้อนกลับมา: response แบบไฟล์แนบไม่ได้ navigate ไปไหน
+        // blur/pagehide เลยเชื่อถือไม่ได้. เราส่ง token ไปในฟอร์ม; Response::download จะสะท้อนมัน
+        // กลับมาเป็น cookie ชื่อ `fileDownload`; poll หามัน เจอเมื่อไหร่ก็ซ่อน overlay ทันที
         var ov = ensureOverlay();
         ov.hidden = false;
 
@@ -1203,7 +1203,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   })();
 
-  // ── นับถอยหลัง SLA แบบสด (live) ──
+  // ── นับถอยหลัง SLA แบบสด ──
   // เป้า SLA เดิม render เป็น label นิ่งฝั่ง server; นับถอยหลังสดฝั่ง client (ใช้ epoch → timezone-safe)
   (function () {
     var els = document.querySelectorAll('[data-sla-countdown]');
@@ -1419,10 +1419,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('visibilitychange', function () { if (!document.hidden) check(); });
   })();
 
-  // ── กล่องครอบตาราง (table wrapper) ที่เลื่อนได้ด้วยคีย์บอร์ด (WCAG 2.1.1) ──
-  // พื้นที่ scroll ที่ล้นในแนวนอน (.table-wrap หรือแถบสถิติรายงานบนมือถือ .report-stat-scroll)
-  // ต้องเข้าถึง + เลื่อนได้ด้วยคีย์บอร์ด. ทำให้มันเป็น group ที่ focus ได้และมี label เฉพาะตอนที่มันล้นจริง ๆ เท่านั้น
-  // เพื่อไม่ให้เป็นจุดหยุด tab ที่ตายด้าน (dead tab stop) ตอนที่มันพอดี (ทั้งคู่เลื่อนที่ 375px แต่พอดีบน desktop)
+  // ── กล่องครอบตารางที่เลื่อนได้ด้วยคีย์บอร์ด (WCAG 2.1.1) ──
+  // พื้นที่ scroll ที่ล้นแนวนอน (.table-wrap หรือแถบสถิติรายงานบนมือถือ .report-stat-scroll)
+  // ต้อง focus + เลื่อนได้ด้วยคีย์บอร์ด. ทำให้มันเป็น group ที่ focus ได้และมี label เฉพาะตอนที่มันล้นจริง ๆ
+  // จะได้ไม่กลายเป็นจุดหยุด tab ที่กดแล้วไม่มีอะไรให้เลื่อนตอนที่มันพอดี (ทั้งคู่เลื่อนที่ 375px แต่พอดีบน desktop)
   (function () {
     var wraps = document.querySelectorAll('.table-wrap, .report-stat-scroll');
     if (!wraps.length) return;
@@ -1449,8 +1449,8 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('resize', function () { clearTimeout(resizeTimer); resizeTimer = setTimeout(sync, 150); });
   })();
 
-  // tab กรองในกล่องแจ้งเตือน (notification inbox) จะเลื่อนแนวนอนเมื่อมันล้น (บนมือถือ); ทำให้ขอบขวาจาง
-  // เฉพาะตอนที่มี tab ถูกซ่อนอยู่ทางขวาเท่านั้น เพื่อให้ผู้ใช้รู้ว่าเลื่อนได้
+  // tab กรองในกล่องแจ้งเตือนจะเลื่อนแนวนอนเมื่อมันล้น (บนมือถือ); ทำให้ขอบขวาจาง
+  // เฉพาะตอนที่ยังมี tab ซ่อนอยู่ทางขวา เพื่อให้ผู้ใช้รู้ว่าเลื่อนต่อได้
   document.querySelectorAll('.notification-filter-tabs').forEach(function (tabs) {
     var sync = function () {
       tabs.classList.toggle('can-scroll-right', tabs.scrollWidth > tabs.clientWidth + tabs.scrollLeft + 1);
@@ -1461,8 +1461,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ตัวแสดงขั้นตอนสถานะ (status stepper, .workflow-progress) กลายเป็นพื้นที่ scroll แนวนอนบนมือถือ; ทำให้มัน focus
-  // ด้วยคีย์บอร์ดได้เฉพาะตอนที่มันล้นเท่านั้น เพื่อให้ผู้ใช้คีย์บอร์ดเลื่อนไปยังขั้นตอนที่อยู่นอกจอได้ (WCAG 2.1.1). มันมี
-  // aria-label + ความหมายแบบ list ของ <ol> อยู่แล้ว จึง toggle แค่ tabindex (ไม่เขียนทับ role)
+  // ด้วยคีย์บอร์ดได้เฉพาะตอนที่มันล้น เพื่อให้ผู้ใช้คีย์บอร์ดเลื่อนไปยังขั้นตอนที่อยู่นอกจอได้ (WCAG 2.1.1). ตัวมันมี
+  // aria-label + ความหมายแบบ list ของ <ol> อยู่แล้ว เลย toggle แค่ tabindex (ไม่เขียนทับ role)
   (function () {
     var steppers = document.querySelectorAll('.workflow-progress');
     if (!steppers.length) return;

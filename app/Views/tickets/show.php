@@ -1,5 +1,5 @@
 <?php
-// กำหนดปุ่มหลัก (primary CTA) สำหรับผู้ที่กำลังดูหน้าอยู่ ตามค่า flag ของ workflow.
+// เลือกปุ่มหลักของหน้า (primary CTA) จาก flag ใน workflow ตามสิทธิ์ของคนที่กำลังดูอยู่
 $primaryCta = null;
 $primaryAnchor = null;
 if (!empty($workflow['canReview'])) {
@@ -42,7 +42,7 @@ if (!empty($workflow['canReview'])) {
             ['label' => (string) $ticket['ticket_no']],
         ],
     ]) ?>
-    <!-- แถบปุ่มการทำงานแบบติดขอบ (Sticky Action Bar) -->
+    <!-- แถบปุ่มการทำงานแบบ sticky ติดขอบบน -->
     <div class="action-bar no-print">
         <div class="action-bar-left">
             <a href="<?= e(url('/tickets')) ?>" class="icon-button" aria-label="กลับหน้ารายการ"><?= lucide('chevrons-left', 'h-4 w-4') ?></a>
@@ -81,7 +81,7 @@ if (!empty($workflow['canReview'])) {
         </div>
     </div>
 
-    <!-- ส่วนหัวแสดงสถานะ ticket (Hero) -->
+    <!-- ส่วนหัว hero แสดงสถานะ ticket -->
     <section class="panel-card ticket-status-hero">
         <div class="panel-head">
             <h2 class="panel-title">สถานะและความคืบหน้า</h2>
@@ -111,8 +111,8 @@ if (!empty($workflow['canReview'])) {
             $progressSteps = ['pending_approval' => 'รออนุมัติ', 'approved' => 'อนุมัติ', 'assigned' => 'มอบหมาย', 'in_progress' => 'ดำเนินการ', 'resolved' => 'รอตรวจรับ', 'completed' => 'เสร็จสิ้น'];
             $stepKeys = array_keys($progressSteps);
 
-            // ขั้นที่ไปถึงไกลสุดจริง ๆ อนุมานจากเวลา (timestamp) ของแต่ละหมุดหมาย (milestone) —
-            // เชื่อถือได้แม้ตอน ticket หลุดออกจากเส้นทางปกติ (happy path) ไปแล้ว.
+            // หาขั้นที่ไปถึงไกลสุดจริง ๆ จาก timestamp ของแต่ละ milestone
+            // เชื่อถือได้แม้ ticket หลุดออกจากเส้นทางปกติไปแล้ว
             $reachedIndex = 0;
             foreach (['approved' => 'approved_at', 'assigned' => 'assigned_at', 'in_progress' => 'started_at', 'resolved' => 'resolved_at', 'completed' => 'completed_at'] as $stage => $field) {
                 if ((string) ($ticket[$field] ?? '-') !== '-') {
@@ -120,7 +120,7 @@ if (!empty($workflow['canReview'])) {
                 }
             }
 
-            // สถานะจบแบบลบ (terminal) จะหลุดออกจากเส้นทางปกติ (happy path); on_hold คือหยุดพักไว้; closed คือทำเสร็จสมบูรณ์.
+            // สถานะจบแบบ terminal (rejected/cancelled) จะหลุดออกจากเส้นทางปกติ ส่วน on_hold คือพักไว้ และ closed คือปิดจบสมบูรณ์
             $terminalLabels = ['rejected' => 'ถูกปฏิเสธ', 'cancelled' => 'ยกเลิกแล้ว'];
             $isTerminal = array_key_exists($currentStatus, $terminalLabels);
             $isOnHold = $currentStatus === 'on_hold';
@@ -171,7 +171,7 @@ if (!empty($workflow['canReview'])) {
         </div>
     </section>
 
-    <!-- ตาราง (grid) ภาพรวม + การมอบหมายงาน -->
+    <!-- กริดภาพรวม + การมอบหมายงาน -->
     <div class="content-grid">
         <section class="panel-card stack-md">
             <div class="panel-head">
@@ -263,7 +263,7 @@ if (!empty($workflow['canReview'])) {
         </section>
     </div>
 
-    <!-- การทำงานของผู้จัดการ (Manager) -->
+    <!-- การทำงานของผู้จัดการ -->
     <?php if (!empty($workflow['managerCanAct'])): ?>
         <section class="panel-card stack-md" id="action-approval">
             <div class="panel-head">
@@ -353,7 +353,7 @@ if (!empty($workflow['canReview'])) {
         </section>
     <?php endif; ?>
 
-    <!-- การทำงานของช่างเทคนิค (Technician) -->
+    <!-- การทำงานของช่างเทคนิค -->
     <?php if (!empty($workflow['technicianCanAct'])): ?>
         <section class="panel-card stack-md">
             <div class="panel-head">
@@ -449,7 +449,7 @@ if (!empty($workflow['canReview'])) {
         </section>
     <?php endif; ?>
 
-    <!-- การยืนยันของผู้แจ้ง (Requester) -->
+    <!-- การยืนยันของผู้แจ้ง -->
     <?php if (!empty($workflow['requesterCanAct'])): ?>
         <section class="panel-card stack-md">
             <div class="panel-head">
@@ -680,7 +680,7 @@ if (!empty($workflow['canReview'])) {
 <script src="<?= e(asset('js/ticket-detail.js')) ?>" defer></script>
 
 <style>
-    /* เผื่อกรณีกระโดด anchor แบบ native / ไม่มี JS: กันไม่ให้ส่วน action ถูกบังโดย sticky header + action bar */
+    /* เผื่อเบราว์เซอร์กระโดด anchor เองตอนไม่มี JS — กันไม่ให้ส่วน action โดน sticky header กับ action bar บัง */
     [id^="action-"] { scroll-margin-top: 14rem; }
 </style>
 

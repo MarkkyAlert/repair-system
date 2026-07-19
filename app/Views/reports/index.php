@@ -110,7 +110,7 @@ $isCapped = !empty($rowsMeta['capped']);
                 </summary>
                 <div class="export-dropdown-menu">
                     <?php
-                    // Export ใช้ POST + CSRF (กัน CSRF-via-GET ที่หน้าภายนอกฝัง <img src> auto-trigger export job ได้)
+                    // Export ต้องเป็น POST + CSRF — กันหน้าเว็บภายนอกฝัง <img src> ยิง GET มา trigger งาน export เอง
                     // hidden inputs พา filter ปัจจุบัน (status/department_id/category_id/from_date/to_date) ไปด้วย
                     $exportHidden = '';
         foreach (['status', 'department_id', 'category_id', 'from_date', 'to_date'] as $exportField) {

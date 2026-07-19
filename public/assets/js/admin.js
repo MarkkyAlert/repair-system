@@ -6,7 +6,7 @@
     const nav = document.querySelector('.admin-tabs');
     const scroller = document.querySelector('.admin-tabs-scroller');
 
-    // F2: แสดงขอบจาง (fade) เฉพาะตอนที่มีเนื้อหาถูกซ่อนอยู่ให้เลื่อนไปหาได้
+    // F2: แสดงขอบจางเฉพาะตอนที่มีเนื้อหาถูกซ่อนอยู่ให้เลื่อนไปดูได้
     const updateFades = () => {
         if (!nav || !scroller) return;
         const max = nav.scrollWidth - nav.clientWidth;
@@ -32,9 +32,9 @@
             const active = t.getAttribute('href') === hash;
             t.classList.toggle('is-active', active);
             t.setAttribute('aria-selected', active ? 'true' : 'false');
-            // Roving tabindex (เทคนิคของ WAI-ARIA tabs): มีเพียง tab ที่ถูกเลือกเท่านั้นที่อยู่ในลำดับการกด Tab ส่วนที่เหลือ
+            // Roving tabindex (เทคนิคของ WAI-ARIA tabs): มีแค่ tab ที่ถูกเลือกที่อยู่ในลำดับการกด Tab ส่วนที่เหลือ
             // เข้าถึงด้วยปุ่มลูกศร. ถ้าไม่ทำแบบนี้ tab ทั้ง 12 จะกลายเป็นจุดหยุด Tab แยกกัน 12 จุด และไม่มี
-            // การนำทางด้วยปุ่มลูกศร ทำให้ผิดสัญญาที่ role="tab" ประกาศไว้กับ assistive tech (เทคโนโลยีช่วยเหลือผู้พิการ)
+            // การนำทางด้วยปุ่มลูกศร ผิดสัญญาที่ role="tab" ประกาศไว้กับ assistive tech
             t.setAttribute('tabindex', active ? '0' : '-1');
             if (active) activeTab = t;
         });
@@ -74,8 +74,8 @@
         window.addEventListener('resize', updateFades);
     }
 
-    // เลื่อนให้แถว tab มาอยู่ใต้ sticky topbar (แถบบนสุดที่ตรึงไว้) พอดี ไม่ถูกบังอยู่ใต้มัน (topbar สูงกว่า +
-    // z-index สูงกว่า). ใช้โดยการกดกระโดดจาก stat-card และตอนเปิดด้วย deep link ครั้งแรก
+    // เลื่อนให้แถว tab มาอยู่ใต้ sticky topbar พอดี ไม่ถูกมันบัง (topbar สูงกว่า +
+    // z-index สูงกว่า). เรียกใช้ตอนกดกระโดดจาก stat-card และตอนเปิดด้วย deep link ครั้งแรก
     const revealTabsBelowTopbar = () => {
         if (!scroller) return;
         const topbar = document.querySelector('.topbar') || document.querySelector('header');
@@ -84,8 +84,8 @@
         window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
     };
 
-    // F5: การ์ดสถิติ (stat card) กระโดดไปยัง tab ที่ตรงกัน (เลื่อนแบบ smooth ไม่ reload). ตัว href
-    // สำรอง (/admin#tab-...) ยังทำงานได้ถ้า JS ใช้ไม่ได้
+    // F5: การ์ดสถิติกระโดดไปยัง tab ที่ตรงกัน (เลื่อนแบบ smooth ไม่ reload). ตัว href
+    // สำรอง (/admin#tab-...) ยังใช้ได้อยู่ถ้า JS ใช้ไม่ได้
     document.querySelectorAll('.stat-grid a.metric-card[href*="#tab-"]').forEach((card) => {
         card.addEventListener('click', (e) => {
             const hash = '#' + card.getAttribute('href').split('#').pop();
@@ -99,8 +99,8 @@
 
     const initialHash = location.hash;
     activate(initialHash || '#tab-users');
-    // deep link (ลิงก์ที่ชี้ตรงจุด เช่น /admin#tab-priorities) พาเบราว์เซอร์มาที่ panel โดยที่แถว tab ถูกซ่อนอยู่หลัง
-    // topbar; เลื่อนมันเข้ามาในมุมมองเพื่อให้ผู้ใช้เห็นว่า section ไหนกำลังทำงานอยู่ และสลับได้
+    // deep link (เช่น /admin#tab-priorities) พาเบราว์เซอร์มาที่ panel โดยที่แถว tab ยังถูกซ่อนอยู่หลัง
+    // topbar; เลื่อนมันเข้ามาให้เห็น ผู้ใช้จะได้รู้ว่า section ไหนกำลังทำงานอยู่ และสลับได้
     if (initialHash && document.querySelector('.admin-tab[href="' + initialHash + '"]')) {
         requestAnimationFrame(revealTabsBelowTopbar);
     }

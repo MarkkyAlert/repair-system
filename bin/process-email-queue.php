@@ -28,7 +28,7 @@ try {
     echo 'Retried: ' . (int) ($result['retried'] ?? 0) . PHP_EOL;
     echo 'Failed: ' . $failed . PHP_EOL;
 
-    // ใน production, log ของ cron ต้องไม่พก PII ของผู้รับ (recipient PII, ข้อมูลส่วนบุคคล) — พิมพ์ job id แทน email + subject.
+    // ใน production, log ของ cron ต้องไม่พก PII ของผู้รับ (ข้อมูลส่วนบุคคล) — พิมพ์ job id แทน email + subject
     $isProduction = (string) config('app.env', 'production') === 'production';
     foreach (($result['items'] ?? []) as $item) {
         $who = $isProduction
@@ -37,9 +37,9 @@ try {
         echo '- [' . (string) ($item['status'] ?? 'unknown') . '] ' . $who . PHP_EOL;
     }
 
-    // การรันเสร็จสมบูรณ์ (heartbeat อัปเดตแล้ว) แต่ terminal failure — email ที่ใช้ retry จนหมดแล้วและ
-    // จะไม่มีวันส่ง — คือผลลัพธ์ที่ไม่ปกติซึ่งการ monitor cron ต้องเห็น. exit code แยกต่างหาก (2) เพื่อไม่ให้
-    // สับสนกับการ crash (1).
+    // รันจบครบ (heartbeat อัปเดตแล้ว) แต่มี terminal failure — email ที่ retry จนหมดแล้วและ
+    // จะไม่มีวันส่งออก — เป็นสภาพไม่ปกติที่ตัว monitor cron ต้องเห็น เลยแยก exit code (2) ไม่ให้
+    // สับสนกับการ crash (1)
     exit($failed > 0 ? 2 : 0);
 } catch (Throwable $exception) {
     fwrite(STDERR, (string) $exception . PHP_EOL); // trace เต็ม (class + message + file:line) สำหรับ debug cron

@@ -17,7 +17,7 @@
             update();
         });
 
-        // I1: นับจำนวนผู้รับแบบสด (live)
+        // I1: นับจำนวนผู้รับแบบสด
         const roleSelect = document.querySelector('.broadcast-page [data-recipient-target]');
         if (roleSelect) {
             const chipId = roleSelect.getAttribute('data-recipient-target');

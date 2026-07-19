@@ -1,8 +1,8 @@
 <?php
-// แถบแบรนด์องค์กรที่ใช้ร่วมกันบนหัวของ PDF ทุกใบ (ทั้ง ticket + ไฟล์ export รายงานทุกชนิด). อ่านค่า app_name +
-// app_tagline + โลโก้ที่อัปโหลดจากหน้า Admin System Settings ดังนั้นลูกค้าที่เปลี่ยนแบรนด์ผ่าน UI ก็จะได้
-// เอกสารที่เปลี่ยนแบรนด์ตามไปด้วย — โดยไม่ต้องแก้ PHP ทีละ view. ใช้ inline style ในตัวเอง (สำหรับ dompdf) วางอยู่เหนือ
-// ส่วนหัวตกแต่งที่บอกชนิดรายงาน (kicker) ของเอกสารแต่ละใบ.
+// แถบแบรนด์องค์กร ใช้ร่วมกันบนหัว PDF ทุกใบ — ทั้ง ticket และไฟล์ export รายงานทุกชนิด. ดึงค่า app_name
+// app_tagline และโลโก้ที่อัปโหลดจากหน้า Admin System Settings มาแสดง เปลี่ยนแบรนด์ผ่าน UI แล้ว
+// เอกสารก็เปลี่ยนตามเลย ไม่ต้องไล่แก้ PHP ทีละ view. ใส่ style แบบ inline มาในตัวเองเพราะ render บน dompdf วางไว้เหนือ
+// ส่วนหัวตกแต่ง (kicker) ที่บอกชนิดรายงานของแต่ละใบ.
 $pdfBrandName = trim((string) setting('app_name', config('app.name', 'Repair System')));
 $pdfBrandTagline = trim((string) setting('app_tagline', ''));
 $pdfBrandLogo = branding_logo_data_uri();

@@ -149,7 +149,7 @@ $initialCount = (int) ($counts[$oldRoleFilter] ?? 0);
             .broadcast-page .char-counter.is-near-limit { color: rgb(234, 179, 8); font-weight: 600; }
             .broadcast-page .char-counter.is-at-limit { color: rgb(239, 68, 68); font-weight: 700; }
 
-            /* I2: แสดงคำแจ้งวิธียกเลิกรับข่าว (opt-out) ให้เด่นชัด */
+            /* I2: เน้นกล่องบอกวิธีปิดรับประกาศ (opt-out) ให้เห็นชัด */
             .broadcast-notice { display: flex; align-items: flex-start; gap: .65rem; padding: .85rem 1rem; border-radius: 12px; background: rgba(56, 189, 248, .08); border: 1px solid rgba(56, 189, 248, .25); color: var(--text); margin-bottom: .25rem; }
             .broadcast-notice-icon { width: 18px; height: 18px; flex-shrink: 0; color: rgb(56, 189, 248); margin-top: 2px; }
             .broadcast-notice strong { display: block; font-size: .9rem; margin-bottom: .2rem; }
@@ -175,7 +175,7 @@ $initialCount = (int) ($counts[$oldRoleFilter] ?? 0);
             .dark .broadcast-badge { color: rgb(165, 180, 252); }
             .broadcast-badge svg { width: 14px; height: 14px; }
 
-            /* N5: เส้นคั่นส่วน (section) พร้อมคำกำกับ */
+            /* N5: เส้นคั่นระหว่างส่วน พร้อมคำกำกับ */
             .broadcast-section-divider { display: flex; align-items: center; gap: .65rem; margin-top: .25rem; }
             .broadcast-section-divider::before, .broadcast-section-divider::after { content: ''; flex: 1; height: 1px; background: var(--glass-border, rgba(255,255,255,.08)); }
             .broadcast-section-divider span { font-size: .7rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }

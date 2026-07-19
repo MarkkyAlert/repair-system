@@ -2,8 +2,8 @@
 $page = max(1, (int) ($pagination['page'] ?? 1));
 $totalPages = max(1, (int) ($pagination['totalPages'] ?? 1));
 $total = max(0, (int) ($pagination['total'] ?? 0));
-// query params + path ตั้งต้นมาจากผู้เรียก (caller) เมื่อส่งมาให้ (เพื่อให้ component นี้นำกลับมาใช้ซ้ำได้
-// โดยไม่ผูกกับ $_GET/request() แบบซ่อน ๆ); ถ้าไม่ส่งมาก็ถอยไปใช้ request ปัจจุบัน. ส่วน `page` จัดการเองที่นี่.
+// query params กับ path รับมาจากผู้เรียกถ้าส่งมา — คอมโพเนนต์นี้จะได้เอาไปใช้ซ้ำได้
+// โดยไม่ผูกกับ $_GET/request() แบบเงียบ ๆ. ไม่ส่งมาก็ถอยไปใช้ request ปัจจุบัน ส่วน `page` จัดการเองตรงนี้.
 $query = $query ?? ($_GET ?? []);
 unset($query['page']);
 $path = $path ?? (string) (request()?->path ?? '/');
