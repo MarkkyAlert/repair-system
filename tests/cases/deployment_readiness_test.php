@@ -109,10 +109,14 @@ test('deploy(D1,D6): the release-packaging script bundles vendor and excludes se
 test('deploy(D4): the handover doc set ships and stays anchored to the real install flow', function (): void {
     $root = dirname(__DIR__, 2);
 
-    // The docs are the selling point for a semi-dev buyer — all five must ship, and cross-link.
-    foreach (['README.md', 'INSTALL.md', 'ADMIN-GUIDE.md', 'CUSTOMIZE.md', 'REPORT-GUIDE.md'] as $doc) {
+    // The docs are the selling point for a semi-dev buyer — all five (plus LICENSE) must ship.
+    foreach (['README.md', 'INSTALL.md', 'ADMIN-GUIDE.md', 'CUSTOMIZE.md', 'REPORT-GUIDE.md', 'LICENSE'] as $doc) {
         assert_true(is_file($root . '/' . $doc), "{$doc} must ship with the template");
     }
+    // The commercial license must state the agreed model (single organisation, no resale).
+    $license = (string) file_get_contents($root . '/LICENSE');
+    assert_true(stripos($license, 'one') !== false && stripos($license, 'organization') !== false, 'LICENSE must scope use to one organization');
+    assert_true(stripos($license, 'resell') !== false || stripos($license, 'ขายต่อ') !== false, 'LICENSE must forbid resale');
 
     // INSTALL must point at the real install mechanics (not invented steps): the diagnostic, phpMyAdmin
     // import, the /setup wizard, and the cron the app actually needs.
@@ -127,4 +131,5 @@ test('deploy(D4): the handover doc set ships and stays anchored to the real inst
         preg_match('/rm[^\n]*\b(README|INSTALL|ADMIN-GUIDE|CUSTOMIZE|REPORT-GUIDE)\.md/', $pkg) !== 1,
         'package-release.sh must not strip the buyer-facing docs from the release'
     );
+    assert_true(preg_match('/rm[^\n]*\bLICENSE\b/', $pkg) !== 1, 'package-release.sh must not strip LICENSE from the release');
 });
