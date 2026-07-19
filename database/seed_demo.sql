@@ -1,9 +1,9 @@
 -- ============================================================
--- DEMO DATA — dev / evaluation ONLY. Do NOT import in production.
--- Depends on seed_reference.sql (import that first).
--- Demo accounts (admin/manager/technician/requester) each use a bcrypt hash with a
--- PUBLIC password documented in docs/testing-guide.md — change them before any real use.
--- Sets setup_completed=1 to skip the /setup wizard for demos; production should run /setup instead.
+-- ข้อมูลตัวอย่าง (demo) — สำหรับ dev / ทดลองใช้เท่านั้น ห้ามนำเข้าบนระบบจริง
+-- ต้องนำเข้า seed_reference.sql ก่อน (ไฟล์นี้อ้างอิงข้อมูลจากไฟล์นั้น)
+-- บัญชีตัวอย่าง (admin/manager/technician/requester) แต่ละบัญชีใช้ bcrypt hash ที่มี
+-- รหัสผ่านสาธารณะ (ระบุไว้ใน docs/testing-guide.md) — เปลี่ยนรหัสก่อนใช้งานจริงทุกครั้ง
+-- ตั้ง setup_completed=1 เพื่อข้ามตัวช่วยตั้งค่า /setup สำหรับเดโม ส่วนระบบจริงควรรัน /setup แทน
 -- ============================================================
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;

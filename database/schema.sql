@@ -530,7 +530,7 @@ CREATE TABLE login_attempts (
     CONSTRAINT fk_login_attempts_user FOREIGN KEY (matched_user_id) REFERENCES users (id) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Notification per-type/channel preferences (runtime: /profile/notifications)
+-- การตั้งค่าการแจ้งเตือนรายประเภท/ช่องทาง (ใช้งานจริงที่ /profile/notifications)
 CREATE TABLE notification_preferences (
     user_id BIGINT UNSIGNED NOT NULL,
     notification_type VARCHAR(60) NOT NULL,
@@ -541,7 +541,7 @@ CREATE TABLE notification_preferences (
     CONSTRAINT fk_np_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Email template field overrides (runtime: /admin/email-templates)
+-- การแก้ไขข้อความของเทมเพลตอีเมล (ใช้งานจริงที่ /admin/email-templates)
 CREATE TABLE email_template_overrides (
     template_key VARCHAR(80) NOT NULL,
     field_key VARCHAR(40) NOT NULL,
@@ -552,7 +552,7 @@ CREATE TABLE email_template_overrides (
     CONSTRAINT fk_etpl_updated_by FOREIGN KEY (updated_by) REFERENCES users (id) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Guest QR repair requests (runtime: /scan/{token}/report, /admin/guest-requests)
+-- คำขอแจ้งซ่อมจาก guest ผ่าน QR (ใช้งานจริงที่ /scan/{token}/report, /admin/guest-requests)
 CREATE TABLE guest_ticket_requests (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     request_no VARCHAR(30) NOT NULL,

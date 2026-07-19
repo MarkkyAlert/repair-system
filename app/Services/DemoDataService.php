@@ -24,16 +24,16 @@ class DemoDataService
     }
 
     /**
-     * Seed a full set of sample data for a fresh install. Idempotent per master-data row
-     * (skips duplicates). Orchestrates one seed step per entity — add a new entity by
-     * adding a seedX() method and a line here.
+     * seed (ใส่ข้อมูลตั้งต้น) ชุดข้อมูลตัวอย่างทั้งชุดสำหรับการติดตั้งใหม่. เป็น idempotent ต่อ row ของ master-data
+     * (ข้ามตัวที่ซ้ำ). ควบคุมการ seed ทีละขั้นต่อ entity — เพิ่ม entity ใหม่ได้ด้วยการ
+     * เพิ่ม method seedX() และเพิ่มบรรทัดตรงนี้.
      */
     public function load(int $createdByUserId = 0): array
     {
         // ด่านแรก: environment gate — production (ค่าเริ่มต้น) โหลด demo ไม่ได้เด็ดขาด แม้ระบบยังว่าง.
         // คุมทั้ง Setup และ /admin/demo-data/load จากจุดเดียว.
-        // An EXPECTED policy block (the operator is told to flip a flag) — a DomainException that is flashed, not
-        // an operational RuntimeException the catch would be expected to log.
+        // เป็นการบล็อกตามนโยบายที่คาดไว้ (บอกให้ operator ไปสลับ flag) — เป็น DomainException ที่ถูก flash ให้เห็น ไม่ใช่
+        // RuntimeException เชิงปฏิบัติการที่ catch ควรจะ log.
         if (!config('app.allow_demo_data', false)) {
             throw new DomainException('การโหลดข้อมูลตัวอย่างถูกปิดใช้งานบนระบบนี้ — ตั้ง ALLOW_DEMO_DATA=true ใน .env เฉพาะรอบทดลอง/เดโม (อย่าเปิดบน production)');
         }
@@ -62,7 +62,7 @@ class DemoDataService
                 'tickets' => 0,
             ];
 
-            // Build lookups from master data (now includes existing rows)
+            // สร้างตาราง lookup จาก master data (ตอนนี้รวม row ที่มีอยู่เดิมด้วย)
             $departmentIds = $this->codeMap($this->admin->getDepartments());
             $locationIds = $this->codeMap($this->admin->getLocations());
             $ticketCategoryIds = $this->codeMap($this->admin->getTicketCategories());
@@ -209,7 +209,7 @@ class DemoDataService
                     'is_active' => true,
                 ]);
             } catch (DomainException) {
-                // Username/email already exists — best-effort: skip (ไม่แตะรหัสเดิม)
+                // Username/email มีอยู่แล้ว — best-effort: ข้าม (ไม่แตะรหัสเดิม)
             }
         }
 
@@ -268,9 +268,9 @@ class DemoDataService
                 $assetIds[$spec['code']] = $assetId;
                 $count++;
             } catch (DomainException) {
-                // Duplicate asset_code/serial (or QR-token exhaustion) — an EXPECTED, skippable condition.
-                // A RuntimeException/PDOException is a real failure: let it propagate so load()'s transaction
-                // rolls the whole seed back and the caller sees the error, instead of a silent partial seed.
+                // asset_code/serial ซ้ำ (หรือ QR-token หมด) — เป็นเงื่อนไขที่คาดไว้และข้ามได้.
+                // ส่วน RuntimeException/PDOException คือความล้มเหลวจริง: ปล่อยให้มันโยนต่อไป เพื่อให้ transaction ของ load()
+                // rollback การ seed ทั้งหมด และผู้เรียกเห็น error แทนที่จะได้ seed ที่สำเร็จแค่บางส่วนแบบเงียบ ๆ.
             }
         }
 
@@ -285,7 +285,7 @@ class DemoDataService
      */
     private function seedTickets(int $createdByUserId, array $techIds, array $departmentIds, array $locationIds, array $assetIds, array $ticketCategoryIds, array $priorityIds): int
     {
-        // Sample tickets need an admin to act as requester + manager, and at least one demo technician.
+        // ticket ตัวอย่างต้องมี admin มาทำหน้าที่เป็น requester + manager และต้องมีช่าง demo อย่างน้อย 1 คน.
         if ($createdByUserId <= 0 || $techIds === []) {
             return 0;
         }
@@ -420,14 +420,14 @@ class DemoDataService
                 $creator($row);
                 $count++;
             } catch (DomainException) {
-                // Already exists — skip silently (idempotent re-run)
+                // มีอยู่แล้ว — ข้ามแบบเงียบ ๆ (idempotent re-run — รันซ้ำได้ผลเหมือนเดิม)
             }
         }
         return $count;
     }
 
     /**
-     * Build [code => id] map from a Repository "getX" result that returns rows with 'id' + 'code'.
+     * สร้าง map [code => id] จากผลลัพธ์ "getX" ของ Repository ที่คืน row ที่มี 'id' + 'code'.
      *
      * @param array<int, array<string, mixed>> $rows
      * @return array<string, int>

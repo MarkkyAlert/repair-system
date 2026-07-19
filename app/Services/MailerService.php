@@ -24,9 +24,9 @@ class MailerService
     {
         $driver = strtolower((string) config('mail.driver', 'log'));
 
-        // Only 'log' and 'smtp' are supported. Reject anything else LOUDLY instead of silently falling through
-        // to PHPMailer's default mail() transport — a typo'd MAIL_DRIVER would otherwise send (or drop) mail via
-        // an unconfigured sendmail with no diagnostic.
+        // รองรับแค่ 'log' และ 'smtp' เท่านั้น. ถ้าเป็นค่าอื่นให้ปฏิเสธแบบดัง ๆ แทนที่จะเงียบ ๆ ตกไปใช้
+        // transport mail() เริ่มต้นของ PHPMailer — เพราะถ้าพิมพ์ MAIL_DRIVER ผิด มันจะส่ง (หรือทิ้ง) เมลผ่าน
+        // sendmail ที่ยังไม่ได้ตั้งค่าโดยไม่มีข้อมูลวินิจฉัย (diagnostic) ใด ๆ.
         if (!in_array($driver, ['log', 'smtp'], true)) {
             throw new RuntimeException(sprintf('MAIL_DRIVER "%s" ไม่รองรับ — ตั้งค่าได้เฉพาะ log หรือ smtp', $driver));
         }
@@ -92,13 +92,13 @@ class MailerService
         $timestamp = date('Ymd-His');
         $slug = preg_replace('/[^a-z0-9]+/i', '-', strtolower((string) ($message['subject'] ?? 'mail')));
         $slug = trim((string) $slug, '-');
-        // random suffix so two messages in the same second with the same subject each get their OWN file —
-        // the timestamp+slug name alone silently overwrote the first (lossy).
+        // ต่อท้ายด้วยค่าสุ่ม (random suffix) เพื่อให้เมล 2 ฉบับในวินาทีเดียวกันที่มีหัวข้อเดียวกันได้ไฟล์ของตัวเองแยกกัน —
+        // เพราะชื่อที่ใช้แค่ timestamp+slug จะเขียนทับฉบับแรกแบบเงียบ ๆ (ข้อมูลหาย).
         $file = $directory . '/' . $timestamp . '-' . ($slug !== '' ? $slug : 'mail') . '-' . bin2hex(random_bytes(4)) . '.json';
 
-        // In PRODUCTION the log driver must not persist PII: mask the recipient and drop the body/payload,
-        // keeping only the template subject + time (enough to confirm a message was generated). In dev/local
-        // the full content is kept for debugging. Owner decision.
+        // บน PRODUCTION log driver ต้องไม่เก็บ PII (ข้อมูลระบุตัวตน): ปิดบัง (mask) ผู้รับ และตัด body/payload ทิ้ง
+        // เก็บไว้แค่หัวข้อของ template + เวลา (พอยืนยันได้ว่ามีการสร้างเมลขึ้น). บน dev/local
+        // เก็บเนื้อหาเต็มไว้เพื่อ debug. เป็นการตัดสินใจของเจ้าของระบบ.
         if ((string) config('app.env', 'production') === 'production') {
             $payload = [
                 'to_email' => self::maskEmail((string) ($message['to_email'] ?? '')),
@@ -120,8 +120,8 @@ class MailerService
             ];
         }
 
-        // The log driver persists mail to disk indefinitely; it must NOT store a live password-reset token in
-        // plaintext. Redact reset tokens (path + query forms) from the serialized record.
+        // log driver เก็บเมลไว้บนดิสก์อย่างไม่มีกำหนด; มันต้องไม่เก็บ password-reset token ที่ยังใช้ได้จริงเป็น
+        // plaintext (ข้อความธรรมดาไม่เข้ารหัส). จึงลบ (redact) reset token (ทั้งแบบ path และ query) ออกจาก record ที่ serialize แล้ว.
         $json = self::redactSecrets((string) json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
         $written = file_put_contents($file, $json);
@@ -131,10 +131,10 @@ class MailerService
     }
 
     /**
-     * Strip password-reset tokens from text about to be logged: the token is a path segment
-     * (/reset-password/<token>?email=...) and, in some flows, a token= query parameter.
+     * ลบ password-reset token ออกจากข้อความที่กำลังจะถูก log: token เป็น segment หนึ่งของ path
+     * (/reset-password/<token>?email=...) และในบาง flow ก็เป็น query parameter token= ด้วย.
      */
-    /** Mask an email for production logs: keep the first local char + the domain, hide the rest (a***@example.com). */
+    /** ปิดบัง (mask) email สำหรับ log บน production: เก็บอักษรตัวแรกของ local + โดเมนไว้ ซ่อนที่เหลือ (a***@example.com). */
     public static function maskEmail(string $email): string
     {
         $email = trim($email);
@@ -146,7 +146,7 @@ class MailerService
         return substr($email, 0, 1) . '***' . substr($email, $at);
     }
 
-    /** Mask a phone for production audit/logs: keep only the last 4 digits (***5678); too-short numbers become '***'. */
+    /** ปิดบัง (mask) เบอร์โทรสำหรับ audit/log บน production: เก็บแค่ 4 หลักสุดท้าย (***5678); เบอร์ที่สั้นเกินไปกลายเป็น '***'. */
     public static function maskPhone(string $phone): string
     {
         $phone = trim($phone);

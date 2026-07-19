@@ -8,10 +8,10 @@ use App\Repositories\TicketRepository;
 use DomainException;
 
 /**
- * Ticket lifecycle mutations split out of TicketService: approve/reject/assign (manager),
- * accept/start/resolve (technician), complete/reopen/cancel (requester), + bulk approve.
- * Each guards via TicketPolicy (shared with the detail-display flow), mutates through
- * TicketRepository, and emits a notification. Covered by tests/cases/workflow_test.php.
+ * การเปลี่ยนสถานะตลอดวงจรชีวิต (lifecycle) ของ ticket ที่แยกออกมาจาก TicketService: approve/reject/assign (manager),
+ * accept/start/resolve (technician), complete/reopen/cancel (requester), + bulk approve (อนุมัติทีละหลายรายการ).
+ * แต่ละอันมีด่านตรวจสิทธิ์ผ่าน TicketPolicy (ใช้ร่วมกับ flow หน้าแสดงรายละเอียด), เปลี่ยนข้อมูลผ่าน
+ * TicketRepository และส่ง notification. มีเทสต์ครอบคลุมใน tests/cases/workflow_test.php.
  */
 class TicketWorkflowService
 {
@@ -25,9 +25,9 @@ class TicketWorkflowService
 
     public function approveTicket(int $ticketId, array $viewer, array $input, ?array $ticket = null): void
     {
-        // $ticket may be preloaded by bulkApproveTickets (one batch visibility fetch instead of a per-ticket
-        // read); when it is, still enforce the same manage-workflow policy requireManageableTicket would. The
-        // authoritative status check happens under the row lock in TicketRepository::approveTicket.
+        // $ticket อาจถูกโหลดมาล่วงหน้าโดย bulkApproveTickets (ดึงสิทธิ์การมองเห็นทีเดียวเป็น batch แทนที่จะอ่าน
+        // ทีละ ticket); ถ้าถูกโหลดมาแล้วก็ยังต้องบังคับ policy manage-workflow เดียวกับที่ requireManageableTicket ทำ.
+        // การตรวจสถานะที่ถือเป็นตัวจริงเกิดขึ้นใต้ row lock ใน TicketRepository::approveTicket.
         if ($ticket === null) {
             $ticket = $this->requireManageableTicket($ticketId, $viewer);
         } elseif (!$this->policy->canManageWorkflow($ticket, $viewer)) {
@@ -38,7 +38,7 @@ class TicketWorkflowService
             throw new DomainException('รายการนี้ไม่อยู่ในสถานะที่อนุมัติได้');
         }
 
-        // Separation of duties: manager ห้ามอนุมัติคำขอที่ตัวเองเป็นผู้แจ้ง — ต้องให้ผู้อนุมัติท่านอื่น.
+        // แยกหน้าที่ความรับผิดชอบ (separation of duties): manager ห้ามอนุมัติคำขอที่ตัวเองเป็นผู้แจ้ง — ต้องให้ผู้อนุมัติท่านอื่น.
         // admin ยกเว้น (เป็น fallback ผู้อนุมัติ กัน deadlock องค์กรที่มี manager คนเดียว).
         if ((string) ($viewer['role'] ?? '') === 'manager'
             && (int) ($ticket['requester_id'] ?? 0) === (int) ($viewer['id'] ?? 0)) {
@@ -60,8 +60,8 @@ class TicketWorkflowService
             throw new DomainException('Approve ได้สูงสุด 50 รายการต่อครั้ง');
         }
 
-        // One visibility-scoped batch fetch for the whole selection, instead of a per-ticket read inside each
-        // approveTicket. Each approve still locks + re-checks status authoritatively.
+        // ดึงข้อมูลทีเดียวเป็น batch ตามขอบเขตสิทธิ์การมองเห็นสำหรับทั้งชุดที่เลือก แทนที่จะอ่านทีละ ticket ภายใน
+        // approveTicket แต่ละครั้ง. การ approve แต่ละครั้งยังคง lock + ตรวจสถานะซ้ำอย่างเป็นตัวจริง.
         $byId = [];
         foreach ($this->reads->findVisibleTicketsByIds($ticketIds, $viewer) as $row) {
             $byId[(int) ($row['id'] ?? 0)] = $row;
@@ -89,7 +89,7 @@ class TicketWorkflowService
         ];
     }
 
-    /** Manager/admin rejects a pending-approval ticket (→ rejected). Rejection note required. */
+    /** manager/admin ปฏิเสธ ticket ที่รออนุมัติ (→ rejected). ต้องระบุหมายเหตุการปฏิเสธ. */
     public function rejectTicket(int $ticketId, array $viewer, array $input): void
     {
         $ticket = $this->requireManageableTicket($ticketId, $viewer);
@@ -108,8 +108,8 @@ class TicketWorkflowService
     }
 
     /**
-     * Manager/admin assigns an active technician to an approved ticket (→ assigned).
-     * Requires a valid technician_id; notifies ticket.assigned.
+     * manager/admin มอบหมายช่างที่ยัง active ให้กับ ticket ที่อนุมัติแล้ว (→ assigned).
+     * ต้องมี technician_id ที่ถูกต้อง; แจ้งเตือน ticket.assigned.
      */
     public function assignTechnician(int $ticketId, array $viewer, array $input): void
     {
@@ -119,7 +119,7 @@ class TicketWorkflowService
             throw new DomainException('รายการนี้ยังไม่พร้อมสำหรับการมอบหมายช่าง');
         }
 
-        $technicianId = strict_int($input['technician_id'] ?? null, 'ช่างเทคนิค'); // reject "3junk"
+        $technicianId = strict_int($input['technician_id'] ?? null, 'ช่างเทคนิค'); // ปฏิเสธค่าอย่าง "3junk"
         if ($technicianId <= 0) {
             throw new DomainException('กรุณาเลือกช่างเทคนิคที่ต้องการมอบหมาย');
         }
@@ -131,8 +131,8 @@ class TicketWorkflowService
 
         $instructions = trim((string) ($input['instructions'] ?? ''));
 
-        // Mid-work reassign (technician already accepted/started) is an exceptional action — require a
-        // reason so the activity log records WHY the work moved.
+        // การย้ายงานกลางคัน (ช่างรับ/เริ่มงานไปแล้ว) เป็นการกระทำที่ผิดปกติ — ต้องระบุ
+        // เหตุผล เพื่อให้ activity log บันทึกว่าทำไมงานถึงถูกย้าย.
         if (in_array((string) ($ticket['status'] ?? ''), ['accepted', 'in_progress'], true) && $instructions === '') {
             throw new DomainException('กรุณาระบุเหตุผลในการย้ายงานที่ช่างรับไปแล้ว');
         }
@@ -148,7 +148,7 @@ class TicketWorkflowService
         $this->notifications->notifyTicketEvent($ticketId, 'ticket.assigned', (int) ($viewer['id'] ?? 0));
     }
 
-    /** Assigned technician accepts their ticket (assigned → accepted). */
+    /** ช่างที่ถูกมอบหมายกดรับ ticket ของตัวเอง (assigned → accepted). */
     public function acceptAssignedWork(int $ticketId, array $viewer, array $input): void
     {
         $ticket = $this->requireTechnicianTicket($ticketId, $viewer);
@@ -162,7 +162,7 @@ class TicketWorkflowService
         $this->notifications->notifyTicketEvent($ticketId, 'ticket.accepted', (int) ($viewer['id'] ?? 0));
     }
 
-    /** Assigned technician starts work (accepted → in_progress). */
+    /** ช่างที่ถูกมอบหมายเริ่มงาน (accepted → in_progress). */
     public function startAssignedWork(int $ticketId, array $viewer, array $input): void
     {
         $ticket = $this->requireTechnicianTicket($ticketId, $viewer);
@@ -177,8 +177,8 @@ class TicketWorkflowService
     }
 
     /**
-     * Assigned technician submits diagnosis + resolution (in_progress → resolved).
-     * Both summaries required; labor_minutes must be >= 0.
+     * ช่างที่ถูกมอบหมายส่งผลวิเคราะห์ (diagnosis) + วิธีแก้ไข (resolution) (in_progress → resolved).
+     * ต้องกรอกสรุปทั้งสองอย่าง; labor_minutes (นาทีที่ใช้ทำงาน) ต้อง >= 0.
      */
     public function resolveAssignedWork(int $ticketId, array $viewer, array $input): void
     {
@@ -190,7 +190,7 @@ class TicketWorkflowService
 
         $diagnosisSummary = trim((string) ($input['diagnosis_summary'] ?? ''));
         $resolutionSummary = trim((string) ($input['resolution_summary'] ?? ''));
-        $laborMinutes = strict_int($input['labor_minutes'] ?? null, 'จำนวนเวลาที่ใช้'); // reject "12junk"
+        $laborMinutes = strict_int($input['labor_minutes'] ?? null, 'จำนวนเวลาที่ใช้'); // ปฏิเสธค่าอย่าง "12junk"
 
         if ($diagnosisSummary === '' || $resolutionSummary === '') {
             throw new DomainException('กรุณากรอกผลการวิเคราะห์และวิธีแก้ไขให้ครบถ้วน');
@@ -211,7 +211,7 @@ class TicketWorkflowService
         $this->notifications->notifyTicketEvent($ticketId, 'ticket.resolved', (int) ($viewer['id'] ?? 0));
     }
 
-    /** Requester confirms a resolved ticket and rates satisfaction 1–5 (resolved → completed). */
+    /** ผู้แจ้งยืนยัน ticket ที่ซ่อมเสร็จและให้คะแนนความพึงพอใจ 1–5 (resolved → completed). */
     public function completeResolvedTicket(int $ticketId, array $viewer, array $input): void
     {
         $ticket = $this->requireRequesterTicket($ticketId, $viewer);
@@ -221,7 +221,7 @@ class TicketWorkflowService
         }
 
         $closureNote = trim((string) ($input['closure_note'] ?? ''));
-        $score = strict_int($input['score'] ?? null, 'คะแนนความพึงพอใจ'); // reject "5junk"
+        $score = strict_int($input['score'] ?? null, 'คะแนนความพึงพอใจ'); // ปฏิเสธค่าอย่าง "5junk"
         $feedback = trim((string) ($input['feedback'] ?? ''));
 
         if ($score < 1 || $score > 5) {
@@ -240,7 +240,7 @@ class TicketWorkflowService
         $this->notifications->notifyTicketEvent($ticketId, 'ticket.completed', (int) ($viewer['id'] ?? 0));
     }
 
-    /** Requester sends a resolved ticket back for rework; recomputes SLA due dates. Reason required. */
+    /** ผู้แจ้งส่ง ticket ที่ซ่อมเสร็จกลับไปแก้ใหม่; คำนวณกำหนดเวลา SLA ใหม่. ต้องระบุเหตุผล. */
     public function reopenTicket(int $ticketId, array $viewer, array $input): void
     {
         $ticket = $this->requireRequesterTicket($ticketId, $viewer);
@@ -269,7 +269,7 @@ class TicketWorkflowService
         $this->notifications->notifyTicketEvent($ticketId, 'ticket.reopened', (int) ($viewer['id'] ?? 0));
     }
 
-    /** Requester cancels their own ticket (→ cancelled). Reason required. */
+    /** ผู้แจ้งยกเลิก ticket ของตัวเอง (→ cancelled). ต้องระบุเหตุผล. */
     public function cancelTicket(int $ticketId, array $viewer, array $input): void
     {
         $ticket = $this->requireRequesterTicket($ticketId, $viewer);
@@ -291,7 +291,7 @@ class TicketWorkflowService
         $this->notifications->notifyTicketEvent($ticketId, 'ticket.cancelled', (int) ($viewer['id'] ?? 0));
     }
 
-    // ── guards (DB lookup + TicketPolicy check) ──
+    // ── guard (ด่านตรวจ: ค้นข้อมูลจาก DB + ตรวจ TicketPolicy) ──
 
     private function requireManageableTicket(int $ticketId, array $viewer): array
     {

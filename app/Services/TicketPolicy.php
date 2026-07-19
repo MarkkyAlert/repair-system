@@ -6,9 +6,9 @@ namespace App\Services;
 use App\Support\Role;
 
 /**
- * Pure ticket permission/transition predicates (ticket + viewer arrays → bool), shared by the
- * detail-display flow (TicketService) and the mutation flow (TicketWorkflowService). No DB, no state
- * — single source for "who may do what, from which status", so the two flows can't drift.
+ * predicate (ฟังก์ชันที่คืน true/false) ล้วน ๆ สำหรับสิทธิ์/การเปลี่ยนสถานะของ ticket (รับ array ของ ticket + viewer → bool) ใช้ร่วมกันทั้ง
+ * flow แสดงรายละเอียด (TicketService) และ flow แก้ไขข้อมูล (TicketWorkflowService). ไม่มี DB ไม่มี state
+ * — เป็น single source ของ "ใครทำอะไรได้ จากสถานะไหน" เพื่อไม่ให้สอง flow เพี้ยนไปคนละทาง.
  */
 class TicketPolicy
 {
@@ -38,10 +38,10 @@ class TicketPolicy
             return false;
         }
 
-        // accepted/in_progress included so a manager/admin can REASSIGN work whose technician became
-        // unavailable (sick leave / resignation) — otherwise the ticket is stuck forever: only the assigned
-        // technician could resolve it and the requester can no longer cancel
-        // (business-confirmed). A mid-work reassign requires a reason (enforced in TicketWorkflowService).
+        // รวม accepted/in_progress ไว้ด้วย เพื่อให้ manager/admin สามารถมอบหมายงานใหม่ (REASSIGN) ในกรณีที่ช่างเดิม
+        // ไม่ว่าง (ลาป่วย / ลาออก) — ไม่งั้น ticket จะค้างตลอดกาล: มีแต่ช่างที่ถูกมอบหมาย
+        // เท่านั้นที่ปิดงานได้ และ requester ก็ยกเลิกไม่ได้แล้ว
+        // (ยืนยันโดยฝั่งธุรกิจ). การมอบหมายใหม่ระหว่างทำงานต้องมีเหตุผล (บังคับใน TicketWorkflowService).
         return (string) ($ticket['approval_status'] ?? '') === 'approved'
             && in_array((string) ($ticket['status'] ?? ''), ['approved', 'assigned', 'accepted', 'in_progress'], true);
     }
@@ -89,8 +89,8 @@ class TicketPolicy
 
     public function canRequesterReopenTicket(array $ticket, array $viewer): bool
     {
-        // Only a resolved (awaiting confirmation) ticket can be sent back for rework. A completed ticket is
-        // final — an unhappy requester opens a NEW ticket via duplicate (canDuplicateTicket), not a reopen.
+        // มีแต่ ticket สถานะ resolved (รอการยืนยัน) เท่านั้นที่ส่งกลับไปทำใหม่ได้. ticket ที่ completed แล้วถือเป็น
+        // สถานะสุดท้าย — requester ที่ไม่พอใจให้เปิด ticket ใหม่ผ่าน duplicate (canDuplicateTicket) ไม่ใช่ reopen.
         return $this->canRequesterManageClosure($ticket, $viewer)
             && (string) ($ticket['approval_status'] ?? '') === 'approved'
             && (string) ($ticket['status'] ?? '') === 'resolved';

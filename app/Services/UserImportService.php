@@ -44,7 +44,7 @@ class UserImportService
             }
         }
 
-        // Batch existence lookup ครั้งเดียว (แทน findByLogin/findByEmail ต่อแถว = 2N queries)
+        // ค้นหาว่ามีอยู่แล้วหรือไม่แบบ batch ทีเดียว (แทน findByLogin/findByEmail ต่อแถว = 2N queries)
         $existing = $this->users->existingLoginsAndEmails(
             array_map(static fn (array $r): string => strtolower(trim((string) ($r['username'] ?? ''))), $rows),
             array_map(static fn (array $r): string => strtolower(trim((string) ($r['email'] ?? ''))), $rows)
@@ -174,12 +174,12 @@ class UserImportService
                         $this->auth->createPasswordReset((string) $row['email']);
                         $sentResetEmails++;
                     } catch (Throwable $exception) {
-                        // The user is created active with a random password; a reset-email failure must not
-                        // break the import, but it also must not be swallowed silently — record who did not
-                        // receive a reset so the admin can reset them manually, AND log the root cause (the
-                        // exception object was previously discarded).
-                        // identify the user WITHOUT writing a raw email (PII) to the server log — username +
-                        // masked email is enough to act on.
+                        // user ถูกสร้างในสถานะ active พร้อมรหัสผ่านสุ่ม; การส่ง reset-email ล้มเหลวต้องไม่
+                        // ทำให้ import พัง แต่ก็ต้องไม่ถูกกลืนหายแบบเงียบ ๆ — บันทึกว่าใครที่ไม่ได้รับ
+                        // reset เพื่อให้ admin รีเซ็ตให้เองได้ และ log ต้นเหตุด้วย (เดิม
+                        // object ของ exception ถูกทิ้งไป).
+                        // ระบุตัว user โดยไม่เขียน email ดิบ (PII — ข้อมูลระบุตัวตน) ลง log ของ server — username +
+                        // email ที่ mask (ปิดบัง) แล้ว ก็พอให้ดำเนินการต่อได้.
                         log_caught_exception('user.import.reset', $exception, [
                             'username' => (string) ($row['username'] ?? ''),
                             'email' => \App\Services\MailerService::maskEmail((string) ($row['email'] ?? '')),
@@ -192,9 +192,9 @@ class UserImportService
                     }
                 }
             } catch (Throwable $exception) {
-                // Expected, reported skips (a duplicate → createUser translates it to DomainException; or a raw
-                // duplicate-key error) stay silent. Anything else (e.g. a DB outage) is an unexpected failure whose
-                // root cause must be logged — not hidden behind the generic row message.
+                // การข้ามที่คาดไว้และรายงานแล้ว (ข้อมูลซ้ำ → createUser แปลงเป็น DomainException; หรือ error
+                // duplicate-key ดิบ ๆ) ให้เงียบไว้. อย่างอื่น (เช่น DB ล่ม) คือความล้มเหลวที่ไม่คาดคิดซึ่ง
+                // ต้อง log ต้นเหตุไว้ — ไม่ใช่ซ่อนไว้หลังข้อความ row กลาง ๆ.
                 if (!($exception instanceof DomainException) && !is_duplicate_key_error($exception)) {
                     log_caught_exception('user.import.row', $exception, ['line' => (int) ($row['line'] ?? 0), 'username' => (string) ($row['username'] ?? '')]);
                 }

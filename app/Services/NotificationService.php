@@ -21,8 +21,8 @@ class NotificationService
         'system_announcement' => 'ประกาศจากผู้ดูแลระบบ',
     ];
 
-    // Display-only chips on /profile/notifications — Thai labels (owner decision 2026-07-18),
-    // consistent with ticket_status_label_th(): resolved=รอตรวจรับ, completed=เสร็จสิ้น.
+    // chip ที่ใช้แสดงอย่างเดียวบน /profile/notifications — label ภาษาไทย (เจ้าของตัดสินใจ 2026-07-18),
+    // สอดคล้องกับ ticket_status_label_th(): resolved=รอตรวจรับ, completed=เสร็จสิ้น.
     public const NOTIFICATION_TYPE_HINTS = [
         'ticket_status_changed' => 'มอบหมาย · เริ่มงาน · รอตรวจรับ · เสร็จสิ้น · เปิดซ้ำ · ยกเลิก',
     ];
@@ -46,11 +46,11 @@ class NotificationService
     }
 
     /**
-     * Normalise a raw notification-preference form (the `pref` matrix of email/in_app checkboxes) into the full
-     * per-type matrix and persist it. Owns the normalization + write so the controller only delegates — the
-     * preference repository is already this service's dependency.
+     * ทำให้ฟอร์มตั้งค่าการแจ้งเตือนดิบ (matrix `pref` ของ checkbox email/in_app) เป็นมาตรฐาน (normalise) ให้เป็น matrix
+     * เต็มแยกตามประเภท แล้วบันทึกลงฐานข้อมูล. เป็นเจ้าของทั้งการ normalize + การเขียน เพื่อให้ controller แค่มอบงานต่อ —
+     * preference repository เป็น dependency ของ service นี้อยู่แล้ว.
      *
-     * @param array<string, mixed> $rawInput the raw $_POST['pref'] map (type => ['email'=>on, 'in_app'=>on])
+     * @param array<string, mixed> $rawInput map ดิบของ $_POST['pref'] (type => ['email'=>on, 'in_app'=>on])
      */
     public function saveUserPreferences(int $userId, array $rawInput): void
     {
@@ -133,9 +133,9 @@ class NotificationService
 
     public function notifyTicketEvent(int $ticketId, string $eventType, int $actorId): void
     {
-        // Notifications are a best-effort side effect: a failure here must never turn an already-committed
-        // ticket transition into a user-facing error (dispatch/email already swallow + log their own failures;
-        // this guards the remaining reads). Every workflow transition can call this plainly, with no try-catch.
+        // การแจ้งเตือนเป็นผลข้างเคียงแบบ best-effort (พยายามให้ดีที่สุดเท่าที่ทำได้): ความล้มเหลวตรงนี้ต้องไม่ทำให้การเปลี่ยนสถานะ ticket ที่ commit
+        // ไปแล้วกลายเป็น error ที่ผู้ใช้เห็น (dispatch/email กลืน + log ความล้มเหลวของตัวเองอยู่แล้ว;
+        // ตรงนี้ป้องกันการอ่านที่เหลือ). ทุกการเปลี่ยนสถานะใน workflow เรียกอันนี้ได้ตรง ๆ โดยไม่ต้องมี try-catch.
         try {
             $this->dispatchTicketEvent($ticketId, $eventType, $actorId);
         } catch (Throwable $exception) {
@@ -293,9 +293,9 @@ class NotificationService
 
     public function notifySystemAnnouncement(string $title, string $message, int $actorId, ?string $roleFilter = null, string $submissionToken = ''): array
     {
-        // Idempotency: a retry after a network hiccup, or a second tab, re-POSTs the same one-time token —
-        // return a no-op so the whole org isn't re-notified (in-app + email). The nullable UNIQUE column is the
-        // race backstop; this pre-check covers the common sequential retry.
+        // Idempotency (เรียกซ้ำแล้วผลไม่เปลี่ยน): การลองใหม่หลังเน็ตสะดุด หรือแท็บที่สอง จะ re-POST token ใช้ครั้งเดียวตัวเดิม —
+        // ให้ return แบบไม่ทำอะไร (no-op) เพื่อไม่ให้แจ้งเตือนทั้งองค์กรซ้ำ (in-app + email). คอลัมน์ UNIQUE ที่รับ null ได้เป็น
+        // ตัวกันชนกรณีชนกัน (race); การเช็คล่วงหน้านี้ครอบคลุมการลองใหม่แบบเรียงลำดับที่พบบ่อย.
         if ($submissionToken !== '' && $this->notifications->broadcastTokenExists($submissionToken)) {
             return ['in_app_count' => 0, 'email_count' => 0, 'duplicate' => true];
         }
@@ -310,8 +310,8 @@ class NotificationService
         $inAppRecipients = $this->filterByPreference($recipientIds, 'system_announcement', 'in_app');
         $emailRecipients = $this->filterByPreference($recipientIds, 'system_announcement', 'email');
 
-        // Report the ACTUAL in-app outcome, not the intended recipient count: if the write is swallowed (the
-        // dispatch logs + returns false), the admin flash must not claim "in-app: N" when zero were written.
+        // รายงานผลลัพธ์ in-app ที่เกิดขึ้นจริง (ACTUAL) ไม่ใช่จำนวนผู้รับที่ตั้งใจ: ถ้าการเขียนถูกกลืน (dispatch
+        // log + คืน false) flash ของ admin ต้องไม่บอกว่า "in-app: N" ทั้งที่เขียนไปศูนย์ราย.
         $inAppWritten = $this->dispatchNotification([
             'type' => 'system.announcement',
             'title' => $title,
@@ -325,8 +325,8 @@ class NotificationService
             'submission_token' => $submissionToken,
         ], $inAppRecipients);
 
-        // Report the ACTUAL email outcome, not the intended recipient count: if the enqueue fails, the caller
-        // (admin flash) must not claim "email: N sent" when zero were queued.
+        // รายงานผลลัพธ์ email ที่เกิดขึ้นจริง (ACTUAL) ไม่ใช่จำนวนผู้รับที่ตั้งใจ: ถ้าการเข้าคิวล้มเหลว ผู้เรียก
+        // (flash ของ admin) ต้องไม่บอกว่า "email: N sent" ทั้งที่เข้าคิวไปศูนย์ราย.
         $emailQueued = true;
         try {
             $this->emails->queueSystemAnnouncementEmails($emailRecipients, $title, $message);
@@ -343,12 +343,12 @@ class NotificationService
         ];
     }
 
-    /** @return bool whether the in-app breach alert was actually written (so the SLA cron counts real notifications, not intended ones) */
+    /** @return bool ว่าการแจ้งเตือน SLA breach แบบ in-app ถูกเขียนจริงหรือไม่ (เพื่อให้ SLA cron นับ notification จริง ไม่ใช่ที่ตั้งใจไว้) */
     public function notifySlaBreached(int $ticketId, string $metricType): bool
     {
         $context = $this->reads->findTicketNotificationContextById($ticketId);
         if ($context === null) {
-            return false; // the ticket vanished — the breach alert did NOT go out
+            return false; // ticket หายไป — การแจ้งเตือน breach ไม่ได้ถูกส่งออกไป
         }
 
         $metricLabel = $metricType === 'response' ? 'Response SLA' : 'Resolution SLA';
@@ -385,10 +385,10 @@ class NotificationService
             $emailDelivered = false;
         }
 
-        // "notified" must reflect EVERY channel that had recipients — an email-only recipient (in-app disabled)
-        // whose email enqueue fails is a real notify failure, even though the empty in-app dispatch trivially
-        // succeeds. dispatchNotification/queue return true when there were no recipients on that channel, so an
-        // AND here == "every channel with recipients delivered".
+        // "notified" ต้องสะท้อนทุกช่องทาง (EVERY channel) ที่มีผู้รับ — ผู้รับที่รับทางอีเมลอย่างเดียว (ปิด in-app)
+        // ที่การเข้าคิวอีเมลล้มเหลวถือเป็นความล้มเหลวในการแจ้งเตือนจริง แม้ dispatch in-app ที่ว่างเปล่าจะ
+        // สำเร็จแบบง่าย ๆ. dispatchNotification/queue คืน true เมื่อช่องทางนั้นไม่มีผู้รับ ดังนั้น
+        // การ AND ตรงนี้ == "ทุกช่องทางที่มีผู้รับส่งสำเร็จ".
         return $inAppDelivered && $emailDelivered;
     }
 
@@ -417,10 +417,10 @@ class NotificationService
     }
 
     /**
-     * Write the in-app notification for the recipients. Returns whether it SUCCEEDED — best-effort still (a
-     * failure is logged, never re-thrown to abort the caller's committed work), but the boolean lets callers
-     * that report a delivery count (SLA cron, broadcast) tell success from a swallowed failure instead of
-     * always claiming the intended count. No recipients = nothing to do = success.
+     * เขียน notification แบบ in-app ให้ผู้รับ. คืนค่าว่าสำเร็จหรือไม่ (SUCCEEDED) — ยังเป็น best-effort อยู่ (ความ
+     * ล้มเหลวถูก log ไว้ ไม่เคยถูก re-throw จนไปยกเลิกงานที่ผู้เรียก commit ไปแล้ว) แต่ค่า boolean นี้ช่วยให้ผู้เรียก
+     * ที่ต้องรายงานจำนวนที่ส่ง (SLA cron, broadcast) แยกได้ว่าสำเร็จหรือเป็นความล้มเหลวที่ถูกกลืน แทนที่จะ
+     * อ้างจำนวนที่ตั้งใจไว้เสมอ. ไม่มีผู้รับ = ไม่มีอะไรต้องทำ = ถือว่าสำเร็จ.
      */
     private function dispatchNotification(array $payload, array $recipientIds): bool
     {
@@ -473,8 +473,8 @@ class NotificationService
             return [];
         }
 
-        // Batch-load explicitly-disabled recipients in one query (opt-out model: no row = enabled)
-        // instead of calling isEnabled() once per recipient (N+1 — worst on broadcast to all users).
+        // โหลดผู้รับที่ปิดการแจ้งเตือนไว้ชัดเจนทีเดียวเป็น batch ใน query เดียว (โมเดล opt-out: ไม่มีแถว = เปิดอยู่)
+        // แทนที่จะเรียก isEnabled() ทีละผู้รับ (N+1 — แย่ที่สุดตอน broadcast หาผู้ใช้ทุกคน).
         $disabled = array_flip($this->preferences->disabledUserIds($recipientIds, $notificationType, $channel));
 
         return array_values(array_filter(

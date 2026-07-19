@@ -24,8 +24,8 @@ class AssetService
     {
         $this->assertManageable($viewer);
 
-        // The list filter bar only offers category + location — load just those, not the full form reference
-        // (which also fetches departments + custodians the list never uses).
+        // แถบ filter ของหน้า list มีให้เลือกแค่ category + location — โหลดแค่นั้นพอ ไม่ต้องดึง reference ของฟอร์มทั้งชุด
+        // (ซึ่งจะดึง departments + custodians (ผู้ดูแล) ที่หน้า list ไม่ได้ใช้มาด้วย).
         $reference = $this->assets->getAssetIndexReferenceData();
         $normalizedFilters = $this->normalizeAssetIndexFilters($filters);
         $result = $this->assets->getAssetListPage(max(1, (int) ($filters['page'] ?? 1)), 18, $normalizedFilters);
@@ -119,7 +119,7 @@ class AssetService
         }
 
         $this->assets->regenerateQrToken($assetId, (int) ($viewer['id'] ?? 0) > 0 ? (int) $viewer['id'] : null);
-        $this->purgeQrCache($assetId); // the old token's cached PNG is now stale
+        $this->purgeQrCache($assetId); // PNG ของ token เดิมที่ cache ไว้ ตอนนี้ล้าสมัยแล้ว
     }
 
     private const PRINT_ASSETS_CAP = 500;
@@ -260,7 +260,7 @@ class AssetService
 
     private function sanitizeExportRow(array $values): array
     {
-        // CSV/spreadsheet injection guard lives in the shared sanitize_export_cell() helper (single source of truth)
+        // การป้องกัน CSV/spreadsheet injection (การแทรกสูตรอันตรายในเซลล์) อยู่ที่ helper sanitize_export_cell() ตัวกลาง (single source of truth)
         return array_map(static fn (mixed $value): string => sanitize_export_cell($value), $values);
     }
 
@@ -314,11 +314,11 @@ class AssetService
 
         $token = (string) $asset['qr_token'];
 
-        // Cache the rendered PNG on the private filesystem, keyed by asset id + token hash. The print sheet
-        // renders up to 500 codes and each <img> is a separate request; rendering a fresh PNG every time is
-        // the wall-time cost (measured ~8.7s for 500). Serve cached bytes on repeat requests. The key
-        // includes the token hash, so a regenerated token misses the old file — a stale image is never
-        // served — and regenerateQrToken purges the previous file.
+        // cache รูป PNG ที่ render แล้วไว้บน private filesystem (พื้นที่เก็บไฟล์ที่เข้าถึงจากภายนอกไม่ได้) โดยใช้ asset id + token hash เป็น key. หน้าพิมพ์
+        // render QR ได้ถึง 500 รหัส และ <img> แต่ละอันคือ request แยกกัน; การ render PNG ใหม่ทุกครั้งคือ
+        // ต้นทุนเวลาที่แท้จริง (วัดได้ ~8.7 วินาที สำหรับ 500 รหัส). request ซ้ำจึงเสิร์ฟ byte จาก cache. key
+        // มี token hash อยู่ด้วย ดังนั้น token ที่สร้างใหม่จะไม่เจอไฟล์เดิม — ไม่มีทางเสิร์ฟรูปที่ล้าสมัย —
+        // และ regenerateQrToken จะลบไฟล์เดิมทิ้ง.
         $cachePath = $this->qrCachePath($assetId, $token);
         $cached = @file_get_contents($cachePath);
         if ($cached !== false && $cached !== '') {
@@ -339,13 +339,13 @@ class AssetService
         return $png;
     }
 
-    /** Private-filesystem cache path for an asset's QR PNG, namespaced by a token hash so a regenerated token misses the old file. */
+    /** path ของ cache รูป QR PNG ของ asset บน private filesystem, แยก namespace ด้วย token hash เพื่อให้ token ที่สร้างใหม่ไม่เจอไฟล์เดิม. */
     private function qrCachePath(int $assetId, string $token): string
     {
         return storage_path('qr-cache/' . $assetId . '-' . substr(hash('sha256', $token), 0, 16) . '.png');
     }
 
-    /** Atomically write the rendered PNG to cache (temp + rename) so a concurrent reader never sees a half-written file. */
+    /** เขียนรูป PNG ที่ render แล้วลง cache แบบ atomic (เขียนไฟล์ temp แล้ว rename) เพื่อไม่ให้ผู้อ่านพร้อมกัน (concurrent reader) เห็นไฟล์ที่เขียนค้างครึ่งทาง. */
     private function writeQrCache(string $path, string $png): void
     {
         $dir = dirname($path);
@@ -358,7 +358,7 @@ class AssetService
         }
     }
 
-    /** Drop any cached PNGs for this asset — a new token renders a new image; old files must not linger. */
+    /** ลบ PNG ที่ cache ไว้ของ asset นี้ทั้งหมด — token ใหม่จะ render รูปใหม่; ไฟล์เดิมต้องไม่ค้างอยู่. */
     private function purgeQrCache(int $assetId): void
     {
         foreach (glob(storage_path('qr-cache/' . $assetId . '-*.png')) ?: [] as $file) {
@@ -421,7 +421,7 @@ class AssetService
         $assetCode = strtoupper(trim((string) ($input['asset_code'] ?? '')));
         $name = trim((string) ($input['name'] ?? ''));
         $serialNumber = trim((string) ($input['serial_number'] ?? ''));
-        // strict_int so a malformed "1junk" reference is rejected, not coerced to its prefix
+        // ใช้ strict_int เพื่อให้ค่าอ้างอิงที่ผิดรูปอย่าง "1junk" ถูกปฏิเสธ ไม่ใช่ถูกแปลงเหลือแค่ส่วนหน้า "1"
         $categoryId = strict_int($input['asset_category_id'] ?? null, 'หมวดหมู่ Asset ');
         $departmentId = strict_int($input['department_id'] ?? null, 'แผนก ');
         $locationId = strict_int($input['location_id'] ?? null, 'สถานที่ ');
@@ -442,8 +442,8 @@ class AssetService
             throw new DomainException('รหัสหรือชื่อ Asset ยาวเกินกว่าที่ระบบรองรับ');
         }
 
-        // Optional text fields — bound to their columns so an over-long value is a friendly message, not a
-        // raw DB error under strict mode (serial/brand/model VARCHAR(100), vendor VARCHAR(150)).
+        // ฟิลด์ข้อความที่ไม่บังคับ — จำกัดความยาวให้ตรงกับ column เพื่อให้ค่าที่ยาวเกินได้ข้อความแจ้งที่เป็นมิตร ไม่ใช่
+        // error ดิบจาก DB ภายใต้ strict mode (serial/brand/model VARCHAR(100), vendor VARCHAR(150)).
         require_max_length($serialNumber, 100, 'Serial Number');
         require_max_length($brand, 100, 'ยี่ห้อ');
         require_max_length($model, 100, 'รุ่น');
@@ -558,7 +558,7 @@ class AssetService
         ];
     }
 
-    /** Active-filter chips (view-model): label + dismiss URL per applied asset filter. */
+    /** chip ของ filter ที่กำลังใช้อยู่ (view-model): label + URL สำหรับปิด (dismiss) ต่อ filter asset แต่ละตัวที่ใช้อยู่. */
     private function buildAssetActiveFilterChips(array $filters, array $options): array
     {
         $dismissUrl = static function (string $removeKey) use ($filters): string {
@@ -705,9 +705,9 @@ class AssetService
 
     private function buildLabel(array $parts): string
     {
-        // Drop empty/placeholder parts and collapse repeated segments
-        // (e.g. location_name == room -> "Server Room / Head Office / Server Room"
-        //  becomes "Server Room / Head Office"), keeping first occurrence.
+        // ตัดส่วนที่ว่าง/เป็น placeholder ทิ้ง และยุบ segment ที่ซ้ำกัน
+        // (เช่น location_name == room -> "Server Room / Head Office / Server Room"
+        //  จะกลายเป็น "Server Room / Head Office") โดยเก็บอันที่พบครั้งแรกไว้.
         $segments = [];
         $seen = [];
         foreach ($parts as $value) {

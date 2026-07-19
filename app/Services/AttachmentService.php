@@ -95,8 +95,8 @@ class AttachmentService
                 ]);
             }
         } catch (Throwable $exception) {
-            // roll back the files already moved for this (failed) upload; log any that can't be removed so a
-            // half-written upload doesn't leave silent orphans.
+            // ย้อน (roll back) ไฟล์ที่ย้ายไปแล้วสำหรับการอัปโหลด (ที่ล้มเหลว) นี้; log ไฟล์ที่ลบไม่ได้ เพื่อไม่ให้
+            // การอัปโหลดที่เขียนค้างครึ่งทางทิ้งไฟล์กำพร้า (orphan) ไว้แบบเงียบ ๆ.
             $this->purgeStoredFiles($storedPaths, 'attachment.store.cleanup', ['ticket' => $ticketId]);
             throw $exception;
         }
@@ -115,8 +115,8 @@ class AttachmentService
     }
 
     /**
-     * Mapped attachments for a specific set of comment ids (live-poll feed). Same disk-existence filter and
-     * mapping as getTicketAttachments, but scoped to the comments being rendered.
+     * attachment ที่ map แล้วสำหรับชุด comment id ที่ระบุ (สำหรับ feed แบบ live-poll). ใช้ตัวกรองว่าไฟล์มีอยู่บนดิสก์จริง
+     * และการ map ชุดเดียวกับ getTicketAttachments แต่จำกัดขอบเขตเฉพาะ comment ที่กำลัง render.
      *
      * @param int[] $commentIds
      * @return array<int, array<string, mixed>>
@@ -132,11 +132,11 @@ class AttachmentService
     }
 
     /**
-     * Delete stored files, returning the paths that FAILED to unlink so the caller can log the orphans instead
-     * of leaving them silently on disk — @unlink's boolean was previously discarded.
+     * ลบไฟล์ที่เก็บไว้ แล้วคืน path ที่ unlink (ลบ) ไม่สำเร็จ เพื่อให้ผู้เรียก log ไฟล์กำพร้าได้ แทนที่จะ
+     * ปล่อยทิ้งไว้บนดิสก์แบบเงียบ ๆ — ค่า boolean ของ @unlink เดิมถูกทิ้งไป.
      *
      * @param string[] $paths
-     * @return string[] paths that existed but could not be deleted
+     * @return string[] path ที่มีอยู่จริงแต่ลบไม่ได้
      */
     public function deleteStoredFiles(array $paths): array
     {
@@ -157,9 +157,9 @@ class AttachmentService
     }
 
     /**
-     * Delete stored files AND record any that could not be removed via the shared logger, so an orphaned file
-     * leaves a trace for support instead of being silently discarded. Every rollback/cleanup path should call
-     * this rather than deleteStoredFiles() directly (whose boolean return is easy to drop).
+     * ลบไฟล์ที่เก็บไว้ และบันทึกไฟล์ที่ลบไม่ได้ผ่าน logger ตัวกลาง เพื่อให้ไฟล์กำพร้า
+     * ทิ้งร่องรอยไว้ให้ทีม support แทนที่จะถูกทิ้งแบบเงียบ ๆ. ทุก path ของ rollback/cleanup ควรเรียก
+     * ตัวนี้ ไม่ใช่เรียก deleteStoredFiles() ตรง ๆ (ซึ่งค่า boolean ที่คืนมาถูกลืมทิ้งได้ง่าย).
      *
      * @param string[] $paths
      * @param array<string, mixed> $context
@@ -190,9 +190,9 @@ class AttachmentService
             throw new RuntimeException('ไม่พบไฟล์แนบในพื้นที่จัดเก็บ');
         }
 
-        // A read failure (permissions, disk error, a race after the is_file check) must NOT be cast to '' and
-        // shipped as a 200 empty download — surface it as an error the controller logs.
-        $content = @file_get_contents($path); // '@' — the failure is surfaced via the throw + controller log, not a raw PHP warning
+        // การอ่านไฟล์ล้มเหลว (permission, disk error, หรือ race หลังเช็ค is_file) ต้องไม่ถูกแปลงเป็น '' แล้ว
+        // ส่งออกไปเป็นดาวน์โหลดเปล่า ๆ ด้วยสถานะ 200 — ให้โยนเป็น error ที่ controller จะ log.
+        $content = @file_get_contents($path); // '@' — ความล้มเหลวถูกแจ้งผ่านการ throw + controller log ไม่ใช่ผ่าน warning ดิบ ๆ ของ PHP
         if ($content === false) {
             throw new RuntimeException('ไม่สามารถอ่านไฟล์แนบจากพื้นที่จัดเก็บ');
         }

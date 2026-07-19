@@ -12,9 +12,9 @@ use DomainException;
 
 class AuthService
 {
-    // Per-IP failed-login cap (password-spraying guard). Deliberately higher than the per-account cap (5) so a
-    // shared-NAT office is not locked out by one bad actor, but low enough to blunt spraying one password across
-    // many usernames from a single source.
+    // เพดานจำนวนครั้ง login ล้มเหลวต่อ IP (กัน password-spraying = ยิงรหัสเดียวไล่หลายชื่อผู้ใช้). ตั้งไว้สูงกว่าเพดานต่อบัญชี (5) โดยตั้งใจ เพื่อให้
+    // ออฟฟิศที่ใช้ NAT ร่วมกัน (shared-NAT = หลายเครื่องออกเน็ตผ่าน IP เดียว) ไม่ถูกล็อกเพราะคนไม่ดีคนเดียว แต่ก็ต่ำพอจะสกัดการยิงรหัสเดียว
+    // ไล่หลายชื่อผู้ใช้จากแหล่งเดียว.
     private const IP_ATTEMPT_CAP = 20;
     private const ATTEMPT_DECAY_SECONDS = 900;
 
@@ -36,8 +36,8 @@ class AuthService
         $ipKey = $this->ipLimiterKey($ipAddress);
         $userAgent = (string) ($_SERVER['HTTP_USER_AGENT'] ?? '');
 
-        // Two nets: the per-(account, IP) cap stops brute-forcing one account; the per-IP cap stops password
-        // spraying (one password across many usernames from a single source), which the account cap alone misses.
+        // ตาข่ายสองชั้น: เพดานต่อ (บัญชี, IP) กันการเดารหัสรัว ๆ (brute-force) ใส่บัญชีเดียว; เพดานต่อ IP กัน password
+        // spraying (รหัสเดียวไล่หลายชื่อผู้ใช้จากแหล่งเดียว) ซึ่งเพดานต่อบัญชีอย่างเดียวจับไม่ได้.
         if ($this->rateLimiter->tooManyAttempts($limiterKey)
             || $this->rateLimiter->tooManyAttempts($ipKey, self::IP_ATTEMPT_CAP, self::ATTEMPT_DECAY_SECONDS)) {
             $seconds = max(
@@ -49,8 +49,8 @@ class AuthService
         }
 
         if ($login === '' || $password === '') {
-            // hit the IP bucket too — otherwise rotating the login value with an empty password from one IP
-            // makes a new (login,IP) pair every time, never tripping any cap while spawning keys.
+            // นับใส่ bucket ของ IP ด้วย — ไม่งั้นการหมุนเปลี่ยนค่า login พร้อมรหัสว่างจาก IP เดียว
+            // จะสร้างคู่ (login,IP) ใหม่ทุกครั้ง ไม่เคยชนเพดานใด ๆ เลยขณะที่ยังผลิต key เพิ่มไปเรื่อย ๆ.
             $this->rateLimiter->hit($limiterKey);
             $this->rateLimiter->hit($ipKey, self::ATTEMPT_DECAY_SECONDS);
             $this->logAttempt($login, null, $ipAddress, $userAgent, false, 'empty_credentials');
@@ -58,10 +58,10 @@ class AuthService
         }
 
         $user = $this->users->findByLogin($login);
-        // Constant-time against user enumeration: run a bcrypt verify on EVERY attempt, even an unknown login,
-        // so the response time never reveals whether the account exists. An unknown login verifies a throwaway
-        // hash (always false) instead of short-circuiting past the ~100ms bcrypt work. The generic error below
-        // already hides existence in the RESPONSE BODY; this closes the TIMING side-channel behind it.
+        // ทำงานเวลาคงที่ (constant-time) เพื่อกันการไล่เดาว่ามีบัญชีอยู่จริงไหม (user enumeration): รัน bcrypt verify ทุกครั้งที่พยายาม login แม้ login จะไม่รู้จัก
+        // เพื่อให้เวลาตอบกลับไม่เผยว่าบัญชีมีอยู่จริงหรือไม่. login ที่ไม่รู้จักจะ verify กับ hash ทิ้ง
+        // (ได้ false เสมอ) แทนที่จะลัดข้ามงาน bcrypt ที่กินเวลา ~100ms. ข้อความ error กลาง ๆ ข้างล่าง
+        // ปิดบังการมีอยู่ของบัญชีใน "เนื้อหาที่ตอบกลับ" (RESPONSE BODY) อยู่แล้ว; ตรงนี้ปิดช่องรั่วผ่าน "เวลา" (TIMING side-channel) ที่อยู่เบื้องหลัง.
         $storedHash = ($user && isset($user['password_hash']))
             ? (string) $user['password_hash']
             : $this->dummyPasswordHash();
@@ -84,8 +84,8 @@ class AuthService
             $this->rateLimiter->hit($limiterKey);
             $this->rateLimiter->hit($ipKey, self::ATTEMPT_DECAY_SECONDS);
             $this->logAttempt($login, (int) ($user['id'] ?? 0), $ipAddress, $userAgent, false, 'account_disabled');
-            // Generic message to prevent user enumeration via account-state probing.
-            // Real reason is recorded in login_attempts for admin Security tab.
+            // ใช้ข้อความกลาง ๆ เพื่อกันการไล่เดาบัญชี (user enumeration) ด้วยการหยั่งสถานะบัญชี.
+            // เหตุผลจริงถูกบันทึกไว้ใน login_attempts สำหรับแท็บ Security ของ admin.
             throw new DomainException('ชื่อผู้ใช้ อีเมล หรือรหัสผ่านไม่ถูกต้อง');
         }
 
@@ -104,10 +104,10 @@ class AuthService
     }
 
     /**
-     * A throwaway bcrypt hash, used only to spend roughly the same bcrypt time on an unknown-login attempt as
-     * on a real one (see attemptLogin), so response timing can't reveal whether an account exists. Computed
-     * once per process at the CURRENT default cost — the same PASSWORD_BCRYPT that changePassword/resetPassword
-     * hash with — so it stays cost-matched even if that default changes. A verify against it always fails.
+     * hash bcrypt แบบใช้แล้วทิ้ง มีไว้เพื่อใช้เวลา bcrypt ให้ใกล้เคียงกันระหว่างการ login ด้วย login ที่ไม่รู้จัก
+     * กับการ login จริง (ดู attemptLogin) เพื่อให้เวลาตอบกลับไม่เผยว่าบัญชีมีอยู่จริงไหม. คำนวณ
+     * ครั้งเดียวต่อ process ที่ค่า cost เริ่มต้นปัจจุบัน — PASSWORD_BCRYPT ตัวเดียวกับที่ changePassword/resetPassword
+     * ใช้ hash — จึงมี cost เท่ากันเสมอแม้ค่าเริ่มต้นนั้นจะเปลี่ยนไป. การ verify กับมันจะล้มเหลว (false) เสมอ.
      */
     private function dummyPasswordHash(): string
     {
@@ -143,10 +143,10 @@ class AuthService
             throw new DomainException('กรุณากรอกอีเมล');
         }
 
-        // Throttle reset requests on three dimensions, all hit unconditionally so none reveals whether the
-        // email exists: the (email,IP) pair (3/15m), an IP-only bucket (10/15m — caps one source fanning out
-        // across many different emails), and an email-only bucket (5/1h — caps bombing ONE inbox from many
-        // IPs).
+        // จำกัดจำนวนคำขอรีเซ็ตใน 3 มิติ ทุกมิติถูกนับเสมอไม่มีเงื่อนไข เพื่อไม่ให้มิติไหนเผยว่าอีเมลนั้น
+        // มีอยู่จริงไหม: คู่ (email,IP) (3 ครั้ง/15 นาที), bucket ต่อ IP อย่างเดียว (10 ครั้ง/15 นาที — จำกัดแหล่งเดียวที่ยิงกระจาย
+        // ไปหลายอีเมล), และ bucket ต่ออีเมลอย่างเดียว (5 ครั้ง/1 ชม. — จำกัดการถล่มอีเมลกล่องเดียวจากหลาย
+        // IP).
         $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
         $normalizedIp = $ip !== '' ? $ip : 'unknown';
         $pairKey = 'pwreset:' . sha1($email . '|' . $normalizedIp);
@@ -163,12 +163,12 @@ class AuthService
 
         $user = $this->users->findByEmail($email);
         if (!$user || !(bool) $user['is_active']) {
-            // Anti-enumeration: an unknown/inactive email produces NO token and NO email — so account existence
-            // can't leak via a reset row, a delivered mail, or a queue side effect. The response text is the
-            // same generic message either way (AuthController), and the rate-limiter above was hit
-            // unconditionally. The remaining timing delta (an active account does ~2 extra DB writes) is an
-            // accepted, rate-limited residual — the DB-write signal is small and noisy, unlike login's bcrypt.
-            // Side-effect parity is locked by auth_test 'password reset creates a token+email ONLY for active'.
+            // กันการไล่เดาบัญชี (anti-enumeration): อีเมลที่ไม่รู้จัก/ถูกปิดใช้งานจะไม่สร้าง token และไม่ส่งอีเมล — การมีอยู่ของบัญชี
+            // จึงรั่วผ่านแถว reset, อีเมลที่ถูกส่ง หรือผลข้างเคียงในคิวไม่ได้. ข้อความตอบกลับเป็น
+            // ข้อความกลาง ๆ เหมือนกันทั้งสองทาง (AuthController) และ rate-limiter ข้างบนก็ถูกนับ
+            // แบบไม่มีเงื่อนไข. ส่วนต่างของเวลาที่เหลืออยู่ (บัญชีที่ active เขียน DB เพิ่มอีก ~2 ครั้ง) เป็น
+            // ค่าตกค้างที่ยอมรับได้และถูกจำกัดอัตราแล้ว — สัญญาณจากการเขียน DB นั้นเล็กและมีสัญญาณรบกวน ต่างจาก bcrypt ของ login.
+            // ความเท่ากันของผลข้างเคียงถูกล็อกไว้ด้วย auth_test 'password reset creates a token+email ONLY for active'.
             return null;
         }
 
@@ -252,15 +252,15 @@ class AuthService
             throw new DomainException('รหัสผ่านใหม่ต้องไม่เหมือนรหัสผ่านปัจจุบัน');
         }
 
-        // updatePassword NULLs the remember token atomically (in the same UPDATE), so the DB-side revocation
-        // cannot be left undone if a later call fails. revokeAllForUser then drops THIS device's cookie (and
-        // re-NULLs defensively). Together: every remembered device — including the acting one — is kicked out.
+        // updatePassword จะเซ็ต remember token เป็น NULL แบบ atomic (ใน UPDATE เดียวกัน) เพื่อให้การเพิกถอนฝั่ง DB
+        // ไม่ค้างคาถ้ามีการเรียกทีหลังล้มเหลว. จากนั้น revokeAllForUser จะลบ cookie ของ "เครื่องนี้" (และ
+        // เซ็ต NULL ซ้ำเผื่อไว้). รวมกัน: ทุกเครื่องที่จำ login ไว้ — รวมถึงเครื่องที่กำลังใช้อยู่ — จะถูกเตะออก.
         $this->users->updatePassword($userId, password_hash($password, PASSWORD_BCRYPT));
         $this->rememberMe->revokeAllForUser($userId);
         Session::regenerate();
 
-        // Re-issue the current session with the new password stamp so this device stays logged in
-        // while other sessions of the same user get kicked out on their next AuthMiddleware refresh.
+        // ออก session ปัจจุบันใหม่พร้อมตราประทับรหัสผ่านใหม่ เพื่อให้เครื่องนี้ยังคง login อยู่
+        // ขณะที่ session อื่น ๆ ของผู้ใช้คนเดียวกันจะถูกเตะออกตอน AuthMiddleware refresh ครั้งถัดไป.
         $freshUser = $this->users->findById($userId);
         if ($freshUser !== null) {
             $this->auth->login($freshUser);
@@ -283,7 +283,7 @@ class AuthService
             throw new DomainException('กรุณากรอกชื่อ-นามสกุลและอีเมลให้ครบถ้วน');
         }
 
-        require_max_length($fullName, 150, 'ชื่อ-นามสกุล'); // users.full_name VARCHAR(150) (was 200 → DB error)
+        require_max_length($fullName, 150, 'ชื่อ-นามสกุล'); // users.full_name เป็น VARCHAR(150) (เดิม 200 → เกิด DB error)
 
         if (!is_valid_email($email)) {
             throw new DomainException('รูปแบบอีเมลไม่ถูกต้อง');
@@ -297,8 +297,8 @@ class AuthService
             throw new DomainException('อีเมลนี้ถูกใช้โดยบัญชีอื่นแล้ว');
         }
 
-        // Require current password confirmation when changing the email
-        // (email is the login identifier + password reset destination)
+        // ต้องยืนยันด้วยรหัสผ่านปัจจุบันเมื่อจะเปลี่ยนอีเมล
+        // (อีเมลเป็นทั้งตัวระบุตัวตนสำหรับ login และปลายทางสำหรับรีเซ็ตรหัสผ่าน)
         $currentEmail = strtolower(trim((string) ($user['email'] ?? '')));
         if ($email !== $currentEmail) {
             $currentPassword = (string) ($input['current_password'] ?? '');
@@ -314,7 +314,7 @@ class AuthService
             'full_name' => $fullName,
             'email' => $email,
             'phone' => $phone,
-            'original_version' => strict_int($input['original_version'] ?? null, 'เวอร์ชันข้อมูล'), // optimistic lock
+            'original_version' => strict_int($input['original_version'] ?? null, 'เวอร์ชันข้อมูล'), // optimistic lock (กันการเขียนทับข้อมูลที่ถูกแก้ไปแล้ว)
         ]);
 
         $this->auth->refresh();

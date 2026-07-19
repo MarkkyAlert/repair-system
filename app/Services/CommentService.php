@@ -41,7 +41,7 @@ class CommentService
         $created = false;
 
         try {
-            // RISK MAP: Comment insert + attachment rows/files must stay atomic; keep storedPaths cleanup with any rollback.
+            // RISK MAP: การ insert comment + row/ไฟล์ของ attachment ต้องเป็น atomic (สำเร็จพร้อมกัน); การ cleanup storedPaths ต้องอยู่คู่กับทุก rollback.
             $this->db->beginTransaction();
             $result = $this->comments->createComment(
                 $ticketId,
@@ -63,7 +63,7 @@ class CommentService
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
             }
-            // roll back files stored for this failed comment; log any that can't be removed
+            // ย้อน (roll back) ไฟล์ที่เก็บไว้สำหรับ comment ที่ล้มเหลวนี้; log ไฟล์ที่ลบไม่ได้
             $this->attachments->purgeStoredFiles($storedPaths, 'comment.create.cleanup', ['ticket' => $ticketId]);
             throw $exception;
         }
@@ -72,8 +72,8 @@ class CommentService
             try {
                 $this->notifications->notifyCommentEvent($ticketId, $commentId, (int) ($viewer['id'] ?? 0), $isInternal, $body, 'created');
             } catch (Throwable $exception) {
-                // best-effort notify — must not fail the already-created comment, but the failure must be
-                // visible (was silently swallowed, so a broken notifier left no trace).
+                // แจ้งเตือนแบบ best-effort — ต้องไม่ทำให้ comment ที่สร้างสำเร็จแล้วล้มเหลว แต่ความล้มเหลวต้อง
+                // มองเห็นได้ (เดิมถูกกลืนแบบเงียบ ๆ ทำให้ notifier ที่พังไม่ทิ้งร่องรอยไว้เลย).
                 log_caught_exception('comment.create.notify', $exception, ['ticket' => $ticketId, 'comment' => $commentId]);
             }
         }
@@ -96,8 +96,8 @@ class CommentService
         }
 
         $this->comments->updateComment($commentId, $body, $isInternal, $originalVersion);
-        // Best-effort notify (matching createComment/deleteComment): the edit is already persisted, so a
-        // notification failure must not surface as an error to the user who successfully saved the comment.
+        // แจ้งเตือนแบบ best-effort (ให้เหมือน createComment/deleteComment): การแก้ไขถูกบันทึกไปแล้ว ดังนั้น
+        // การแจ้งเตือนล้มเหลวต้องไม่โผล่มาเป็น error ให้ user ที่บันทึก comment สำเร็จเห็น.
         try {
             $this->notifications->notifyCommentEvent($ticketId, $commentId, (int) ($viewer['id'] ?? 0), $isInternal, $body, 'updated');
         } catch (\Throwable $exception) {
@@ -131,8 +131,8 @@ class CommentService
             throw $exception;
         }
 
-        // Files that can't be unlinked are logged (not silently dropped) without failing the already-committed
-        // delete — the shared purge helper records the orphans.
+        // ไฟล์ที่ unlink (ลบ) ไม่ได้จะถูก log ไว้ (ไม่ทิ้งแบบเงียบ ๆ) โดยไม่ทำให้การลบที่ commit ไปแล้ว
+        // ล้มเหลว — helper purge ตัวกลางจะบันทึกไฟล์กำพร้าไว้.
         $this->attachments->purgeStoredFiles($paths, 'comment.delete.cleanup', ['comment' => $commentId]);
 
         try {
@@ -145,7 +145,7 @@ class CommentService
                 'deleted'
             );
         } catch (Throwable $exception) {
-            // best-effort notify — the delete already committed; surface the failure instead of swallowing it.
+            // แจ้งเตือนแบบ best-effort — การลบ commit ไปแล้ว; ให้แจ้งความล้มเหลวออกมาแทนที่จะกลืนมันไว้.
             log_caught_exception('comment.delete.notify', $exception, ['ticket' => $ticketId, 'comment' => $commentId]);
         }
     }

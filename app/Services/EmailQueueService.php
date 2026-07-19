@@ -44,8 +44,8 @@ class EmailQueueService
 
     public function queueSystemAnnouncementEmails(array $recipientIds, string $title, string $message): void
     {
-        // Build every recipient's message then enqueue them in bounded multi-row INSERTs — a broadcast to the
-        // whole org was one INSERT per recipient (2 writes/recipient with the notification).
+        // สร้างข้อความของผู้รับทุกคนก่อน แล้ว enqueue เข้าคิวด้วย INSERT แบบหลาย row ที่จำกัดขนาด — เพราะการ broadcast ถึง
+        // ทั้งองค์กรเดิมเป็น 1 INSERT ต่อผู้รับ 1 คน (2 การเขียนต่อผู้รับ รวมกับ notification).
         $payloads = [];
         foreach ($this->users->findActiveUsersByIds($recipientIds) as $recipient) {
             $email = $this->templates->buildSystemAnnouncement($recipient, $title, $message);
@@ -78,7 +78,7 @@ class EmailQueueService
             throw new \RuntimeException('Email queue worker must be executed from CLI.');
         }
 
-        // claimDueEmails handles row locking; this guard keeps the worker out of normal HTTP request paths.
+        // claimDueEmails จัดการ row locking ให้; guard ตัวนี้กันไม่ให้ worker ไปทำงานบน path ของ HTTP request ปกติ.
         $limit = $limit ?? (int) config('mail.queue_batch_size', 10);
         $processingExpiredBefore = date('Y-m-d H:i:s', time() - max(60, (int) config('mail.processing_timeout_seconds', 900)));
         $jobs = $this->queue->claimDueEmails($limit, $processingExpiredBefore);
@@ -94,15 +94,15 @@ class EmailQueueService
             $emailId = (int) ($job['id'] ?? 0);
             $subject = (string) ($job['subject'] ?? '');
             $recipient = (string) ($job['to_email'] ?? '');
-            // The attempts value the claim assigned to this job — the terminal updates below compare-and-set on
-            // it so a stale worker can't clobber a row another worker has since reclaimed. See markSent().
+            // ค่า attempts ที่ตอน claim กำหนดให้ job นี้ — การ update สถานะสุดท้ายด้านล่างจะ compare-and-set (ตรวจแล้วค่อยตั้งค่า) กับ
+            // ค่านี้ เพื่อไม่ให้ worker ที่ค้าง (stale) เขียนทับ row ที่ worker อื่นเคลมไปแล้ว. ดู markSent().
             $claimAttempt = (int) ($job['attempts'] ?? 0);
 
             try {
-                // RISK MAP: delivery is at-least-once BY DESIGN (accepted tradeoff). send() then markSent() —
-                // a crash in between leaves the row 'processing', so it is reclaimed after the timeout and may
-                // be sent again. Exactly-once would require provider-side idempotency; a rare duplicate email
-                // is acceptable for this system and no data is corrupted.
+                // RISK MAP: การส่งเป็นแบบ at-least-once (ส่งอย่างน้อยหนึ่งครั้ง) โดยตั้งใจออกแบบ (เป็น tradeoff ที่ยอมรับ). ลำดับคือ send() แล้ว markSent() —
+                // ถ้า crash ระหว่างนั้น row จะค้างที่ 'processing' จึงถูกเคลมกลับมาใหม่หลัง timeout และอาจ
+                // ถูกส่งซ้ำได้. การทำ exactly-once (ส่งครั้งเดียวเป๊ะ) ต้องอาศัย idempotency ฝั่ง provider; อีเมลซ้ำที่เกิดนาน ๆ ครั้ง
+                // ยอมรับได้สำหรับระบบนี้ และไม่มีข้อมูลเสียหาย.
                 $this->mailer->send($job);
                 $this->queue->markSent($emailId, $claimAttempt);
                 $sent++;

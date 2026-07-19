@@ -7,23 +7,23 @@ namespace App\Services;
 use PDO;
 
 /**
- * PHP-native (pure PDO) database export — produces a restorable MySQL .sql dump without shelling out to
- * mysqldump. Shared hosting frequently disables proc_open/exec and does not ship the mysqldump binary, which
- * left the app with no in-product way to back up before an update; this closes that gap so an admin can always
- * download a backup from the UI.
+ * การ export ฐานข้อมูลแบบ PHP-native (ใช้ PDO ล้วน) — สร้างไฟล์ MySQL .sql dump ที่กู้คืนได้ โดยไม่ต้องเรียก
+ * mysqldump ผ่าน shell. shared hosting (โฮสต์ที่ใช้ทรัพยากรร่วมกัน) มักปิด proc_open/exec และไม่มี binary ของ mysqldump มาให้ ทำให้
+ * แอปไม่มีวิธีสำรองข้อมูลในตัวก่อนอัปเดต; ตัวนี้อุดช่องว่างนั้นเพื่อให้ admin ดาวน์โหลด
+ * backup จาก UI ได้เสมอ.
  */
 class DatabaseExportService
 {
     private const ROWS_PER_INSERT = 200;
 
-    // Cap each INSERT well under a default max_allowed_packet (often 4 MB) so the dump restores on any host.
+    // จำกัดขนาดแต่ละ INSERT ให้ต่ำกว่า max_allowed_packet เริ่มต้น (มักเป็น 4 MB) มาก ๆ เพื่อให้ dump กู้คืนได้บนทุกโฮสต์.
     private const MAX_INSERT_BYTES = 512000;
 
     public function __construct(private PDO $db)
     {
     }
 
-    /** A complete, restorable SQL dump of every base table (structure + data). */
+    /** SQL dump ที่สมบูรณ์และกู้คืนได้ของทุก base table (ทั้งโครงสร้าง + ข้อมูล). */
     public function toSql(): string
     {
         $out = "-- Repair System — database backup\n";
@@ -42,7 +42,7 @@ class DatabaseExportService
         return $out;
     }
 
-    /** @return list<string> base table names in the connected database (views excluded) */
+    /** @return list<string> ชื่อ base table ในฐานข้อมูลที่เชื่อมต่ออยู่ (ไม่รวม view) */
     private function baseTables(): array
     {
         $rows = $this->db->query("SHOW FULL TABLES WHERE Table_type = 'BASE TABLE'")->fetchAll(PDO::FETCH_NUM);
@@ -63,7 +63,7 @@ class DatabaseExportService
         $out .= 'DROP TABLE IF EXISTS ' . $quoted . ";\n";
         $out .= $createSql . ";\n\n";
 
-        // Stream rows so a large table doesn't buffer entirely in memory. Batch INSERTs for a smaller file.
+        // ดึง row แบบ stream เพื่อไม่ให้ตารางขนาดใหญ่ค้างอยู่ใน memory ทั้งหมด. รวม INSERT เป็นชุด (batch) เพื่อให้ไฟล์เล็กลง.
         $stmt = $this->db->query('SELECT * FROM ' . $quoted);
         $batch = [];
         $batchBytes = 0;
@@ -72,7 +72,7 @@ class DatabaseExportService
             $tuple = $this->rowValues($row);
             $batch[] = $tuple;
             $batchBytes += strlen($tuple);
-            // Flush on either a row-count or a byte-size ceiling so one wide row can't build an oversized INSERT.
+            // flush เมื่อถึงเพดานจำนวน row หรือเพดานขนาด byte อย่างใดอย่างหนึ่ง เพื่อไม่ให้ row ที่กว้างมาก ๆ แถวเดียวสร้าง INSERT ที่ใหญ่เกิน.
             if (count($batch) >= self::ROWS_PER_INSERT || $batchBytes >= self::MAX_INSERT_BYTES) {
                 $out .= $this->insertStatement($quoted, $batch);
                 $batch = [];
@@ -91,7 +91,7 @@ class DatabaseExportService
         return $out;
     }
 
-    /** @param array<string, mixed> $row @return string a `(v1, v2, ...)` tuple with each value SQL-quoted */
+    /** @param array<string, mixed> $row @return string tuple `(v1, v2, ...)` ที่ทุกค่าถูก SQL-quote */
     private function rowValues(array $row): string
     {
         $values = [];
@@ -99,8 +99,8 @@ class DatabaseExportService
             if ($value === null) {
                 $values[] = 'NULL';
             } else {
-                // PDO::quote escapes and wraps in quotes; MySQL coerces quoted numerics on insert, so quoting
-                // every non-null value is both safe and correct for this all-text/numeric/datetime schema.
+                // PDO::quote จะ escape และครอบด้วย quote; MySQL จะแปลงค่าตัวเลขที่อยู่ใน quote ตอน insert ให้เอง ดังนั้นการ quote
+                // ทุกค่าที่ไม่ใช่ null จึงทั้งปลอดภัยและถูกต้องสำหรับ schema ที่มีแต่ text/ตัวเลข/datetime นี้.
                 $values[] = $this->db->quote((string) $value);
             }
         }

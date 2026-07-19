@@ -6,9 +6,9 @@ namespace App\Services;
 use App\Repositories\AuditLogRepository;
 
 /**
- * Writes an audit-log entry enriched with the current request's IP + user-agent.
- * Extracted from AdminService::recordAudit so every admin-facing service logs
- * through a single source (shared by AdminService / BroadcastService / …).
+ * เขียน entry ของ audit-log พร้อมข้อมูลเสริมคือ IP + user-agent ของ request ปัจจุบัน.
+ * แยกออกมาจาก AdminService::recordAudit เพื่อให้ทุก service ฝั่ง admin บันทึก log
+ * ผ่าน single source เดียวกัน (ใช้ร่วมกันโดย AdminService / BroadcastService / …).
  */
 class AuditLogger
 {
@@ -22,10 +22,10 @@ class AuditLogger
         $server = $request?->server ?? $_SERVER;
         $userAgent = substr((string) ($server['HTTP_USER_AGENT'] ?? ''), 0, 255);
 
-        // Best-effort: every caller records the audit AFTER the primary mutation has committed (or the
-        // side-effect — e.g. a broadcast — has already been sent), so a failed audit insert must NOT surface as
-        // an error to the user (they'd think the action failed and retry, double-sending). Log it for the admin
-        // Security tab instead and keep the success response.
+        // Best-effort: ทุกผู้เรียกจะบันทึก audit หลังจากที่การแก้ไขหลัก commit ไปแล้ว (หรือ
+        // side-effect — เช่น broadcast — ถูกส่งออกไปแล้ว) ดังนั้นการ insert audit ที่ล้มเหลวต้องไม่โผล่มาเป็น
+        // error ให้ user เห็น (เพราะเขาจะนึกว่างานล้มเหลวแล้วลองใหม่ กลายเป็นส่งซ้ำสองครั้ง). ให้ log ไว้ในแท็บ
+        // Security ของ admin แทน แล้วคงผลลัพธ์ว่าสำเร็จไว้.
         try {
             $this->auditLogs->record([
                 'user_id' => (int) ($viewer['id'] ?? 0),

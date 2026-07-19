@@ -34,8 +34,8 @@ class AdminService
         $categorySla = $this->extractCategorySlaMap($settings);
         $auditFilters = $this->normalizeAuditFilters($query);
         $auditPage = max(1, (int) ($query['audit_page'] ?? 1));
-        // Paginate the users tab (each row renders a full edit form) instead of loading every user; the audit
-        // filter dropdown still needs all users, so it gets a lightweight id+name list.
+        // ทำ pagination (แบ่งหน้า) ให้แท็บ users (แต่ละแถว render ฟอร์มแก้ไขเต็มรูปแบบ) แทนที่จะโหลด user ทุกคน; ส่วน dropdown
+        // filter ของ audit ยังต้องใช้ user ทั้งหมด จึงให้ list แบบเบา ๆ ที่มีแค่ id+name.
         $usersPage = $this->admin->getUsersPage(max(1, (int) ($query['user_page'] ?? 1)), 25);
 
         return [
@@ -86,8 +86,8 @@ class AdminService
         $phone = trim((string) ($input['phone'] ?? ''));
         require_max_length($phone, 30, 'เบอร์โทร'); // users.phone VARCHAR(30)
         if ($phone !== '' && !valid_phone_format($phone)) {
-            // match the profile/import flows — an admin edit must not accept a malformed phone the user's own
-            // profile edit would reject.
+            // ให้สอดคล้องกับ flow ของ profile/import — การแก้ไขโดย admin ต้องไม่รับเบอร์ที่ผิดรูป ซึ่งการแก้ไข profile
+            // ของ user เองก็จะปฏิเสธ.
             throw new DomainException('รูปแบบเบอร์โทรไม่ถูกต้อง');
         }
 
@@ -99,9 +99,9 @@ class AdminService
             throw new DomainException('Role ผู้ใช้งานไม่ถูกต้อง');
         }
 
-        // Same guard as createUser — otherwise an invalid department_id reaches the FK and surfaces as a
-        // PDOException/500 (the form wrapper only catches Domain/Runtime), not a friendly message.
-        $departmentId = strict_int($input['department_id'] ?? null, 'แผนก '); // reject "1junk"
+        // guard ตัวเดียวกับ createUser — ไม่งั้น department_id ที่ไม่ถูกต้องจะไปถึง FK (foreign key) แล้วโผล่มาเป็น
+        // PDOException/500 (ตัวห่อฟอร์มดักจับแค่ Domain/Runtime), ไม่ใช่ข้อความที่เป็นมิตร.
+        $departmentId = strict_int($input['department_id'] ?? null, 'แผนก '); // ปฏิเสธค่าอย่าง "1junk"
         if ($departmentId > 0 && !$this->admin->departmentExists($departmentId)) {
             throw new DomainException('Department ที่เลือกไม่ถูกต้อง');
         }
@@ -129,7 +129,7 @@ class AdminService
         $role = trim((string) ($input['role'] ?? 'requester'));
         $password = (string) ($input['password'] ?? '');
         $passwordConfirmation = (string) ($input['password_confirmation'] ?? '');
-        $departmentId = strict_int($input['department_id'] ?? null, 'แผนก '); // reject "1junk"
+        $departmentId = strict_int($input['department_id'] ?? null, 'แผนก '); // ปฏิเสธค่าอย่าง "1junk"
 
         if ($username === '' || $fullName === '' || $email === '' || $password === '' || $passwordConfirmation === '') {
             throw new DomainException('กรุณากรอกชื่อผู้ใช้ ชื่อ อีเมล และรหัสผ่านให้ครบถ้วน');
@@ -139,7 +139,7 @@ class AdminService
         $phone = trim((string) ($input['phone'] ?? ''));
         require_max_length($phone, 30, 'เบอร์โทร'); // users.phone VARCHAR(30)
         if ($phone !== '' && !valid_phone_format($phone)) {
-            // match the profile/import flows — an admin-created user must not accept a malformed phone.
+            // ให้สอดคล้องกับ flow ของ profile/import — user ที่ admin สร้างต้องไม่รับเบอร์ที่ผิดรูป.
             throw new DomainException('รูปแบบเบอร์โทรไม่ถูกต้อง');
         }
 
@@ -197,8 +197,8 @@ class AdminService
                 ['label' => 'ยกเลิก Ticket ของตนเองก่อนเริ่มงาน', 'roles' => ['requester', 'manager', 'technician', 'admin']],
                 ['label' => 'อนุมัติ/ปฏิเสธ Ticket ที่รออนุมัติ', 'roles' => ['manager', 'admin']],
                 ['label' => 'มอบหมายช่างและจัดคิวงานซ่อม', 'roles' => ['manager', 'admin']],
-                // Hands-on technician work (accept/start/resolve) is technician-only — TicketPolicy::canTechnicianWork
-                // requires the assigned technician; an admin manages/assigns but does not do the repair.
+                // งานลงมือของช่าง (รับงาน/เริ่มงาน/ปิดงาน) เป็นสิทธิ์ของช่างเท่านั้น — TicketPolicy::canTechnicianWork
+                // ต้องเป็นช่างที่ถูกมอบหมาย; admin เป็นผู้จัดการ/มอบหมาย แต่ไม่ได้ลงมือซ่อมเอง.
                 ['label' => 'รับงาน เริ่มงาน และปิดงานซ่อม', 'roles' => ['technician']],
                 ['label' => 'เพิ่ม/แก้ไขความคิดเห็นและโน้ตภายในตามสิทธิ์ Ticket', 'roles' => ['requester', 'manager', 'technician', 'admin']],
                 ['label' => 'จัดการทรัพย์สินและแผ่น QR', 'roles' => ['manager', 'admin']],
@@ -266,9 +266,9 @@ class AdminService
     }
 
     /**
-     * Keep raw contact PII (email/phone) out of the persistent audit record in production — the entry already
-     * identifies the target by entity id + full_name, so the exact address/number need not be retained there.
-     * Dev/local keeps the full values for debugging, matching the mail-log PII policy.
+     * กันข้อมูลติดต่อดิบที่เป็น PII (personally identifiable information — ข้อมูลระบุตัวตน เช่น email/phone) ออกจาก audit record ที่เก็บถาวรบน production — เพราะ entry นั้น
+     * ระบุเป้าหมายด้วย entity id + full_name อยู่แล้ว จึงไม่จำเป็นต้องเก็บ address/เบอร์ที่แท้จริงไว้ตรงนั้น.
+     * Dev/local เก็บค่าเต็มไว้เพื่อ debug ให้ตรงกับนโยบาย PII ของ mail-log.
      *
      * @param array<string, mixed> $context
      * @return array<string, mixed>

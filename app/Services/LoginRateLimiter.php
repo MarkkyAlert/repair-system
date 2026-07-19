@@ -5,9 +5,9 @@ namespace App\Services;
 
 class LoginRateLimiter
 {
-    // Any key untouched for longer than this is beyond every decay window in use (login/reset 900s, guest
-    // 600s), so it can be dropped on the next write — otherwise a key per unique (login|IP) accumulates
-    // forever (only clear() ever removed one) and the JSON file grows unbounded.
+    // key ใดที่ไม่ถูกแตะนานกว่านี้ ถือว่าเลยทุกช่วง decay ที่ใช้อยู่ (login/reset 900 วินาที, guest
+    // 600 วินาที) จึงลบทิ้งได้ตอนเขียนครั้งถัดไป — ไม่งั้น key ต่อคู่ (login|IP) ที่ไม่ซ้ำจะสะสม
+    // ไปเรื่อย ๆ ไม่รู้จบ (มีแค่ clear() เท่านั้นที่เคยลบออก) และไฟล์ JSON จะโตไม่มีขอบเขต.
     private const GLOBAL_MAX_AGE_SECONDS = 3600;
 
     private string $filePath;
@@ -63,8 +63,8 @@ class LoginRateLimiter
 
         $handle = fopen($this->filePath, 'rb');
         if ($handle === false) {
-            // A read failure means the throttle state is unavailable — the limiter degrades to fail-open, so the
-            // reason must be visible (was returned as an empty state silently).
+            // การอ่านล้มเหลวหมายความว่าสถานะ throttle (การจำกัดอัตรา) ใช้ไม่ได้ — limiter จะถอยไปเป็น fail-open (ปล่อยผ่านเมื่อพัง) ดังนั้น
+            // เหตุผลต้องมองเห็นได้ (เดิมคืนเป็นสถานะว่างเงียบ ๆ).
             $this->logDiag('cannot open ' . $this->filePath . ' for read — throttle state unavailable (fail-open)');
             return [];
         }
@@ -81,8 +81,8 @@ class LoginRateLimiter
         }
 
         if ($contents === false) {
-            // The read stream itself failed (I/O error) — distinct from an empty/absent file. Treating it as
-            // empty would silently drop the recorded attempts, so surface it.
+            // ตัว read stream เองล้มเหลว (I/O error) — คนละกรณีกับไฟล์ที่ว่าง/ไม่มี. ถ้าถือว่าเป็น
+            // ว่างจะทำให้ attempt ที่บันทึกไว้หายไปเงียบ ๆ จึงต้องแสดงให้เห็น.
             $this->logDiag('read failed on ' . $this->filePath . ' — throttle state unavailable (fail-open)');
             return [];
         }
@@ -97,7 +97,7 @@ class LoginRateLimiter
             mkdir($directory, 0775, true);
         }
 
-        // RISK MAP: If storage is not writable, login throttling silently degrades; deployment must verify permissions.
+        // RISK MAP: ถ้า storage เขียนไม่ได้ การ throttle login จะเสื่อมสภาพเงียบ ๆ; ตอน deploy ต้องตรวจสิทธิ์การเขียนให้แน่ใจ.
         $handle = fopen($this->filePath, 'c+');
         if ($handle === false) {
             $this->logDiag('cannot open ' . $this->filePath . ' — login throttle DISABLED');
@@ -113,8 +113,8 @@ class LoginRateLimiter
             rewind($handle);
             $existing = stream_get_contents($handle);
             if ($existing === false) {
-                // Couldn't read the current state before rewriting it — the recorded attempts would be lost.
-                // Log and treat as empty (self-heals on this write).
+                // อ่านสถานะปัจจุบันก่อนเขียนทับไม่ได้ — attempt ที่บันทึกไว้จะหายไป.
+                // log ไว้แล้วถือว่าว่าง (จะซ่อมตัวเองเมื่อเขียนครั้งนี้).
                 $this->logDiag('read-before-write failed on ' . $this->filePath . ' — prior throttle state may be lost');
                 $existing = '';
             }
@@ -123,16 +123,16 @@ class LoginRateLimiter
             $payload = $this->dropStaleKeys($payload);
 
             rewind($handle);
-            // A failed/partial write leaves the file corrupt → the next read decodes to empty (fail-open) with no
-            // trace. Check each write step so a full disk / quota is surfaced, not swallowed.
+            // การเขียนที่ล้มเหลว/ไม่ครบจะทำให้ไฟล์เสีย → การอ่านครั้งถัดไป decode ได้เป็นว่าง (fail-open) โดยไม่มี
+            // ร่องรอย. เช็คทุกขั้นตอนการเขียน เพื่อให้ปัญหาดิสก์เต็ม/quota ถูกแสดงออกมา ไม่ใช่ถูกกลืน.
             if (ftruncate($handle, 0) === false) {
                 $this->logDiag('ftruncate failed on ' . $this->filePath . ' — throttle state may be left corrupt');
             }
             $encoded = (string) json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
             $written = fwrite($handle, $encoded);
             if ($written === false || $written < strlen($encoded)) {
-                // A SHORT write (fewer bytes than the payload, e.g. a full disk) is not `false` but still leaves
-                // truncated/corrupt JSON — check the byte count, not just false.
+                // การเขียนที่สั้นเกิน (SHORT write — เขียนได้น้อยไบต์กว่า payload เช่นดิสก์เต็ม) ไม่ได้คืน `false` แต่ก็ยังทิ้ง
+                // JSON ที่ถูกตัด/เสียไว้ — ต้องเช็คจำนวนไบต์ ไม่ใช่แค่ false.
                 $this->logDiag('fwrite incomplete on ' . $this->filePath . ' — wrote ' . var_export($written, true) . ' of ' . strlen($encoded) . ' bytes (throttle state NOT persisted, fail-open)');
             }
             if (fflush($handle) === false) {
@@ -145,9 +145,9 @@ class LoginRateLimiter
     }
 
     /**
-     * One diagnostic channel for every storage degradation — prefixed with the request id so a fail-open
-     * incident on the login page ties to the exact server-log line, like the shared exception logger. The
-     * limiter can't throw (it must degrade to fail-open), so this is the only trace.
+     * ช่องทาง diagnostic (บันทึกวินิจฉัยปัญหา) เดียวสำหรับทุกความเสื่อมของ storage — นำหน้าด้วย request id เพื่อให้เหตุการณ์ fail-open
+     * บนหน้า login โยงไปยังบรรทัด server-log ที่ตรงกันเป๊ะ เหมือนกับ exception logger ที่ใช้ร่วมกัน.
+     * limiter throw ไม่ได้ (มันต้องถอยไปเป็น fail-open) ดังนั้นนี่จึงเป็นร่องรอยเดียวที่มี.
      */
     private function logDiag(string $message): void
     {
@@ -163,9 +163,9 @@ class LoginRateLimiter
 
         $decoded = json_decode($contents, true);
         if (!is_array($decoded)) {
-            // Corrupt state (partial write, manual edit, disk error) — treated as empty means the limiter forgets
-            // every attempt (fail-open). Log it so support sees the cause instead of a silently-reset throttle.
-            // — self-heals on the next successful write.
+            // สถานะเสีย (เขียนไม่ครบ, แก้ด้วยมือ, ดิสก์ error) — ถ้าถือว่าว่างเท่ากับ limiter ลืม
+            // ทุก attempt (fail-open). log ไว้เพื่อให้ทีมซัพพอร์ตเห็นสาเหตุ แทนที่จะเป็น throttle ที่รีเซ็ตเงียบ ๆ.
+            // — จะซ่อมตัวเองเมื่อเขียนสำเร็จครั้งถัดไป.
             $this->logDiag('corrupt JSON in ' . $this->filePath . ' — throttle state treated as empty (fail-open)');
             return [];
         }
@@ -173,7 +173,7 @@ class LoginRateLimiter
         return $decoded;
     }
 
-    /** Drop keys whose newest attempt is older than every decay window — bounds the file to active keys. */
+    /** ลบ key ที่ attempt ล่าสุดเก่ากว่าทุกช่วง decay — จำกัดไฟล์ให้เหลือแค่ key ที่ยัง active. */
     private function dropStaleKeys(array $payload): array
     {
         foreach ($payload as $key => $attempts) {

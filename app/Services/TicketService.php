@@ -111,7 +111,7 @@ class TicketService
         ];
     }
 
-    /** Role-based primary CTA for the dashboard header (view-model). */
+    /** ปุ่ม CTA หลัก (call-to-action = ปุ่มกระตุ้นให้ทำงานต่อ) ตาม role สำหรับหัว dashboard (view-model = ข้อมูลที่จัดรูปไว้ให้หน้าจอแสดง). */
     private function buildDashboardPrimaryCta(string $role): array
     {
         return match ($role) {
@@ -121,7 +121,7 @@ class TicketService
         };
     }
 
-    /** Admin-only: cron jobs that haven't run within their freshness window (view-model). */
+    /** เฉพาะ admin: cron job (งานตั้งเวลาอัตโนมัติ) ที่ยังไม่ได้รันภายในช่วงเวลาที่ควรจะสด (freshness window) (view-model). */
     private function buildDashboardCronHealth(string $role): array
     {
         if ($role !== 'admin') {
@@ -148,9 +148,9 @@ class TicketService
     }
 
     /**
-     * Cron OUTCOME warnings (distinct from staleness): the last run completed but left terminal failures — an
-     * email that exhausted its retries, or an SLA breach whose alert never went out. A healthy heartbeat alone
-     * hid these; the dashboard must surface them.
+     * คำเตือน "ผลลัพธ์" (OUTCOME) ของ cron — คนละเรื่องกับความเก่าค้าง (staleness): รอบล่าสุดรันจบแต่ยังทิ้ง
+     * ความล้มเหลวขั้นสุดท้ายไว้ — อีเมลที่ลองส่งครบจำนวนครั้งแล้วแต่ยังไม่สำเร็จ หรือ SLA ที่เกินกำหนดแต่แจ้งเตือนไม่เคยถูกส่ง.
+     * แค่ heartbeat (สัญญาณว่ายังทำงานอยู่) ที่ดูปกติอย่างเดียวปิดบังสิ่งเหล่านี้ไว้ dashboard จึงต้องแสดงให้เห็น.
      *
      * @return array<int, array{label: string, detail: string, href: string}>
      */
@@ -160,8 +160,8 @@ class TicketService
             return [];
         }
 
-        // Read LIVE via the repository, not the request-cached setting() helper — a just-recorded cron failure
-        // must show immediately, and it keeps this signal test-observable.
+        // อ่านค่าสด (LIVE) ผ่าน repository ไม่ใช่ helper setting() ที่ cache ไว้ต่อ request — ความล้มเหลวของ cron ที่เพิ่งถูกบันทึก
+        // ต้องแสดงผลทันที และยังทำให้สัญญาณนี้ตรวจสอบได้จากเทสต์ (test-observable).
         $settings = app(\App\Repositories\SettingsRepository::class);
         $count = static function (string $key) use ($settings): int {
             if (!$settings instanceof \App\Repositories\SettingsRepository) {
@@ -185,8 +185,8 @@ class TicketService
         if ($backupFailed > 0) {
             $failures[] = ['label' => 'สำรอง database', 'detail' => $backupFailed . ' ไฟล์เก่าลบไม่สำเร็จ (พื้นที่อาจเต็ม)', 'href' => '/admin#tab-backup'];
         }
-        // A cleanup run that COMPLETED but couldn't delete some orphan files (perms/full disk) — the freshness
-        // heartbeat alone showed it as healthy.
+        // รอบล้างไฟล์ที่รันจบแล้ว (COMPLETED) แต่ลบไฟล์กำพร้า (orphan = ไฟล์ที่ไม่มีใครอ้างถึง) บางไฟล์ไม่ได้ (สิทธิ์/ดิสก์เต็ม) —
+        // แค่ heartbeat เรื่องความสดอย่างเดียวแสดงว่ามันปกติดี.
         $orphanFailed = $count('cron_orphan_cleanup_last_failed');
         if ($orphanFailed > 0) {
             $failures[] = ['label' => 'ล้างไฟล์แนบกำพร้า', 'detail' => $orphanFailed . ' ไฟล์กำพร้าลบไม่สำเร็จ (สิทธิ์/พื้นที่อาจมีปัญหา)', 'href' => '/admin/email-queue'];
@@ -248,7 +248,7 @@ class TicketService
         ];
     }
 
-    /** Urgent-work alerts shown above the dashboard (view-model). */
+    /** การแจ้งเตือนงานด่วนที่แสดงเหนือ dashboard (view-model). */
     private function buildDashboardUrgentAlerts(array $metrics): array
     {
         $alerts = [];
@@ -264,7 +264,7 @@ class TicketService
         return $alerts;
     }
 
-    /** Per-chart total/top/avg summary line (view-model) for all dashboard charts. */
+    /** บรรทัดสรุป total/top/avg ของแต่ละกราฟ (view-model) สำหรับกราฟทั้งหมดบน dashboard. */
     private function buildDashboardChartSummaries(array $charts): array
     {
         return [
@@ -297,8 +297,8 @@ class TicketService
 
     public function getTicketIndexData(array $viewer, array $filters = []): array
     {
-        // Only the 5 summary metrics are needed here — fetch them directly instead of
-        // running the full dashboard (charts, breakdowns, CSAT, top lists = ~11 extra queries).
+        // ตรงนี้ต้องใช้แค่ metric สรุป 5 ตัวเท่านั้น — ดึงมาตรง ๆ แทนที่จะ
+        // รัน dashboard เต็ม (กราฟ, breakdown, CSAT, top list = query เพิ่มอีก ~11 ครั้ง).
         $metrics = $this->formatMetrics($this->reads->getDashboardMetrics($viewer, []));
         $normalized = [
             'q' => trim((string) ($filters['q'] ?? '')),
@@ -328,8 +328,8 @@ class TicketService
     }
 
     /**
-     * Active-filter chips (view-model): label + dismiss URL per applied filter.
-     * Moved out of tickets/index.php so the template stays presentation-only.
+     * chip ของฟิลเตอร์ที่กำลังใช้งาน (view-model): แต่ละฟิลเตอร์ที่ถูกใช้จะมี label + URL สำหรับปิด (dismiss).
+     * ย้ายออกมาจาก tickets/index.php เพื่อให้ template ทำหน้าที่แค่แสดงผลอย่างเดียว.
      */
     private function buildTicketFilterChips(array $filters, array $technicians): array
     {
@@ -372,7 +372,7 @@ class TicketService
         return $chips;
     }
 
-    /** Urgent-work alert chips (view-model) shown above the ticket queue. */
+    /** chip แจ้งเตือนงานด่วน (view-model) ที่แสดงเหนือคิว ticket. */
     private function buildTicketUrgentAlerts(array $metrics): array
     {
         $alerts = [];
@@ -463,16 +463,16 @@ class TicketService
 
         $title = trim((string) ($input['title'] ?? ''));
         $description = trim((string) ($input['description'] ?? ''));
-        // strict_int so a malformed "1junk" is rejected up front, not silently coerced to its numeric prefix
+        // ใช้ strict_int เพื่อให้ค่าผิดรูปอย่าง "1junk" ถูกปฏิเสธตั้งแต่ต้น ไม่ใช่แอบแปลงเป็นเลขนำหน้า (1) เงียบ ๆ
         $priorityId = strict_int($input['priority_id'] ?? null, 'Priority ');
         $categoryId = strict_int($input['ticket_category_id'] ?? null, 'Category ');
         $locationId = strict_int($input['location_id'] ?? null, 'Location ');
         $assetId = strict_int($input['asset_id'] ?? null, 'Asset ');
         $impactLevel = strtolower(trim((string) ($input['impact_level'] ?? 'medium')));
         $urgencyLevel = strtolower(trim((string) ($input['urgency_level'] ?? 'medium')));
-        // Origin channel is a TRUSTED ARGUMENT set by the caller (web controller → default 'web'; guest QR
-        // convert → 'qr'), NEVER read from user $input — otherwise a crafted web POST could spoof the source
-        // (channel=phone/email/walk_in) and skew the origin in the detail/reports.
+        // ช่องทางที่มา (channel) เป็นอาร์กิวเมนต์ที่เชื่อถือได้ (TRUSTED) ซึ่งตั้งโดยผู้เรียก (web controller → ค่าเริ่มต้น 'web'; guest QR
+        // convert → 'qr') ห้ามอ่านจาก $input ของผู้ใช้เด็ดขาด — ไม่งั้น web POST ที่ถูกปั้นขึ้นมาอาจปลอมแหล่งที่มา
+        // (channel=phone/email/walk_in) และทำให้ข้อมูลแหล่งที่มาในหน้ารายละเอียด/รายงานเพี้ยน.
         $channel = in_array($channel, ['web', 'qr', 'phone', 'email', 'walk_in'], true) ? $channel : 'web';
         $submissionToken = $this->submissionToken((string) ($input['submission_token'] ?? ''), false);
 
@@ -523,12 +523,12 @@ class TicketService
         $storedPaths = [];
         $ticketId = 0;
         $created = false;
-        // Participate in an outer transaction when the caller already opened one (guest-request convert wraps
-        // ticket-create + claim/link atomically); own commit/rollback/notify only when we started it.
+        // ถ้าผู้เรียกเปิด transaction ครอบไว้อยู่แล้วก็ร่วมใช้ transaction นั้น (guest-request convert ครอบ
+        // การสร้าง ticket + claim/link ให้เป็นก้อนเดียวแบบ atomic); จะ commit/rollback/notify เองเฉพาะตอนที่เราเป็นคนเริ่ม transaction เท่านั้น.
         $startedTransaction = !$this->db->inTransaction();
 
         try {
-            // RISK MAP: Ticket insert + attachment rows/files must stay atomic; keep storedPaths cleanup with any rollback.
+            // RISK MAP: การ insert ticket + แถว/ไฟล์แนบต้องอยู่เป็นก้อนเดียวแบบ atomic; ต้องล้าง storedPaths ไปพร้อมกับทุกครั้งที่ rollback.
             if ($startedTransaction) {
                 $this->db->beginTransaction();
             }
@@ -564,13 +564,13 @@ class TicketService
             if ($startedTransaction && $this->db->inTransaction()) {
                 $this->db->rollBack();
             }
-            // roll back files stored for this failed ticket; log any that can't be removed
+            // ย้อนคืน (ลบ) ไฟล์ที่เก็บไว้สำหรับ ticket ที่ล้มเหลวนี้; ถ้าลบไฟล์ไหนไม่ได้ให้ log ไว้
             $this->attachments->purgeStoredFiles($storedPaths, 'ticket.create.cleanup', ['ticket' => $ticketId]);
             throw $exception;
         }
 
-        // When participating in an outer transaction the ticket isn't durable until that caller commits — it is
-        // then responsible for notifying. Notify here only when we committed above.
+        // เมื่อร่วมใช้ transaction ที่ครอบอยู่ ticket จะยังไม่ถูกบันทึกจริงจนกว่าผู้เรียกจะ commit — ผู้เรียกนั้น
+        // จึงเป็นฝ่ายรับผิดชอบการแจ้งเตือนเอง. จะแจ้งเตือนตรงนี้เฉพาะตอนที่เรา commit ไปข้างบนแล้วเท่านั้น.
         if ($created && $startedTransaction) {
             try {
                 $this->notifications->notifyTicketEvent($ticketId, 'ticket.created', (int) ($viewer['id'] ?? 0));
@@ -603,7 +603,7 @@ class TicketService
     }
 
     /**
-     * Lightweight state สำหรับ live poll ในหน้า ticket detail — status + จำนวน comment ที่ผู้ดูเห็น.
+     * ข้อมูลสถานะแบบเบา (lightweight) สำหรับ live poll ในหน้า ticket detail — status + จำนวน comment ที่ผู้ดูเห็น.
      * คืน null ถ้าไม่มีสิทธิ์เห็น ticket (visibility เดียวกับ getTicketDetailData).
      *
      * @return array{status: string, comment_count: int}|null
@@ -638,9 +638,9 @@ class TicketService
 
         $includeInternal = (string) ($viewer['role'] ?? 'guest') !== 'requester';
 
-        // Fetch ONLY comments newer than $afterId, not the whole thread filtered in PHP. On an idle poll
-        // (no new comments — the common case at 20s intervals) return early WITHOUT the attachments read, so
-        // a quiet ticket costs one bounded query instead of scanning every comment + attachment.
+        // ดึงเฉพาะ comment ที่ใหม่กว่า $afterId เท่านั้น ไม่ใช่ดึงทั้ง thread มากรองใน PHP. ตอน poll ที่ไม่มีอะไรเปลี่ยน
+        // (ไม่มี comment ใหม่ — กรณีที่พบบ่อยเมื่อ poll ทุก 20 วินาที) จะ return ออกก่อนโดยไม่อ่านไฟล์แนบ ดังนั้น
+        // ticket ที่เงียบ ๆ จึงเสียแค่ query เดียวที่จำกัดขอบเขต แทนที่จะสแกนทุก comment + ไฟล์แนบ.
         $comments = $this->comments->getCommentsAfterId($ticketId, $afterId, $includeInternal);
         if ($comments === []) {
             return [];
@@ -758,7 +758,7 @@ class TicketService
         ];
     }
 
-    /** Public: shared ticket-detail mapping used by show() and TicketPrintService. */
+    /** Public: การ map ข้อมูลรายละเอียด ticket ที่ใช้ร่วมกันโดย show() และ TicketPrintService. */
     public function mapTicketDetail(array $ticket): array
     {
         $mapped = $this->mapTicketSummary($ticket);
@@ -1049,9 +1049,9 @@ class TicketService
         }
 
         if ($achievedTimestamp !== false) {
-            // An achievement BEFORE the ticket was requested is impossible data (bad seed/import) — it can't be
-            // judged met/breached, so treat SLA as unavailable rather than a false "met". Keeps this ticket-detail
-            // classification in step with the report's (ReportService::buildSlaMetricState).
+            // การที่งานสำเร็จ (achieved) ก่อนเวลาที่แจ้ง ticket เป็นข้อมูลที่เป็นไปไม่ได้ (seed/import ผิด) — ตัดสิน
+            // ว่าตรงเวลา (met) หรือเกินกำหนด (breached) ไม่ได้ จึงถือว่า SLA ใช้งานไม่ได้ (unavailable) แทนการบอกว่า "met" แบบผิด ๆ. ทำให้การจัดหมวด
+            // ในหน้ารายละเอียด ticket นี้สอดคล้องกับของรายงาน (ReportService::buildSlaMetricState).
             if ($requestedTimestamp !== false && $achievedTimestamp < $requestedTimestamp) {
                 return [
                     'name' => $name,
@@ -1168,8 +1168,8 @@ class TicketService
             ], $reference['categories'] ?? [])),
             'statusOptions' => ticket_status_options(true),
             'yearOptions' => array_map(fn (int $year): array => [
-                'value' => (string) $year,          // query value stays Gregorian
-                'label' => thai_year($year),        // display in Buddhist year
+                'value' => (string) $year,          // ค่าที่ใช้ query ยังเป็นปี ค.ศ. (Gregorian)
+                'label' => thai_year($year),        // แสดงผลเป็นปี พ.ศ. (Buddhist year)
             ], $years),
             'active_count' => $this->countActiveDashboardFilters($filters),
         ];
@@ -1196,7 +1196,7 @@ class TicketService
 
     private function monthLabels(): array
     {
-        // Thai month abbreviations so the dashboard charts read the same calendar as tickets/reports.
+        // ชื่อย่อเดือนภาษาไทย เพื่อให้กราฟบน dashboard ใช้ปฏิทินเดียวกับหน้า tickets/reports.
         return ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
     }
 
@@ -1225,7 +1225,7 @@ class TicketService
 
     private function enumOptions(array $values): array
     {
-        // Used only for impact/urgency severity selects (low/medium/high/critical).
+        // ใช้เฉพาะกับ select ของระดับผลกระทบ/ความเร่งด่วน (severity: low/medium/high/critical).
         return array_map(static fn (string $value): array => [
             'value' => $value,
             'label' => severity_label_th($value),

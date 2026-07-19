@@ -13,26 +13,26 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use RuntimeException;
 
 /**
- * Shared file-production layer for report exports: turns already-mapped rows into an .xlsx / .csv / .pdf
- * binary. Stateless (no DB, no request state) so it is trivially unit-testable and reusable by any exporter.
+ * ชั้นผลิตไฟล์ที่ใช้ร่วมกันสำหรับ export รายงาน: แปลงแถวที่ map แล้วให้เป็นไฟล์ไบนารี .xlsx / .csv / .pdf.
+ * ไม่มี state (ไม่มี DB, ไม่มี request state) จึง unit-test ได้ง่ายมากและ exporter ตัวไหนก็นำไปใช้ซ้ำได้.
  *
- * Every path runs each row through sanitizeExportRow(), so the CSV/formula-injection guard cannot be
- * forgotten by an individual export method — feed rows in, get a safe file out. Job-tracking (the
- * export_jobs audit) is a separate concern and stays with the caller.
+ * ทุกเส้นทางส่งแต่ละแถวผ่าน sanitizeExportRow() ดังนั้น guard กัน CSV/formula-injection จึงไม่มีทางถูก
+ * เมธอด export ตัวใดตัวหนึ่งลืม — ป้อนแถวเข้าไป ได้ไฟล์ที่ปลอดภัยออกมา. การติดตาม job (audit ใน
+ * export_jobs) เป็นคนละเรื่อง และอยู่กับตัวเรียก.
  */
 class ReportExporter
 {
-    /** Neutralise every cell in a row against CSV/spreadsheet formula injection (leading `'` on = + - @). */
+    /** ทำให้ทุกเซลล์ในแถวปลอดภัยจาก CSV/spreadsheet formula injection (เติม `'` นำหน้าเมื่อขึ้นต้นด้วย = + - @) */
     public function sanitizeExportRow(array $values): array
     {
         return array_map(static fn (mixed $value): string => sanitize_export_cell($value), $values);
     }
 
     /**
-     * Write one Excel row, per cell: a pure percentage label ("50.0%", "+25.0%") is stored as a real number
-     * (0.5) with a percentage display format so the exec/manager can pivot/sum it — text "50.0%" cannot be
-     * aggregated. Everything else keeps the formula-injection guard; numeric-string cells like
-     * "4.50"/"2" still become numbers via the default value binder.
+     * เขียน Excel หนึ่งแถว ทีละเซลล์: ป้ายที่เป็นเปอร์เซ็นต์ล้วน ("50.0%", "+25.0%") ถูกเก็บเป็นตัวเลขจริง
+     * (0.5) พร้อม format แสดงผลแบบเปอร์เซ็นต์ เพื่อให้ผู้บริหาร/ผู้จัดการ pivot/sum ได้ — text "50.0%" นำไป
+     * aggregate ไม่ได้. ที่เหลือทั้งหมดยังคง guard กัน formula-injection ไว้; เซลล์ที่เป็น string ตัวเลขอย่าง
+     * "4.50"/"2" ยังกลายเป็นตัวเลขผ่าน default value binder.
      */
     private function writeDataRow(Worksheet $sheet, int $rowNumber, array $row): void
     {
@@ -41,31 +41,31 @@ class ReportExporter
             $coord = Coordinate::stringFromColumnIndex($colIndex) . $rowNumber;
             $string = (string) $value;
             if ($value instanceof \App\Support\ExportText) {
-                // an explicit textual identifier (asset_code, ticket_no) → verbatim text, never number-inferred
+                // ตัวระบุที่เป็น text ชัดเจน (asset_code, ticket_no) → เก็บเป็น text ตามตัวอักษร ไม่เดาเป็นตัวเลข
                 $sheet->setCellValueExplicit($coord, sanitize_export_cell($string), DataType::TYPE_STRING);
             } elseif (is_int($value) || is_float($value)) {
-                // a TYPED number (count, delta, negative net, bare-number metric) → numeric; it is provably a value,
-                // never a formula or an identifier. Callers pass metrics typed and identifiers as strings (below).
+                // ตัวเลขที่กำหนด type แล้ว (count, delta, net ติดลบ, metric ตัวเลขเปล่า) → numeric; พิสูจน์ได้ว่าเป็นค่า
+                // ไม่ใช่ formula หรือ identifier แน่นอน. ตัวเรียกส่ง metric แบบ typed และส่ง identifier เป็น string (ด้านล่าง).
                 $sheet->setCellValueExplicit($coord, $value, DataType::TYPE_NUMERIC);
             } elseif (preg_match('/^[+-]?\d+(\.\d+)?%$/', $string) === 1) {
                 $sheet->setCellValueExplicit($coord, (float) rtrim($string, '%') / 100, DataType::TYPE_NUMERIC);
                 $sheet->getStyle($coord)->getNumberFormat()->setFormatCode('0.0%');
             } elseif (preg_match('/^[+-]?\d{1,3}(,\d{3})+(\.\d+)?$/', $string) === 1) {
-                // thousands-formatted number ("1,234.0" from number_format ≥ 1000) → a real number with a
-                // grouped display, so Excel can sum/pivot it instead of leaving it as text.
+                // ตัวเลขที่ format หลักพันแล้ว ("1,234.0" จาก number_format ≥ 1000) → เป็นตัวเลขจริงที่มีการ
+                // แสดงผลแบบจัดกลุ่มหลัก เพื่อให้ Excel sum/pivot ได้ แทนที่จะปล่อยเป็น text.
                 $dotPos = strpos($string, '.');
                 $decimals = $dotPos === false ? 0 : strlen($string) - $dotPos - 1;
                 $sheet->setCellValueExplicit($coord, (float) str_replace(',', '', $string), DataType::TYPE_NUMERIC);
                 $sheet->getStyle($coord)->getNumberFormat()->setFormatCode('#,##0' . ($decimals > 0 ? '.' . str_repeat('0', $decimals) : ''));
             } elseif (preg_match('/^-?\d+\.\d+$/', $string) === 1) {
-                // a formatted DECIMAL metric label ("5.0", "9.0") — a decimal string is never a leading-zero
-                // identifier, so it is safe to store numeric for pivot/sum.
+                // ป้าย metric ที่เป็นทศนิยม format แล้ว ("5.0", "9.0") — string ทศนิยมไม่มีทางเป็น identifier ที่ขึ้นต้น
+                // ด้วยเลขศูนย์ จึงปลอดภัยที่จะเก็บเป็น numeric ไว้ pivot/sum.
                 $sheet->setCellValueExplicit($coord, (float) $string, DataType::TYPE_NUMERIC);
             } else {
-                // EVERYTHING else is text — INCLUDING a digit-only identifier string (asset_code "0028712749",
-                // ticket_no): stored explicitly as text so leading zeros survive and long codes keep precision.
-                // Never let PhpSpreadsheet's default value binder coerce an identifier string to a number.
-                // The formula-injection guard still applies. (A plain-integer METRIC must be passed typed, above.)
+                // ที่เหลือทั้งหมดเป็น text — รวมถึง string identifier ที่เป็นตัวเลขล้วน (asset_code "0028712749",
+                // ticket_no): เก็บเป็น text อย่างชัดเจน เพื่อให้เลขศูนย์นำหน้าไม่หายและ code ยาว ๆ คงความแม่นยำ.
+                // อย่าปล่อยให้ default value binder ของ PhpSpreadsheet แปลง string identifier เป็นตัวเลข.
+                // guard กัน formula-injection ยังมีผลอยู่. (metric ที่เป็น integer ล้วนต้องส่งแบบ typed ตามด้านบน.)
                 $sheet->setCellValueExplicit($coord, sanitize_export_cell($value), DataType::TYPE_STRING);
             }
             $colIndex++;
@@ -73,8 +73,8 @@ class ReportExporter
     }
 
     /**
-     * Build a single-sheet .xlsx from already-mapped rows. Always sanitises each row, so no *Excel export
-     * can forget the formula-injection guard.
+     * สร้างไฟล์ .xlsx แบบ sheet เดียวจากแถวที่ map แล้ว. sanitise ทุกแถวเสมอ ดังนั้น export แบบ *Excel ตัวไหน
+     * ก็ไม่มีทางลืม guard กัน formula-injection.
      *
      * @param array<int, string>            $headers
      * @param array<int, array<int, mixed>> $rows
@@ -95,8 +95,8 @@ class ReportExporter
     }
 
     /**
-     * Append an extra sanitised sheet to an existing Spreadsheet (for multi-sheet exports like CSAT /
-     * the ticket report). Callers that need a single sheet use buildXlsxExport instead.
+     * เพิ่ม sheet ที่ sanitise แล้วอีกหนึ่งใบเข้า Spreadsheet ที่มีอยู่ (สำหรับ export หลาย sheet อย่าง CSAT /
+     * รายงาน ticket). ตัวเรียกที่ต้องการ sheet เดียวให้ใช้ buildXlsxExport แทน.
      *
      * @param array<int, string>            $headers
      * @param array<int, array<int, mixed>> $rows
@@ -107,11 +107,11 @@ class ReportExporter
     }
 
     /**
-     * Write a title + header row + data rows into a worksheet through the shared per-cell writer
-     * (writeDataRow), so EVERY sheet gets the same numeric-percentage + formula-injection handling —
-     * single-sheet exports, extra sheets, or a multi-sheet exporter's own active sheet. Public so callers
-     * that manage their own Spreadsheet (e.g. CSAT's 2-sheet export) fill their active sheet through the one
-     * writer instead of a hand-rolled fromArray() that would drop percentages to text.
+     * เขียน title + แถว header + แถวข้อมูล ลงใน worksheet ผ่าน writer ทีละเซลล์ที่ใช้ร่วมกัน
+     * (writeDataRow) เพื่อให้ทุก sheet ได้การจัดการ numeric-percentage + formula-injection แบบเดียวกัน —
+     * ทั้ง export sheet เดียว, sheet เสริม, หรือ active sheet ของ exporter แบบหลาย sheet เอง. เป็น public เพื่อให้ตัวเรียก
+     * ที่จัดการ Spreadsheet ของตัวเอง (เช่น export 2 sheet ของ CSAT) เติม active sheet ของตัวเองผ่าน writer
+     * ตัวเดียวนี้ แทนการเขียน fromArray() เองซึ่งจะทำให้เปอร์เซ็นต์กลายเป็น text.
      *
      * @param array<int, string>            $headers
      * @param array<int, array<int, mixed>> $rows
@@ -134,8 +134,8 @@ class ReportExporter
     }
 
     /**
-     * Build a UTF-8 CSV (with BOM) from already-mapped rows. Always sanitises each row, so no *Csv export
-     * can forget the formula-injection guard.
+     * สร้าง CSV แบบ UTF-8 (มี BOM) จากแถวที่ map แล้ว. sanitise ทุกแถวเสมอ ดังนั้น export แบบ *Csv ตัวไหน
+     * ก็ไม่มีทางลืม guard กัน formula-injection.
      *
      * @param array<int, string>            $headers
      * @param array<int, array<int, mixed>> $rows
@@ -146,10 +146,10 @@ class ReportExporter
     }
 
     /**
-     * Multi-section CSV: one UTF-8 BOM (so Excel reads Thai), then each section as an optional title row + header
-     * row + sanitised data rows, separated by a blank line. Lets the /reports CSV carry the ticket table AND the
-     * analytics blocks (parity with the Excel sheets / screen) while each block stays a clean pivotable table.
-     * Each section = ['headers' => string[], 'rows' => array<array>, 'title' => ?string].
+     * CSV แบบหลาย section: มี UTF-8 BOM หนึ่งตัว (เพื่อให้ Excel อ่านไทยได้) แล้วแต่ละ section เป็นแถว title (มีหรือไม่ก็ได้) + แถว
+     * header + แถวข้อมูลที่ sanitise แล้ว คั่นด้วยบรรทัดว่าง. ทำให้ CSV ของ /reports พกทั้งตาราง ticket และ
+     * บล็อก analytics (parity กับ sheet ของ Excel / หน้าจอ) โดยแต่ละบล็อกยังเป็นตาราง pivot ได้สะอาด ๆ.
+     * แต่ละ section = ['headers' => string[], 'rows' => array<array>, 'title' => ?string].
      */
     public function buildCsvSections(array $sections): string
     {
@@ -161,7 +161,7 @@ class ReportExporter
         $first = true;
         foreach ($sections as $section) {
             if (!$first) {
-                fputcsv($stream, []); // blank line between sections
+                fputcsv($stream, []); // บรรทัดว่างคั่นระหว่าง section
             }
             $first = false;
             $title = (string) ($section['title'] ?? '');
@@ -181,10 +181,10 @@ class ReportExporter
     }
 
     /**
-     * Render an HTML string to a PDF binary via Dompdf with the shared report defaults: A4 landscape,
-     * Thai 'sarabun' font (so Thai text renders instead of tofu boxes), remote assets disabled, and a
-     * writable temp dir (falls back to /tmp then storage/uploads when the system temp dir is unusable).
-     * Single source of truth for every report PDF exporter — no export path can drift on font/paper/temp.
+     * เรนเดอร์ HTML string ให้เป็นไฟล์ไบนารี PDF ผ่าน Dompdf ด้วยค่า default ร่วมของรายงาน: A4 แนวนอน,
+     * ฟอนต์ไทย 'sarabun' (เพื่อให้ข้อความไทยแสดงผลได้ ไม่เป็นกล่อง tofu), ปิด remote assets และใช้
+     * temp dir ที่เขียนได้ (fallback ไป /tmp แล้วต่อด้วย storage/uploads เมื่อ temp dir ของระบบใช้ไม่ได้).
+     * เป็น single source of truth ของ exporter PDF ทุกรายงาน — ไม่มีเส้นทาง export ไหนหลุดเรื่อง font/paper/temp ได้.
      */
     public function renderPdf(string $html): string
     {

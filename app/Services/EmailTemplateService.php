@@ -74,12 +74,12 @@ class EmailTemplateService
     }
 
     /**
-     * Persist an admin's edits to a template's overridable fields. Validates the template key against
-     * the registry (never trust an arbitrary key from the request) and writes each registered field,
-     * trimming its value. Invalidates the override cache so a later read in the same request is fresh.
+     * บันทึกการแก้ไขของ admin ลงในฟิลด์ของ template ที่ override ได้. ตรวจสอบ template key เทียบกับ
+     * registry (อย่าเชื่อ key ที่ส่งมามั่ว ๆ จาก request) แล้วเขียนทุกฟิลด์ที่ลงทะเบียนไว้
+     * โดย trim ค่าให้ด้วย. ล้าง cache ของ override เพื่อให้การอ่านครั้งถัดไปใน request เดียวกันได้ค่าสด.
      *
-     * @param array<string, mixed> $input raw request input keyed by field
-     * @throws DomainException when the template key is not in the registry
+     * @param array<string, mixed> $input input ดิบจาก request ที่ key ด้วยชื่อฟิลด์
+     * @throws DomainException เมื่อ template key ไม่มีอยู่ใน registry
      */
     public function saveOverrides(string $templateKey, array $input, int $editorId): void
     {
@@ -88,8 +88,8 @@ class EmailTemplateService
             throw new DomainException('ไม่พบ template ที่ต้องการบันทึก');
         }
 
-        // All-or-nothing: save every registered field in one transaction (see upsertFields) so a mid-save
-        // failure can't leave a template half-updated (e.g. a new subject paired with the old body).
+        // ทำแบบ all-or-nothing (สำเร็จทั้งหมดหรือไม่สำเร็จเลย): บันทึกทุกฟิลด์ที่ลงทะเบียนไว้ใน transaction เดียว (ดู upsertFields) เพื่อไม่ให้
+        // การล้มเหลวกลางคันทำให้ template อัปเดตค้างครึ่ง ๆ (เช่น subject ใหม่แต่จับคู่กับ body เดิม).
         $fieldValues = [];
         foreach ($meta['fields'] as $fieldKey) {
             $fieldValues[$fieldKey] = trim((string) ($input[$fieldKey] ?? ''));
@@ -100,10 +100,10 @@ class EmailTemplateService
     }
 
     /**
-     * Reset a template back to its built-in defaults (drop all overrides). Validates the key against
-     * the registry and invalidates the override cache.
+     * รีเซ็ต template กลับไปเป็นค่าเริ่มต้นในตัว (ลบ override ทั้งหมด). ตรวจสอบ key เทียบกับ
+     * registry และล้าง cache ของ override.
      *
-     * @throws DomainException when the template key is not in the registry
+     * @throws DomainException เมื่อ template key ไม่มีอยู่ใน registry
      */
     public function resetOverrides(string $templateKey): void
     {
@@ -290,7 +290,7 @@ class EmailTemplateService
         ];
     }
 
-    /** Preview/test-send sample of the password-reset email using the current admin as recipient. */
+    /** ตัวอย่างสำหรับ preview/ทดสอบส่งของอีเมล password-reset โดยใช้ admin ปัจจุบันเป็นผู้รับ. */
     public function buildSamplePasswordReset(array $viewer): array
     {
         return $this->buildPasswordReset(
@@ -304,7 +304,7 @@ class EmailTemplateService
         );
     }
 
-    /** Preview/test-send sample of a ticket-event email using the current admin as recipient. */
+    /** ตัวอย่างสำหรับ preview/ทดสอบส่งของอีเมล ticket-event โดยใช้ admin ปัจจุบันเป็นผู้รับ. */
     public function buildSampleTicketEvent(array $viewer): array
     {
         return $this->buildTicketEvent(

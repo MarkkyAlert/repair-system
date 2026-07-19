@@ -9,9 +9,9 @@ use PDO;
 use Throwable;
 
 /**
- * Admin system configuration: freeform settings, the core system-settings form
- * (app name / timezone / ticket prefix / business hours) and the organisation logo.
- * Extracted from AdminService; reads for the settings page stay in AdminService.
+ * การตั้งค่าระบบสำหรับ admin: setting แบบอิสระ (freeform), ฟอร์ม system-settings หลัก
+ * (ชื่อระบบ / timezone / ticket prefix / เวลาทำการ) และโลโก้องค์กร.
+ * แยกออกมาจาก AdminService; ส่วนการอ่านข้อมูลของหน้า settings ยังอยู่ใน AdminService.
  */
 class SystemSettingsService
 {
@@ -26,7 +26,7 @@ class SystemSettingsService
         'default_timezone',  // /admin/system-settings
         'ticket_prefix',     // /admin/system-settings
         'business_hours',    // /admin/system-settings
-        'setup_completed',   // /setup — system-state flag (SetupController writes it via the repo, not this endpoint)
+        'setup_completed',   // /setup — flag บอกสถานะระบบ (SetupController เขียนผ่าน repo ไม่ใช่ endpoint นี้)
     ];
 
     /**
@@ -36,8 +36,8 @@ class SystemSettingsService
         'category_sla_',  // /admin/categories/*
     ];
 
-    /** Max length of the system name — single source for both first-run setup and the system-settings edit, so
-     *  the same value can't be accepted in one flow and rejected in the other. */
+    /** ความยาวสูงสุดของชื่อระบบ — เป็นแหล่งเดียวที่ใช้ทั้งตอน setup ครั้งแรกและตอนแก้ system-settings เพื่อไม่ให้
+     *  ค่าเดียวกันถูกยอมรับในทางหนึ่งแต่ถูกปฏิเสธในอีกทางหนึ่ง. */
     public const APP_NAME_MAX_LENGTH = 100;
 
     public function __construct(
@@ -116,7 +116,7 @@ class SystemSettingsService
             throw new DomainException('กรุณากรอกชื่อระบบ');
         }
 
-        // Match first-run setup's limit — the same name must not be rejected there but accepted here.
+        // ให้ตรงกับลิมิตของ setup ครั้งแรก — ชื่อเดียวกันต้องไม่ถูกปฏิเสธที่นั่นแต่ยอมรับที่นี่.
         if (mb_strlen($appName) > self::APP_NAME_MAX_LENGTH) {
             throw new DomainException('ชื่อระบบยาวเกินกำหนด (สูงสุด ' . self::APP_NAME_MAX_LENGTH . ' ตัวอักษร)');
         }
@@ -178,8 +178,8 @@ class SystemSettingsService
 
         $remove = truthy_input($input['remove_logo'] ?? '0');
         if ($remove) {
-            // Serialize the read-current → upsert → delete-previous swap (see withLogoPathLock) so a concurrent
-            // logo change can't leave a file with no reference.
+            // ทำ swap อ่านค่าปัจจุบัน → upsert → ลบไฟล์เดิม แบบทีละราย (serialize) (ดู withLogoPathLock) เพื่อไม่ให้
+            // การเปลี่ยนโลโก้พร้อมกันทิ้งไฟล์ที่ไม่มีอะไรอ้างถึงไว้.
             $this->withLogoPathLock(function () use ($viewer): void {
                 $currentLogoPath = $this->currentLogoFilePath();
                 $this->settings->upsert('app_logo_path', '', 'string', true, (int) ($viewer['id'] ?? 0));
@@ -228,11 +228,11 @@ class SystemSettingsService
         }
 
         $relativeStoredPath = $relativeDirectory . '/' . $storedName;
-        // The file is already on disk. Serialize read-current → upsert → delete-previous so two admins uploading
-        // at once can't orphan a file (whoever runs second reads the first's path as "current" and deletes it).
-        // The outer try/catch cleans up the just-moved file if ACQUIRING THE LOCK or the upsert fails — otherwise
-        // that ≤1MB file would linger with no setting referencing it. $committed guards the case where the new
-        // path was already stored: a later best-effort delete-previous must never take the referenced file down.
+        // ไฟล์อยู่บนดิสก์แล้ว. ทำ อ่านค่าปัจจุบัน → upsert → ลบไฟล์เดิม แบบทีละราย (serialize) เพื่อไม่ให้ admin สองคนที่อัปโหลด
+        // พร้อมกันทิ้งไฟล์กำพร้า (orphan) (คนที่รันทีหลังจะอ่าน path ของคนแรกว่าเป็น "ปัจจุบัน" แล้วลบมันทิ้ง).
+        // try/catch รอบนอกจะล้างไฟล์ที่เพิ่งย้ายมา ถ้าการ "ขอ lock" (ACQUIRING THE LOCK) หรือ upsert ล้มเหลว — ไม่งั้น
+        // ไฟล์ ≤1MB นั้นจะค้างอยู่โดยไม่มี setting อ้างถึง. $committed คุมกรณีที่ path ใหม่
+        // ถูกบันทึกไปแล้ว: การลบไฟล์เดิมแบบ best-effort ทีหลังต้องไม่ไปลบไฟล์ที่กำลังถูกอ้างถึงเด็ดขาด.
         $committed = false;
         try {
             $this->withLogoPathLock(function () use ($relativeStoredPath, $viewer, &$committed): void {
@@ -257,13 +257,13 @@ class SystemSettingsService
     }
 
     /**
-     * Run a logo-path swap (read current → upsert → delete previous) under a connection-level named lock, so two
-     * admins changing the logo concurrently serialize instead of each deleting the shared old path and leaving
-     * the loser's freshly-written file with no reference (an orphan). Mirrors the GET_LOCK pattern used for
-     * running numbers. The uploaded file is moved to disk BEFORE the lock (distinct random name, no contention);
-     * only the setting read/write + previous-file delete need serializing.
+     * รัน swap ของ logo path (อ่านค่าปัจจุบัน → upsert → ลบไฟล์เดิม) ภายใต้ named lock ระดับ connection เพื่อให้ admin สอง
+     * คนที่เปลี่ยนโลโก้พร้อมกันทำทีละคน (serialize) แทนที่ต่างคนต่างลบ path เดิมที่ใช้ร่วมกันจนทำให้
+     * ไฟล์ที่เพิ่งเขียนของคนที่แพ้ไม่มีอะไรอ้างถึง (กลายเป็น orphan). ทำแบบเดียวกับรูปแบบ GET_LOCK ที่ใช้กับ
+     * เลขรันนิ่ง. ไฟล์ที่อัปโหลดถูกย้ายลงดิสก์ "ก่อน" lock (ชื่อสุ่มไม่ซ้ำ ไม่แย่งกัน);
+     * มีแค่การอ่าน/เขียน setting + การลบไฟล์เดิมเท่านั้นที่ต้องทำทีละราย.
      */
-    /** Logo storage directory, relative to the app root (config-driven so a deploy — or a test — can redirect it). */
+    /** โฟลเดอร์เก็บโลโก้ อ้างอิงจาก root ของแอป (กำหนดผ่าน config เพื่อให้ตอน deploy — หรือ test — เปลี่ยนปลายทางได้). */
     private function brandingRelativeDir(): string
     {
         return trim((string) config('uploads.branding_dir', 'storage/uploads/branding'), '/');
@@ -275,8 +275,8 @@ class SystemSettingsService
         $lockStmt = $this->db->prepare('SELECT GET_LOCK(:name, 5)');
         $lockStmt->execute(['name' => $lockName]);
         if ((int) $lockStmt->fetchColumn() !== 1) {
-            // a concurrent logo update holds the lock — an EXPECTED "try again" condition, so it's a
-            // DomainException (flashed, retryable), matching the setup lock.
+            // มีการอัปเดตโลโก้พร้อมกันถือ lock อยู่ — เป็นเงื่อนไข "ลองใหม่" ที่คาดไว้ (EXPECTED) จึงเป็น
+            // DomainException (แสดงผ่าน flash, ลองใหม่ได้) เหมือนกับ lock ของ setup.
             throw new DomainException('ระบบกำลังอัปเดตโลโก้ กรุณาลองอีกครั้ง');
         }
 
@@ -287,7 +287,7 @@ class SystemSettingsService
                 $releaseStmt = $this->db->prepare('SELECT RELEASE_LOCK(:name)');
                 $releaseStmt->execute(['name' => $lockName]);
             } catch (Throwable) {
-                // releasing a connection-scoped lock must not mask the swap result
+                // การปล่อย lock ที่ผูกกับ connection ต้องไม่บดบังผลลัพธ์ของการ swap
             }
         }
     }
@@ -325,8 +325,8 @@ class SystemSettingsService
 
     private function deleteLogoFile(?string $path): void
     {
-        // A failed unlink left an orphaned logo file with no trace — log it (without failing the settings save)
-        // so support can clean it up.
+        // การ unlink (ลบไฟล์) ที่ล้มเหลวจะทิ้งไฟล์โลโก้กำพร้าไว้โดยไม่มีร่องรอย — log ไว้ (โดยไม่ทำให้การเซฟ settings ล้มเหลว)
+        // เพื่อให้ทีมซัพพอร์ตตามไปลบทีหลังได้.
         if ($path !== null && is_file($path) && !@unlink($path)) {
             log_caught_exception(
                 'settings.logo.cleanup',

@@ -10,7 +10,7 @@ use App\Repositories\UserRepository;
 class RememberMeService
 {
     public const COOKIE_NAME = 'remember_me';
-    public const LIFETIME_SECONDS = 60 * 60 * 24 * 30; // 30 days
+    public const LIFETIME_SECONDS = 60 * 60 * 24 * 30; // 30 วัน
 
     public function __construct(
         private UserRepository $users,
@@ -37,9 +37,9 @@ class RememberMeService
         if ($cookie !== '') {
             $parsed = $this->parseCookie($cookie);
             if ($parsed !== null) {
-                // Clear by the token HASH, not the cookie's claimed user_id — a forged cookie carrying another
-                // user's id but a bogus token hashes to nothing that matches, so it cannot revoke that user's
-                // remember-me. Only the real cookie holder (whose hash matches the stored row) clears it.
+                // ล้างด้วย HASH ของ token ไม่ใช่ user_id ที่ cookie อ้าง — cookie ปลอมที่พก id ของ user คนอื่น
+                // แต่ใช้ token มั่ว ๆ จะ hash ออกมาไม่ตรงกับอะไรเลย จึงเพิกถอน remember-me ของ user คนนั้นไม่ได้.
+                // มีแต่เจ้าของ cookie ตัวจริง (ที่ hash ตรงกับ row ที่เก็บไว้) เท่านั้นที่ล้างมันได้.
                 $this->users->clearRememberTokenByHash(hash('sha256', $parsed['raw']));
             }
         }
@@ -48,11 +48,11 @@ class RememberMeService
     }
 
     /**
-     * Revoke EVERY remember-me session for a user, regardless of which device is calling. Used on a password
-     * change: NULLing the single stored token invalidates any outstanding cookie (its hash can no longer
-     * match), then the current device's cookie is dropped so it does not immediately try to restore. Unlike
-     * clearCurrent(), this does not depend on the acting device holding a remember cookie — so a password
-     * change from a plain (non-remembered) session still kicks out a remembered device elsewhere.
+     * เพิกถอน remember-me ทุก session ของ user คนหนึ่ง ไม่ว่าจะเรียกจากอุปกรณ์ไหน. ใช้ตอนเปลี่ยนรหัสผ่าน:
+     * การ NULL token ตัวเดียวที่เก็บไว้จะทำให้ cookie ที่ยังค้างอยู่ทุกอันใช้ไม่ได้ (hash ของมันจะไม่มีทาง
+     * ตรงอีก), จากนั้นลบ cookie ของอุปกรณ์ปัจจุบันทิ้งเพื่อไม่ให้มันพยายาม restore ทันที. ต่างจาก
+     * clearCurrent() ตรงที่วิธีนี้ไม่ต้องพึ่งว่าอุปกรณ์ที่กำลังทำต้องถือ remember cookie อยู่ — ดังนั้นการ
+     * เปลี่ยนรหัสผ่านจาก session ธรรมดา (ที่ไม่ได้ remember) ก็ยังเตะอุปกรณ์ที่ remember ไว้ที่อื่นออกได้.
      */
     public function revokeAllForUser(int $userId): void
     {
@@ -83,9 +83,9 @@ class RememberMeService
             return false;
         }
 
-        // Restoring a remember-me cookie authenticates the current session, so rotate the id first — same
-        // anti-session-fixation step as AuthService::attemptLogin. Without it, a pre-planted (attacker-known)
-        // session id gets elevated to an authenticated one on the victim's next protected request.
+        // การ restore remember-me cookie เท่ากับยืนยันตัวตนให้ session ปัจจุบัน จึงต้องหมุน (rotate) id ก่อน — เป็น
+        // ขั้นตอนกัน session fixation ตัวเดียวกับใน AuthService::attemptLogin. ถ้าไม่ทำ, session id ที่ถูกวางไว้ล่วงหน้า
+        // (ที่ผู้โจมตีรู้ค่า) จะถูกยกระดับเป็น session ที่ยืนยันตัวตนแล้วในคำขอ protected ครั้งถัดไปของเหยื่อ.
         Session::regenerate();
         $this->auth->login($user);
         $this->issueFor((int) $user['id']);

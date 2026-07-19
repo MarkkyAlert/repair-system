@@ -7,8 +7,8 @@ use DomainException;
 use Throwable;
 
 /**
- * Admin communications: system-wide broadcast announcements and SMTP test email.
- * Extracted from AdminService to keep messaging separate from settings/entity CRUD.
+ * การสื่อสารของ admin: การประกาศ broadcast ทั่วทั้งระบบ และการส่งอีเมลทดสอบ SMTP.
+ * แยกออกมาจาก AdminService เพื่อให้ส่วนส่งข้อความแยกจาก CRUD ของ settings/entity.
  */
 class BroadcastService
 {
@@ -41,8 +41,8 @@ class BroadcastService
             throw new DomainException('Role filter ไม่ถูกต้อง');
         }
 
-        // One-time idempotency token from the form — a retry / second tab replays it and is deduped so the
-        // org isn't broadcast to twice.
+        // idempotency token แบบใช้ครั้งเดียวจากฟอร์ม — การลองใหม่ / แท็บที่สอง จะส่งค่านี้ซ้ำแล้วถูกกรองซ้ำออก เพื่อไม่ให้
+        // ทั้งองค์กรได้รับ broadcast ซ้ำสองครั้ง.
         $submissionToken = strtolower(trim((string) ($input['submission_token'] ?? '')));
         if (!is_submission_token($submissionToken)) {
             throw new DomainException('แบบฟอร์มหมดอายุ กรุณารีเฟรชหน้าแล้วส่งใหม่');
@@ -56,8 +56,8 @@ class BroadcastService
             $submissionToken
         );
 
-        // Audit the ACTUAL outcome — the trail must not say "sent" when a channel failed (it would contradict
-        // what the controller shows the admin). Record + carry the failure flags.
+        // บันทึก audit ตามผลลัพธ์จริง — ร่องรอยต้องไม่บอกว่า "sent" ทั้งที่ช่องทางหนึ่งล้มเหลว (จะขัดกับ
+        // สิ่งที่ controller แสดงให้ admin เห็น). บันทึก + ส่งต่อ flag ของความล้มเหลวไปด้วย.
         $inAppFailed = !empty($result['in_app_failed']);
         $emailFailed = !empty($result['email_failed']);
         $action = 'broadcast.sent';
@@ -105,8 +105,8 @@ class BroadcastService
         try {
             $this->mailer->send($message);
         } catch (Throwable $exception) {
-            // the admin sees a generic message; the real cause (SMTP refused, bad driver, timeout) must be logged
-            // with the mail settings so the diagnostic is actionable — it was discarded before.
+            // admin เห็นข้อความกลาง ๆ; แต่ต้นเหตุจริง (SMTP ปฏิเสธ, driver ผิด, timeout) ต้องถูก log
+            // พร้อมค่า mail settings เพื่อให้ข้อมูลวินิจฉัยนำไปแก้ได้ — เดิมมันถูกทิ้งไป.
             log_caught_exception('email.test.failed', $exception, [
                 'driver' => (string) config('mail.driver', 'log'),
                 'host' => (string) config('mail.host', ''),
@@ -115,8 +115,8 @@ class BroadcastService
             throw new DomainException('ส่งอีเมลทดสอบไม่สำเร็จ: กรุณาตรวจสอบค่า SMTP/MAIL_DRIVER และลองใหม่');
         }
 
-        // In production the audit trail must not retain the raw recipient address — mask it (the template +
-        // driver are enough to confirm what was sent). Dev keeps the full address for debugging.
+        // บน production ร่องรอย audit ต้องไม่เก็บ address ผู้รับแบบดิบ — ปิดบัง (mask) มันซะ (template +
+        // driver ก็พอยืนยันได้แล้วว่าส่งอะไรไป). Dev เก็บ address เต็มไว้เพื่อ debug.
         $auditEmail = (string) config('app.env', 'production') === 'production'
             ? MailerService::maskEmail($email)
             : $email;

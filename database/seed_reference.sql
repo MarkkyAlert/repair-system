@@ -1,8 +1,8 @@
 -- ============================================================
--- REFERENCE / MASTER DATA — safe to import in production.
--- Departments, locations, priorities, ticket & asset categories.
--- Import order: schema.sql -> seed_reference.sql, then create the admin via /setup.
--- (Demo users/tickets live in seed_demo.sql — do NOT import that in production.)
+-- ข้อมูลอ้างอิง / ข้อมูลตั้งต้น (master data) — นำเข้าบนระบบจริงได้อย่างปลอดภัย
+-- ประกอบด้วย แผนก, สถานที่, ระดับความสำคัญ, หมวดหมู่งานซ่อม และหมวดหมู่ทรัพย์สิน
+-- ลำดับการนำเข้า: schema.sql -> seed_reference.sql จากนั้นสร้าง admin ผ่าน /setup
+-- (ผู้ใช้/ticket ตัวอย่างอยู่ใน seed_demo.sql — ห้ามนำเข้าไฟล์นั้นบนระบบจริง)
 -- ============================================================
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;

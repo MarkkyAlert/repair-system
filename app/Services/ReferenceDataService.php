@@ -10,9 +10,9 @@ use PDO;
 use Throwable;
 
 /**
- * Admin master/reference-data CRUD: departments, ticket categories, asset categories,
- * locations and priorities. Extracted from AdminService; reads for the admin page stay
- * in AdminService. Unique-violation friendly messages are handled inside AdminRepository.
+ * CRUD ข้อมูลหลัก/ข้อมูลอ้างอิง (master/reference-data) สำหรับ admin: แผนก, หมวดหมู่ ticket, หมวดหมู่ asset,
+ * สถานที่ และ priority. แยกออกมาจาก AdminService; ส่วนการอ่านข้อมูลของหน้า admin ยังอยู่
+ * ใน AdminService. ข้อความแจ้งเตือนกรณีค่าซ้ำ (unique-violation) จัดการอยู่ภายใน AdminRepository.
  */
 class ReferenceDataService
 {
@@ -24,7 +24,7 @@ class ReferenceDataService
     ) {
     }
 
-    // --- Departments ---------------------------------------------------------
+    // --- แผนก (Departments) ---------------------------------------------------------
 
     public function createDepartment(array $viewer, array $input): void
     {
@@ -57,7 +57,7 @@ class ReferenceDataService
         $this->audit->record($viewer, 'department.deleted', 'department', $departmentId);
     }
 
-    // --- Ticket categories ---------------------------------------------------
+    // --- หมวดหมู่ ticket (Ticket categories) ---------------------------------------------------
 
     public function createTicketCategory(array $viewer, array $input): void
     {
@@ -116,7 +116,7 @@ class ReferenceDataService
         $this->audit->record($viewer, 'ticket_category.deleted', 'ticket_category', $categoryId);
     }
 
-    // --- Asset categories ----------------------------------------------------
+    // --- หมวดหมู่ asset (Asset categories) ----------------------------------------------------
 
     public function createAssetCategory(array $viewer, array $input): void
     {
@@ -149,7 +149,7 @@ class ReferenceDataService
         $this->audit->record($viewer, 'asset_category.deleted', 'asset_category', $categoryId);
     }
 
-    // --- Locations -----------------------------------------------------------
+    // --- สถานที่ (Locations) -----------------------------------------------------------
 
     public function createLocation(array $viewer, array $input): void
     {
@@ -182,7 +182,7 @@ class ReferenceDataService
         $this->audit->record($viewer, 'location.deleted', 'location', $locationId, []);
     }
 
-    // --- Priorities ----------------------------------------------------------
+    // --- ลำดับความสำคัญ (Priorities) ----------------------------------------------------------
 
     public function createPriority(array $viewer, array $input): void
     {
@@ -215,7 +215,7 @@ class ReferenceDataService
         $this->audit->record($viewer, 'priority.deleted', 'priority', $priorityId, []);
     }
 
-    // --- Payload builders ----------------------------------------------------
+    // --- ตัวสร้าง payload (Payload builders) ----------------------------------------------------
 
     private function buildMasterPayload(array $input, string $label, int $nameMax = 150): array
     {
@@ -226,8 +226,8 @@ class ReferenceDataService
             throw new DomainException('กรุณากรอกรหัสและชื่อ' . $label . 'ให้ครบถ้วน');
         }
 
-        // Bound to the DB columns (code VARCHAR(50); name VARCHAR(150), categories VARCHAR(100)) so an
-        // over-long value is a friendly message, not a raw strict-mode DB error.
+        // จำกัดตามคอลัมน์ใน DB (code VARCHAR(50); name VARCHAR(150), categories VARCHAR(100)) เพื่อให้
+        // ค่าที่ยาวเกินได้ข้อความแจ้งที่เข้าใจง่าย ไม่ใช่ DB error ดิบ ๆ จาก strict-mode.
         require_max_length($code, 50, 'รหัส' . $label);
         require_max_length($name, $nameMax, 'ชื่อ' . $label);
 
@@ -241,8 +241,8 @@ class ReferenceDataService
 
     private function buildCategoryPayload(array $input, string $label): array
     {
-        // ticket_categories.name / asset_categories.name are VARCHAR(150) — the buildMasterPayload default.
-        // (An earlier round wrongly capped this at 100, rejecting valid 101–150 names.) sort_order is
+        // ticket_categories.name / asset_categories.name เป็น VARCHAR(150) — ค่าเริ่มต้นของ buildMasterPayload.
+        // (รอบก่อนเคยจำกัดผิดไว้ที่ 100 ทำให้ชื่อยาว 101–150 ที่ถูกต้องถูกปฏิเสธ.) sort_order เป็น
         // SMALLINT UNSIGNED (≤65535).
         $sortOrder = max(1, strict_int($input['sort_order'] ?? null, 'ลำดับการแสดง', 1));
         if ($sortOrder > 65535) {
@@ -256,9 +256,9 @@ class ReferenceDataService
 
     private function encodeSlaPayload(array $input): string
     {
-        // strict_float so a non-numeric "abc" is rejected, not silently coerced to a 0-minute SLA.
-        // A negative value used to be clamped to 0 silently — now rejected. is_numeric() also accepts "1e999"
-        // (→ INF → (int) 0 minutes) and finite values that overflow INT UNSIGNED, both guarded below.
+        // ใช้ strict_float เพื่อให้ค่าที่ไม่ใช่ตัวเลขอย่าง "abc" ถูกปฏิเสธ ไม่ใช่แอบแปลงเป็น SLA 0 นาทีเงียบ ๆ.
+        // เดิมค่าติดลบจะถูกบีบเป็น 0 เงียบ ๆ — ตอนนี้ถูกปฏิเสธ. is_numeric() ยังรับ "1e999"
+        // (→ INF → (int) 0 นาที) และค่าจำกัดที่ล้น INT UNSIGNED ด้วย ทั้งคู่ถูกดักไว้ข้างล่าง.
         $responseHours = strict_float($input['response_hours'] ?? null, 'เวลาตอบรับ (SLA) ');
         $resolutionHours = strict_float($input['resolution_hours'] ?? null, 'เวลาแก้ไข (SLA) ');
         if ($responseHours < 0 || $resolutionHours < 0) {
@@ -272,9 +272,9 @@ class ReferenceDataService
     }
 
     /**
-     * Convert a validated SLA hours value to whole minutes, rejecting non-finite input (is_numeric() lets
-     * "1e999" through as INF, which casts to 0 minutes) and any value that would overflow the
-     * response_time_minutes / resolution_time_minutes INT UNSIGNED column (max 4294967295).
+     * แปลงค่า SLA หน่วยชั่วโมงที่ตรวจแล้วเป็นจำนวนนาทีเต็ม โดยปฏิเสธค่าที่ไม่ finite (is_numeric() ปล่อย
+     * "1e999" ผ่านเป็น INF ซึ่ง cast เป็น 0 นาที) และค่าใด ๆ ที่จะล้นคอลัมน์
+     * response_time_minutes / resolution_time_minutes ชนิด INT UNSIGNED (สูงสุด 4294967295).
      */
     private function slaMinutes(float $hours, string $label): int
     {
@@ -294,7 +294,7 @@ class ReferenceDataService
         $building = trim((string) ($input['building'] ?? ''));
         $floor = trim((string) ($input['floor'] ?? ''));
         $room = trim((string) ($input['room'] ?? ''));
-        // locations.building VARCHAR(150), floor/room VARCHAR(50)
+        // locations.building เป็น VARCHAR(150), floor/room เป็น VARCHAR(50)
         require_max_length($building, 150, 'อาคาร');
         require_max_length($floor, 50, 'ชั้น');
         require_max_length($room, 50, 'ห้อง');
@@ -310,7 +310,7 @@ class ReferenceDataService
     {
         $base = $this->buildPriorityPayload($input);
         $code = strtoupper(trim((string) ($input['code'] ?? '')));
-        $level = strict_int($input['level'] ?? null, 'ระดับความสำคัญ'); // reject "50junk"
+        $level = strict_int($input['level'] ?? null, 'ระดับความสำคัญ'); // ปฏิเสธค่าอย่าง "50junk"
 
         if ($code === '' || !preg_match('/^[A-Z0-9_-]{2,50}$/', $code)) {
             throw new DomainException('รหัส Priority ต้องเป็น A-Z, 0-9, ขีดกลาง หรือขีดล่าง ความยาว 2-50 ตัวอักษร');
@@ -333,8 +333,8 @@ class ReferenceDataService
             throw new DomainException('กรุณากรอกชื่อ Priority');
         }
 
-        // Bound to the priorities columns (name VARCHAR(100), color VARCHAR(30), sort_order TINYINT ≤255) so a
-        // crafted over-length value gives a friendly message, not a raw strict-mode DB error.
+        // จำกัดตามคอลัมน์ของ priorities (name VARCHAR(100), color VARCHAR(30), sort_order TINYINT ≤255) เพื่อให้
+        // ค่าที่จงใจทำให้ยาวเกินได้ข้อความแจ้งที่เข้าใจง่าย ไม่ใช่ DB error ดิบ ๆ จาก strict-mode.
         require_max_length($name, 100, 'ชื่อ Priority');
         require_max_length($color, 30, 'สี');
 
@@ -347,8 +347,8 @@ class ReferenceDataService
         if ($responseHours < 0 || $resolutionHours < 0) {
             throw new DomainException('SLA ต้องไม่ติดลบ');
         }
-        // is_numeric() accepts "1e999" (→ INF → 0 minutes) and finite values that overflow the INT UNSIGNED
-        // minute columns — slaMinutes rejects both before the cast/DB.
+        // is_numeric() รับ "1e999" (→ INF → 0 นาที) และค่าจำกัดที่ล้นคอลัมน์นาทีชนิด INT UNSIGNED —
+        // slaMinutes ปฏิเสธทั้งคู่ก่อนถึงขั้น cast/DB.
         $responseMinutes = $this->slaMinutes($responseHours, 'เวลาตอบรับ (SLA) ');
         $resolutionMinutes = $this->slaMinutes($resolutionHours, 'เวลาแก้ไข (SLA) ');
 

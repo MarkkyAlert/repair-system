@@ -13,7 +13,7 @@ use Throwable;
 class GuestTicketService
 {
     private const RATE_LIMIT_MAX = 3;
-    private const RATE_LIMIT_DECAY = 600; // 10 minutes
+    private const RATE_LIMIT_DECAY = 600; // 10 นาที
     private const LOOKUP_RATE_LIMIT_MAX = 10;   // เช็คสถานะ: 10 ครั้ง/10 นาที ต่อ IP (กัน brute-force second factor)
     private const LOOKUP_RATE_LIMIT_DECAY = 600;
 
@@ -28,7 +28,7 @@ class GuestTicketService
 
     public function submitGuestRequest(string $token, array $input, string $ipAddress): array
     {
-        // Honeypot — silent reject
+        // Honeypot (กับดักดักบอท) — ปฏิเสธแบบเงียบ ๆ
         if (trim((string) ($input['website'] ?? '')) !== '') {
             return ['request_no' => 'HP-' . substr(md5($ipAddress . microtime()), 0, 8)];
         }
@@ -139,9 +139,9 @@ class GuestTicketService
 
     public function convertToTicket(int $requestId, array $viewer, int|string $priorityId, int|string $categoryId, TicketService $tickets): int
     {
-        // Required conversion inputs — validated here (not the controller) so the rule holds for every
-        // caller of convertToTicket, and is checked before any lock/DB work is done. strict_int rejects a
-        // malformed "1junk" instead of the controller's old (int) cast silently keeping the "1" prefix.
+        // input ที่จำเป็นสำหรับการแปลง — ตรวจสอบตรงนี้ (ไม่ใช่ที่ controller) เพื่อให้กฎนี้ใช้กับทุกผู้เรียก
+        // convertToTicket และตรวจก่อนจะทำงานเกี่ยวกับ lock/DB ใด ๆ. strict_int ปฏิเสธค่าที่ผิดรูปอย่าง
+        // "1junk" แทนที่จะเป็นแบบเดิมที่ (int) cast ของ controller แอบเก็บแค่ส่วนหน้า "1" ไว้เงียบ ๆ.
         $priorityId = strict_int($priorityId, 'ความสำคัญ');
         $categoryId = strict_int($categoryId, 'หมวดหมู่');
         if ($priorityId <= 0 || $categoryId <= 0) {
@@ -164,9 +164,9 @@ class GuestTicketService
 
             $contact = trim(((string) $request['guest_email']) . ' ' . ((string) $request['guest_phone']));
             $originalTitle = (string) $request['title'];
-            // The composed "[จาก Guest: name] {title}" can exceed the 200-char ticket-title limit (name ≤150 +
-            // title ≤200), which would make a successfully-submitted guest request fail to convert. Cap the
-            // title at 200 and keep the FULL original in the description so nothing is lost.
+            // ข้อความที่ประกอบ "[จาก Guest: name] {title}" อาจยาวเกินลิมิต 200 ตัวอักษรของ ticket-title (name ≤150 +
+            // title ≤200) ซึ่งจะทำให้ guest request ที่ส่งสำเร็จแล้วแปลงไม่ผ่าน. จึงตัด (cap)
+            // title ไว้ที่ 200 และเก็บต้นฉบับเต็ม ๆ ไว้ใน description เพื่อไม่ให้ข้อมูลหาย.
             $composedTitle = '[จาก Guest: ' . (string) $request['guest_name'] . '] ' . $originalTitle;
             if (mb_strlen($composedTitle) > 200) {
                 $composedTitle = mb_substr($composedTitle, 0, 200);
@@ -199,7 +199,7 @@ class GuestTicketService
             // จึง "ได้ทั้งคู่ หรือไม่ได้เลย" ไม่มี ticket กำพร้า (สร้างแล้วแต่ request ยังไม่ถูก mark converted).
             $this->db->beginTransaction();
             try {
-                // channel='qr' as a trusted argument — the origin was a QR scan
+                // channel='qr' เป็น argument ที่เชื่อถือได้ — ต้นทางคือการสแกน QR
                 $ticketId = $tickets->createTicket($converterWithoutDepartment, $ticketInput, [], 'qr');
                 if (!$this->requests->claimAndLink($requestId, $ticketId, (int) ($viewer['id'] ?? 0))) {
                     throw new RuntimeException('เชื่อมโยง Ticket กับ guest request ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
@@ -236,8 +236,8 @@ class GuestTicketService
                 throw new DomainException('Request นี้ถูกดำเนินการแล้ว');
             }
 
-            // Atomic conditional update (WHERE status='new'); false means a concurrent convert/reject
-            // already claimed it, so surface that instead of reporting a misleading success.
+            // update แบบมีเงื่อนไขที่เป็น atomic (WHERE status='new'); ถ้าได้ false แปลว่ามี convert/reject ที่ทำพร้อมกัน
+            // เคลม (claim) ไปแล้ว จึงต้องแจ้งเรื่องนั้นแทนที่จะรายงานว่าสำเร็จซึ่งชวนเข้าใจผิด.
             if (!$this->requests->markRejected($requestId, (int) ($viewer['id'] ?? 0), $note)) {
                 throw new DomainException('Request นี้ถูกดำเนินการแล้ว');
             }

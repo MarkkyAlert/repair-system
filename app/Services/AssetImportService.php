@@ -43,7 +43,7 @@ class AssetImportService
         $locationsByCode = $this->indexByCode($reference['locations'] ?? []);
         $departmentsByCode = $this->indexByCode($reference['departments'] ?? []);
 
-        // Batch resolve custodian usernames ครั้งเดียว (แทน findByLogin ต่อแถว)
+        // ค้นหา id ของ custodian username แบบ batch ทีเดียว (แทน findByLogin ต่อแถว)
         $custodianIds = $this->users->findIdsByLogins(
             array_map(static fn (array $r): string => strtolower(trim((string) ($r['custodian_username'] ?? ''))), $rows)
         );
@@ -67,7 +67,7 @@ class AssetImportService
             if (strlen($name) > 200) {
                 $errors[] = 'name ยาวเกิน 200 ตัวอักษร';
             }
-            // optional text fields bound to their columns (serial/brand/model VARCHAR(100), vendor VARCHAR(150))
+            // ฟิลด์ข้อความที่ไม่บังคับ จำกัดความยาวให้ตรงกับ column (serial/brand/model VARCHAR(100), vendor VARCHAR(150))
             foreach (['serial_number' => 100, 'brand' => 100, 'model' => 100, 'vendor' => 150] as $field => $limit) {
                 if (mb_strlen(trim((string) ($row[$field] ?? ''))) > $limit) {
                     $errors[] = $field . ' ยาวเกิน ' . $limit . ' ตัวอักษร';
@@ -175,9 +175,9 @@ class AssetImportService
                 $this->assets->createAsset($payload);
                 $imported++;
             } catch (Throwable $exception) {
-                // Expected, reported skips (a duplicate → createAsset translates it to DomainException; or a raw
-                // duplicate-key error) stay silent. Anything else (e.g. a DB outage) is an unexpected failure whose
-                // root cause must be logged — not hidden behind the generic row message.
+                // การข้ามที่คาดไว้และรายงานแล้ว (ข้อมูลซ้ำ → createAsset แปลงเป็น DomainException; หรือ error
+                // duplicate-key ดิบ ๆ) ให้เงียบไว้. อย่างอื่น (เช่น DB ล่ม) คือความล้มเหลวที่ไม่คาดคิดซึ่ง
+                // ต้อง log ต้นเหตุไว้ — ไม่ใช่ซ่อนไว้หลังข้อความ row กลาง ๆ.
                 if (!($exception instanceof DomainException) && !is_duplicate_key_error($exception)) {
                     log_caught_exception('asset.import.row', $exception, ['line' => (int) ($row['line'] ?? 0), 'asset_code' => (string) ($row['asset_code'] ?? '')]);
                 }

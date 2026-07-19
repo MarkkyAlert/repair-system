@@ -6,16 +6,16 @@ namespace App\Services;
 use DomainException;
 
 /**
- * Shared CSV-upload parser for import services (AssetImportService / UserImportService):
- * validates the upload, enforces the .csv extension + size cap, reads and normalizes the
- * header, ensures every required column is present, then returns one assoc row per data
- * line keyed by column name (plus a 1-based `_line` for error reporting).
+ * ตัว parse ไฟล์ CSV ที่อัปโหลด ใช้ร่วมกันสำหรับ import service (AssetImportService / UserImportService):
+ * ตรวจสอบไฟล์ที่อัปโหลด, บังคับนามสกุล .csv + จำกัดขนาด, อ่านและ normalize (ปรับให้เป็นมาตรฐาน)
+ * header, ตรวจว่ามีทุก column ที่จำเป็นครบ แล้วคืน row แบบ assoc หนึ่งแถวต่อบรรทัดข้อมูลหนึ่งบรรทัด
+ * โดย key ด้วยชื่อ column (บวก `_line` ที่เริ่มนับจาก 1 ไว้สำหรับรายงาน error).
  */
 trait ParsesCsvUpload
 {
     /**
-     * @param array<string, mixed> $file  a single $_FILES entry
-     * @param list<string>         $columns  required lowercase column names
+     * @param array<string, mixed> $file  entry เดียวจาก $_FILES
+     * @param list<string>         $columns  ชื่อ column ที่จำเป็น (ตัวพิมพ์เล็ก)
      * @return list<array<string, string|int>>
      */
     protected function parseCsvUpload(array $file, array $columns, int $maxBytes, int $maxRows): array
