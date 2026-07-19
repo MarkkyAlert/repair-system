@@ -5,8 +5,9 @@ declare(strict_types=1);
 // items whose default min-width:auto refused to shrink, pushing /dashboard and /reports/trend ~6px past the
 // 375px mobile viewport. The fix pairs the grid's minmax(0,1fr) with min-width:0 on the items.
 //
-// The CSS build is a manual step (resources/css/app.css -> tools/tailwindcss --minify ->
-// public/assets/css/app.css), so this asserts the fix lives in BOTH the source AND the served build: a source
+// The CSS build is a manual step — ./build-css.sh (which self-fetches the pinned tools/tailwindcss binary)
+// runs resources/css/app.css -> tailwindcss --minify -> public/assets/css/app.css. So this asserts the fix
+// lives in BOTH the source AND the served build: a source
 // edit shipped without a rebuild — or a rebuild that drops the rule — fails the suite instead of silently
 // regressing the overflow. (Whitespace-tolerant so it matches the readable source and the minified build.)
 test('css #4: dashboard-chart-grid min-width:0 overflow fix present in source and built CSS', function (): void {

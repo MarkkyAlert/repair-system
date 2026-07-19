@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-// ⭐ Migration backfill (ChatGPT R10-F2) — the per-cycle upgrade (database/migrate_sla_rating_cycle.sql) must place
+// ⭐ Migration backfill — the per-cycle upgrade (database/upgrades/migrate_sla_rating_cycle.sql) must place
 // a LEGACY multi-resolve ticket's single surviving SLA/rating snapshot on its LATEST cycle (1 + reopen count), not
 // leave it at cycle 1. The old pre-upgrade code overwrote the snapshot in place, so the one row reflects the most
 // recent resolve. If the migration left it at cycle 1, the as-reported trend would read that latest snapshot in the
