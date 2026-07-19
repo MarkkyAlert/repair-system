@@ -20,6 +20,7 @@ trait ParsesCsvUpload
      */
     protected function parseCsvUpload(array $file, array $columns, int $maxBytes, int $maxRows): array
     {
+        // is_uploaded_file: ต้องเป็นไฟล์ที่แนบมากับ request นี้จริง ไม่ใช่ path ที่ถูกยัดค่ามาให้ชี้ไปไฟล์อื่นในเครื่อง (เช่น config) แล้วดูดออกมาเป็นข้อมูล import
         if ((int) ($file['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK || empty($file['tmp_name']) || !is_uploaded_file((string) $file['tmp_name'])) {
             throw new DomainException('อัปโหลดไฟล์ไม่สำเร็จ กรุณาเลือกไฟล์ CSV และลองอีกครั้ง');
         }

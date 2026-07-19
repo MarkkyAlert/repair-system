@@ -12,6 +12,7 @@ class Session
         }
 
         session_name($config['name'] ?? 'repair_system_session');
+        // strict mode: ให้ PHP ปฏิเสธ session id ที่ระบบไม่เคยออกให้ — กัน session fixation ที่คนร้ายยัด id ที่ตัวเองรู้ค่าไว้ให้เหยื่อใช้ (คู่กับ regenerate() ตอน login)
         ini_set('session.use_strict_mode', '1');
         session_set_cookie_params([
             'lifetime' => $config['lifetime'] ?? 7200,
@@ -89,6 +90,7 @@ class Session
         }
 
         $lastActivity = (int) ($_SESSION['_last_activity'] ?? 0);
+        // ยังไม่เคยบันทึกเวลาใช้งาน (session เพิ่ง login ยังไม่ทัน touchActivity) → ถือว่ายังไม่หมดเวลา ไม่งั้น request แรกหลัง login โดนเตะออกทันที
         if ($lastActivity <= 0) {
             return false;
         }
