@@ -1,3 +1,17 @@
+-- =============================================================================
+--  schema.sql — FRESH INSTALL ONLY
+-- =============================================================================
+--  ⚠️  คำเตือน: ไฟล์นี้ DROP ทุกตารางทิ้งก่อนสร้างใหม่ — ข้อมูลเดิมทั้งหมดจะหาย
+--      Import เฉพาะตอนติดตั้งใหม่บนฐานข้อมูลเปล่าเท่านั้น
+--      ห้าม import ซ้ำบนระบบที่ใช้งานจริง (จะลบ ticket/ผู้ใช้/ประวัติทั้งหมด)
+--
+--  WARNING: this file DROPs every table before recreating it — ALL existing data
+--  is destroyed. Import it ONLY on a brand-new, empty database for a fresh
+--  install. Never re-run it on a live/populated system.
+--
+--  อัปเกรดระบบเดิม: ใช้สคริปต์ใน database/upgrades/ แทน (ไม่ทำลายข้อมูล)
+--  To upgrade an existing database, use the scripts in database/upgrades/ instead.
+-- =============================================================================
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
