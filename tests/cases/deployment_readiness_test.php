@@ -109,14 +109,18 @@ test('deploy(D1,D6): the release-packaging script bundles vendor and excludes se
 test('deploy(D4): the handover doc set ships and stays anchored to the real install flow', function (): void {
     $root = dirname(__DIR__, 2);
 
-    // The docs are the selling point for a semi-dev buyer — all five (plus LICENSE) must ship.
-    foreach (['README.md', 'INSTALL.md', 'ADMIN-GUIDE.md', 'CUSTOMIZE.md', 'REPORT-GUIDE.md', 'LICENSE'] as $doc) {
+    // The docs are the selling point for a semi-dev buyer — the whole set must ship.
+    $docs = [
+        'README.md', 'INSTALL.md', 'ADMIN-GUIDE.md', 'USER-GUIDE.md', 'CUSTOMIZE.md',
+        'REPORT-GUIDE.md', 'LICENSE.md', 'THIRD-PARTY-LICENSES.md',
+    ];
+    foreach ($docs as $doc) {
         assert_true(is_file($root . '/' . $doc), "{$doc} must ship with the template");
     }
     // The commercial license must state the agreed model (single organisation, no resale).
-    $license = (string) file_get_contents($root . '/LICENSE');
-    assert_true(stripos($license, 'one') !== false && stripos($license, 'organization') !== false, 'LICENSE must scope use to one organization');
-    assert_true(stripos($license, 'resell') !== false || stripos($license, 'ขายต่อ') !== false, 'LICENSE must forbid resale');
+    $license = (string) file_get_contents($root . '/LICENSE.md');
+    assert_true(stripos($license, 'องค์กรเดียว') !== false || stripos($license, 'หนึ่งองค์กร') !== false, 'LICENSE.md must scope use to one organization');
+    assert_true(stripos($license, 'ขายต่อ') !== false || stripos($license, 'resell') !== false, 'LICENSE.md must forbid resale');
 
     // INSTALL must point at the real install mechanics (not invented steps): the diagnostic, phpMyAdmin
     // import, the /setup wizard, and the cron the app actually needs.
@@ -128,8 +132,7 @@ test('deploy(D4): the handover doc set ships and stays anchored to the real inst
     // The packaging script must NOT strip the buyer docs (they must be in the sold zip).
     $pkg = (string) file_get_contents($root . '/bin/package-release.sh');
     assert_true(
-        preg_match('/rm[^\n]*\b(README|INSTALL|ADMIN-GUIDE|CUSTOMIZE|REPORT-GUIDE)\.md/', $pkg) !== 1,
-        'package-release.sh must not strip the buyer-facing docs from the release'
+        preg_match('/rm[^\n]*\b(README|INSTALL|ADMIN-GUIDE|USER-GUIDE|CUSTOMIZE|REPORT-GUIDE|LICENSE|THIRD-PARTY-LICENSES)\.md/', $pkg) !== 1,
+        'package-release.sh must not strip the buyer-facing docs (incl. LICENSE.md) from the release'
     );
-    assert_true(preg_match('/rm[^\n]*\bLICENSE\b/', $pkg) !== 1, 'package-release.sh must not strip LICENSE from the release');
 });
