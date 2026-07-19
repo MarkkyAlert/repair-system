@@ -23,7 +23,8 @@ try {
         header('Content-Type: text/plain; charset=utf-8');
         header('X-Request-Id: ' . $bootReference);
     }
-    exit('ระบบเริ่มทำงานไม่สำเร็จ (รหัสอ้างอิง: ' . $bootReference . ') กรุณาลองใหม่ และแจ้งรหัสนี้กับผู้ดูแลระบบ');
+    exit('ระบบเริ่มทำงานไม่สำเร็จ (รหัสอ้างอิง: ' . $bootReference . ') กรุณาลองใหม่ และแจ้งรหัสนี้กับผู้ดูแลระบบ'
+        . "\n\n" . 'หากเพิ่งติดตั้ง: เปิด /check-requirements.php เพื่อตรวจความพร้อมของเซิร์ฟเวอร์และการเชื่อมต่อฐานข้อมูล');
 }
 
 // Fail fast on a leaky misconfiguration: APP_DEBUG=true under APP_ENV=production makes the handler below
