@@ -381,10 +381,15 @@ SELECT * FROM notifications ORDER BY id DESC LIMIT 1;
 
 **คาดหวัง**: ✅ cron รันได้ exit code 0, ✅ SLA breach ถูก mark, ✅ email queue ถูก process
 
-> สามารถตั้ง cron จริงทุก 1–5 นาที โดยเพิ่มบรรทัดใน crontab:
+> **ตั้ง cron จริง (production)** — `run-maintenance-cron.php` จัดการทั้ง SLA และคิวอีเมลในตัว จึงตั้งบรรทัดเดียวพอ
+> รันทุก 5 นาที ถ้าไม่ตั้ง cron: SLA breach จะไม่ถูก mark และอีเมลจะไม่ถูกส่ง (แบบเงียบ ๆ)
 > ```
-> */5 * * * * /Applications/XAMPP/xamppfiles/bin/php /Applications/XAMPP/xamppfiles/htdocs/maintenance/bin/run-maintenance-cron.php
+> */5 * * * * php /ABSOLUTE/PATH/TO/bin/run-maintenance-cron.php
 > ```
+> - **บน cPanel:** เข้าเมนู *Cron Jobs* → Common Settings เลือก "Once Per Five Minutes" → วางคำสั่งข้างบน
+> - แทน `php` ด้วย path ของ PHP CLI บนโฮสต์ (มักเป็น `/usr/local/bin/php` หรือ `/usr/bin/php` — ถามผู้ให้บริการโฮสต์)
+> - **หา path ที่ถูกต้องของเครื่องคุณอัตโนมัติ:** เปิด `https://your-site/check-requirements.php` — หน้านั้นพิมพ์คำสั่ง cron ที่ตรงกับ path ติดตั้งจริงให้เลย
+> - (ทางเลือก) สำรองฐานข้อมูลรายวัน: `0 2 * * * php /ABSOLUTE/PATH/TO/bin/backup-database.php`
 
 ---
 

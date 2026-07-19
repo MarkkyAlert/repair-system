@@ -155,9 +155,9 @@ $checks[] = array(
     false
 );
 
-// cron command for THIS install
+// cron command for THIS install (run-maintenance-cron does BOTH SLA + the email queue in one run)
 $cronScript = $root . '/bin/run-maintenance-cron.php';
-$queueScript = $root . '/bin/process-email-queue.php';
+$backupScript = $root . '/bin/backup-database.php';
 
 $allOk = ($fatal === 0);
 ?>
@@ -182,9 +182,9 @@ $allOk = ($fatal === 0);
 
   <div style="margin-top:24px;padding:16px 18px;background:#f4f3fb;border-radius:12px">
     <div style="font-weight:600;margin-bottom:6px">ตั้ง cron สำหรับ SLA และอีเมล (หลังติดตั้งเสร็จ)</div>
-    <div style="color:#555;font-size:13.5px;line-height:1.6">ใน cPanel → Cron Jobs ตั้งให้รันทุก 5 นาที (คำสั่งข้างล่าง — แทน <code>php</code> ด้วย path ของ PHP CLI บนโฮสต์ของคุณถ้าจำเป็น):</div>
+    <div style="color:#555;font-size:13.5px;line-height:1.6">ใน cPanel → Cron Jobs เพิ่มบรรทัดล่าง (บรรทัดแรกจำเป็น — จัดการทั้ง SLA และคิวอีเมลในตัว; บรรทัดสองสำรองข้อมูลรายวัน เป็นทางเลือก). แทน <code>php</code> ด้วย path ของ PHP CLI บนโฮสต์ของคุณถ้าจำเป็น:</div>
     <pre style="background:#0e0c2a;color:#d4d6f5;padding:12px;border-radius:8px;overflow-x:auto;font-size:12.5px">*/5 * * * * php <?php echo htmlspecialchars($cronScript, ENT_QUOTES, 'UTF-8'); ?>
-*/5 * * * * php <?php echo htmlspecialchars($queueScript, ENT_QUOTES, 'UTF-8'); ?></pre>
+0 2 * * * php <?php echo htmlspecialchars($backupScript, ENT_QUOTES, 'UTF-8'); ?></pre>
   </div>
 
   <p style="margin-top:22px;padding-top:16px;border-top:1px solid #eee;color:<?php echo $allOk ? '#0a7d33' : '#b91c1c'; ?>;font-weight:600">

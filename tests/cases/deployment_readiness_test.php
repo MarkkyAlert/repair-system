@@ -66,3 +66,22 @@ test('deploy(D7): the root .htaccess blocks direct access to secrets + internals
     // Primary recommendation must be documented inline for whoever inspects the file.
     assert_true(stripos($ht, 'public/') !== false && stripos($ht, 'document root') !== false, '.htaccess must recommend pointing the docroot at public/');
 });
+
+test('deploy(D5): the production cron guidance is host-agnostic and points to the checker', function (): void {
+    $root = dirname(__DIR__, 2);
+    $guide = (string) file_get_contents($root . '/docs/testing-guide.md');
+
+    // The old production cron line hardcoded this dev machine's XAMPP path — it must be gone.
+    assert_true(
+        !str_contains($guide, '*/5 * * * * /Applications/XAMPP'),
+        'the production cron line must not hardcode the dev machine XAMPP php path'
+    );
+    // Host-agnostic guidance: placeholder path, cPanel steps, and a pointer to the auto-generating checker.
+    assert_true(str_contains($guide, 'cPanel'), 'the cron guide must include cPanel Cron Jobs steps');
+    assert_true(str_contains($guide, 'check-requirements.php'), 'the cron guide must point to check-requirements.php for the exact command');
+    assert_true((bool) preg_match('#\*/5 \* \* \* \* php /ABSOLUTE/PATH#', $guide), 'the cron guide must show a host-agnostic placeholder command');
+
+    // The diagnostic prints a real cron line for this install.
+    $checker = (string) file_get_contents($root . '/public/check-requirements.php');
+    assert_true(str_contains($checker, '*/5 * * * * php') && str_contains($checker, 'run-maintenance-cron.php'), 'the checker must print the exact cron command');
+});
