@@ -105,3 +105,26 @@ test('deploy(D1,D6): the release-packaging script bundles vendor and excludes se
     }
     assert_true((bool) preg_match('/zip /', $s), 'must produce a .zip artifact');
 });
+
+test('deploy(D4): the handover doc set ships and stays anchored to the real install flow', function (): void {
+    $root = dirname(__DIR__, 2);
+
+    // The docs are the selling point for a semi-dev buyer — all five must ship, and cross-link.
+    foreach (['README.md', 'INSTALL.md', 'ADMIN-GUIDE.md', 'CUSTOMIZE.md', 'REPORT-GUIDE.md'] as $doc) {
+        assert_true(is_file($root . '/' . $doc), "{$doc} must ship with the template");
+    }
+
+    // INSTALL must point at the real install mechanics (not invented steps): the diagnostic, phpMyAdmin
+    // import, the /setup wizard, and the cron the app actually needs.
+    $install = (string) file_get_contents($root . '/INSTALL.md');
+    foreach (['check-requirements.php', 'phpMyAdmin', 'schema.sql', 'run-maintenance-cron.php', 'setup'] as $anchor) {
+        assert_true(stripos($install, $anchor) !== false, "INSTALL.md must reference the real step: {$anchor}");
+    }
+
+    // The packaging script must NOT strip the buyer docs (they must be in the sold zip).
+    $pkg = (string) file_get_contents($root . '/bin/package-release.sh');
+    assert_true(
+        preg_match('/rm[^\n]*\b(README|INSTALL|ADMIN-GUIDE|CUSTOMIZE|REPORT-GUIDE)\.md/', $pkg) !== 1,
+        'package-release.sh must not strip the buyer-facing docs from the release'
+    );
+});
