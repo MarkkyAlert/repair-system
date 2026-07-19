@@ -215,7 +215,11 @@ test('a11y-review sort-kbd: sortable table headers are keyboard-operable + adver
     // and only exposed aria-sort AFTER the first click, so a screen reader never knew they were sortable.
     // The fix makes each header focusable (tabindex), button-semantic, aria-sort=none up front, and adds an
     // Enter/Space keydown handler. Behaviour re-checkable via the E2E keyboard-sort test.
+    // We strip JS comments before the proximity checks so this guard measures the code, not comment prose —
+    // otherwise a longer/translated comment sitting between the two tokens would inflate the byte gap and
+    // fail a still-correct file.
     $js = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/js/app.js');
+    $js = (string) preg_replace(['#/\*.*?\*/#s', '#(^|\n)[ \t]*//[^\n]*#'], ['', '$1'], $js);
     assert_true(
         preg_match('/th\[data-sort-col\][\s\S]{0,900}setAttribute\(\s*[\'"]tabindex/', $js) === 1,
         'app.js must make a sortable th focusable (tabindex)'

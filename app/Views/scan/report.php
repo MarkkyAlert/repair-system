@@ -40,7 +40,7 @@
                 </div>
             <?php endif; ?>
 
-            <!-- honeypot -->
+            <!-- honeypot (ช่องซ่อนไว้ล่อดักบอทสแปม) -->
             <input type="text" name="website" value="" style="position:absolute;left:-9999px" tabindex="-1" autocomplete="off" aria-hidden="true">
 
             <div class="field-group">

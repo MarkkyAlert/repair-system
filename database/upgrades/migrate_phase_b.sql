@@ -1,5 +1,5 @@
--- Phase B migrations: notification preferences + email template overrides
--- Apply once on databases that already passed migrate_must_have_integrity + migrate_logic_integrity
+-- migration เฟส B: การตั้งค่าการแจ้งเตือน (notification preferences) + การแทนที่ email template (email template overrides)
+-- รันครั้งเดียวบนฐานข้อมูลที่ผ่าน migrate_must_have_integrity + migrate_logic_integrity มาแล้ว
 
 CREATE TABLE IF NOT EXISTS notification_preferences (
     user_id BIGINT UNSIGNED NOT NULL,

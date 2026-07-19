@@ -1,13 +1,13 @@
 <?php
 /**
- * Breadcrumb navigation for deep pages (detail / nested admin views).
+ * Breadcrumb (แถบนำทางบอกตำแหน่งหน้า) สำหรับหน้าลึก ๆ (หน้ารายละเอียด / หน้า admin ที่ซ้อนกัน).
  *
- * Usage:
+ * วิธีใช้:
  *   render_partial('partials/components/breadcrumb', [
  *       'items' => [
  *           ['label' => 'Admin', 'href' => '/admin'],
  *           ['label' => 'Email Templates', 'href' => '/admin/email-templates'],
- *           ['label' => 'Ticket Approved'],          // last item: no href = current page
+ *           ['label' => 'Ticket Approved'],          // รายการสุดท้าย: ไม่ใส่ href = หน้าปัจจุบัน
  *       ],
  *   ]);
  */

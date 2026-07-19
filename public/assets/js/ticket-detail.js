@@ -91,7 +91,7 @@ if (typeof window.__handleInlineCommentSave !== 'function') {
     };
 }
 
-// ── Inline comment edit (delegated) ──
+// ── แก้ไข comment แบบ inline (ใช้ event delegation) ──
 // แทน inline onclick/onsubmit ใน comment-item.php ด้วย delegation บน data-attribute เดิม
 // (รอด comment ที่ live-append เข้ามาด้วย).
 (function () {
@@ -109,7 +109,7 @@ if (typeof window.__handleInlineCommentSave !== 'function') {
     });
 })();
 
-// ── Live ticket polling ──
+// ── polling สถานะ ticket แบบ live ──
 // ตรวจว่า status/comment ของ ticket ถูกเปลี่ยนโดยคนอื่นระหว่างเปิดหน้าอยู่ → โชว์ banner ให้โหลดใหม่
 // (ไม่ auto-reload กันขัดจังหวะพิมพ์ comment). ใช้ polling ให้สอดคล้อง notification bell — ไม่ใช้ WebSocket.
 (function () {
@@ -157,7 +157,7 @@ if (typeof window.__handleInlineCommentSave !== 'function') {
   }
 })();
 
-// ── Live comment append (chat-like) ──
+// ── append comment แบบ live (คล้ายแชท) ──
 // poll comment ใหม่ (id > latest) → server render มาแล้ว (partial ร่วมกับ show.php) → append เข้า thread
 // โดยไม่ต้อง reload. pause เมื่อ tab ซ่อน; ลบ empty-state ตอน append แรก; กันซ้ำด้วย element id.
 (function () {
@@ -207,7 +207,7 @@ if (typeof window.__handleInlineCommentSave !== 'function') {
   }
 })();
 
-// ── Comment delete confirm modal (delegation) ──
+// ── confirm modal สำหรับลบ comment (ใช้ event delegation) ──
 // แทน native confirm() ด้วย confirm-modal ของระบบ. ใช้ event delegation → รองรับ comment
 // ที่ live-append เข้ามาด้วย. track form ที่จะลบตอนคลิก (แก้ปัญหา shared handler ที่ผูก form แรก).
 (function () {

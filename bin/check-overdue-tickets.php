@@ -18,7 +18,7 @@ try {
     $settings = $container->get(SettingsRepository::class);
     if ($settings instanceof SettingsRepository) {
         $settings->upsert('cron_overdue_check_last_run_at', date('Y-m-d H:i:s'), 'string', false, 0);
-        // record notify failures so the dashboard warns + the exit code is non-zero
+        // บันทึกความล้มเหลวของการแจ้งเตือน (notify) เพื่อให้ dashboard เตือน + exit code เป็นค่าที่ไม่ใช่ศูนย์
         $settings->upsert('cron_sla_notify_last_failed', (string) $notifyFailed, 'string', false, 0);
     }
 
@@ -30,10 +30,10 @@ try {
         echo '- Ticket ' . (string) ($item['ticket_no'] ?? $item['ticket_id'] ?? '-') . ' [' . (string) ($item['metric_type'] ?? 'resolution') . ']' . PHP_EOL;
     }
 
-    // ran to completion (heartbeat updated), but an SLA alert that never went out is unhealthy — exit 2 so cron
-    // monitoring sees it (distinct from a crash's 1).
+    // รันจนจบ (heartbeat อัปเดตแล้ว) แต่การแจ้งเตือน SLA ที่ไม่เคยส่งออกไปคือสภาพไม่ปกติ — exit 2 เพื่อให้
+    // การ monitor cron เห็นมัน (ต่างจาก 1 ของการ crash).
     exit($notifyFailed > 0 ? 2 : 0);
 } catch (Throwable $exception) {
-    fwrite(STDERR, (string) $exception . PHP_EOL); // full trace (class + message + file:line) for cron debugging
+    fwrite(STDERR, (string) $exception . PHP_EOL); // trace เต็ม (class + message + file:line) สำหรับ debug cron
     exit(1);
 }

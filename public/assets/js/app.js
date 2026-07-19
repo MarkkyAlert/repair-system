@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-  // Inline form validation: mark fields as touched on blur so :invalid styles apply.
+  // ตรวจสอบฟอร์มแบบ inline: ทำเครื่องหมายว่าช่องถูกแตะแล้ว (touched) ตอน blur เพื่อให้สไตล์ :invalid ทำงาน
   document.querySelectorAll('form').forEach((form) => {
     form.querySelectorAll('input.input, select.input, textarea.input').forEach((field) => {
       const markTouched = () => field.classList.add('was-touched');
@@ -23,9 +23,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const printTriggers = document.querySelectorAll('[data-print-trigger]');
   const toasts = document.querySelectorAll('[data-toast]');
 
-  // Chart.js paints legend/tick/grid text onto a <canvas>, so a CSS class toggle can't recolour it (and Axe
-  // can't see it either). Single source for the theme-dependent chart colours, shared by chart creation and
-  // the live re-theme below.
+  // Chart.js วาดข้อความของ legend/tick/grid ลงบน <canvas> ดังนั้นการ toggle CSS class จึงเปลี่ยนสีมันไม่ได้ (และ Axe
+  // ก็มองไม่เห็นด้วย). เป็นแหล่งเดียว (single source) ของสีกราฟที่ขึ้นกับ theme ใช้ร่วมกันทั้งตอนสร้างกราฟและ
+  // ตอนเปลี่ยน theme สดด้านล่าง
   const dashboardCharts = [];
   const dashboardChartColors = () => {
     const dark = root.classList.contains('dark');
@@ -36,8 +36,8 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   };
 
-  // Push the current theme's colours into every dashboard chart when the user flips light/dark, so legend and
-  // axis labels stay readable without a page reload.
+  // ดันสีของ theme ปัจจุบันเข้าไปในกราฟ dashboard ทุกอันเมื่อผู้ใช้สลับ light/dark เพื่อให้ legend และ
+  // label ของแกน (axis) ยังอ่านออกโดยไม่ต้อง reload หน้า
   const syncDashboardChartTheme = () => {
     if (!dashboardCharts.length) {
       return;
@@ -81,7 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
     syncDashboardChartTheme();
   };
 
-  // The sidebar is an off-canvas modal drawer only at <=1024px; on desktop it's a static rail.
+  // sidebar เป็น modal drawer แบบ off-canvas (ลิ้นชักที่เลื่อนออกมานอกจอ) เฉพาะที่ <=1024px เท่านั้น; บน desktop มันเป็นแถบ (rail) ที่อยู่นิ่ง
   const isSidebarDrawer = () => window.matchMedia('(max-width: 1024px)').matches;
   const sidebarDrawerFocusables = () => (sidebar
     ? [...sidebar.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),[tabindex]:not([tabindex="-1"])')].filter((el) => el.offsetWidth > 0 || el.offsetHeight > 0)
@@ -106,8 +106,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // Focus management for the modal drawer (mobile/tablet): move focus into the nav on open so keyboard/SR
-    // users land inside it, and return focus to the toggle on close if it was inside (WCAG 2.4.3).
+    // จัดการ focus สำหรับ modal drawer (บนมือถือ/แท็บเล็ต): ย้าย focus เข้าไปใน nav ตอนเปิด เพื่อให้ผู้ใช้ keyboard/SR
+    // (screen reader โปรแกรมอ่านหน้าจอ) เข้าไปอยู่ข้างใน และคืน focus กลับไปที่ปุ่ม toggle ตอนปิดถ้า focus อยู่ข้างใน (WCAG 2.4.3)
     if (!isSidebarDrawer()) {
       return;
     }
@@ -179,7 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
       setSidebarOpen(false);
       return;
     }
-    // Trap Tab inside the open drawer so keyboard focus can't wander to the obscured page behind it.
+    // ดักปุ่ม Tab ไว้ในลิ้นชัก (drawer) ที่เปิดอยู่ เพื่อไม่ให้ focus ของ keyboard หลุดไปที่หน้าเว็บที่ถูกบังอยู่ด้านหลัง
     if (event.key === 'Tab' && drawerOpen) {
       const focusables = sidebarDrawerFocusables();
       if (!focusables.length) {
@@ -306,7 +306,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    const maxFiles = parseInt(input.getAttribute('data-max-files'), 10) || 3; // config-driven
+    const maxFiles = parseInt(input.getAttribute('data-max-files'), 10) || 3; // กำหนดจากค่า config
     const formatter = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 1 });
 
     const clearPreview = () => {
@@ -553,8 +553,8 @@ document.addEventListener('DOMContentLoaded', () => {
       closeButton.addEventListener('click', dismiss);
     }
 
-    // Errors/warnings stay until dismissed (user must read them); success/info
-    // auto-dismiss after 4.2s. Hovering pauses the auto-dismiss timer.
+    // toast ประเภท error/warning จะค้างไว้จนกว่าจะปิดเอง (ผู้ใช้ต้องอ่าน); ส่วน success/info
+    // จะปิดเองอัตโนมัติหลัง 4.2 วินาที. การเอาเมาส์ไปวาง (hover) จะหยุด timer ที่นับถอยหลังปิดชั่วคราว
     var isPersistent = toast.classList.contains('toast-danger')
       || toast.classList.contains('toast-warning');
     if (!isPersistent) {
@@ -579,9 +579,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const chartType = canvas.getAttribute('data-chart-type') || 'bar';
         const chartData = payload[key || ''];
 
-        // Accept either a single series ({data:[]}) or multiple series ({datasets:[{label,data}]}).
-        // Guard !chartData FIRST — a canvas whose key is absent from the payload must skip only itself,
-        // not throw (which the shared try/catch would swallow, killing every chart on the page).
+        // รับได้ทั้งชุดข้อมูลเดี่ยว ({data:[]}) หรือหลายชุด ({datasets:[{label,data}]}).
+        // เช็ค !chartData ก่อนเป็นอันดับแรก — canvas ที่ key ของมันไม่มีใน payload ต้องข้ามเฉพาะตัวมันเอง
+        // ไม่ใช่ throw (ซึ่ง try/catch ที่ใช้ร่วมกันจะกลืน error ไป ทำให้กราฟทุกอันในหน้าพังหมด)
         if (!chartData || !Array.isArray(chartData.labels)) {
           return;
         }
@@ -756,8 +756,8 @@ document.addEventListener('DOMContentLoaded', () => {
         backdrop?.toggleAttribute('hidden', !isOpen);
         toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
         document.body.classList.toggle('notification-open', isOpen);
-        // Move focus INTO the dialog on open so keyboard/SR users land on its content (the menu is portaled to
-        // <body>, so a plain Tab from the bell would skip it).
+        // ย้าย focus เข้าไปในกล่อง dialog ตอนเปิด เพื่อให้ผู้ใช้ keyboard/SR ไปอยู่ที่เนื้อหาของมัน (เมนูถูก portal ไปไว้ที่
+        // <body> ดังนั้นการกด Tab ธรรมดาจากปุ่มกระดิ่ง (bell) จะข้ามมันไป)
         if (isOpen) {
           (close || menu.querySelector('a, button') || menu).focus();
         }
@@ -805,16 +805,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // ── Export dropdown: close on outside click ──
+  // ── dropdown ส่งออก (export): ปิดเมื่อคลิกนอกพื้นที่ ──
   document.addEventListener('click', function (e) {
     document.querySelectorAll('.export-dropdown[open], .ticket-print-menu[open]').forEach(function (d) {
       if (!d.contains(e.target)) d.removeAttribute('open');
     });
   });
 
-  // ── Custom Thai file picker: echo the chosen file name(s) into the aria-live readout ──
-  // The native "No file chosen" text is browser-locale and hidden by .file-field-input; mirror the
-  // selection in Thai here so the picker matches the rest of the UI.
+  // ── ตัวเลือกไฟล์ (file picker) ภาษาไทยแบบกำหนดเอง: สะท้อนชื่อไฟล์ที่เลือกไปยังส่วนอ่านออกเสียง aria-live ──
+  // ข้อความ "No file chosen" ที่มากับเบราว์เซอร์เป็นภาษาตาม locale ของเบราว์เซอร์ และถูกซ่อนด้วย .file-field-input; จึงสะท้อน
+  // สิ่งที่เลือกเป็นภาษาไทยตรงนี้แทน เพื่อให้ตัวเลือกไฟล์เข้ากับ UI ส่วนที่เหลือ
   document.addEventListener('change', function (e) {
     var input = e.target;
     if (!input || typeof input.matches !== 'function' || !input.matches('.file-field-input')) return;
@@ -834,20 +834,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // ── Auth error: move focus to the server-rendered error on load so SR announces it + keyboard lands on it.
-  // The alert already has role="alert"; focusing it guarantees the failure is surfaced after the reload.
+  // ── error การเข้าสู่ระบบ (auth): ย้าย focus ไปที่ error ที่ server render มาตอนโหลด เพื่อให้ SR อ่านออกเสียง + keyboard ไปอยู่ที่มัน
+  // ตัว alert มี role="alert" อยู่แล้ว; การ focus มันช่วยการันตีว่าความล้มเหลวจะถูกแสดงให้เห็นหลังจาก reload
   (function () {
     var authError = document.querySelector('[data-auth-error]');
     if (authError) authError.focus();
   })();
 
-  // ── Report table sorting (mouse + keyboard) ──
+  // ── การเรียงลำดับตารางรายงาน (ด้วยเมาส์ + คีย์บอร์ด) ──
   document.querySelectorAll('.data-table th[data-sort-col]').forEach(function (th) {
-    // Make the header operable + sortable-aware: focusable, and an initial aria-sort=none so a screen
-    // reader announces "sortable / not sorted" and is triggerable by keyboard, not click only (WCAG 2.1.1).
-    // Keep the native <th> columnheader role — it is what supports aria-sort; a role="button" override would
-    // strip that support and make aria-sort an invalid attribute (axe aria-allowed-attr). Progressive: added
-    // by JS, so it's only advertised when the sorter is actually wired up.
+    // ทำให้ header ใช้งานได้ + รู้ว่าเรียงลำดับได้: focus ได้ และตั้ง aria-sort=none เป็นค่าเริ่มต้น เพื่อให้ screen
+    // reader (โปรแกรมอ่านหน้าจอ) ประกาศว่า "เรียงได้ / ยังไม่เรียง" และสั่งงานได้ด้วยคีย์บอร์ด ไม่ใช่คลิกอย่างเดียว (WCAG 2.1.1).
+    // คง role columnheader ของ <th> เดิมไว้ — มันคือสิ่งที่รองรับ aria-sort; การเขียนทับด้วย role="button" จะ
+    // ตัดการรองรับนั้นออกและทำให้ aria-sort เป็น attribute ที่ไม่ถูกต้อง (axe aria-allowed-attr). แบบ progressive: เพิ่ม
+    // โดย JS จึงประกาศต่อเมื่อ sorter ถูกต่อสายเรียบร้อยแล้วเท่านั้น
     if (!th.hasAttribute('tabindex')) th.setAttribute('tabindex', '0');
     if (!th.hasAttribute('aria-sort')) th.setAttribute('aria-sort', 'none');
 
@@ -877,8 +877,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 - (parseFloat(vb.replace(/[^0-9.\-]/g, '')) || 0)) * (asc ? 1 : -1);
         }
         if (type === 'date') {
-          // Prefer a machine value in data-sort (so a cell can DISPLAY a Thai พ.ศ. date yet still sort);
-          // fall back to parsing DD/MM/YYYY (optional HH:MM) from the visible text.
+          // ใช้ค่าที่เครื่องอ่านได้ใน data-sort ก่อน (เพื่อให้เซลล์ DISPLAY วันที่เป็น พ.ศ. ไทยได้แต่ยังเรียงลำดับได้);
+          // ถ้าไม่มีก็ถอยไป parse รูปแบบ DD/MM/YYYY (มี HH:MM หรือไม่ก็ได้) จากข้อความที่มองเห็น
           var dateSortValue = function (cell, text) {
             var ds = cell && cell.getAttribute('data-sort');
             if (ds) {
@@ -904,7 +904,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // ── Admin search/filter ──
+  // ── ค้นหา/กรอง สำหรับผู้ดูแลระบบ (admin) ──
   document.querySelectorAll('[data-search-target]').forEach(function (input) {
     var targetId = input.getAttribute('data-search-target');
     var container = document.querySelector(targetId);
@@ -931,7 +931,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // ── Form submit loading state ──
+  // ── สถานะกำลังโหลดตอน submit ฟอร์ม ──
   document.querySelectorAll('form[data-loading-submit]').forEach(function (form) {
     form.addEventListener('submit', function () {
       var btn = form.querySelector('button[type="submit"]');
@@ -945,7 +945,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // ── Ticket bulk approve ──
+  // ── อนุมัติ ticket แบบเป็นชุด (bulk) ──
   (function () {
     var checkboxes = document.querySelectorAll('[data-bulk-checkbox]');
     var bar = document.getElementById('bulk-action-bar');
@@ -983,7 +983,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   })();
 
-  // ── Reveal field when source input is changed from initial value ──
+  // ── แสดงช่องขึ้นมาเมื่อ input ต้นทางถูกเปลี่ยนไปจากค่าเริ่มต้น ──
   document.querySelectorAll('[data-reveal-when-changed]').forEach(function (target) {
     var fieldName = target.getAttribute('data-reveal-when-changed');
     if (!fieldName) return;
@@ -997,7 +997,7 @@ document.addEventListener('DOMContentLoaded', () => {
         target.removeAttribute('hidden');
       } else {
         target.setAttribute('hidden', 'hidden');
-        // Clear any input inside when hiding so it doesn't submit
+        // เคลียร์ input ทุกอันข้างในตอนซ่อน เพื่อไม่ให้มันถูกส่งไปกับฟอร์ม
         target.querySelectorAll('input').forEach(function (i) { i.value = ''; });
       }
     };
@@ -1005,7 +1005,7 @@ document.addEventListener('DOMContentLoaded', () => {
     sourceInput.addEventListener('change', update);
   });
 
-  // ── Unsaved changes warning ──
+  // ── คำเตือนการเปลี่ยนแปลงที่ยังไม่บันทึก ──
   document.querySelectorAll('form[data-warn-unsaved]').forEach(function (form) {
     var isDirty = false;
     var markDirty = function () { isDirty = true; };
@@ -1019,7 +1019,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // ── Inline help tooltips for form fields ──
+  // ── tooltip ช่วยเหลือแบบ inline สำหรับช่องกรอกในฟอร์ม ──
   document.querySelectorAll('[data-info-toggle]').forEach(function (trigger) {
     trigger.addEventListener('click', function (event) {
       event.preventDefault();
@@ -1032,11 +1032,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // ── Shared confirm modal handler ──
-  // Triggered by [data-confirm-modal-trigger="<modal-id>"]. Finds parent form
-  // (if any) and submits via requestSubmit() on confirm so that submit listeners
-  // (like data-warn-unsaved) fire correctly. ESC and backdrop close the modal.
-  // Pages can hook into population by registering a callback on the trigger:
+  // ── ตัวจัดการ confirm modal ที่ใช้ร่วมกัน ──
+  // ถูกกระตุ้นโดย [data-confirm-modal-trigger="<modal-id>"]. หา form แม่
+  // (ถ้ามี) แล้ว submit ผ่าน requestSubmit() ตอนยืนยัน เพื่อให้ submit listener
+  // (เช่น data-warn-unsaved) ทำงานถูกต้อง. ESC และการคลิก backdrop (ฉากหลัง) จะปิด modal.
+  // แต่ละหน้าสามารถเข้ามาเติมข้อมูลได้โดยลงทะเบียน callback ไว้ที่ trigger:
   //   trigger.__beforeConfirmOpen = (modal) => { ... };
   (function () {
     var triggers = document.querySelectorAll('[data-confirm-modal-trigger]');
@@ -1055,8 +1055,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('keydown', function (e) {
       if (!activeModal) return;
       if (e.key === 'Escape') { closeModal(); return; }
-      // Trap Tab within the open modal (WCAG 2.4.3). The background is not inert, so without this the
-      // keyboard would walk focus out to the obscured page behind the dialog.
+      // ดักปุ่ม Tab ไว้ใน modal ที่เปิดอยู่ (WCAG 2.4.3). พื้นหลังไม่ได้ถูกตั้งเป็น inert ดังนั้นถ้าไม่ทำแบบนี้
+      // keyboard จะพา focus หลุดออกไปที่หน้าเว็บที่ถูกบังอยู่ด้านหลัง dialog
       if (e.key === 'Tab') {
         var f = activeModal.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])');
         if (!f.length) { e.preventDefault(); return; }
@@ -1119,7 +1119,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   })();
 
-  // ── Generic submit confirmation (delegated) ──
+  // ── การยืนยันการ submit แบบทั่วไป (ใช้ event delegation) ──
   // แทน inline onsubmit="return confirm(...)" ด้วย data-confirm-submit="ข้อความ" ตัวเดียว
   // → รวม pattern ยืนยันการกระทำ destructive (ลบ/นำเข้า/regenerate) ไว้ที่เดียว ไม่ปน JS ใน template.
   document.addEventListener('submit', function (e) {
@@ -1129,9 +1129,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (message && !window.confirm(message)) { e.preventDefault(); }
   });
 
-  // ── Export loading overlay ──
-  // Heavy export links (Excel/PDF/CSV) take 5-10s to prepare server-side. Show
-  // a blocking overlay while the browser waits for the response.
+  // ── overlay แสดงการโหลดตอนส่งออก (export) ──
+  // ลิงก์ export ที่หนัก (Excel/PDF/CSV) ใช้เวลา 5-10 วินาทีในการเตรียมฝั่ง server. แสดง
+  // overlay ที่บังหน้าจอไว้ระหว่างที่เบราว์เซอร์รอ response
   (function () {
     var links = document.querySelectorAll('[data-export-link]');
     if (links.length === 0) return;
@@ -1162,16 +1162,16 @@ document.addEventListener('DOMContentLoaded', () => {
       if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
     };
 
-    // Secondary hide signals (some browsers shift focus / navigate on download).
+    // สัญญาณซ่อนสำรอง (บางเบราว์เซอร์ย้าย focus / navigate ออกไปตอนดาวน์โหลด)
     window.addEventListener('blur', function () { setTimeout(hide, 500); });
     window.addEventListener('pagehide', hide);
 
     links.forEach(function (link) {
       link.addEventListener('click', function () {
-        // Don't intercept — let the browser handle the download. Show the overlay, then detect
-        // "download started" via a server-echoed cookie: attachment responses don't navigate away,
-        // so blur/pagehide are unreliable. Send a token in the form; Response::download echoes it
-        // back as a `fileDownload` cookie; poll for it and hide the instant it appears.
+        // อย่าดักจับ — ปล่อยให้เบราว์เซอร์จัดการดาวน์โหลดเอง. แสดง overlay แล้วตรวจจับ
+        // "การดาวน์โหลดเริ่มแล้ว" ผ่าน cookie ที่ server สะท้อนกลับมา: response แบบไฟล์แนบไม่ได้ navigate ออกไปไหน
+        // ดังนั้น blur/pagehide จึงเชื่อถือไม่ได้. ส่ง token ไปในฟอร์ม; Response::download จะสะท้อนมัน
+        // กลับมาเป็น cookie ชื่อ `fileDownload`; poll หามัน แล้วซ่อนทันทีที่มันโผล่มา
         var ov = ensureOverlay();
         ov.hidden = false;
 
@@ -1196,14 +1196,14 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }, 250);
 
-        // Ultimate fallback: auto-hide after 30s if no signal ever arrives.
+        // ทางสำรองสุดท้าย: ซ่อนอัตโนมัติหลัง 30 วินาที ถ้าไม่มีสัญญาณใด ๆ มาเลย
         if (hideTimer) clearTimeout(hideTimer);
         hideTimer = setTimeout(hide, 30000);
       });
     });
   })();
 
-  // ── Live SLA countdown ──
+  // ── นับถอยหลัง SLA แบบสด (live) ──
   // เป้า SLA เดิม render เป็น label นิ่งฝั่ง server; นับถอยหลังสดฝั่ง client (ใช้ epoch → timezone-safe)
   (function () {
     var els = document.querySelectorAll('[data-sla-countdown]');
@@ -1235,7 +1235,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.setInterval(tick, 30000);
   })();
 
-  // ── Live queue poll (generic) ──
+  // ── poll คิวแบบ live (แบบทั่วไป) ──
   // หน้าคิว (เช่น guest requests) poll ค่า numeric (data-live-poll-key) เทียบ baseline →
   // ถ้าเพิ่ม (มีรายการใหม่) โชว์ banner ให้โหลดใหม่. pause เมื่อ tab ซ่อน; ไม่ auto-reload. ไม่ WebSocket.
   (function () {
@@ -1277,7 +1277,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   })();
 
-  // ── Live ticket queue (auto-refresh + in-place ค้นหา/กรอง/เปลี่ยนหน้า) ──
+  // ── คิว ticket แบบ live (auto-refresh + ค้นหา/กรอง/เปลี่ยนหน้าแบบ in-place) ──
   // หน้าคิว ticket หลัก อัปเดตในที่โดยไม่ reload ทั้งหน้า 2 ทาง:
   //   1) auto-refresh: poll max_id เมื่อมีงานใหม่ → swap เฉพาะรายการ+การ์ดสรุป (ไม่ยุ่ง filter form
   //      ที่ผู้ใช้อาจกำลังพิมพ์). หลบไปโชว์ banner ให้กดเองเมื่อไม่ปลอดภัย (bulk mode/โฟกัสค้นหา/modal).
@@ -1419,10 +1419,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('visibilitychange', function () { if (!document.hidden) check(); });
   })();
 
-  // ── Keyboard-scrollable table wrappers (WCAG 2.1.1) ──
-  // A horizontally-overflowing scroll region (.table-wrap, or the mobile report stat rail .report-stat-scroll)
-  // must be reachable + scrollable by keyboard. Make it a focusable, labelled group ONLY while it actually
-  // overflows, so it isn't a dead tab stop when it fits (both scroll at 375px but fit on desktop).
+  // ── กล่องครอบตาราง (table wrapper) ที่เลื่อนได้ด้วยคีย์บอร์ด (WCAG 2.1.1) ──
+  // พื้นที่ scroll ที่ล้นในแนวนอน (.table-wrap หรือแถบสถิติรายงานบนมือถือ .report-stat-scroll)
+  // ต้องเข้าถึง + เลื่อนได้ด้วยคีย์บอร์ด. ทำให้มันเป็น group ที่ focus ได้และมี label เฉพาะตอนที่มันล้นจริง ๆ เท่านั้น
+  // เพื่อไม่ให้เป็นจุดหยุด tab ที่ตายด้าน (dead tab stop) ตอนที่มันพอดี (ทั้งคู่เลื่อนที่ 375px แต่พอดีบน desktop)
   (function () {
     var wraps = document.querySelectorAll('.table-wrap, .report-stat-scroll');
     if (!wraps.length) return;
@@ -1449,8 +1449,8 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('resize', function () { clearTimeout(resizeTimer); resizeTimer = setTimeout(sync, 150); });
   })();
 
-  // The notification inbox filter tabs scroll horizontally when they overflow (mobile); fade the right edge
-  // ONLY while there are tabs hidden to the right, so the user knows to scroll.
+  // tab กรองในกล่องแจ้งเตือน (notification inbox) จะเลื่อนแนวนอนเมื่อมันล้น (บนมือถือ); ทำให้ขอบขวาจาง
+  // เฉพาะตอนที่มี tab ถูกซ่อนอยู่ทางขวาเท่านั้น เพื่อให้ผู้ใช้รู้ว่าเลื่อนได้
   document.querySelectorAll('.notification-filter-tabs').forEach(function (tabs) {
     var sync = function () {
       tabs.classList.toggle('can-scroll-right', tabs.scrollWidth > tabs.clientWidth + tabs.scrollLeft + 1);
@@ -1460,9 +1460,9 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('resize', sync);
   });
 
-  // The status stepper (.workflow-progress) becomes a horizontal scroll region on mobile; make it keyboard-
-  // focusable ONLY while it overflows so keyboard users can scroll to steps off-screen (WCAG 2.1.1). It already
-  // carries aria-label + <ol> list semantics, so only tabindex is toggled (no role override).
+  // ตัวแสดงขั้นตอนสถานะ (status stepper, .workflow-progress) กลายเป็นพื้นที่ scroll แนวนอนบนมือถือ; ทำให้มัน focus
+  // ด้วยคีย์บอร์ดได้เฉพาะตอนที่มันล้นเท่านั้น เพื่อให้ผู้ใช้คีย์บอร์ดเลื่อนไปยังขั้นตอนที่อยู่นอกจอได้ (WCAG 2.1.1). มันมี
+  // aria-label + ความหมายแบบ list ของ <ol> อยู่แล้ว จึง toggle แค่ tabindex (ไม่เขียนทับ role)
   (function () {
     var steppers = document.querySelectorAll('.workflow-progress');
     if (!steppers.length) return;

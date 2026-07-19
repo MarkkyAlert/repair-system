@@ -1,5 +1,5 @@
-// Action CTAs (อนุมัติ/ปฏิเสธ, มอบหมาย ฯลฯ) jump to #action-* sections. Offset the scroll by the
-// real sticky stack (topbar + sticky .action-bar) so the target box lands below them, not hidden under.
+// ปุ่ม Action CTA (ปุ่มเรียกให้ทำงาน เช่น อนุมัติ/ปฏิเสธ, มอบหมาย ฯลฯ) กระโดดไปยัง section #action-*. หักลบระยะ scroll ด้วย
+// ความสูงของ sticky stack จริง (topbar + .action-bar ที่ตรึงไว้) เพื่อให้กล่องเป้าหมายมาอยู่ใต้พวกมัน ไม่ถูกบังอยู่ข้างใต้
 (function () {
     var pad = 16;
     function stickyOffset() {
@@ -27,7 +27,7 @@
             history.replaceState(null, '', hash);
         });
     });
-    // Direct load with an #action-* hash (bookmarked/shared link).
+    // เปิดหน้าตรง ๆ พร้อม hash #action-* (ลิงก์ที่ bookmark ไว้/ที่แชร์กันมา)
     if (/^#action-/.test(location.hash) && document.querySelector(location.hash)) {
         setTimeout(function () { goTo(location.hash, false); }, 60);
     }

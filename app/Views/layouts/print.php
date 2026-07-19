@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= e($title ?? $appName) ?></title>
     <link rel="stylesheet" href="<?= e(asset('css/app.css')) ?>">
-    <!-- Brand colours — edit public/assets/css/theme.css to rebrand (no build step). Loaded last so it wins. -->
+    <!-- สีของแบรนด์ — แก้ที่ public/assets/css/theme.css เพื่อเปลี่ยนแบรนด์ (ไม่ต้อง build). โหลดเป็นลำดับสุดท้ายเพื่อให้ทับค่าอื่นได้. -->
     <link rel="stylesheet" href="<?= e(asset('css/theme.css')) ?>">
 </head>
 <body class="print-body">

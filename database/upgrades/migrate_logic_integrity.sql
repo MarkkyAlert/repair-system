@@ -1,4 +1,4 @@
--- Apply once to databases created before the logic-integrity fixes.
+-- รันครั้งเดียวกับฐานข้อมูลที่สร้างก่อนการแก้ logic-integrity (ความถูกต้องเชิงตรรกะ).
 
 ALTER TABLE tickets
     ADD COLUMN submission_token CHAR(64) NULL AFTER ticket_no,

@@ -31,7 +31,7 @@ try {
         $settings->upsert('cron_overdue_check_last_run_at', $now, 'string', false, 0);
         $settings->upsert('cron_email_queue_last_run_at', $now, 'string', false, 0);
         $settings->upsert('cron_maintenance_last_run_at', $now, 'string', false, 0);
-        // terminal-failure counts so the dashboard warns on failures, not just staleness
+        // จำนวน terminal-failure (ล้มเหลวถาวร) เพื่อให้ dashboard เตือนเรื่องความล้มเหลว ไม่ใช่แค่ความเก่า (staleness)
         $settings->upsert('cron_email_queue_last_failed', (string) $mailFailed, 'string', false, 0);
         $settings->upsert('cron_sla_notify_last_failed', (string) $slaNotifyFailed, 'string', false, 0);
     }
@@ -44,10 +44,10 @@ try {
     echo 'Emails retried: ' . (int) ($mailResult['retried'] ?? 0) . PHP_EOL;
     echo 'Emails failed: ' . $mailFailed . PHP_EOL;
 
-    // ran to completion (heartbeats updated), but a terminal email failure or an SLA alert that never went out
-    // is an unhealthy outcome — exit 2 (distinct from a crash's 1) so cron monitoring sees it.
+    // รันจนจบ (heartbeat อัปเดตแล้ว) แต่ terminal email failure หรือการแจ้งเตือน SLA ที่ไม่เคยส่งออกไป
+    // คือผลลัพธ์ที่ไม่ปกติ — exit 2 (ต่างจาก 1 ของการ crash) เพื่อให้การ monitor cron เห็นมัน.
     exit(($mailFailed > 0 || $slaNotifyFailed > 0) ? 2 : 0);
 } catch (Throwable $exception) {
-    fwrite(STDERR, (string) $exception . PHP_EOL); // full trace (class + message + file:line) for cron debugging
+    fwrite(STDERR, (string) $exception . PHP_EOL); // trace เต็ม (class + message + file:line) สำหรับ debug cron
     exit(1);
 }

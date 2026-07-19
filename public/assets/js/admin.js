@@ -6,7 +6,7 @@
     const nav = document.querySelector('.admin-tabs');
     const scroller = document.querySelector('.admin-tabs-scroller');
 
-    // F2: show fade edges only when there is hidden content to scroll toward.
+    // F2: แสดงขอบจาง (fade) เฉพาะตอนที่มีเนื้อหาถูกซ่อนอยู่ให้เลื่อนไปหาได้
     const updateFades = () => {
         if (!nav || !scroller) return;
         const max = nav.scrollWidth - nav.clientWidth;
@@ -14,7 +14,7 @@
         scroller.classList.toggle('can-scroll-right', nav.scrollLeft < max - 4);
     };
 
-    // F1: bring the active tab into view horizontally without moving page scroll.
+    // F1: เลื่อน tab ที่กำลังเลือกอยู่ให้เข้ามาในมุมมองตามแนวนอน โดยไม่ขยับ scroll ของทั้งหน้า
     const revealActive = (tab) => {
         if (!nav || !tab) return;
         const navRect = nav.getBoundingClientRect();
@@ -32,9 +32,9 @@
             const active = t.getAttribute('href') === hash;
             t.classList.toggle('is-active', active);
             t.setAttribute('aria-selected', active ? 'true' : 'false');
-            // Roving tabindex (WAI-ARIA tabs): only the selected tab is in the Tab order; the rest are
-            // reached with arrow keys. Without this the 12 tabs are 12 separate Tab stops and there is no
-            // arrow navigation, breaking the contract role="tab" advertises to assistive tech.
+            // Roving tabindex (เทคนิคของ WAI-ARIA tabs): มีเพียง tab ที่ถูกเลือกเท่านั้นที่อยู่ในลำดับการกด Tab ส่วนที่เหลือ
+            // เข้าถึงด้วยปุ่มลูกศร. ถ้าไม่ทำแบบนี้ tab ทั้ง 12 จะกลายเป็นจุดหยุด Tab แยกกัน 12 จุด และไม่มี
+            // การนำทางด้วยปุ่มลูกศร ทำให้ผิดสัญญาที่ role="tab" ประกาศไว้กับ assistive tech (เทคโนโลยีช่วยเหลือผู้พิการ)
             t.setAttribute('tabindex', active ? '0' : '-1');
             if (active) activeTab = t;
         });
@@ -74,8 +74,8 @@
         window.addEventListener('resize', updateFades);
     }
 
-    // Scroll so the tab row lands just below the sticky topbar, not hidden under it (topbar is taller +
-    // higher z-index). Used by the stat-card jumps and by an initial deep link.
+    // เลื่อนให้แถว tab มาอยู่ใต้ sticky topbar (แถบบนสุดที่ตรึงไว้) พอดี ไม่ถูกบังอยู่ใต้มัน (topbar สูงกว่า +
+    // z-index สูงกว่า). ใช้โดยการกดกระโดดจาก stat-card และตอนเปิดด้วย deep link ครั้งแรก
     const revealTabsBelowTopbar = () => {
         if (!scroller) return;
         const topbar = document.querySelector('.topbar') || document.querySelector('header');
@@ -84,8 +84,8 @@
         window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
     };
 
-    // F5: stat cards jump to their matching tab (smooth, no reload). The href
-    // fallback (/admin#tab-...) still works if JS is unavailable.
+    // F5: การ์ดสถิติ (stat card) กระโดดไปยัง tab ที่ตรงกัน (เลื่อนแบบ smooth ไม่ reload). ตัว href
+    // สำรอง (/admin#tab-...) ยังทำงานได้ถ้า JS ใช้ไม่ได้
     document.querySelectorAll('.stat-grid a.metric-card[href*="#tab-"]').forEach((card) => {
         card.addEventListener('click', (e) => {
             const hash = '#' + card.getAttribute('href').split('#').pop();
@@ -99,8 +99,8 @@
 
     const initialHash = location.hash;
     activate(initialHash || '#tab-users');
-    // A deep link (/admin#tab-priorities) landed the browser at the panel with the tab row hidden behind the
-    // topbar; scroll it into view so the user sees which section is active and can switch.
+    // deep link (ลิงก์ที่ชี้ตรงจุด เช่น /admin#tab-priorities) พาเบราว์เซอร์มาที่ panel โดยที่แถว tab ถูกซ่อนอยู่หลัง
+    // topbar; เลื่อนมันเข้ามาในมุมมองเพื่อให้ผู้ใช้เห็นว่า section ไหนกำลังทำงานอยู่ และสลับได้
     if (initialHash && document.querySelector('.admin-tab[href="' + initialHash + '"]')) {
         requestAnimationFrame(revealTabsBelowTopbar);
     }

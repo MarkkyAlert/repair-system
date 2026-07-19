@@ -1,5 +1,5 @@
--- Must-have integrity repair for template databases created before 2026-06-16.
--- Review existing data before running on a live customer database.
+-- การซ่อม integrity (ความถูกต้องของข้อมูล) ที่จำเป็น สำหรับ template database ที่สร้างก่อน 2026-06-16.
+-- ตรวจสอบข้อมูลเดิมก่อนรันบนฐานข้อมูลลูกค้าที่ใช้งานจริง (live).
 
 DELETE FROM ticket_attachments
 WHERE disk_path IN (

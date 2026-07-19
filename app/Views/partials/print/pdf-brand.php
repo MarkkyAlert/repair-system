@@ -1,8 +1,8 @@
 <?php
-// Shared organisation brand line for every PDF header (ticket + all report exports). Reads app_name +
-// app_tagline + the uploaded logo from Admin System Settings, so a buyer who rebrands in the UI gets
-// rebranded documents — no per-view PHP edits. Self-contained inline styles (dompdf), sits above each
-// document's own decorative report-type kicker.
+// แถบแบรนด์องค์กรที่ใช้ร่วมกันบนหัวของ PDF ทุกใบ (ทั้ง ticket + ไฟล์ export รายงานทุกชนิด). อ่านค่า app_name +
+// app_tagline + โลโก้ที่อัปโหลดจากหน้า Admin System Settings ดังนั้นลูกค้าที่เปลี่ยนแบรนด์ผ่าน UI ก็จะได้
+// เอกสารที่เปลี่ยนแบรนด์ตามไปด้วย — โดยไม่ต้องแก้ PHP ทีละ view. ใช้ inline style ในตัวเอง (สำหรับ dompdf) วางอยู่เหนือ
+// ส่วนหัวตกแต่งที่บอกชนิดรายงาน (kicker) ของเอกสารแต่ละใบ.
 $pdfBrandName = trim((string) setting('app_name', config('app.name', 'Repair System')));
 $pdfBrandTagline = trim((string) setting('app_tagline', ''));
 $pdfBrandLogo = branding_logo_data_uri();

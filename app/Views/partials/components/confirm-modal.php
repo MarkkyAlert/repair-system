@@ -1,22 +1,22 @@
 <?php
 /**
- * Shared themed confirm dialog. Replaces native confirm() across the app.
+ * กล่อง confirm (ยืนยัน) แบบใช้ร่วมกันที่จัดธีมไว้แล้ว. ใช้แทน confirm() ของเบราว์เซอร์ทั่วทั้งแอป.
  *
- * Usage:
+ * วิธีใช้:
  *   render_partial('partials/components/confirm-modal', [
- *       'id'            => 'bulk-approve-confirm',          // required, unique
+ *       'id'            => 'bulk-approve-confirm',          // จำเป็น และต้องไม่ซ้ำ
  *       'title'         => 'ยืนยันการอนุมัติแบบกลุ่ม',
- *       'icon'          => 'check-circle',                   // lucide icon (optional)
+ *       'icon'          => 'check-circle',                   // icon จาก lucide (ไม่บังคับ)
  *       'lead'          => 'การกระทำนี้ไม่สามารถย้อนกลับได้',
  *       'tone'          => 'primary',                        // primary | danger
  *       'confirm_label' => 'ยืนยัน',
  *       'cancel_label'  => 'ยกเลิก',
- *       'summary_slot'  => '<dl class="confirm-modal-summary">...</dl>',  // optional HTML
+ *       'summary_slot'  => '<dl class="confirm-modal-summary">...</dl>',  // HTML (ไม่บังคับ)
  *   ]);
  *
- * Triggered by any element with [data-confirm-modal-trigger="<id>"]. The global
- * handler in public/assets/js/app.js finds the parent form (if any) and submits
- * it via requestSubmit() to fire the submit event correctly.
+ * ถูกกระตุ้น (trigger) โดย element ใด ๆ ที่มี [data-confirm-modal-trigger="<id>"]. ตัว handler กลาง
+ * ใน public/assets/js/app.js จะหา form แม่ (ถ้ามี) แล้ว submit
+ * ผ่าน requestSubmit() เพื่อให้ event submit ทำงานได้ถูกต้อง.
  */
 $id            = (string) ($id ?? '');
 $title         = (string) ($title ?? 'ยืนยันการดำเนินการ');

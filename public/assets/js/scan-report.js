@@ -5,7 +5,7 @@
     var phone = document.getElementById('guest_phone');
     if (!email || !phone) return;
 
-    // Inline error styled like the server-side alert; created only when JS is available.
+    // error แบบ inline ที่จัดสไตล์ให้เหมือน alert ฝั่ง server; สร้างขึ้นเฉพาะเมื่อมี JS ใช้งานได้เท่านั้น
     var alertBox = document.createElement('div');
     alertBox.className = 'auth-alert auth-alert-danger';
     alertBox.setAttribute('role', 'alert');
@@ -27,12 +27,12 @@
     form.addEventListener('submit', function (e) {
         if (email.value.trim() === '' && phone.value.trim() === '') {
             e.preventDefault();
-            e.stopImmediatePropagation(); // keep the loading handler from firing on a blocked submit
+            e.stopImmediatePropagation(); // กันไม่ให้ loading handler ทำงานตอนที่ submit ถูกบล็อกไว้
             alertBox.style.display = '';
             email.setAttribute('aria-invalid', 'true');
             phone.setAttribute('aria-invalid', 'true');
             email.focus();
-            // Defensive: if the loading handler ran first, re-enable the submit button.
+            // ป้องกันไว้ก่อน: ถ้า loading handler ทำงานไปก่อนแล้ว ให้เปิดใช้งานปุ่ม submit กลับคืน
             setTimeout(function () {
                 var btn = form.querySelector('button[type="submit"]');
                 if (btn) { btn.classList.remove('is-loading'); btn.disabled = false; }

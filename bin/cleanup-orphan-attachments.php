@@ -2,14 +2,14 @@
 declare(strict_types=1);
 
 /**
- * Orphan attachment file cleanup worker.
+ * ตัวทำงานล้างไฟล์แนบที่กำพร้า (orphan attachment file cleanup worker).
  *
  * สแกน storage/uploads/tickets/ หาไฟล์ที่ไม่มีอยู่ใน DB (ticket_attachments)
  * แล้วลบทิ้ง เพื่อกัน disk leak จาก partial-failure (ดู P3 Fix-8)
  *
  * Usage:
- *   php bin/cleanup-orphan-attachments.php             # run จริง grace = 3600s
- *   php bin/cleanup-orphan-attachments.php --dry-run   # list อย่างเดียว ไม่ลบ
+ *   php bin/cleanup-orphan-attachments.php             # รันจริง grace = 3600s
+ *   php bin/cleanup-orphan-attachments.php --dry-run   # แสดงรายการอย่างเดียว ไม่ลบ
  *   php bin/cleanup-orphan-attachments.php --grace=7200  # ปรับ grace period (วินาที)
  *
  * Recommended cron: รายสัปดาห์ (ไฟล์ orphan ไม่ค่อยเกิด)
@@ -54,9 +54,9 @@ try {
         $settings = $container->get(SettingsRepository::class);
         if ($settings instanceof SettingsRepository) {
             $settings->upsert('cron_orphan_cleanup_last_run_at', date('Y-m-d H:i:s'), 'string', false, 0);
-            // Record delete failures so the dashboard warns even though the job "ran" (a fresh heartbeat alone
-            // hid a run that left orphans it couldn't delete). A clean run writes '0', clearing the warning —
-            // matching the backup/email/SLA crons.
+            // บันทึกความล้มเหลวของการลบ เพื่อให้ dashboard เตือน แม้ว่างานจะ "รัน" ไปแล้ว (heartbeat ใหม่เพียงอย่างเดียว
+            // ปิดบังรอบที่รันแล้วเหลือ orphan ซึ่งลบไม่ได้). รอบที่สะอาดเขียน '0' เคลียร์คำเตือน —
+            // ให้ตรงกับ cron ของ backup/email/SLA.
             $settings->upsert('cron_orphan_cleanup_last_failed', (string) (int) $result['errors'], 'string', false, 0);
         }
     }
@@ -76,10 +76,10 @@ try {
         }
     }
 
-    // Exit 2 = "ran but left delete failures" (distinct from a crash's 1), matching the backup cron so a
-    // scheduler/monitor can tell a completed-with-failures run from a hard crash.
+    // Exit 2 = "รันแล้วแต่เหลือความล้มเหลวของการลบ" (ต่างจาก 1 ของการ crash) ให้ตรงกับ cron ของ backup เพื่อให้
+    // ตัวจัดตารางงาน/ตัว monitor (scheduler/monitor) แยกรอบที่จบแบบมีความล้มเหลว ออกจากการ crash รุนแรงได้.
     exit((int) $result['errors'] > 0 ? 2 : 0);
 } catch (Throwable $exception) {
-    fwrite(STDERR, (string) $exception . PHP_EOL); // full trace (class + message + file:line) for cron debugging
+    fwrite(STDERR, (string) $exception . PHP_EOL); // trace เต็ม (class + message + file:line) สำหรับ debug cron
     exit(1);
 }

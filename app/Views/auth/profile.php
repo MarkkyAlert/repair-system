@@ -66,7 +66,7 @@ $lastLoginLabel = !empty($profile['last_login_at']) ? human_date((string) $profi
             <dd><?= e(role_label_th((string) ($profile['role'] ?? 'guest'))) ?></dd>
             <?php if (!empty($profile['created_at'])): ?>
                 <dt>สมาชิกตั้งแต่</dt>
-                <dd><?= e(thai_datetime((string) $profile['created_at'], false)) ?></dd><?php // enrollment date must be a fixed date, not "19 ชม. ที่แล้ว" ?>
+                <dd><?= e(thai_datetime((string) $profile['created_at'], false)) ?></dd><?php // วันสมัครสมาชิกต้องเป็นวันที่ตายตัว ไม่ใช่ "19 ชม. ที่แล้ว" ?>
             <?php endif; ?>
             <?php if (!empty($profile['last_login_at'])): ?>
                 <dt>เข้าระบบล่าสุด</dt>

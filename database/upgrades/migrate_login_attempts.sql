@@ -1,5 +1,5 @@
--- Login attempts log — record success/failure for security visibility
--- Run after core schema. Idempotent: skips if table exists.
+-- log ความพยายามล็อกอิน (login attempts) — บันทึกสำเร็จ/ล้มเหลว เพื่อความชัดเจนด้านความปลอดภัย
+-- รันหลังจาก schema หลัก. idempotent (รันซ้ำได้ผลเดิม): ข้ามถ้าตารางมีอยู่แล้ว.
 
 CREATE TABLE IF NOT EXISTS login_attempts (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,

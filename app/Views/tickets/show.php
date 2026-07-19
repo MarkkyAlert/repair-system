@@ -1,5 +1,5 @@
 <?php
-// Determine the primary CTA for current viewer based on workflow flags.
+// กำหนดปุ่มหลัก (primary CTA) สำหรับผู้ที่กำลังดูหน้าอยู่ ตามค่า flag ของ workflow.
 $primaryCta = null;
 $primaryAnchor = null;
 if (!empty($workflow['canReview'])) {
@@ -42,7 +42,7 @@ if (!empty($workflow['canReview'])) {
             ['label' => (string) $ticket['ticket_no']],
         ],
     ]) ?>
-    <!-- Sticky Action Bar -->
+    <!-- แถบปุ่มการทำงานแบบติดขอบ (Sticky Action Bar) -->
     <div class="action-bar no-print">
         <div class="action-bar-left">
             <a href="<?= e(url('/tickets')) ?>" class="icon-button" aria-label="กลับหน้ารายการ"><?= lucide('chevrons-left', 'h-4 w-4') ?></a>
@@ -81,7 +81,7 @@ if (!empty($workflow['canReview'])) {
         </div>
     </div>
 
-    <!-- Ticket Status Hero -->
+    <!-- ส่วนหัวแสดงสถานะ ticket (Hero) -->
     <section class="panel-card ticket-status-hero">
         <div class="panel-head">
             <h2 class="panel-title">สถานะและความคืบหน้า</h2>
@@ -111,8 +111,8 @@ if (!empty($workflow['canReview'])) {
             $progressSteps = ['pending_approval' => 'รออนุมัติ', 'approved' => 'อนุมัติ', 'assigned' => 'มอบหมาย', 'in_progress' => 'ดำเนินการ', 'resolved' => 'รอตรวจรับ', 'completed' => 'เสร็จสิ้น'];
             $stepKeys = array_keys($progressSteps);
 
-            // Furthest stage actually reached, inferred from milestone timestamps —
-            // reliable even when the ticket has left the happy path.
+            // ขั้นที่ไปถึงไกลสุดจริง ๆ อนุมานจากเวลา (timestamp) ของแต่ละหมุดหมาย (milestone) —
+            // เชื่อถือได้แม้ตอน ticket หลุดออกจากเส้นทางปกติ (happy path) ไปแล้ว.
             $reachedIndex = 0;
             foreach (['approved' => 'approved_at', 'assigned' => 'assigned_at', 'in_progress' => 'started_at', 'resolved' => 'resolved_at', 'completed' => 'completed_at'] as $stage => $field) {
                 if ((string) ($ticket[$field] ?? '-') !== '-') {
@@ -120,7 +120,7 @@ if (!empty($workflow['canReview'])) {
                 }
             }
 
-            // Terminal (negative) states leave the happy path; on_hold pauses it; closed completes it.
+            // สถานะจบแบบลบ (terminal) จะหลุดออกจากเส้นทางปกติ (happy path); on_hold คือหยุดพักไว้; closed คือทำเสร็จสมบูรณ์.
             $terminalLabels = ['rejected' => 'ถูกปฏิเสธ', 'cancelled' => 'ยกเลิกแล้ว'];
             $isTerminal = array_key_exists($currentStatus, $terminalLabels);
             $isOnHold = $currentStatus === 'on_hold';
@@ -171,7 +171,7 @@ if (!empty($workflow['canReview'])) {
         </div>
     </section>
 
-    <!-- Overview + Assignment grid -->
+    <!-- ตาราง (grid) ภาพรวม + การมอบหมายงาน -->
     <div class="content-grid">
         <section class="panel-card stack-md">
             <div class="panel-head">
@@ -263,7 +263,7 @@ if (!empty($workflow['canReview'])) {
         </section>
     </div>
 
-    <!-- Manager actions -->
+    <!-- การทำงานของผู้จัดการ (Manager) -->
     <?php if (!empty($workflow['managerCanAct'])): ?>
         <section class="panel-card stack-md" id="action-approval">
             <div class="panel-head">
@@ -353,7 +353,7 @@ if (!empty($workflow['canReview'])) {
         </section>
     <?php endif; ?>
 
-    <!-- Technician actions -->
+    <!-- การทำงานของช่างเทคนิค (Technician) -->
     <?php if (!empty($workflow['technicianCanAct'])): ?>
         <section class="panel-card stack-md">
             <div class="panel-head">
@@ -449,7 +449,7 @@ if (!empty($workflow['canReview'])) {
         </section>
     <?php endif; ?>
 
-    <!-- Requester confirmation -->
+    <!-- การยืนยันของผู้แจ้ง (Requester) -->
     <?php if (!empty($workflow['requesterCanAct'])): ?>
         <section class="panel-card stack-md">
             <div class="panel-head">
@@ -526,7 +526,7 @@ if (!empty($workflow['canReview'])) {
         </section>
     <?php endif; ?>
 
-    <!-- Resolution summary (history) -->
+    <!-- สรุปการแก้ไข (ประวัติ) -->
     <?php if ($ticket['resolution_summary'] !== '' || $ticket['closure_note'] !== '' || $ticket['rating_score'] > 0): ?>
         <section class="panel-card stack-md">
             <div class="panel-head">
@@ -563,7 +563,7 @@ if (!empty($workflow['canReview'])) {
         </section>
     <?php endif; ?>
 
-    <!-- Comments -->
+    <!-- ความคิดเห็น -->
     <section class="panel-card stack-md" id="ticket-comments">
             <div class="panel-head">
                 <h2 class="panel-title">ความเห็นและบทสนทนา</h2>
@@ -680,7 +680,7 @@ if (!empty($workflow['canReview'])) {
 <script src="<?= e(asset('js/ticket-detail.js')) ?>" defer></script>
 
 <style>
-    /* Fallback for native anchor jump / no-JS: keep action sections clear of the sticky header + action bar */
+    /* เผื่อกรณีกระโดด anchor แบบ native / ไม่มี JS: กันไม่ให้ส่วน action ถูกบังโดย sticky header + action bar */
     [id^="action-"] { scroll-margin-top: 14rem; }
 </style>
 

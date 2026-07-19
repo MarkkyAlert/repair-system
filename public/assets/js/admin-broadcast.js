@@ -17,7 +17,7 @@
             update();
         });
 
-        // I1: Live recipient count
+        // I1: นับจำนวนผู้รับแบบสด (live)
         const roleSelect = document.querySelector('.broadcast-page [data-recipient-target]');
         if (roleSelect) {
             const chipId = roleSelect.getAttribute('data-recipient-target');
@@ -33,7 +33,7 @@
             update();
         }
 
-        // Populate confirm modal summary before opening (global handler does the open)
+        // เติมข้อมูลสรุปใน confirm modal ก่อนเปิด (ตัว global handler เป็นคนเปิด modal เอง)
         const trigger = document.querySelector('[data-confirm-modal-trigger="broadcast-confirm-modal"]');
         const modal = document.getElementById('broadcast-confirm-modal');
         if (trigger && modal) {

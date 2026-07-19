@@ -135,9 +135,9 @@
         </form>
 
         <style>
-            /* Constrain whole page to 780px so hero + panel are same width */
+            /* จำกัดความกว้างทั้งหน้าไว้ที่ 780px เพื่อให้ hero กับ panel กว้างเท่ากัน */
             .prefs-page { max-width: 780px; margin-left: auto; margin-right: auto; }
-            /* Compact hero scoped to this page */
+            /* hero แบบกระชับ ใช้เฉพาะหน้านี้ */
             .prefs-page .page-hero { padding: 1.1rem 1.5rem; gap: 1rem; }
             .prefs-page .page-hero-title { font-size: clamp(1.2rem, 1.8vw, 1.5rem); }
             .prefs-page .page-hero-description { font-size: .85rem; margin-top: .2rem; }
@@ -155,11 +155,11 @@
 
             .prefs-label-row { display: inline-flex; align-items: center; gap: .4rem; }
             .prefs-info-icon { position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 28px; min-height: 28px; color: var(--muted); background: transparent; border: 1px solid transparent; border-radius: 99px; padding: 2px; cursor: pointer; transition: .15s ease; }
-            /* Expand the tap target to ~44px (WCAG 2.5.5) without enlarging the visible 28px icon or
-               loosening the label row — an invisible, absolutely-positioned overlay carries the extra hit area. */
+            /* ขยายพื้นที่กด (tap target) ให้ราว 44px (ตามเกณฑ์การเข้าถึง WCAG 2.5.5) โดยไม่ทำให้ icon ที่เห็น 28px ใหญ่ขึ้น
+               หรือทำให้แถว label หลวม — ใช้ overlay ที่มองไม่เห็นวางทับแบบ absolute เพื่อรับพื้นที่กดส่วนที่เพิ่ม. */
             .prefs-info-icon::after { content: ""; position: absolute; inset: -8px; }
             .prefs-info-icon:hover { color: var(--indigo-400, #818cf8); background: rgba(99, 102, 241, .12); border-color: rgba(99, 102, 241, .25); }
-            .prefs-info-icon:focus-visible { color: var(--indigo-400, #818cf8); background: rgba(99, 102, 241, .12); border-color: rgba(99, 102, 241, .25); outline: 3px solid var(--indigo-500); outline-offset: 2px; } /* solid ring ≥3:1 */
+            .prefs-info-icon:focus-visible { color: var(--indigo-400, #818cf8); background: rgba(99, 102, 241, .12); border-color: rgba(99, 102, 241, .25); outline: 3px solid var(--indigo-500); outline-offset: 2px; } /* วงขอบทึบ contrast ≥3:1 */
             .prefs-info-icon[aria-expanded="true"] { color: var(--indigo-400, #818cf8); background: rgba(99, 102, 241, .15); }
 
             .prefs-impact-text { display: flex; align-items: flex-start; gap: .4rem; margin-top: .4rem; padding: .5rem .65rem; border-radius: 8px; background: rgba(234, 179, 8, .08); border: 1px solid rgba(234, 179, 8, .2); color: var(--text); }
@@ -169,7 +169,7 @@
             .prefs-event-chips { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .35rem; }
             .prefs-event-chip { display: inline-flex; align-items: center; padding: .15rem .5rem; font-size: .7rem; font-weight: 500; color: var(--muted); background: rgba(99, 102, 241, .08); border: 1px solid rgba(99, 102, 241, .15); border-radius: 99px; line-height: 1.4; }
 
-            /* N3: Tone down Save button glow scoped to this page */
+            /* N3: ลดแสงเรือง (glow) ของปุ่ม Save เฉพาะหน้านี้ */
             .prefs-page .prefs-actions .btn-primary {
                 box-shadow: 0 4px 12px -6px rgba(99, 102, 241, .35), inset 0 1px 0 rgba(255, 255, 255, .15);
             }

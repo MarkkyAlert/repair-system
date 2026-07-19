@@ -2,21 +2,21 @@
 declare(strict_types=1);
 
 /**
- * Database backup worker.
+ * ตัวทำงานสำรองข้อมูลฐานข้อมูล (database backup worker).
  *
- * Dumps the configured MySQL database via mysqldump → gzip into
- * storage/backups/db-YYYY-MM-DD_HHMMSS.sql.gz, then prunes the oldest files
- * beyond --keep (default 14).
+ * dump ฐานข้อมูล MySQL ที่ตั้งค่าไว้ผ่าน mysqldump แล้วบีบอัดด้วย gzip ไปเป็น
+ * storage/backups/db-YYYY-MM-DD_HHMMSS.sql.gz จากนั้นลบไฟล์เก่าสุดที่
+ * เกินจำนวน --keep (ค่าเริ่มต้น 14) ออก.
  *
- * Password is passed via the MYSQL_PWD environment variable so it never
- * appears in `ps`/process listings.
+ * รหัสผ่านถูกส่งผ่าน environment variable ชื่อ MYSQL_PWD จึงไม่มีทาง
+ * โผล่ใน `ps`/รายการ process (process listings).
  *
- * Usage:
- *   php bin/backup-database.php                # backup + keep last 14
- *   php bin/backup-database.php --keep=30      # keep last 30
- *   php bin/backup-database.php --dry-run      # show what would happen
+ * วิธีใช้:
+ *   php bin/backup-database.php                # สำรองข้อมูล + เก็บ 14 ไฟล์ล่าสุด
+ *   php bin/backup-database.php --keep=30      # เก็บ 30 ไฟล์ล่าสุด
+ *   php bin/backup-database.php --dry-run      # แสดงว่าจะเกิดอะไรขึ้น (ไม่ทำจริง)
  *
- * Recommended cron: daily 02:00
+ * cron ที่แนะนำ: รายวัน 02:00
  *   0 2 * * * /path/to/php /path/to/bin/backup-database.php >> /var/log/maintenance-backup.log 2>&1
  */
 
@@ -75,12 +75,12 @@ echo '[backup] mode=' . ($dryRun ? 'dry-run' : 'live')
 echo '[backup] target: ' . $absolutePath . PHP_EOL;
 
 if (!$dryRun) {
-    // Avoid leaking password in process listings — use MYSQL_PWD env var instead of --password=
+    // เลี่ยงรหัสผ่านรั่วในรายการ process (process listings) — ใช้ env var ชื่อ MYSQL_PWD แทน --password=
     putenv('MYSQL_PWD=' . $password);
 
-    // Run mysqldump DIRECTLY (array proc_open — no shell) and gzip its stdout in-process (PHP zlib), so a
-    // mysqldump failure is caught via its OWN exit code. A `mysqldump | gzip` shell pipe reported gzip's status
-    // (still 0 when mysqldump fails), which let an empty gzip pass as a "successful" backup.
+    // รัน mysqldump ตรง ๆ (proc_open แบบ array — ไม่ผ่าน shell) แล้ว gzip เอา stdout ของมันในตัว process เอง (PHP zlib) เพื่อให้
+    // ความล้มเหลวของ mysqldump ถูกจับผ่าน exit code ของมันเอง. การต่อท่อแบบ shell `mysqldump | gzip` จะรายงานสถานะของ gzip
+    // (ยังเป็น 0 แม้ mysqldump ล้มเหลว) ซึ่งทำให้ gzip เปล่า ๆ ผ่านเป็น backup ที่ "สำเร็จ" ได้.
     $dumpArgs = [
         $mysqldumpBin,
         '--host=' . $host,
@@ -93,12 +93,12 @@ if (!$dryRun) {
         $database,
     ];
 
-    // Deadline so a stalled dump (a hung DB endpoint) can't hang the cron forever with no heartbeat.
+    // เส้นตาย (deadline) กันไม่ให้ dump ที่ค้าง (DB endpoint ค้าง) ทำ cron ค้างตลอดกาลโดยไม่มี heartbeat.
     $timeoutSeconds = max(1, (int) env('BACKUP_TIMEOUT_SECONDS', 900));
     $exitCode = 0;
     $stderr = '';
     $timedOut = false;
-    $sqlBytes = 0; // uncompressed SQL bytes actually produced by mysqldump — the real "did we back anything up" signal
+    $sqlBytes = 0; // จำนวน byte ของ SQL ที่ยังไม่บีบอัด ซึ่ง mysqldump ผลิตออกมาจริง — สัญญาณจริงว่า "เราสำรองอะไรได้หรือไม่"
 
     $descriptors = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
     $pipes = [];
@@ -134,7 +134,7 @@ if (!$dryRun) {
 
         $status = proc_get_status($proc);
         if (!$status['running']) {
-            // drain anything buffered after the process exited
+            // ระบายข้อมูลที่ค้างใน buffer หลัง process จบไปแล้ว
             while (is_string($rest = fread($pipes[1], 65536)) && $rest !== '') {
                 gzwrite($gz, $rest);
                 $sqlBytes += strlen($rest);
@@ -153,7 +153,7 @@ if (!$dryRun) {
             break;
         }
         if (!is_string($chunk) || $chunk === '') {
-            usleep(50000); // nothing ready yet — don't busy-spin
+            usleep(50000); // ยังไม่มีอะไรพร้อม — อย่าวนรอแบบกิน CPU (busy-spin)
         }
     }
 
@@ -161,7 +161,7 @@ if (!$dryRun) {
     fclose($pipes[1]);
     fclose($pipes[2]);
     proc_close($proc);
-    putenv('MYSQL_PWD'); // clear the sensitive env var asap
+    putenv('MYSQL_PWD'); // เคลียร์ env var ที่อ่อนไหวโดยเร็วที่สุด
 
     if ($timedOut) {
         fwrite(STDERR, 'mysqldump exceeded the ' . $timeoutSeconds . 's deadline — terminated; partial backup removed.' . PHP_EOL);
@@ -174,7 +174,7 @@ if (!$dryRun) {
         exit(1);
     }
     if ($sqlBytes === 0) {
-        // dump exited 0 but produced no SQL — refuse to record an empty backup as a success
+        // dump จบด้วย exit code 0 แต่ไม่ได้ผลิต SQL ออกมา — ปฏิเสธที่จะบันทึก backup เปล่าว่าสำเร็จ
         fwrite(STDERR, 'mysqldump produced no SQL output — refusing to write an empty backup.' . PHP_EOL);
         @unlink($absolutePath);
         exit(1);
@@ -184,7 +184,7 @@ if (!$dryRun) {
     echo '[backup] wrote ' . number_format($size / 1024, 1) . ' KB (' . number_format($sqlBytes / 1024, 1) . ' KB SQL)' . PHP_EOL;
 }
 
-// Rotation — keep newest N files, delete the rest
+// การหมุนเวียนไฟล์ (rotation) — เก็บไฟล์ใหม่สุด N ไฟล์ ลบที่เหลือ
 $existing = glob($backupDir . '/db-*.sql.gz') ?: [];
 usort($existing, static fn (string $a, string $b): int => filemtime($b) <=> filemtime($a));
 
@@ -205,15 +205,15 @@ foreach ($toDelete as $oldFile) {
 }
 
 if (!$dryRun) {
-    // The dump + rotation already succeeded; recording the heartbeat needs the DB, which can be unreachable at
-    // this point (connection dropped, system_settings unavailable). A throw here would escape as an UNCAUGHT
-    // fatal (exit 255) — this CLI script has no global exception boundary — so catch it and exit(1) cleanly, so
-    // the scheduler sees a controlled failure instead of a crash.
+    // ตัว dump + การหมุนเวียนไฟล์ (rotation) สำเร็จไปแล้ว; การบันทึก heartbeat ต้องใช้ DB ซึ่งอาจติดต่อไม่ได้ ณ
+    // จุดนี้ (connection หลุด, system_settings ใช้ไม่ได้). การ throw ตรงนี้จะหลุดออกไปเป็น fatal ที่ไม่ถูกจับ (UNCAUGHT)
+    // (exit 255) — สคริปต์ CLI นี้ไม่มีขอบเขตดักจับ exception ระดับ global — จึงดักมันไว้แล้ว exit(1) อย่างสะอาด เพื่อให้
+    // ตัวจัดตารางงาน (scheduler) เห็นความล้มเหลวที่ควบคุมได้ แทนที่จะเป็นการ crash.
     try {
         $settings = $container->get(SettingsRepository::class);
         if ($settings instanceof SettingsRepository) {
             $settings->upsert('cron_backup_last_run_at', date('Y-m-d H:i:s'), 'string', false, 0);
-            // record rotation failures so the dashboard warns + the exit code is non-zero
+            // บันทึกความล้มเหลวของการหมุนเวียนไฟล์ (rotation) เพื่อให้ dashboard เตือน + exit code เป็นค่าที่ไม่ใช่ศูนย์
             $settings->upsert('cron_backup_last_failed', (string) $deleteFailures, 'string', false, 0);
         }
     } catch (Throwable $exception) {
@@ -222,12 +222,12 @@ if (!$dryRun) {
     }
 }
 
-// In live mode, glob() above runs *after* mysqldump creates the new file, so
-// count($existing) already includes the new backup. Dry-run skips creation,
-// so the new (hypothetical) file is not in $existing.
+// ในโหมด live, glob() ด้านบนรัน *หลังจาก* mysqldump สร้างไฟล์ใหม่แล้ว ดังนั้น
+// count($existing) จึงรวม backup ใหม่ไว้ด้วยแล้ว. ส่วน dry-run ข้ามการสร้างไฟล์
+// ไฟล์ใหม่ (แบบสมมติ) จึงไม่อยู่ใน $existing.
 $retained = count($existing) - $deletedCount + ($dryRun ? 1 : 0);
 echo '[backup] done. retained=' . $retained . ' deleted=' . $deletedCount . ' delete_failed=' . $deleteFailures . PHP_EOL;
 
-// the backup itself succeeded, but a failed rotation delete means stale files pile up (disk fills) — signal it
-// with a non-zero exit (2), distinct from a crash's 1, while keeping the heartbeat.
+// ตัว backup เองสำเร็จ แต่การลบระหว่างหมุนเวียนไฟล์ (rotation) ที่ล้มเหลวหมายถึงไฟล์เก่าค้างสะสม (disk เต็ม) — ส่งสัญญาณมัน
+// ด้วย exit ที่ไม่ใช่ศูนย์ (2) ต่างจาก 1 ของการ crash โดยยังคง heartbeat ไว้.
 exit($deleteFailures > 0 ? 2 : 0);

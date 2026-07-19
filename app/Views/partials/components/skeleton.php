@@ -1,10 +1,10 @@
 <?php
 /**
- * Skeleton loading placeholder.
+ * Skeleton (โครงร่างจาง ๆ ระหว่างโหลด) แบบ placeholder.
  *
- * Canonical static representation. The dynamic variant used by dashboard chart
- * loading states is duplicated in public/assets/js/app.js (around line 61).
- * Update both if changing markup.
+ * เป็นเวอร์ชัน static ที่เป็นตัวหลัก. ส่วนเวอร์ชัน dynamic ที่ใช้ตอนกราฟบน dashboard
+ * กำลังโหลด ถูกทำซ้ำไว้ใน public/assets/js/app.js (ราวบรรทัด 61).
+ * ถ้าจะแก้ markup ต้องแก้ทั้งสองที่.
  */
 ?>
 <div class="skeleton-card">

@@ -3,10 +3,10 @@
 @tailwind utilities;
 
 /* =========================================================================
-   Design Tokens – Indigo / Violet Glassmorphism
+   ตัวแปรดีไซน์ (Design Tokens) – ชุดสี Indigo / Violet แบบ Glassmorphism (กระจกฝ้า)
    ========================================================================= */
 :root {
-  /* brand spectrum */
+  /* ชุดสีแบรนด์ (brand spectrum) */
   --indigo-50: #eef2ff;
   --indigo-100: #e0e7ff;
   --indigo-200: #c7d2fe;
@@ -22,16 +22,16 @@
   --violet-700: #6d28d9;
   --fuchsia-400: #e879f9;
   --fuchsia-500: #d946ef;
-  --fuchsia-600: #c026d3; /* AA-safe fuchsia for white text on the primary-button gradient (4.71:1) */
+  --fuchsia-600: #c026d3; /* สี fuchsia ที่ปลอดภัยระดับ AA สำหรับตัวอักษรสีขาวบน gradient ของปุ่มหลัก (ความคมชัด 4.71:1) */
   --sky-500: #38bdf8;
 
-  /* ink (deep navy-violet) */
+  /* สีหมึกเข้ม (โทน navy-violet เข้ม) */
   --ink-950: #07061a;
   --ink-900: #0e0c2a;
   --ink-800: #161334;
   --ink-700: #211c43;
 
-  /* surfaces */
+  /* พื้นผิว (surfaces) */
   --canvas: #f5f4fc;
   --canvas-aurora-1: rgba(99, 102, 241, .35);
   --canvas-aurora-2: rgba(139, 92, 246, .32);
@@ -45,33 +45,33 @@
   --line: rgba(15, 18, 53, .08);
   --line-strong: rgba(15, 18, 53, .14);
 
-  /* text (WCAG AA tuned) */
+  /* สีข้อความ (ปรับให้ผ่าน WCAG AA — เกณฑ์ความคมชัดสี) */
   --text: #0f1235;
   --text-soft: #2b2e58;
-  --muted: #545786;      /* bumped from #6b6f95 → AA on surface-muted */
+  --muted: #545786;      /* ปรับเข้มขึ้นจาก #6b6f95 → ผ่าน AA บนพื้น surface-muted */
   --muted-strong: #3d3f6d;
 
-  /* shadows (indigo-tinted) */
+  /* เงา (โทน indigo) */
   --shadow-xs: 0 1px 2px rgba(67, 56, 202, .06);
   --shadow-sm: 0 2px 6px rgba(67, 56, 202, .07), 0 12px 24px -12px rgba(67, 56, 202, .14);
   --shadow-md: 0 8px 24px -10px rgba(67, 56, 202, .25), 0 18px 48px -24px rgba(124, 58, 237, .25);
   --shadow-lg: 0 24px 60px -20px rgba(67, 56, 202, .35), 0 30px 90px -40px rgba(124, 58, 237, .35);
   --shadow-glow: 0 0 0 1px rgba(99, 102, 241, .22), 0 18px 48px -16px rgba(99, 102, 241, .45);
 
-  /* radius */
-  /* Border radius — 4-step scale aligned to 4px grid */
-  --radius-sm: 8px;    /* chips, small inputs */
-  --radius-md: 12px;   /* buttons, inputs, cards (default) */
-  --radius-lg: 16px;   /* panels, modals */
-  --radius-xl: 24px;   /* hero, large cards */
-  --radius-2xl: 24px;  /* alias — same as xl, removes 5th scale */
+  /* ความโค้งมุม (radius) */
+  /* ความโค้งมุม (border radius) — สเกล 4 ระดับ อิงกริด 4px */
+  --radius-sm: 8px;    /* chips, ช่องกรอกเล็ก */
+  --radius-md: 12px;   /* ปุ่ม, ช่องกรอก, การ์ด (ค่าเริ่มต้น) */
+  --radius-lg: 16px;   /* พาเนล, กล่องโมดัล */
+  --radius-xl: 24px;   /* ส่วน hero, การ์ดใหญ่ */
+  --radius-2xl: 24px;  /* ชื่อพ้อง (alias) — เหมือน xl, ตัดสเกลระดับที่ 5 ออก */
   --radius-pill: 999px;
 
-  /* Font stacks */
+  /* ชุดฟอนต์ (Font stacks) */
   --font-sans: "IBM Plex Sans Thai", "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 
-  /* Spacing — 4px grid (use these directly, no random values) */
+  /* ระยะห่าง (spacing) — กริด 4px (ใช้ค่าพวกนี้ตรง ๆ อย่าใส่ค่ามั่ว) */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -99,7 +99,7 @@
   --line-strong: rgba(165, 180, 252, .18);
   --text: #ecebff;
   --text-soft: #d4d6f5;
-  --muted: #adb0d2;       /* bumped for AA on dark surface */
+  --muted: #adb0d2;       /* ปรับเข้มขึ้นเพื่อให้ผ่าน AA บนพื้นสีเข้ม */
   --muted-strong: #c4c7e6;
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, .35);
   --shadow-sm: 0 2px 6px rgba(0, 0, 0, .25), 0 14px 30px -16px rgba(99, 102, 241, .55);
@@ -109,7 +109,7 @@
 }
 
 /* =========================================================================
-   Base
+   พื้นฐาน (Base)
    ========================================================================= */
 @layer base {
   html {
@@ -135,16 +135,16 @@ a:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  /* Solid (not 38% translucent) — a translucent ring composited only ~1.6:1 against the near-black dark
-     canvas and the near-white light canvas, below the WCAG 1.4.11 3:1 for non-text focus indicators.
-     Solid --indigo-500 clears 4:1 on both themes. */
+  /* ใช้สีทึบ (ไม่ใช่แบบโปร่งแสง 38%) — ring แบบโปร่งแสงได้ความคมชัดแค่ ~1.6:1 เมื่อทับบนพื้น dark เกือบดำ
+     และพื้น light เกือบขาว ต่ำกว่าเกณฑ์ WCAG 1.4.11 ที่ต้องได้ 3:1 สำหรับ focus indicator ที่ไม่ใช่ข้อความ
+     สี --indigo-500 แบบทึบผ่าน 4:1 ได้ทั้งสองธีม */
   outline: 3px solid var(--indigo-500);
   outline-offset: 2px;
 }
-/* Ensure buttons + admin tabs get the same 3px indigo focus ring as inputs.
-   transition:none is required — these components use `transition: .15s/.18s ease`
-   (implicit `all`), which otherwise animates the outline in from currentColor and
-   leaves the ring looking like the thin UA default. Focus rings must appear instantly. */
+/* ทำให้ปุ่ม + แท็บ admin ได้ focus ring สี indigo หนา 3px เหมือนช่องกรอก (input)
+   ต้องใส่ transition:none — component พวกนี้ใช้ `transition: .15s/.18s ease`
+   (เท่ากับ `all` โดยปริยาย) ซึ่งไม่งั้นจะค่อย ๆ วาด outline จาก currentColor แบบเคลื่อนไหว
+   ทำให้ ring ดูบางเหมือนค่าเริ่มต้นของเบราว์เซอร์ (UA) — focus ring ต้องโผล่ทันที */
 .btn:focus-visible,
 .admin-tab:focus-visible {
   outline: 3px solid var(--indigo-500) !important;
@@ -154,7 +154,7 @@ textarea:focus-visible {
 
 ::selection { background: color-mix(in srgb, var(--violet-500) 35%, transparent); color: inherit; }
 
-/* Aurora canvas: floating colored blobs behind everything */
+/* ผืนพื้น aurora: ก้อนสีลอย (blob) อยู่หลังทุกอย่าง */
 body::before,
 body::after {
   content: "";
@@ -184,7 +184,7 @@ body::after {
 body > * { position: relative; z-index: 1; }
 
 /* =========================================================================
-   Tailwind component layer (utility shortcuts retained for legacy refs)
+   เลเยอร์ component ของ Tailwind (เก็บ utility shortcut ไว้ให้โค้ดเก่าอ้างอิง)
    ========================================================================= */
 @layer components {
   .btn {
@@ -203,7 +203,7 @@ body > * { position: relative; z-index: 1; }
 }
 
 /* =========================================================================
-   App Shell – sidebar + main
+   โครงหน้าแอป (App Shell) – แถบข้าง (sidebar) + เนื้อหาหลัก (main)
    ========================================================================= */
 .app-shell {
   display: flex;
@@ -281,7 +281,7 @@ body > * { position: relative; z-index: 1; }
   transform: rotate(-12deg);
 }
 
-/* Optional letter mark (kept for print/QR-sheet contexts only) */
+/* ตัวอักษรโลโก้ (letter mark) แบบเสริม (เก็บไว้ใช้เฉพาะตอนพิมพ์/แผ่น QR) */
 .brand-monogram {
   font-size: 1.35rem;
   font-weight: 800;
@@ -454,7 +454,7 @@ body > * { position: relative; z-index: 1; }
 }
 
 /* =========================================================================
-   Topbar
+   แถบด้านบน (Topbar)
    ========================================================================= */
 .topbar {
   position: sticky;
@@ -519,7 +519,7 @@ body > * { position: relative; z-index: 1; }
 
 .button-row { gap: .65rem; }
 
-/* Eyebrow — only the page hero shouts. Section kickers are subtle. */
+/* ข้อความหัวเรื่องย่อย (eyebrow) — ให้เด่นเฉพาะ hero ของหน้า ส่วน kicker ของแต่ละ section ให้เบา ๆ */
 .page-hero-eyebrow {
   color: var(--indigo-600);
   font-size: .72rem;
@@ -536,7 +536,7 @@ body > * { position: relative; z-index: 1; }
   letter-spacing: .02em;
 }
 
-/* Section kicker — quieter than the title, no uppercase wall */
+/* kicker ของ section — เบากว่าหัวเรื่อง ไม่ทำตัวพิมพ์ใหญ่ทั้งแผง */
 .panel-kicker {
   color: var(--muted);
   font-size: .76rem;
@@ -559,7 +559,7 @@ body > * { position: relative; z-index: 1; }
   padding: 1.5rem;
 }
 
-/* Icon buttons (topbar) */
+/* ปุ่มไอคอน (บนแถบด้านบน) */
 .icon-button {
   display: inline-flex;
   width: 40px;
@@ -590,7 +590,7 @@ body > * { position: relative; z-index: 1; }
 .dark .theme-icon-dark { display: inline-flex; }
 .dark .theme-icon-light { display: none; }
 
-/* user chip */
+/* ป้ายผู้ใช้ (user chip) */
 .user-chip {
   gap: .6rem;
   padding: .3rem .8rem .3rem .35rem;
@@ -620,7 +620,7 @@ body > * { position: relative; z-index: 1; }
 .user-chip-role { color: var(--muted); font-size: .74rem; text-transform: capitalize; }
 
 /* =========================================================================
-   Stacks
+   การจัดเรียงแนวตั้ง (Stacks)
    ========================================================================= */
 .content-area > .stack-lg { gap: 1.4rem; }
 .stack-lg, .stack-md { display: flex; flex-direction: column; }
@@ -628,7 +628,7 @@ body > * { position: relative; z-index: 1; }
 .stack-md { gap: .9rem; }
 
 /* =========================================================================
-   Page Hero
+   ส่วนหัวเด่นของหน้า (Page Hero)
    ========================================================================= */
 .page-hero {
   position: relative;
@@ -685,8 +685,8 @@ body > * { position: relative; z-index: 1; }
   flex-wrap: wrap;
 }
 
-/* Narrow screens: stack hero action buttons full-width so labels don't wrap
-   (e.g. "เพิ่มทรัพย์สิน") when three buttons compete for one row. */
+/* จอแคบ: วางปุ่มการทำงานใน hero เรียงเต็มความกว้าง เพื่อไม่ให้ข้อความในปุ่มตกบรรทัด
+   (เช่น "เพิ่มทรัพย์สิน") ตอนที่ปุ่มสามอันแย่งพื้นที่ในแถวเดียว */
 @media (max-width: 560px) {
   .page-hero-actions { flex-direction: column; }
   .page-hero-actions .btn { flex: none; width: 100%; }
@@ -696,12 +696,12 @@ body > * { position: relative; z-index: 1; }
   margin: .35rem 0 0;
   font-size: clamp(1.45rem, 2.6vw, 1.9rem);
   font-weight: 700;
-  line-height: 1.3;          /* Thai glyphs need taller line-height */
-  letter-spacing: 0;          /* Negative tracking destroys Thai diacritics */
+  line-height: 1.3;          /* อักขระไทยต้องการ line-height สูงกว่าปกติ */
+  letter-spacing: 0;          /* ค่า letter-spacing ติดลบทำให้สระ/วรรณยุกต์ไทยพัง */
 }
 
 .page-hero-description {
-  max-width: 60ch;            /* Optimal reading length */
+  max-width: 60ch;            /* ความยาวบรรทัดที่อ่านสบายที่สุด */
   margin: .4rem 0 0;
   color: rgba(241, 243, 255, .96);
   font-size: .9rem;
@@ -727,7 +727,7 @@ body > * { position: relative; z-index: 1; }
 }
 
 /* =========================================================================
-   Glass Panels & Cards
+   พาเนลและการ์ดแบบกระจก (Glass Panels & Cards)
    ========================================================================= */
 .panel-card,
 .metric-card,
@@ -780,13 +780,13 @@ body > * { position: relative; z-index: 1; }
 .body-text { font-size: .9rem; color: var(--text-soft); }
 .helper-text { font-size: .77rem; }
 
-/* Metric cards (KPI) */
+/* การ์ดตัวชี้วัด (KPI) */
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1rem;
 }
-/* Modifiers — override grid count when KPI count !== 4 */
+/* ตัวปรับแต่ง (modifier) — เปลี่ยนจำนวนคอลัมน์ของกริดเมื่อจำนวน KPI ไม่เท่ากับ 4 */
 .stat-grid.stat-grid-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .stat-grid.stat-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .stat-grid.stat-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -883,7 +883,7 @@ body > * { position: relative; z-index: 1; }
   margin-top: .15rem;
   font-size: 2rem;
   font-weight: 800;
-  letter-spacing: -.015em;   /* Subtle, Thai-safe */
+  letter-spacing: -.015em;   /* บาง ๆ, ปลอดภัยกับอักขระไทย */
   background: linear-gradient(135deg, var(--text), var(--text-soft));
   -webkit-background-clip: text;
   background-clip: text;
@@ -894,7 +894,7 @@ body > * { position: relative; z-index: 1; }
 
 .metric-meta { margin-top: .25rem; font-size: .75rem; }
 
-/* tone variants */
+/* โทนสีแบบต่าง ๆ (tone variants) */
 .metric-card-danger .metric-icon { background: linear-gradient(135deg, #fee2e2, #fff1f2); color: #dc2626; }
 .metric-card-warning .metric-icon { background: linear-gradient(135deg, #fef3c7, #fffbeb); color: #d97706; }
 .metric-card-info .metric-icon    { background: linear-gradient(135deg, #dbeafe, #eff6ff); color: #2563eb; }
@@ -917,7 +917,7 @@ body > * { position: relative; z-index: 1; }
 }
 
 /* =========================================================================
-   Buttons
+   ปุ่ม (Buttons)
    ========================================================================= */
 .btn {
   display: inline-flex;
@@ -942,10 +942,10 @@ body > * { position: relative; z-index: 1; }
 .btn-lg { min-height: 48px; padding: .8rem 1.2rem; font-size: .9rem; border-radius: 16px; }
 
 .btn-primary {
-  /* White label is 13px/600 (normal text → needs 4.5:1). The old indigo-500 (4.47) and fuchsia-500
-     (3.46) stops failed WCAG AA; indigo-600 / violet-600 / fuchsia-600 keep the same hue ramp with a
-     min of 4.71:1 across the whole gradient. Only .btn-primary changes — the shared brand tokens
-     (--indigo-500/--fuchsia-500, used on large hero text where 3:1 applies) are untouched. */
+  /* ตัวอักษรสีขาวขนาด 13px/600 (ข้อความปกติ → ต้องได้ 4.5:1) สีเดิม indigo-500 (4.47) และ fuchsia-500
+     (3.46) ไม่ผ่าน WCAG AA; indigo-600 / violet-600 / fuchsia-600 คงการไล่โทนสีเดิมไว้ โดยได้ค่า
+     ต่ำสุด 4.71:1 ตลอดทั้ง gradient เปลี่ยนเฉพาะ .btn-primary เท่านั้น — token สีแบรนด์ที่ใช้ร่วมกัน
+     (--indigo-500/--fuchsia-500 ใช้บนข้อความ hero ขนาดใหญ่ที่ใช้เกณฑ์ 3:1) ไม่ถูกแตะต้อง */
   background: linear-gradient(135deg, var(--indigo-600), var(--violet-600) 70%, var(--fuchsia-600));
   background-size: 200% 200%;
   background-position: 0% 50%;
@@ -1036,7 +1036,7 @@ body > * { position: relative; z-index: 1; }
 .button-icon { width: 16px; height: 16px; }
 
 /* =========================================================================
-   Badges
+   ป้ายสถานะ (Badges)
    ========================================================================= */
 .badge {
   display: inline-flex;
@@ -1064,7 +1064,7 @@ body > * { position: relative; z-index: 1; }
 .dark .badge-info    { background: rgba(99, 102, 241, .26); color: #c7d2fe; border-color: rgba(99, 102, 241, .5); }
 
 /* =========================================================================
-   Forms
+   ฟอร์ม (Forms)
    ========================================================================= */
 .field-group {
   display: flex;
@@ -1094,7 +1094,7 @@ body > * { position: relative; z-index: 1; }
   transition: .18s ease;
 }
 
-.input::placeholder { color: var(--muted); opacity: 1; }  /* opacity:.65 dropped placeholder below AA (2.9:1 light) — full --muted clears 4.5:1 both themes */
+.input::placeholder { color: var(--muted); opacity: 1; }  /* opacity:.65 ทำให้ placeholder ต่ำกว่า AA (2.9:1 บนธีมสว่าง) — ใช้ --muted เต็ม ๆ ผ่าน 4.5:1 ทั้งสองธีม */
 .input:hover { border-color: var(--indigo-200); }
 .dark .input:hover { border-color: rgba(165, 180, 252, .3); }
 
@@ -1112,8 +1112,8 @@ body > * { position: relative; z-index: 1; }
 
 textarea.input { resize: vertical; min-height: 110px; }
 
-/* Select: hide native arrow + inline SVG chevron for cross-browser consistency.
-   The dropdown panel that appears on click is still native (no JS replacement). */
+/* Select: ซ่อนลูกศรของเบราว์เซอร์ + ใส่ SVG chevron เองให้หน้าตาเหมือนกันทุกเบราว์เซอร์
+   ส่วนพาเนล dropdown ที่เด้งตอนคลิกยังเป็นของเบราว์เซอร์ (ไม่ได้แทนด้วย JS) */
 select.input {
   appearance: none;
   -webkit-appearance: none;
@@ -1129,10 +1129,10 @@ select.input:hover,
 select.input:focus {
   background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23818cf8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
 }
-/* IE 11 / legacy Edge: hide native arrow */
+/* IE 11 / Edge รุ่นเก่า: ซ่อนลูกศรของเบราว์เซอร์ */
 select.input::-ms-expand { display: none; }
 
-/* Export loading overlay — shown while browser prepares a heavy download */
+/* overlay ตอนกำลังโหลด export — แสดงระหว่างเบราว์เซอร์เตรียมไฟล์ดาวน์โหลดก้อนใหญ่ */
 .export-loading-overlay {
   position: fixed;
   inset: 0;
@@ -1172,7 +1172,7 @@ select.input::-ms-expand { display: none; }
 @keyframes export-spin { to { transform: rotate(360deg); } }
 
 /* =========================================================================
-   Tables
+   ตาราง (Tables)
    ========================================================================= */
 .table-wrap {
   overflow: auto;
@@ -1190,14 +1190,14 @@ select.input::-ms-expand { display: none; }
   border-collapse: collapse;
 }
 
-/* Leaderboard tables sit in a 2-column grid (narrow). Their 3-4 short columns
-   don't need the 760px floor that wide admin tables use — drop it to avoid
-   the right column getting clipped inside the panel. */
+/* ตารางกระดานอันดับอยู่ในกริด 2 คอลัมน์ (แคบ) มีแค่ 3-4 คอลัมน์สั้น ๆ
+   จึงไม่ต้องมีความกว้างขั้นต่ำ 760px แบบตาราง admin ที่กว้าง — เอาออกเพื่อไม่ให้
+   คอลัมน์ขวาถูกตัดขาดอยู่ในพาเนล */
 .insight-table.leaderboard-table { min-width: 0; }
 
-/* Mobile card fallback for opt-in tables (data-mobile-card attribute).
-   At <600px the table renders as stacked cards with field labels read from
-   data-label on each <td>. Tables without the attribute keep horizontal scroll. */
+/* โหมดการ์ดสำหรับมือถือ เฉพาะตารางที่ขอเข้าร่วม (แอตทริบิวต์ data-mobile-card)
+   ที่ความกว้าง <600px ตารางจะแสดงเป็นการ์ดเรียงซ้อน โดยอ่านชื่อฟิลด์จาก
+   data-label ของแต่ละ <td> ตารางที่ไม่มีแอตทริบิวต์นี้ยังเลื่อนแนวนอนเหมือนเดิม */
 @media (max-width: 600px) {
   .insight-table[data-mobile-card],
   .insight-table[data-mobile-card] tbody,
@@ -1265,9 +1265,9 @@ select.input::-ms-expand { display: none; }
   color: var(--indigo-300);
 }
 
-/* Freeze the first column ("เลขที่") so it stays visible while the wide report
-   table scrolls horizontally. Needs an opaque background so scrolled cells
-   don't bleed through, plus a right divider to signal the frozen edge. */
+/* ตรึงคอลัมน์แรก ("เลขที่") ให้เห็นตลอดขณะที่ตารางรายงานกว้าง ๆ
+   เลื่อนแนวนอน ต้องใช้พื้นหลังทึบเพื่อไม่ให้เซลล์ที่เลื่อนผ่าน
+   ทะลุออกมา และมีเส้นแบ่งด้านขวาบอกขอบที่ถูกตรึง */
 .data-table th:first-child,
 .data-table td:first-child {
   position: sticky;
@@ -1341,7 +1341,7 @@ select.input::-ms-expand { display: none; }
 }
 
 /* =========================================================================
-   Empty state
+   สถานะว่างเปล่า (Empty state — ตอนไม่มีข้อมูล)
    ========================================================================= */
 .empty-state {
   display: flex;
@@ -1363,7 +1363,7 @@ select.input::-ms-expand { display: none; }
     var(--surface-muted);
 }
 
-/* Illustration — gradient blob + floating icon */
+/* ภาพประกอบ — ก้อนสี gradient (blob) + ไอคอนลอย */
 .empty-state-illustration {
   position: relative;
   width: 88px;
@@ -1416,7 +1416,7 @@ select.input::-ms-expand { display: none; }
 .empty-state-copy { color: var(--muted); font-size: .82rem; max-width: 42ch; line-height: 1.55; }
 
 /* =========================================================================
-   Guest / Auth pages
+   หน้าผู้เยี่ยมชม / เข้าสู่ระบบ (Guest / Auth pages)
    ========================================================================= */
 .guest-body {
   min-height: 100vh;
@@ -1511,8 +1511,8 @@ select.input::-ms-expand { display: none; }
   margin: 1rem 0;
   font-size: clamp(2rem, 4vw, 3.4rem);
   font-weight: 800;
-  line-height: 1.25;          /* Thai needs more breathing room */
-  letter-spacing: -.01em;     /* Subtle tightening — Thai glyphs preserved */
+  line-height: 1.25;          /* อักขระไทยต้องการที่หายใจมากกว่านี้ */
+  letter-spacing: -.01em;     /* กระชับเล็กน้อย — อักขระไทยไม่เสีย */
   background: linear-gradient(135deg, #fff 30%, #c7d2fe 65%, #e879f9 100%);
   -webkit-background-clip: text;
   background-clip: text;
@@ -1549,7 +1549,7 @@ select.input::-ms-expand { display: none; }
 .pill-warning { background: rgba(234, 179, 8, .18);  border-color: rgba(234, 179, 8, .35);  color: rgb(234, 179, 8); }
 .pill-danger  { background: rgba(239, 68, 68, .18);  border-color: rgba(239, 68, 68, .35);  color: rgb(252, 165, 165); }
 
-/* Error pages (403/404/500) */
+/* หน้าแสดงข้อผิดพลาด (403/404/500) */
 .error-shell {
   display: flex;
   align-items: center;
@@ -1561,8 +1561,8 @@ select.input::-ms-expand { display: none; }
   width: 100%;
   max-width: 480px;
   padding: 2.5rem 2rem;
-  /* Opaque (not translucent --surface): on light theme the .78-alpha card let the aurora bleed through and
-     dropped the heading/body/reference below AA. An opaque card + solid heading keeps them readable. */
+  /* ทึบ (ไม่ใช่ --surface แบบโปร่งแสง): บนธีมสว่าง การ์ดที่ alpha .78 ปล่อยให้ aurora ทะลุขึ้นมา และทำให้
+     หัวเรื่อง/เนื้อหา/เลขอ้างอิงต่ำกว่า AA การ์ดทึบ + หัวเรื่องสีทึบช่วยให้อ่านออก */
   background: var(--surface-strong);
   border: 1px solid var(--glass-border, rgba(255, 255, 255, .12));
   border-radius: 18px;
@@ -1574,7 +1574,7 @@ select.input::-ms-expand { display: none; }
   align-items: center;
 }
 .error-card .pill { margin: 0 auto; }
-/* Solid heading (the shared .hero-title is a light gradient clipped to text — ~1.1:1 on the light card). */
+/* หัวเรื่องสีทึบ (.hero-title ที่ใช้ร่วมกันเป็น gradient สว่างตัดเป็นรูปตัวอักษร — ได้แค่ ~1.1:1 บนการ์ดสีสว่าง) */
 .error-card .hero-title {
   margin: .25rem 0 0;
   font-size: 1.4rem;
@@ -1590,13 +1590,13 @@ select.input::-ms-expand { display: none; }
 .error-actions { display: flex; gap: .65rem; flex-wrap: wrap; justify-content: center; margin-top: .5rem; }
 
 /* =========================================================================
-   Shared confirm modal (used by bulk approve, broadcast send, deletes)
+   กล่องยืนยันที่ใช้ร่วมกัน (ใช้ตอนอนุมัติหลายรายการ, ส่งประกาศ, ลบ)
    ========================================================================= */
 .confirm-modal { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 1rem; }
 .confirm-modal[hidden] { display: none; }
 .confirm-modal-backdrop { position: absolute; inset: 0; background: rgba(7, 6, 26, .9); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
-/* Opaque surface (not the translucent --surface): a .78-alpha card let the dark backdrop bleed through
-   and grayed the summary text to ~4:1 on light. An opaque card keeps the dt/dd labels at full AA. */
+/* พื้นผิวทึบ (ไม่ใช่ --surface แบบโปร่งแสง): การ์ดที่ alpha .78 ปล่อยให้ฉากหลังสีเข้มทะลุขึ้นมา
+   และทำให้ข้อความสรุปกลายเป็นสีเทา ~4:1 บนธีมสว่าง การ์ดทึบช่วยให้ป้าย dt/dd ผ่าน AA เต็ม */
 .confirm-modal-card { position: relative; width: min(520px, 100%); background: var(--surface-strong); border: 1px solid var(--glass-border, rgba(255,255,255,.12)); border-radius: 16px; box-shadow: var(--shadow-lg, 0 20px 60px -20px rgba(0,0,0,.5)); overflow: hidden; }
 .confirm-modal-head { padding: 1.1rem 1.35rem .75rem; border-bottom: 1px solid var(--glass-border, rgba(255,255,255,.08)); }
 .confirm-modal-title { display: flex; align-items: center; gap: .5rem; margin: 0; font-size: 1.05rem; font-weight: 700; color: var(--text); }
@@ -1623,7 +1623,7 @@ select.input::-ms-expand { display: none; }
 }
 
 /* =========================================================================
-   Breadcrumb (deep-page navigation)
+   เบรดครัมบ์ (breadcrumb — เส้นนำทางบอกตำแหน่งหน้าลึก)
    ========================================================================= */
 .breadcrumb { margin: 0 0 .65rem; }
 .breadcrumb ol { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .35rem; margin: 0; padding: 0; list-style: none; font-size: .78rem; color: var(--muted); }
@@ -1658,7 +1658,7 @@ select.input::-ms-expand { display: none; }
   margin: .15rem 0 0;
   font-size: 1.55rem;
   font-weight: 800;
-  letter-spacing: -.005em;   /* Thai-safe */
+  letter-spacing: -.005em;   /* ปลอดภัยกับอักขระไทย */
   line-height: 1.35;
   background: linear-gradient(135deg, var(--indigo-600), var(--violet-600) 65%, var(--fuchsia-500));
   -webkit-background-clip: text;
@@ -1748,7 +1748,7 @@ select.input::-ms-expand { display: none; }
   background: rgba(99, 102, 241, .08);
 }
 
-/* Hero feature list (shown next to auth card) */
+/* รายการจุดเด่นในส่วน hero (แสดงข้าง ๆ การ์ดเข้าสู่ระบบ) */
 .hero-feature-list {
   display: flex;
   flex-direction: column;
@@ -1870,7 +1870,7 @@ select.input::-ms-expand { display: none; }
 }
 
 /* =========================================================================
-   Notification bell + inbox
+   กระดิ่งแจ้งเตือน + กล่องข้อความ (inbox)
    ========================================================================= */
 .notification-shell {
   position: relative;
@@ -1936,7 +1936,7 @@ select.input::-ms-expand { display: none; }
   animation: notification-in .18s ease-out;
 }
 
-/* Backdrop covers viewport when menu open */
+/* ฉากหลังคลุมทั้งหน้าจอ (viewport) เมื่อเมนูเปิด */
 .notification-backdrop {
   position: fixed !important;
   inset: 0;
@@ -2097,7 +2097,7 @@ select.input::-ms-expand { display: none; }
   gap: .3rem;
   margin-top: .4rem;
   color: var(--muted);
-  font-size: .78rem;        /* ≥12.5px — meets WCAG body-text comfort */
+  font-size: .78rem;        /* ≥12.5px — ผ่านเกณฑ์ WCAG เรื่องความสบายตาของข้อความเนื้อหา */
   font-variant-numeric: tabular-nums;
 }
 
@@ -2151,7 +2151,7 @@ select.input::-ms-expand { display: none; }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-/* Notification inbox page */
+/* หน้ากล่องข้อความแจ้งเตือน (inbox) */
 .notification-page { gap: 1rem; }
 .notification-page .page-hero {
   min-height: 0;
@@ -2229,8 +2229,8 @@ select.input::-ms-expand { display: none; }
 }
 
 .notification-filter-tabs::-webkit-scrollbar { display: none; }
-/* Fade the right edge ONLY while there are filter tabs hidden off-screen to scroll to (app.js toggles the
-   class on overflow / scroll position) — signals "scroll for more" without a dead fade when they fit. */
+/* จางขอบขวาเฉพาะตอนที่ยังมีแท็บตัวกรองซ่อนอยู่นอกจอให้เลื่อนไปดู (app.js สลับ
+   class ตามการล้น / ตำแหน่งการเลื่อน) — บอกใบ้ว่า "เลื่อนดูเพิ่มได้" โดยไม่จางค้างเมื่อแท็บพอดีจอ */
 .notification-filter-tabs.can-scroll-right {
   -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 1.75rem), transparent);
   mask-image: linear-gradient(to right, #000 calc(100% - 1.75rem), transparent);
@@ -2469,7 +2469,7 @@ select.input::-ms-expand { display: none; }
 .notification-inbox-empty { padding: 1.5rem; }
 
 /* =========================================================================
-   Toasts
+   ข้อความแจ้งเตือนชั่วคราว (Toasts)
    ========================================================================= */
 .toast-stack {
   position: fixed;
@@ -2522,7 +2522,7 @@ select.input::-ms-expand { display: none; }
 .toast-close:hover { color: var(--text); }
 
 /* =========================================================================
-   Dashboard – charts, filters, leaderboard
+   แดชบอร์ด (Dashboard) – กราฟ, ตัวกรอง, กระดานอันดับ
    ========================================================================= */
 .operations-alert-strip {
   display: flex;
@@ -2651,9 +2651,9 @@ select.input::-ms-expand { display: none; }
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1.1rem;
 }
-/* Grid items default to min-width:auto and can refuse to shrink below their content, overflowing the
-   track on narrow screens (the chart cards pushed the mobile viewport ~6px wide on /dashboard and
-   /reports/trend). Pair minmax(0,1fr) with min-width:0 on the items so they shrink to their track. */
+/* item ในกริดมีค่าเริ่มต้น min-width:auto จึงอาจไม่ยอมย่อเล็กกว่าเนื้อหา ทำให้ล้น
+   track บนจอแคบ (การ์ดกราฟดันหน้าจอมือถือกว้างเกิน ~6px ที่ /dashboard และ
+   /reports/trend) จับคู่ minmax(0,1fr) กับ min-width:0 บน item เพื่อให้ย่อพอดี track */
 .dashboard-chart-grid > * { min-width: 0; }
 
 .chart-shell { position: relative; min-height: 300px; }
@@ -2720,7 +2720,7 @@ a.leaderboard-number:hover {
 }
 
 /* =========================================================================
-   QR sheet + scanning
+   แผ่น QR + การสแกน
    ========================================================================= */
 .qr-print-summary {
   display: grid;
@@ -2811,8 +2811,8 @@ a.leaderboard-number:hover {
   z-index: 1;
 }
 
-/* Graceful fallback shown (via inline onerror) when a QR image fails to load —
-   avoids the raw broken-image glyph on the printed sheet. */
+/* ตัวสำรองที่แสดง (ผ่าน onerror ในแท็ก) เมื่อรูป QR โหลดไม่สำเร็จ —
+   เลี่ยงไม่ให้ขึ้นไอคอนรูปเสียบนแผ่นที่พิมพ์ */
 .qr-code-frame { display: inline-flex; position: relative; z-index: 1; }
 .qr-code-fallback { display: none; }
 .qr-code-fallback.is-shown {
@@ -2950,7 +2950,7 @@ a.leaderboard-number:hover {
 }
 
 /* =========================================================================
-   Comments
+   ความคิดเห็น (Comments)
    ========================================================================= */
 .comment-list { display: flex; flex-direction: column; gap: .8rem; }
 
@@ -2975,7 +2975,7 @@ a.leaderboard-number:hover {
 .comment-copy { margin: .5rem 0 0; color: var(--text); font-size: .85rem; line-height: 1.6; }
 
 /* =========================================================================
-   Ticket workflow + signatures
+   ขั้นตอนงานของ ticket + ลายเซ็น
    ========================================================================= */
 .ticket-status-hero {
   border-color: var(--glass-border-strong);
@@ -2985,7 +2985,7 @@ a.leaderboard-number:hover {
     var(--surface);
 }
 
-/* Workflow progress — stepper with connector line */
+/* ความคืบหน้าของงาน (workflow) — ตัวบอกขั้นตอน (stepper) พร้อมเส้นเชื่อม */
 .workflow-progress {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -2995,8 +2995,8 @@ a.leaderboard-number:hover {
   list-style: none;
   position: relative;
 }
-/* When the stepper is a keyboard-focusable scroll region on mobile (app.js adds tabindex on overflow),
-   show a focus ring — the generic :focus-visible rule only covers a/button/input, not [tabindex]. */
+/* เมื่อ stepper กลายเป็นพื้นที่เลื่อนที่โฟกัสด้วยคีย์บอร์ดได้บนมือถือ (app.js เพิ่ม tabindex ตอนล้น)
+   ให้แสดง focus ring — เพราะกฎ :focus-visible ทั่วไปครอบแค่ a/button/input ไม่รวม [tabindex] */
 .workflow-progress:focus-visible {
   outline: 3px solid var(--indigo-500);
   outline-offset: 2px;
@@ -3015,7 +3015,7 @@ a.leaderboard-number:hover {
   text-align: center;
 }
 
-/* Connector line — between dots */
+/* เส้นเชื่อม — ระหว่างจุด */
 .workflow-progress-step::before {
   content: "";
   position: absolute;
@@ -3040,7 +3040,7 @@ a.leaderboard-number:hover {
   transition: all .3s cubic-bezier(.4, 0, .2, 1);
 }
 
-/* Complete state — fill connector + dot with gradient */
+/* สถานะเสร็จแล้ว — เติมเส้นเชื่อม + จุดด้วย gradient */
 .workflow-progress-step.is-complete { color: var(--indigo-600); }
 .dark .workflow-progress-step.is-complete { color: var(--indigo-300); }
 
@@ -3057,14 +3057,14 @@ a.leaderboard-number:hover {
   animation: workflow-pulse .55s ease-out;
 }
 
-/* Current step — pulse animation */
+/* ขั้นตอนปัจจุบัน — อนิเมชันเต้นเป็นจังหวะ (pulse) */
 .workflow-progress-step.is-complete:last-of-type i,
 .workflow-progress-step.is-current i {
   animation: workflow-pulse-active 1.6s ease-out infinite;
 }
 
-/* Terminal (negative) outcome — rejected / cancelled. The workflow left the
-   happy path here, so this node is rendered red instead of indigo. */
+/* ผลลัพธ์สุดทาง (เชิงลบ) — ถูกปฏิเสธ / ยกเลิก งานออกจากเส้นทางปกติ
+   ตรงนี้ จุดนี้จึงแสดงเป็นสีแดงแทน indigo */
 .workflow-progress-step.is-terminal { color: #be123c; }
 .dark .workflow-progress-step.is-terminal { color: #fda4af; }
 
@@ -3081,14 +3081,14 @@ a.leaderboard-number:hover {
   animation: workflow-pulse .55s ease-out;
 }
 
-/* Steps that were never reached because the ticket terminated early. */
+/* ขั้นตอนที่ไม่เคยไปถึง เพราะ ticket จบก่อนกำหนด */
 .workflow-progress-step.is-skipped i {
   border-style: dashed;
   opacity: .55;
 }
 
-/* Very narrow screens: keep all 6 steps visible (grid) but ease the label
-   crowding by shrinking type, dot and padding. */
+/* จอแคบมาก: ให้เห็นครบทั้ง 6 ขั้นตอน (กริด) แต่ลดความแออัดของป้าย
+   ด้วยการย่อขนาดตัวอักษร, จุด และ padding */
 @media (max-width: 480px) {
   .workflow-progress-step { font-size: .64rem; padding: 0 .1rem; gap: .4rem; line-height: 1.25; }
   .workflow-progress-step i { width: 13px; height: 13px; }
@@ -3129,7 +3129,7 @@ a.leaderboard-number:hover {
 .dark .signature-box span { color: var(--indigo-300); }
 
 /* =========================================================================
-   Sidebar overlay + collapsed
+   แถบข้าง (sidebar) แบบซ้อนทับ + แบบยุบ
    ========================================================================= */
 .sidebar-overlay {
   position: fixed;
@@ -3151,10 +3151,10 @@ a.leaderboard-number:hover {
 .sidebar-collapsed .nav-link { padding: .7rem; }
 .sidebar-collapsed .sidebar-collapse-button svg { transform: rotate(180deg); }
 
-/* Tooltip — collapsed sidebar nav. Triggered on hover AND keyboard focus.
-   For screen readers: nav links keep their accessible name via the
-   visually-hidden `.nav-label` span (still in DOM, just clipped via .sr-only),
-   so the tooltip is purely decorative for sighted users. */
+/* Tooltip — เมนู sidebar แบบยุบ ทำงานเมื่อ hover และตอนโฟกัสด้วยคีย์บอร์ด
+   สำหรับ screen reader: ลิงก์เมนูยังคงชื่อที่อ่านออกไว้ผ่าน span
+   `.nav-label` ที่ซ่อนจากสายตา (ยังอยู่ใน DOM แค่ถูกตัดด้วย .sr-only)
+   ดังนั้น tooltip จึงเป็นแค่ของประดับสำหรับผู้ใช้ที่มองเห็น */
 .sidebar-collapsed .nav-label,
 .sidebar-collapsed .nav-section-label {
   position: absolute;
@@ -3166,7 +3166,7 @@ a.leaderboard-number:hover {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
-  display: inline;        /* override prior display:none — keeps it for AT */
+  display: inline;        /* ลบล้าง display:none ก่อนหน้า — เก็บไว้ให้ AT (assistive tech — เทคโนโลยีช่วยเหลือ) */
 }
 
 .sidebar-collapsed .nav-link {
@@ -3206,7 +3206,7 @@ a.leaderboard-number:hover {
 }
 
 /* =========================================================================
-   Print layout
+   เลย์เอาต์สำหรับพิมพ์ (Print layout)
    ========================================================================= */
 .print-shell {
   max-width: 1100px;
@@ -3254,7 +3254,7 @@ a.leaderboard-number:hover {
 }
 
 /* =========================================================================
-   Responsive
+   การปรับตามขนาดจอ (Responsive)
    ========================================================================= */
 @media (max-width: 1180px) {
   .stat-grid,
@@ -3292,10 +3292,10 @@ a.leaderboard-number:hover {
   .topbar { padding: .75rem 1rem; }
   .mobile-only { display: inline-flex !important; }
   .hero-card { grid-template-columns: 1fr; }
-  /* .auth-reset-panel gives its hero-card a 2-col grid at (0,2,0) specificity (~line 1756), which
-     beats the single-class .hero-card override above even inside this media query — so restate the
-     collapse at matching specificity or /forgot-password stays 2-col on mobile (second track demands
-     360px, crushing the hero copy to ~13px). */
+  /* .auth-reset-panel กำหนดกริด 2 คอลัมน์ให้ hero-card ที่ specificity (0,2,0) (~บรรทัด 1756) ซึ่ง
+     ชนะการ override .hero-card ด้วยคลาสเดียวข้างบน แม้อยู่ใน media query นี้ก็ตาม — จึงต้องระบุการ
+     ยุบซ้ำที่ specificity เท่ากัน ไม่งั้น /forgot-password จะยังเป็น 2 คอลัมน์บนมือถือ (track ที่สอง
+     ต้องการ 360px จนบีบเนื้อหา hero เหลือ ~13px) */
   .auth-reset-panel .hero-card { grid-template-columns: 1fr; }
   .hero-copy { min-height: 320px; }
   .auth-reset-panel .hero-copy { min-height: 360px; }
@@ -3474,7 +3474,7 @@ a.leaderboard-number:hover {
 }
 
 /* =========================================================================
-   Custom Checkbox & Radio (replace browser default)
+   Checkbox & Radio แบบกำหนดเอง (แทนของเดิมที่เบราว์เซอร์ให้มา)
    ========================================================================= */
 input[type="checkbox"],
 input[type="radio"] {
@@ -3543,7 +3543,7 @@ input[type="radio"]:disabled {
   cursor: not-allowed;
 }
 
-/* Switch variant – usage: <input class="switch" type="checkbox"> */
+/* แบบสวิตช์ (switch) – วิธีใช้: <input class="switch" type="checkbox"> */
 input[type="checkbox"].switch {
   width: 38px;
   height: 22px;
@@ -3570,7 +3570,7 @@ input[type="checkbox"].switch:checked {
 }
 input[type="checkbox"].switch:checked::after { left: 20px; }
 
-/* Inline checkbox row: <label class="checkbox-row"><input type="checkbox">ข้อความ</label> */
+/* แถว checkbox ในบรรทัด: <label class="checkbox-row"><input type="checkbox">ข้อความ</label> */
 .checkbox-row,
 .radio-row {
   display: inline-flex;
@@ -3601,7 +3601,7 @@ input[type="checkbox"].switch:checked::after { left: 20px; }
 }
 
 /* =========================================================================
-   Required indicator + form helpers
+   เครื่องหมายช่องบังคับกรอก + ตัวช่วยของฟอร์ม
    ========================================================================= */
 .field-label .required,
 .field-required {
@@ -3619,7 +3619,7 @@ input[type="checkbox"].switch:checked::after { left: 20px; }
   line-height: 1.5;
 }
 
-/* Inline help tooltip for form fields */
+/* tooltip ช่วยเหลือในบรรทัดสำหรับช่องกรอกในฟอร์ม */
 .field-info-icon {
   display: inline-flex;
   align-items: center;
@@ -3641,7 +3641,7 @@ input[type="checkbox"].switch:checked::after { left: 20px; }
   background: rgba(99, 102, 241, .12);
   border-color: rgba(99, 102, 241, .25);
 }
-/* Keep a solid focus ring — the old `outline:none` + translucent bg/border was ~1.2:1 on light. */
+/* คง focus ring สีทึบไว้ — โค้ดเดิม `outline:none` + พื้น/ขอบแบบโปร่งแสงได้แค่ ~1.2:1 บนธีมสว่าง */
 .field-info-icon:focus-visible {
   color: var(--indigo-400, #818cf8);
   background: rgba(99, 102, 241, .12);
@@ -3714,14 +3714,14 @@ input[type="checkbox"].switch:checked::after { left: 20px; }
   box-shadow: 0 0 0 4px rgba(244, 63, 94, .18) !important;
 }
 
-/* Valid state — subtle green tint */
+/* สถานะถูกต้อง — แต้มสีเขียวจาง ๆ */
 .input.was-touched:valid:not([value=""]):not(:placeholder-shown) {
   border-color: rgba(16, 185, 129, .5);
 }
 
 /* =========================================================================
-   Detail List (semantic def-list for read-only data)
-   Replaces <strong>Label:</strong> value pattern
+   รายการรายละเอียด (ใช้ def-list เชิงความหมายสำหรับข้อมูลอ่านอย่างเดียว)
+   แทนรูปแบบเดิม <strong>Label:</strong> value
    ========================================================================= */
 .detail-list {
   display: grid;
@@ -3760,7 +3760,7 @@ input[type="checkbox"].switch:checked::after { left: 20px; }
 .dark .detail-list dd code,
 .dark .detail-list dd .mono { color: var(--indigo-300); background: rgba(99, 102, 241, .15); }
 
-/* Compact variant for sidebar lists */
+/* แบบกะทัดรัดสำหรับรายการใน sidebar */
 .detail-list.is-stacked {
   grid-template-columns: 1fr;
   gap: .2rem;
@@ -3770,11 +3770,11 @@ input[type="checkbox"].switch:checked::after { left: 20px; }
 .detail-list.is-stacked dd:last-child { border-bottom: 0; }
 
 /* =========================================================================
-   Sticky Action Bar (ticket detail role-aware CTAs)
+   แถบปุ่มลอยติดหน้าจอ (ปุ่มการทำงานของหน้ารายละเอียด ticket ที่ปรับตามบทบาทผู้ใช้)
    ========================================================================= */
 .action-bar {
   position: sticky;
-  top: 76px; /* below topbar */
+  top: 76px; /* ใต้แถบด้านบน (topbar) */
   z-index: 25;
   display: flex;
   align-items: center;
@@ -3804,8 +3804,8 @@ input[type="checkbox"].switch:checked::after { left: 20px; }
 }
 
 /* =========================================================================
-   Collapsible Card (admin row, ticket sections)
-   Uses native <details>/<summary>
+   การ์ดพับเก็บได้ (แถวหน้า admin, ส่วนต่าง ๆ ของ ticket)
+   ใช้ <details>/<summary> ที่เบราว์เซอร์มีให้ในตัว
    ========================================================================= */
 .collapsible {
   border: 1px solid var(--glass-border);
@@ -3851,9 +3851,9 @@ input[type="checkbox"].switch:checked::after { left: 20px; }
 }
 .collapsible[open] > .collapsible-summary .collapsible-chevron { transform: rotate(180deg); color: var(--indigo-600); background: var(--surface-muted); }
 
-/* On mobile the single-row summary crushed the copy column: icon + main + (2 badges + chevron) all
-   competed for 375px, wrapping the SLA subtitle to one word/number per line. Let the meta drop to its
-   own row so the title + SLA copy get the full width. */
+/* บนมือถือ summary แถวเดียวบีบคอลัมน์เนื้อหา: ไอคอน + เนื้อหาหลัก + (2 badge + chevron) แย่ง
+   พื้นที่ 375px กันหมด จนหัวเรื่องย่อย SLA ตกบรรทัดเหลือคำ/ตัวเลขละบรรทัด ให้ส่วน meta หล่นไป
+   อยู่แถวของตัวเอง เพื่อให้หัวเรื่อง + ข้อความ SLA ได้ความกว้างเต็ม */
 @media (max-width: 700px) {
   .collapsible-summary { flex-wrap: wrap; }
   .collapsible-meta { flex-basis: 100%; justify-content: flex-start; }
@@ -3868,7 +3868,7 @@ input[type="checkbox"].switch:checked::after { left: 20px; }
 }
 
 /* =========================================================================
-   Inline status pills (for sidebar nav counters)
+   ป้ายสถานะแบบเม็ดยา (pill) ในบรรทัด (สำหรับตัวนับบนเมนู sidebar)
    ========================================================================= */
 .nav-link .nav-badge {
   display: inline-flex;
@@ -3887,8 +3887,8 @@ input[type="checkbox"].switch:checked::after { left: 20px; }
 .nav-link.is-active .nav-badge { background: rgba(255, 255, 255, .18); color: #fff; }
 
 /* =========================================================================
-   Star Rating (Requester confirmation)
-   Usage: <fieldset class="star-rating">
+   การให้ดาว (Star Rating — ผู้แจ้งยืนยันงาน)
+   วิธีใช้: <fieldset class="star-rating">
             <input type="radio" name="score" id="s5" value="5"><label for="s5">5</label>
             ...
           </fieldset>
@@ -3924,7 +3924,7 @@ input[type="checkbox"].switch:checked::after { left: 20px; }
 .dark .star-rating label { color: rgba(255, 255, 255, .22); }
 
 /* =========================================================================
-   Accessibility – Reduced motion
+   การเข้าถึง (Accessibility) – ลดการเคลื่อนไหว (Reduced motion)
    ========================================================================= */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -3943,7 +3943,7 @@ input[type="checkbox"].switch:checked::after { left: 20px; }
 }
 
 /* =========================================================================
-   Action Forms (manager review, technician work, requester confirm)
+   ฟอร์มการทำงาน (หัวหน้าตรวจ, ช่างทำงาน, ผู้แจ้งยืนยัน)
    ========================================================================= */
 .action-form {
   padding: 1.15rem;
@@ -4015,7 +4015,7 @@ input[type="checkbox"].switch:checked::after { left: 20px; }
 .dark .action-form-icon.tone-info    { color: var(--indigo-300); }
 
 /* =========================================================================
-   Comment form
+   ฟอร์มความคิดเห็น (Comment form)
    ========================================================================= */
 .comment-form {
   padding: 1rem;
@@ -4033,7 +4033,7 @@ input[type="checkbox"].switch:checked::after { left: 20px; }
 }
 
 /* =========================================================================
-   Timeline (activity log)
+   ไทม์ไลน์ (บันทึกกิจกรรม)
    ========================================================================= */
 .timeline {
   list-style: none;
@@ -4074,7 +4074,7 @@ input[type="checkbox"].switch:checked::after { left: 20px; }
 .timeline-status  { margin: .25rem 0 0; font-size: .76rem; color: var(--muted); }
 
 /* =========================================================================
-   Ticket print menu (dropdown)
+   เมนูพิมพ์ของ ticket (dropdown — เมนูแบบดึงลง)
    ========================================================================= */
 .ticket-print-menu { position: relative; }
 .ticket-print-menu > summary {
@@ -4119,7 +4119,7 @@ input[type="checkbox"].switch:checked::after { left: 20px; }
 .dark .ticket-print-menu-list a:hover { color: var(--indigo-300); }
 
 /* =========================================================================
-   Asset Grid — 3-col responsive card grid
+   กริดทรัพย์สิน (Asset Grid) — การ์ด 3 คอลัมน์ที่ปรับตามขนาดจอ
    ========================================================================= */
 .asset-grid {
   display: grid;
@@ -4311,7 +4311,7 @@ input[type="checkbox"].switch:checked::after { left: 20px; }
 .asset-card-cta:hover { transform: translateY(-1px); box-shadow: 0 8px 16px -6px rgba(99, 102, 241, .65); }
 
 /* =========================================================================
-   Asset detail + QR panel
+   รายละเอียดทรัพย์สิน + พาเนล QR
    ========================================================================= */
 .asset-detail-hero,
 .asset-detail-hero-actions {
@@ -4515,8 +4515,8 @@ input[type="checkbox"].switch:checked::after { left: 20px; }
 }
 
 /* =========================================================================
-   List Rows — flat row-list pattern (no nested panel-card)
-   Used in dashboard recent tickets and any "scrollable list" UI
+   List Rows — รูปแบบรายการแบบแถวเรียบ (ไม่มี panel-card ซ้อนข้างใน)
+   ใช้ในรายการ ticket ล่าสุดบนแดชบอร์ด และ UI แบบ "รายการเลื่อนดู" อื่น ๆ
    ========================================================================= */
 .list-rows {
   list-style: none;
@@ -4634,7 +4634,7 @@ input[type="checkbox"].switch:checked::after { left: 20px; }
 }
 
 /* =========================================================================
-   Filter Bar (list pages: tickets, assets)
+   แถบตัวกรอง (หน้ารายการ: ticket, ทรัพย์สิน)
    ========================================================================= */
 .filter-bar {
   display: flex;
@@ -4803,7 +4803,7 @@ input[type="checkbox"].switch:checked::after { left: 20px; }
   padding-top: .8rem;
 }
 
-/* Ticket queue list (desktop grid, mobile cards) */
+/* รายการคิว ticket (เดสก์ท็อปเป็นกริด, มือถือเป็นการ์ด) */
 .ticket-queue-shell {
   overflow: hidden;
   border: 1px solid var(--glass-border);
@@ -4816,8 +4816,8 @@ input[type="checkbox"].switch:checked::after { left: 20px; }
 .ticket-queue-head,
 .ticket-queue-row {
   display: grid;
-  /* Last column (date) widened to 150px min so "DD MMM พ.ศ. HH:MM" isn't clipped;
-     requester/location trimmed to compensate (short content). */
+  /* คอลัมน์สุดท้าย (วันที่) ขยายขั้นต่ำเป็น 150px เพื่อไม่ให้ "DD MMM พ.ศ. HH:MM" ถูกตัด;
+     ผู้แจ้ง/สถานที่หดลงเพื่อชดเชย (เนื้อหาสั้น) */
   grid-template-columns: minmax(220px, 2fr) minmax(105px, .7fr) minmax(118px, .8fr) minmax(158px, 1fr) minmax(104px, .7fr) minmax(110px, .75fr) minmax(150px, .9fr);
   gap: .7rem;
   align-items: center;
@@ -5016,8 +5016,8 @@ input[type="checkbox"].switch:checked::after { left: 20px; }
   .asset-filter-main .filter-search {
     min-width: 0;
     width: 100%;
-    /* Parent becomes a column flex below; without this the search box's
-       flex-grow:1 stretches it vertically into a tall empty box. */
+    /* พาเรนต์กลายเป็น flex แนวคอลัมน์ด้านล่าง; ถ้าไม่มีบรรทัดนี้ flex-grow:1 ของ
+       ช่องค้นหาจะยืดมันสูงขึ้นกลายเป็นกล่องเปล่าสูง ๆ */
     flex: 0 0 auto;
   }
   .ticket-filter-main,
@@ -5137,8 +5137,8 @@ input[type="checkbox"].switch:checked::after { left: 20px; }
     justify-content: start;
   }
 }
-/* Loud fallback for missing Lucide icons — never silently render empty circle.
-   Red + pulse so developers spot it instantly. Hidden in print to avoid noise. */
+/* ตัวสำรองแบบสะดุดตาเมื่อไอคอน Lucide หาย — ไม่ปล่อยให้ขึ้นวงกลมเปล่าเงียบ ๆ
+   สีแดง + เต้น (pulse) ให้นักพัฒนาเห็นทันที ซ่อนตอนพิมพ์เพื่อไม่ให้รก */
 .lucide-missing {
   color: #dc2626 !important;
   background: rgba(220, 38, 38, .08);
@@ -5161,7 +5161,7 @@ kbd,
 samp,
 pre {
   font-family: var(--font-mono);
-  font-feature-settings: "tnum" 1, "zero" 1;  /* tabular figures, slashed zero */
+  font-feature-settings: "tnum" 1, "zero" 1;  /* ตัวเลขความกว้างเท่ากัน (tabular), เลขศูนย์มีขีดทับ */
   font-variant-ligatures: none;
 }
 .mono { letter-spacing: -.005em; }
@@ -5178,7 +5178,7 @@ code.mono, .mono {
 }
 
 /* =========================================================================
-   Ticket flow list (numbered steps in create ticket page)
+   รายการลำดับงานของ ticket (ขั้นตอนแบบมีเลขในหน้าสร้าง ticket)
    ========================================================================= */
 .ticket-flow-list {
   list-style: none;
@@ -5212,7 +5212,7 @@ code.mono, .mono {
 .ticket-flow-list span:not(:first-child) { color: var(--muted); font-size: .78rem; }
 
 /* =========================================================================
-   Create ticket form (sectioned form + sticky submit bar)
+   ฟอร์มสร้าง ticket (ฟอร์มแบ่งเป็นส่วน + แถบส่งข้อมูลลอยติดจอ)
    ========================================================================= */
 .ticket-create-action-bar {
   margin-bottom: 0;
@@ -5298,7 +5298,7 @@ code.mono, .mono {
 }
 
 /* =========================================================================
-   Create asset form (sectioned form + sticky submit bar)
+   ฟอร์มสร้างทรัพย์สิน (ฟอร์มแบ่งเป็นส่วน + แถบส่งข้อมูลลอยติดจอ)
    ========================================================================= */
 .asset-create-action-bar {
   margin-bottom: 0;
@@ -5401,9 +5401,9 @@ code.mono, .mono {
   gap: .9rem;
 }
 
-/* Custom Thai file picker: a native <input type=file> renders a browser-locale
-   "Choose File / No file chosen" that clashed with the Thai UI. Visually hide the input (keep it
-   focusable) and drive it with a Thai <label> button + an aria-live filename readout. */
+/* ตัวเลือกไฟล์ภาษาไทยแบบทำเอง: <input type=file> ของเบราว์เซอร์แสดงข้อความตามภาษาเบราว์เซอร์
+   "Choose File / No file chosen" ซึ่งขัดกับ UI ไทย จึงซ่อน input จากสายตา (แต่ยังโฟกัสได้)
+   แล้วขับด้วยปุ่ม <label> ภาษาไทย + ช่องอ่านชื่อไฟล์แบบ aria-live */
 .file-field {
   display: flex;
   align-items: center;
@@ -5571,9 +5571,9 @@ code.mono, .mono {
     padding: 0;
   }
 
-  /* Keep summary a compact row — overrides the .panel-head column rule that
-     applies to all panel-heads on mobile (which spread title/icon/chevron
-     vertically and left a tall empty collapsed card). */
+  /* คง summary เป็นแถวกะทัดรัด — ลบล้างกฎ .panel-head แบบคอลัมน์ที่ใช้กับ
+     panel-head ทุกอันบนมือถือ (ซึ่งกระจายหัวเรื่อง/ไอคอน/chevron ในแนวตั้ง
+     จนเหลือการ์ดยุบสูง ๆ ว่างเปล่า) */
   .ticket-create-info-summary {
     cursor: pointer;
     gap: .75rem;
@@ -5616,8 +5616,8 @@ code.mono, .mono {
     border-top: 1px dashed var(--line);
   }
 
-  /* Stick below the 76px topbar (not at top:0 where the taller, higher-z topbar covered the bar's title/
-     helper), and drop the redundant helper line so the sticky bar isn't a tall block eating the form. */
+  /* ให้ติดใต้ topbar สูง 76px (ไม่ใช่ที่ top:0 ซึ่ง topbar ที่สูงกว่าและ z สูงกว่าจะบังหัวเรื่อง/
+     ตัวช่วยของแถบ) และตัดบรรทัดตัวช่วยที่ซ้ำออก เพื่อไม่ให้แถบลอยเป็นก้อนสูงกินพื้นที่ฟอร์ม */
   .ticket-create-action-bar,
   .asset-create-action-bar {
     top: 76px;
@@ -5695,7 +5695,7 @@ code.mono, .mono {
 }
 
 /* =========================================================================
-   Admin tabs (anchor-based scroll-to-section)
+   แท็บหน้า admin (คลิกแล้วเลื่อนไปยังส่วนที่ผูกกับ anchor)
    ========================================================================= */
 .admin-tabs {
   display: flex;
@@ -5752,10 +5752,10 @@ code.mono, .mono {
 .admin-tab.is-active .admin-tab-badge { background: rgba(255, 255, 255, .85); color: rgb(190, 18, 60); }
 .text-truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* Tab panel show/hide */
+/* ซ่อน/แสดงพาเนลของแท็บ */
 .admin-tab-panel:not(.is-active) { display: none; }
 
-/* Admin tabs sticky + scroll affordance wrapper */
+/* ตัวห่อแท็บ admin แบบติดหนึบ + บอกใบ้ว่าเลื่อนได้ */
 .admin-tabs-scroller {
   position: sticky;
   top: 0;
@@ -5785,7 +5785,7 @@ code.mono, .mono {
 .admin-tabs-scroller.can-scroll-left::before { opacity: 1; }
 .admin-tabs-scroller.can-scroll-right::after { opacity: 1; }
 
-/* Delete zone separator */
+/* เส้นแบ่งโซนลบ */
 .delete-zone {
   margin-top: .75rem;
   padding-top: .75rem;
@@ -5794,7 +5794,7 @@ code.mono, .mono {
   justify-content: flex-end;
 }
 
-/* Panel card colored variants */
+/* พาเนลการ์ดแบบมีสีต่าง ๆ */
 .panel-card-sky {
   background: rgba(14, 165, 233, .05);
   border-color: rgba(14, 165, 233, .18);
@@ -5813,7 +5813,7 @@ code.mono, .mono {
   border-color: rgba(99, 102, 241, .35);
 }
 
-/* Admin utility classes */
+/* คลาส utility ของหน้า admin */
 .panel-title-lg { font-size: 1rem; }
 .metric-icon-sm { width: 36px; height: 36px; flex: 0 0 36px; }
 .metric-icon-md { width: 40px; height: 40px; flex: 0 0 40px; }
@@ -5865,11 +5865,11 @@ code.mono, .mono {
 }
 
 @media (max-width: 700px) {
-  /* Hide decorative metric-icon on narrow panels to save room on mobile */
+  /* ซ่อน metric-icon ที่เป็นของประดับบนพาเนลแคบ เพื่อประหยัดพื้นที่บนมือถือ */
   .panel-narrow .panel-card > .panel-head > .metric-icon,
   .panel-narrow.panel-card > .panel-head > .metric-icon { display: none; }
 
-  /* Sticky save bar on mobile so user doesn't need to scroll back up */
+  /* แถบบันทึกแบบติดหนึบบนมือถือ ผู้ใช้จะได้ไม่ต้องเลื่อนกลับขึ้นไป */
   .profile-save-row {
     position: sticky;
     bottom: 0;
@@ -5904,7 +5904,7 @@ code.mono, .mono {
   padding: 4px 8px;
 }
 
-/* Admin search box */
+/* ช่องค้นหาของหน้า admin */
 .admin-search-box {
   display: flex;
   align-items: center;
@@ -5930,7 +5930,7 @@ code.mono, .mono {
   display: none;
 }
 
-/* Star display (read-only rating output) */
+/* การแสดงดาว (ผลคะแนนแบบอ่านอย่างเดียว) */
 .star-display { display: inline-flex; align-items: center; gap: 0; }
 .star-display-star { font-size: 1.1rem; line-height: 1; color: #d1d5db; }
 .star-display-star.is-active { color: #f59e0b; }
@@ -5938,7 +5938,7 @@ code.mono, .mono {
 .dark .star-display-star.is-active { color: #fbbf24; }
 .star-display-score { margin-left: .3rem; color: var(--muted); font-size: inherit; }
 
-/* Ticket detail utilities */
+/* คลาส utility ของหน้ารายละเอียด ticket */
 .action-bar-title { display: block; margin-top: .2rem; }
 .action-bar-badges { display: flex; align-items: center; gap: .35rem; margin-top: .25rem; }
 .checkbox-row-sm { font-size: .78rem; }
@@ -5950,7 +5950,7 @@ code.mono, .mono {
 .dark .btn-ghost-danger { color: #fda4af; }
 .dark .btn-ghost-danger:hover { color: #fecdd3; background: rgba(244, 63, 94, .12); }
 
-/* Admin stat cards – mobile horizontal scroll */
+/* การ์ดสถิติหน้า admin – เลื่อนแนวนอนบนมือถือ */
 @media (max-width: 700px) {
   .admin-stat-scroll {
     display: flex;
@@ -5969,10 +5969,10 @@ code.mono, .mono {
 }
 
 /* =========================================================================
-   Reports – collapsible filter & mobile
+   รายงาน (Reports) – ตัวกรองแบบพับได้ & มือถือ
    ========================================================================= */
 
-/* Export dropdown */
+/* dropdown สำหรับ export */
 .export-dropdown { position: relative; }
 .export-dropdown > summary { list-style: none; cursor: pointer; }
 .export-dropdown > summary::-webkit-details-marker { display: none; }
@@ -6025,7 +6025,7 @@ code.mono, .mono {
   border-top: 1px solid var(--line);
 }
 
-/* Table sorting indicators */
+/* ตัวบ่งชี้การเรียงลำดับของตาราง */
 .data-table th[data-sort-col] {
   cursor: pointer;
   user-select: none;
@@ -6055,7 +6055,7 @@ code.mono, .mono {
   background: color-mix(in srgb, rgba(99, 102, 241, .25) 70%, var(--surface));
 }
 
-/* Collapsible filter */
+/* ตัวกรองแบบพับได้ */
 .report-filter-summary { cursor: pointer; list-style: none; }
 .report-filter-summary::-webkit-details-marker { display: none; }
 .report-filter-body { padding: 0 1.4rem 1.4rem; }
@@ -6065,8 +6065,8 @@ code.mono, .mono {
 }
 
 @media (max-width: 700px) {
-  /* Keep report export reachable on mobile — the .action-bar mobile rules already stack it full-width;
-     hiding it stranded managers who review reports on a phone and then can't download. */
+  /* คงปุ่ม export รายงานให้กดได้บนมือถือ — กฎมือถือของ .action-bar จัดเรียงเต็มความกว้างให้แล้ว;
+     ถ้าซ่อนไว้จะทำให้หัวหน้าที่รีวิวรายงานบนมือถือดาวน์โหลดไม่ได้ */
   .report-export-bar .action-bar-left .helper-text { display: none; }
 
   .report-filter-summary {
@@ -6105,7 +6105,7 @@ code.mono, .mono {
     flex: 0 0 min(72vw, 240px);
     scroll-snap-align: start;
   }
-  /* app.js makes this scroll rail keyboard-focusable while it overflows (WCAG 2.1.1); show a focus ring. */
+  /* app.js ทำให้รางเลื่อนนี้โฟกัสด้วยคีย์บอร์ดได้ตอนที่มันล้น (WCAG 2.1.1); จึงแสดง focus ring */
   .report-stat-scroll:focus-visible {
     outline: 3px solid var(--indigo-500);
     outline-offset: 2px;
@@ -6113,7 +6113,7 @@ code.mono, .mono {
 }
 
 /* =========================================================================
-   Visually hidden (screen-reader only)
+   ซ่อนจากสายตา (ให้เฉพาะ screen reader อ่าน)
    ========================================================================= */
 .sr-only {
   position: absolute;
@@ -6127,8 +6127,8 @@ code.mono, .mono {
   border: 0;
 }
 
-/* Keyboard skip link — the first focusable element in <body>. Off-screen until focused, then pins to the
-   top-left so keyboard/SR users jump past the sidebar nav straight to <main id="main-content">. */
+/* ลิงก์ข้าม (skip link) สำหรับคีย์บอร์ด — เป็นสิ่งแรกใน <body> ที่โฟกัสได้ อยู่นอกจอจนกว่าจะถูกโฟกัส แล้วจะปักที่
+   มุมซ้ายบน เพื่อให้ผู้ใช้คีย์บอร์ด/SR ข้ามเมนู sidebar ไปที่ <main id="main-content"> ได้เลย */
 .skip-link {
   position: absolute;
   left: -9999px;
@@ -6148,7 +6148,7 @@ code.mono, .mono {
   outline-offset: 2px;
 }
 
-/* Pagination, presets and image attachments */
+/* การแบ่งหน้า (pagination), preset และไฟล์แนบรูปภาพ */
 .pagination, .preset-bar {
   display: flex;
   align-items: center;
@@ -6242,7 +6242,7 @@ code.mono, .mono {
 .attachment-card-doc:hover .attachment-doc-icon { background: linear-gradient(135deg, var(--indigo-100), var(--indigo-200)); }
 
 /* =========================================================================
-   Print media
+   สื่อสำหรับพิมพ์ (Print media)
    ========================================================================= */
 @page { size: A4 portrait; margin: 10mm; }
 @media print {
@@ -6311,8 +6311,8 @@ code.mono, .mono {
     max-width: 22ch;
     font-size: .78rem;
     line-height: 1.2;
-    /* Force dark ink on the white printed sheet — the theme's --text is light
-       in dark mode, which would print near-invisible on paper. */
+    /* บังคับใช้หมึกสีเข้มบนแผ่นพิมพ์สีขาว — ค่า --text ของธีมเป็นสีสว่าง
+       ในโหมด dark ซึ่งถ้าพิมพ์ลงกระดาษจะแทบมองไม่เห็น */
     color: #111827 !important;
   }
   .qr-label-code {
@@ -6366,21 +6366,21 @@ code.mono, .mono {
 }
 
 /* =========================================================================
-   UX review fixes — appended raw CSS; mirrored in the built asset
+   แก้ไขจากรีวิว UX — CSS ดิบที่เพิ่มต่อท้าย; สะท้อนไปยังไฟล์ที่ build แล้วด้วย
    ========================================================================= */
-/* F5: keep a ticket code on one line so an adjacent status badge can't split it */
+/* F5: ให้รหัส ticket อยู่บรรทัดเดียว เพื่อไม่ให้ badge สถานะที่อยู่ติดกันดันจนตกบรรทัด */
 .ticket-no { white-space: nowrap; }
 
-/* F2: the status stepper scrolls sideways on mobile — mark the wrapper relative
-   so a right-edge fade can sit over its scroll edge (hidden on desktop) */
+/* F2: stepper บอกสถานะเลื่อนแนวนอนบนมือถือ — กำหนดตัวห่อเป็น relative
+   เพื่อให้ขอบขวาแบบจาง (fade) วางทับขอบที่เลื่อนได้ (ซ่อนบนเดสก์ท็อป) */
 .workflow-progress-wrap { position: relative; }
 .workflow-scroll-fade { display: none; }
 
 @media (max-width: 700px) {
-  /* F3: stat cards two-up on mobile (a later media rule had forced one-per-row) */
+  /* F3: การ์ดสถิติวางสองต่อแถวบนมือถือ (กฎ media ที่มาทีหลังเคยบังคับให้เหลือหนึ่งต่อแถว) */
   .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
-  /* F2: fade signalling the stepper has more steps off-screen */
+  /* F2: ขอบจาง (fade) บอกว่า stepper ยังมีขั้นตอนอื่นอยู่นอกจอ */
   .workflow-scroll-fade {
     display: block;
     position: absolute;
@@ -6395,7 +6395,7 @@ code.mono, .mono {
 
 
 
-/* F7: guest "track status" page — two-column like login; numbered steps + result card */
+/* F7: หน้า "ติดตามสถานะ" ของผู้เยี่ยมชม — สองคอลัมน์เหมือนหน้า login; ขั้นตอนแบบมีเลข + การ์ดผลลัพธ์ */
 .guest-track-steps .hero-feature-icon { font-weight: 800; font-size: .95rem; }
 .guest-track-result {
   margin-bottom: 1.25rem;
@@ -6409,9 +6409,9 @@ code.mono, .mono {
 .guest-track-result-ref { font-size: 1.25rem; font-weight: 800; color: var(--indigo-600); margin: .25rem 0 .75rem; font-family: var(--font-mono, monospace); }
 .dark .guest-track-result-ref { color: var(--indigo-300); }
 
-/* F6: group the 12 admin tabs into labelled rows (จัดการข้อมูล · สิทธิ์ & ตรวจสอบ · ระบบ). Each label is
-   full-width so it forces its own row, and the tabs after it wrap below until the next label. The labels are
-   role="presentation"/aria-hidden so the tablist still exposes only the tabs to assistive tech. */
+/* F6: จัดกลุ่มแท็บ admin ทั้ง 12 อันเป็นแถวที่มีป้ายกำกับ (จัดการข้อมูล · สิทธิ์ & ตรวจสอบ · ระบบ) แต่ละป้าย
+   กว้างเต็มแถวเพื่อบังคับให้ขึ้นแถวของตัวเอง และแท็บที่ตามมาจะไหลลงข้างล่างจนถึงป้ายถัดไป ป้ายพวกนี้เป็น
+   role="presentation"/aria-hidden เพื่อให้ tablist เปิดเผยเฉพาะแท็บให้เทคโนโลยีช่วยเหลือ (assistive tech) */
 .admin-tab-grouplabel {
   flex: 0 0 100%;
   margin: .55rem 0 .15rem;
@@ -6424,14 +6424,14 @@ code.mono, .mono {
 }
 .admin-tab-grouplabel-first { margin-top: .05rem; }
 
-/* Mobile: collapse the 3-row grouped tablist (which ate ~45% of a 375px viewport, sticky) into a single
-   horizontal-scroll row. Group captions become inline separators that scroll with the tabs instead of
-   forcing their own row; desktop keeps the labelled rows. */
+/* มือถือ: ยุบ tablist แบบจัดกลุ่ม 3 แถว (ที่กินพื้นที่ ~45% ของ viewport 375px แบบติดหนึบ) ให้เหลือแถวเดียว
+   ที่เลื่อนแนวนอน คำบรรยายกลุ่มกลายเป็นตัวคั่นในบรรทัดที่เลื่อนไปพร้อมแท็บ แทนที่จะบังคับขึ้นแถวของตัวเอง;
+   เดสก์ท็อปยังคงแถวที่มีป้ายกำกับไว้ */
 @media (max-width: 700px) {
   .admin-tabs { flex-wrap: nowrap; overflow-x: auto; }
   .admin-tab-grouplabel { flex: 0 0 auto; margin: 0 .1rem 0 .35rem; align-self: center; }
   .admin-tab-grouplabel-first { margin: 0 .1rem 0 .1rem; }
-  /* The sticky topbar is 76px tall at top:0 (z-index 30); a tab row also stuck at top:0 (z-index 20) hid
-     entirely behind it when the page was scrolled or deep-linked. Stick the tab row BELOW the topbar. */
+  /* topbar แบบติดหนึบสูง 76px ที่ top:0 (z-index 30); แถวแท็บที่ติดหนึบที่ top:0 เช่นกัน (z-index 20) จะถูก
+     บังจนมิดเมื่อเลื่อนหน้าหรือเข้าลิงก์ลึก จึงให้แถวแท็บติดหนึบไว้ใต้ topbar */
   .admin-tabs-scroller { top: 76px; }
 }
