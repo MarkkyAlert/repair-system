@@ -2,9 +2,9 @@
 declare(strict_types=1);
 
 /**
- * Per-request CSP nonce. Generated once and cached for the life of the request so the value emitted in the
- * Content-Security-Policy header is the same one stamped on the inline <script> (theme-init). Each HTTP
- * request is a fresh PHP process, so the static cache is naturally per-request.
+ * CSP nonce ต่อหนึ่ง request สร้างครั้งเดียวแล้ว cache ไว้ตลอดอายุของ request เพื่อให้ค่าที่ส่งออกใน
+ * header Content-Security-Policy เป็นค่าเดียวกับที่ประทับบน <script> แบบ inline (theme-init) การเรียก HTTP
+ * แต่ละครั้งเป็น PHP process ใหม่ ดังนั้น static cache จึงเป็นแบบต่อ request โดยธรรมชาติ
  */
 function csp_nonce(): string
 {
@@ -17,12 +17,12 @@ function csp_nonce(): string
 }
 
 /**
- * Content-Security-Policy for HTML responses.
+ * Content-Security-Policy สำหรับ response ที่เป็น HTML
  *
- * script-src carries the per-request nonce (for the one inline theme-init script) plus the Chart.js CDN, and
- * deliberately OMITS 'unsafe-inline' — that is the whole point: an injected <script> without the nonce cannot
- * run. style-src keeps 'unsafe-inline' because inline style="" attributes are pervasive in the views and
- * cannot be nonced (style injection is far lower risk than script execution), plus the Google Fonts sheet.
+ * script-src พก nonce ต่อ request (สำหรับ inline script theme-init ตัวเดียว) รวมทั้ง CDN ของ Chart.js และ
+ * จงใจไม่ใส่ 'unsafe-inline' — ซึ่งเป็นหัวใจของเรื่องนี้: <script> ที่ถูกแทรกเข้ามาโดยไม่มี nonce จะรันไม่ได้
+ * ส่วน style-src ยังคง 'unsafe-inline' ไว้เพราะ attribute style="" แบบ inline มีอยู่ทั่วไปใน view และ
+ * ใส่ nonce ไม่ได้ (การแทรก style เสี่ยงต่ำกว่าการรัน script มาก) รวมทั้ง stylesheet ของ Google Fonts ด้วย
  */
 function content_security_policy(string $nonce): string
 {
@@ -41,29 +41,29 @@ function content_security_policy(string $nonce): string
 }
 
 /**
- * Static (non-CSP) security response headers. These mirror the `Header always set` lines in public/.htaccess,
- * but living in application code means a buyer who deploys behind nginx, or on Apache with AllowOverride None,
- * still gets them — the .htaccess copy is a belt-and-suspenders for Apache, not the only source. CSP is emitted
- * separately (View::render) because it carries a per-request nonce; these three are constant so they live here.
+ * security response header แบบคงที่ (ไม่ใช่ CSP) ชุดนี้สะท้อนบรรทัด `Header always set` ใน public/.htaccess
+ * แต่การที่มันอยู่ในโค้ดแอปหมายความว่าผู้ซื้อที่ deploy หลัง nginx หรือบน Apache ที่ตั้ง AllowOverride None
+ * ก็ยังได้รับมันอยู่ — สำเนาใน .htaccess เป็นแค่การกันเหนียวสองชั้นสำหรับ Apache ไม่ใช่แหล่งเดียว ส่วน CSP ถูกส่งออก
+ * แยกต่างหาก (View::render) เพราะมันพก nonce ต่อ request ส่วนสามตัวนี้เป็นค่าคงที่จึงอยู่ที่นี่
  *
  * @return array<string, string>
  */
 function security_headers(): array
 {
     return [
-        // stop browsers MIME-sniffing a response into a more dangerous type (e.g. an inline attachment → HTML)
+        // กัน browser ไม่ให้เดา (MIME-sniff) response ไปเป็นชนิดที่อันตรายกว่า (เช่น ไฟล์แนบแบบ inline → HTML)
         'X-Content-Type-Options' => 'nosniff',
-        // legacy clickjacking defense; CSP frame-ancestors 'self' covers modern browsers, this covers the rest
+        // การป้องกัน clickjacking แบบเก่า; CSP frame-ancestors 'self' ครอบคลุม browser สมัยใหม่ ส่วนตัวนี้ครอบคลุมที่เหลือ
         'X-Frame-Options' => 'SAMEORIGIN',
-        // don't leak full URLs (with ids/tokens) in the Referer to other origins
+        // ไม่ปล่อย URL เต็ม (ที่มี id/token) รั่วไปใน Referer ไปยัง origin อื่น
         'Referrer-Policy' => 'strict-origin-when-cross-origin',
     ];
 }
 
 /**
- * Emit security_headers() on the current response. Called once per request (public/index.php) so every
- * response type — HTML, JSON, file download, redirect — inherits them, regardless of web server. No-op once
- * output has begun (CLI/tests), matching the CSP guard in View::render.
+ * ส่ง security_headers() ออกไปกับ response ปัจจุบัน เรียกครั้งเดียวต่อ request (public/index.php) เพื่อให้ response
+ * ทุกชนิด — HTML, JSON, การดาวน์โหลดไฟล์, redirect — ได้รับ header เหล่านี้ ไม่ว่าจะใช้ web server ตัวใด จะไม่ทำอะไร
+ * เมื่อเริ่มส่ง output ไปแล้ว (CLI/tests) เข้าชุดกับการป้องกัน CSP ใน View::render
  */
 function emit_security_headers(): void
 {

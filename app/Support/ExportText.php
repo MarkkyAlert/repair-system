@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace App\Support;
 
 /**
- * Marks an export cell as a TEXTUAL IDENTIFIER (asset_code, ticket_no, …) so the XLSX writer stores it as text
- * verbatim — never inferring a number from its shape. Without this, a code like "00547790.25" or "0028712749"
- * would be coerced to a number in Excel (leading zeros dropped, long codes losing precision), so the file no
- * longer matches the screen/CSV and lookups/joins break (audit R17). CSV/PDF are unaffected — they just render
- * the string via __toString.
+ * ทำเครื่องหมายให้เซลล์ export เป็นตัวระบุที่เป็นข้อความ (asset_code, ticket_no, …) เพื่อให้ตัวเขียน XLSX เก็บเป็นข้อความ
+ * ตามเดิมทุกตัว — ไม่เดาว่าเป็นตัวเลขจากรูปร่างของมัน ถ้าไม่มีสิ่งนี้ รหัสอย่าง "00547790.25" หรือ "0028712749"
+ * จะถูกบังคับให้เป็นตัวเลขใน Excel (เลข 0 นำหน้าหายไป รหัสยาว ๆ เสียความแม่นยำ) ทำให้ไฟล์
+ * ไม่ตรงกับหน้าจอ/CSV อีกต่อไป และการ lookup/join พัง (audit R17) ส่วน CSV/PDF ไม่ได้รับผลกระทบ — มันแค่แสดง
+ * ข้อความผ่าน __toString
  */
 final readonly class ExportText implements \Stringable
 {

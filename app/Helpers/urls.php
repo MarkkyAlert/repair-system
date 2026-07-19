@@ -55,9 +55,9 @@ function asset(string $path): string
 }
 
 /**
- * The org logo as a base64 data URI for embedding in PDFs — dompdf runs with isRemoteEnabled=false, so a URL
- * can't be fetched; a data URI works regardless of chroot/remote settings. Returns null if no logo is set or
- * the file is missing/unreadable.
+ * โลโก้ขององค์กรในรูป base64 data URI สำหรับฝังลงใน PDF — dompdf รันด้วย isRemoteEnabled=false จึงดึงจาก URL
+ * ไม่ได้; data URI ใช้ได้ไม่ว่าจะตั้งค่า chroot/remote อย่างไร คืน null ถ้าไม่ได้ตั้งโลโก้ไว้ หรือ
+ * ไฟล์หายไป/อ่านไม่ได้
  */
 function branding_logo_data_uri(): ?string
 {

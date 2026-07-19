@@ -17,16 +17,16 @@ function csrf_field(): string
 
 function csrf_validate(): void
 {
-    // Read as mixed: a crafted body like `_csrf[]=x` makes $_POST['_csrf'] an ARRAY, which would hit
-    // Csrf::validate(?string)'s type declaration and throw an uncaught TypeError → HTTP 500. Normalize any
-    // non-string to null so it's rejected as an expected DomainException via the normal flow.
+    // อ่านเป็น mixed ก่อน: body ที่จงใจปลอมอย่าง `_csrf[]=x` จะทำให้ $_POST['_csrf'] เป็น ARRAY ซึ่งจะชน
+    // type declaration ของ Csrf::validate(?string) แล้วโยน TypeError ที่ไม่ถูกดัก → HTTP 500 จึงแปลงค่าที่
+    // ไม่ใช่ string ให้เป็น null เพื่อให้ถูกปฏิเสธเป็น DomainException ตามที่คาดไว้ผ่าน flow ปกติ
     $token = $_POST['_csrf'] ?? null;
     Csrf::validate(is_string($token) ? $token : null);
 }
 
 /**
- * Guard a controller action to the given role(s). Call after AuthMiddleware::handle().
- * Centralises the "if role not allowed → 403" check so it can't be silently forgotten.
+ * จำกัด action ของ controller ให้เฉพาะ role ที่กำหนด เรียกหลังจาก AuthMiddleware::handle()
+ * รวมการเช็ค "ถ้า role ไม่ได้รับอนุญาต → 403" ไว้ที่เดียว เพื่อไม่ให้ลืมเช็คไปเงียบ ๆ
  */
 function require_role(array $viewer, array $roles, string $message): void
 {
@@ -36,9 +36,9 @@ function require_role(array $viewer, array $roles, string $message): void
 }
 
 /**
- * Assert the viewer is an admin, throwing a DomainException otherwise. The service-layer
- * counterpart to require_role(): use inside service methods (caller catches DomainException
- * → flash error), vs require_role()'s hard 403 abort at controller entry.
+ * ยืนยันว่าผู้ใช้ที่กำลังดูเป็น admin มิฉะนั้นจะโยน DomainException เป็นคู่หูของ require_role()
+ * ที่ฝั่ง service: ใช้ภายใน method ของ service (ผู้เรียกดัก DomainException
+ * → flash error) ต่างจาก require_role() ที่ abort 403 แบบเด็ดขาดตั้งแต่ทางเข้า controller
  */
 function assert_admin(array $viewer): void
 {
@@ -47,7 +47,7 @@ function assert_admin(array $viewer): void
     }
 }
 
-/** True when the role has elevated (management) rights — manager or admin. Predicate for conditional checks. */
+/** คืน true เมื่อ role มีสิทธิ์ระดับสูง (ระดับบริหาร) — manager หรือ admin ใช้เป็นเงื่อนไขในการเช็คต่าง ๆ */
 function is_manager_or_admin(string $role): bool
 {
     return in_array($role, [\App\Support\Role::MANAGER, \App\Support\Role::ADMIN], true);

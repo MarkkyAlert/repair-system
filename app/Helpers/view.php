@@ -35,12 +35,12 @@ function notification_bell_data(): array
 
 if (!function_exists('thai_datetime')) {
     /**
-     * The single ABSOLUTE Thai date format used for display system-wide: "dd MonthAbbr <พ.ศ.> [HH:MM]"
-     * (e.g. "06 ก.พ. 2569 09:05"). Buddhist year. Use this everywhere a date is shown to a user so the
-     * whole app reads one calendar — services previously used date('d/m/Y') (ค.ศ.), which clashed with the
-     * Thai พ.ศ. dates on ticket pages. Returns "-" for empty/invalid input.
+     * รูปแบบวันที่ไทยแบบสัมบูรณ์เพียงรูปแบบเดียวที่ใช้แสดงผลทั้งระบบ: "dd ชื่อเดือนย่อ <พ.ศ.> [HH:MM]"
+     * (เช่น "06 ก.พ. 2569 09:05") ปี พ.ศ. ใช้ตัวนี้ทุกที่ที่แสดงวันที่ให้ผู้ใช้เห็น เพื่อให้
+     * ทั้งแอปอ่านปฏิทินเดียวกัน — เดิม service ใช้ date('d/m/Y') (ค.ศ.) ซึ่งขัดกับ
+     * วันที่ พ.ศ. ของไทยบนหน้า ticket คืน "-" เมื่อ input ว่างเปล่า/ไม่ถูกต้อง
      *
-     * @param int|string|null $value a unix timestamp, a datetime string, or null
+     * @param int|string|null $value unix timestamp, string วันเวลา, หรือ null
      */
     function thai_datetime(int|string|null $value, bool $withTime = true): string
     {
@@ -58,7 +58,7 @@ if (!function_exists('thai_datetime')) {
         ];
         $monthLabel = $thaiMonths[(int) date('n', $ts)] ?? '';
         $year = (int) date('Y', $ts);
-        // Convert Gregorian (< 2500) to Buddhist year; leave a value already in Buddhist range as-is.
+        // แปลงปี ค.ศ. (< 2500) เป็นปี พ.ศ.; ถ้าค่าอยู่ในช่วงปี พ.ศ. อยู่แล้วก็คงไว้ตามเดิม
         $yearLabel = $year < 2500 ? (string) ($year + 543) : (string) $year;
 
         $out = sprintf('%s %s %s', date('d', $ts), $monthLabel, $yearLabel);
@@ -72,8 +72,8 @@ if (!function_exists('thai_datetime')) {
 
 if (!function_exists('mb_from_bytes')) {
     /**
-     * Format a byte count as a short MB label for UI hints ("5", "1.5") so upload/import limits can be rendered
-     * from config instead of hard-coded in each view.
+     * จัดรูปแบบจำนวน byte เป็นป้าย MB สั้น ๆ สำหรับข้อความช่วยเหลือใน UI ("5", "1.5") เพื่อให้ขีดจำกัดการอัปโหลด/นำเข้า
+     * ถูกแสดงจากค่า config แทนที่จะฝังตายตัวในแต่ละ view
      *
      * @param int|string $bytes
      */
@@ -87,11 +87,11 @@ if (!function_exists('mb_from_bytes')) {
 
 if (!function_exists('thai_year')) {
     /**
-     * Display a year in the Buddhist calendar (พ.ศ.) to match thai_datetime() and the reports. Keeps STORED /
-     * query year values as Gregorian (ค.ศ.) — this is display-only. A value already in the Buddhist range
-     * (>= 2500) is returned unchanged, so it is safe to double-apply.
+     * แสดงปีในปฏิทินพุทธ (พ.ศ.) ให้เข้าชุดกับ thai_datetime() และรายงานต่าง ๆ ค่าปีที่เก็บใน DB /
+     * ใช้ query ยังคงเป็น ค.ศ. — ตัวนี้ใช้แสดงผลอย่างเดียว ค่าที่อยู่ในช่วงปี พ.ศ.
+     * (>= 2500) อยู่แล้วจะถูกคืนโดยไม่เปลี่ยน จึงเรียกซ้ำสองครั้งได้อย่างปลอดภัย
      *
-     * @param int|string $year a Gregorian (or already-Buddhist) year
+     * @param int|string $year ปี ค.ศ. (หรือที่เป็น พ.ศ. อยู่แล้ว)
      */
     function thai_year(int|string $year): string
     {
@@ -103,13 +103,13 @@ if (!function_exists('thai_year')) {
 
 if (!function_exists('human_date')) {
     /**
-     * Format a datetime to a human-friendly Thai string.
-     * - "เมื่อสักครู่"           (< 60s)
-     * - "5 นาทีที่แล้ว"          (< 60m)
-     * - "3 ชม. ที่แล้ว"          (< 24h, same day)
+     * จัดรูปแบบวันเวลาให้เป็นข้อความไทยที่อ่านง่าย
+     * - "เมื่อสักครู่"           (< 60 วินาที)
+     * - "5 นาทีที่แล้ว"          (< 60 นาที)
+     * - "3 ชม. ที่แล้ว"          (< 24 ชม. วันเดียวกัน)
      * - "เมื่อวาน 14:20"
      * - "06 มิ.ย. 2026 14:20"
-     * Returns "-" if input is empty/invalid.
+     * คืน "-" ถ้า input ว่างเปล่า/ไม่ถูกต้อง
      */
     function human_date(?string $value, bool $withTime = true): string
     {

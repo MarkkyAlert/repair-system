@@ -4,11 +4,11 @@ declare(strict_types=1);
 namespace App\Support;
 
 /**
- * Single source of truth for the user role identifiers. The string values match the users.role ENUM in
- * database/schema.sql and the role stored on the session — so Role::ADMIN is a drop-in for the literal
- * 'admin'. To add a role: add a constant, add it to assignable(), and extend the users.role ENUM.
+ * แหล่งอ้างอิงเดียวของตัวระบุ role ผู้ใช้ ค่า string ตรงกับ ENUM ของ users.role ใน
+ * database/schema.sql และ role ที่เก็บไว้ใน session — ดังนั้น Role::ADMIN ใช้แทนค่าตรง ๆ
+ * 'admin' ได้ทันที การเพิ่ม role: เพิ่มค่าคงที่, เพิ่มลงใน assignable() และขยาย ENUM ของ users.role
  *
- * GUEST is not a stored role — it is the fallback for a request with no signed-in user.
+ * GUEST ไม่ใช่ role ที่เก็บใน DB — เป็นค่าสำรองสำหรับ request ที่ไม่มีผู้ใช้ล็อกอินอยู่
  */
 final class Role
 {
@@ -19,8 +19,8 @@ final class Role
     public const GUEST = 'guest';
 
     /**
-     * The assignable roles, in the same order as the users.role ENUM. Drives the admin user form,
-     * role validation, and the reference-data list.
+     * role ที่มอบหมายได้ เรียงลำดับเดียวกับ ENUM ของ users.role ใช้ขับเคลื่อนฟอร์มผู้ใช้ของ admin,
+     * การตรวจสอบ role และรายการข้อมูลอ้างอิง
      *
      * @return list<string>
      */

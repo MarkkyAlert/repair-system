@@ -82,19 +82,19 @@ function e(mixed $value): string
 }
 
 /**
- * Neutralise a CSV/spreadsheet formula-injection cell: prefix a single quote when the first non-whitespace
- * character is = + - or @, so a spreadsheet renders the value as text instead of executing it as a formula.
- * Shared by every export path (AssetService, ReportService) — the single source of truth for this guard.
+ * ทำให้เซลล์ที่เสี่ยงถูกโจมตีแบบ formula-injection ใน CSV/spreadsheet ปลอดภัย: เติม single quote ไว้ข้างหน้าเมื่อ
+ * ตัวอักษรแรกที่ไม่ใช่ช่องว่างเป็น = + - หรือ @ เพื่อให้ spreadsheet แสดงค่าเป็นข้อความ แทนที่จะรันเป็นสูตร
+ * ใช้ร่วมกันในทุกเส้นทางการ export (AssetService, ReportService) — เป็นแหล่งอ้างอิงเดียวของการป้องกันนี้
  */
 function sanitize_export_cell(mixed $value): string
 {
     $cell = (string) $value;
     $trimmed = ltrim($cell);
 
-    // A NEGATIVE pure number ("-1", "-1.5", "-1,234.0") is a legitimate typed value that a spreadsheet renders as a
-    // number, not a formula — so it must stay numeric + byte-equal to the screen (Excel sum/pivot). Only a leading
-    // "-" followed by anything else (e.g. "-2+3") is a formula-injection risk. Leading "+ = @" are ALWAYS formula
-    // triggers in a spreadsheet (even "+1234" = a formula), so those stay neutralised. (audit F2: negative net.)
+    // ตัวเลขล้วนที่ติดลบ ("-1", "-1.5", "-1,234.0") เป็นค่าที่พิมพ์มาอย่างถูกต้องซึ่ง spreadsheet แสดงเป็น
+    // ตัวเลข ไม่ใช่สูตร — จึงต้องคงเป็นตัวเลขและตรงกับที่เห็นบนจอทุก byte (เผื่อ Excel sum/pivot) มีแค่เครื่องหมาย
+    // "-" นำหน้าตามด้วยอย่างอื่น (เช่น "-2+3") ที่เสี่ยงเป็น formula-injection ส่วน "+ = @" นำหน้าเป็นตัวเปิดสูตร
+    // ใน spreadsheet เสมอ (แม้แต่ "+1234" ก็เป็นสูตร) จึงคงการทำให้ปลอดภัยไว้ (audit F2: negative net.)
     $isNegativeNumber = preg_match('/^-(\d+|\d{1,3}(,\d{3})+)(\.\d+)?$/', $trimmed) === 1;
 
     if (!$isNegativeNumber && $trimmed !== '' && in_array($trimmed[0], ['=', '+', '-', '@'], true)) {
@@ -105,8 +105,8 @@ function sanitize_export_cell(mixed $value): string
 }
 
 /**
- * True when the exception is a unique-constraint / duplicate-key violation (MySQL 23000 / 1062).
- * Shared by CSV import services to report duplicate rows consistently.
+ * คืน true เมื่อ exception เกิดจากการละเมิด unique-constraint / duplicate-key (MySQL 23000 / 1062)
+ * ใช้ร่วมกันในบริการนำเข้า CSV เพื่อรายงานแถวที่ซ้ำอย่างสอดคล้องกัน
  */
 function is_duplicate_key_error(\Throwable $exception): bool
 {
@@ -120,9 +120,9 @@ function is_duplicate_key_error(\Throwable $exception): bool
 }
 
 /**
- * True when the error is "table doesn't exist" (MySQL 1146 / SQLSTATE 42S02) — the ONE DB error bootstrap
- * treats as the expected first-run case (schema not loaded yet). Every other DB error must be logged, not
- * silently swallowed and mistaken for "not installed".
+ * คืน true เมื่อ error คือ "table doesn't exist" (MySQL 1146 / SQLSTATE 42S02) — เป็น DB error เดียวที่ bootstrap
+ * ถือว่าเป็นกรณีปกติของการรันครั้งแรก (ยังไม่ได้โหลด schema) DB error อื่น ๆ ทุกตัวต้องถูกเขียน log ไม่ใช่
+ * ถูกกลืนเงียบ ๆ แล้วเข้าใจผิดว่าเป็น "ยังไม่ได้ติดตั้ง"
  */
 function is_missing_table_error(\Throwable $exception): bool
 {
@@ -136,10 +136,10 @@ function is_missing_table_error(\Throwable $exception): bool
 }
 
 /**
- * Log an exception that escaped every controller-level try/catch and reached the entry-point handler.
- * The full class, message, file:line and stack trace go to the server error log (destination set by php.ini —
- * Apache error log / stderr in production) so an unexpected 500 is debuggable. It is never written to the HTTP
- * response — that stays a generic 500 via Response::abort — so nothing sensitive leaks to the client.
+ * เขียน log ของ exception ที่หลุดรอด try/catch ทุกชั้นในระดับ controller แล้วมาถึงตัวจัดการที่จุดเข้าโปรแกรม
+ * ทั้งชื่อ class, ข้อความ, file:line และ stack trace เต็ม ๆ จะถูกส่งไปที่ server error log (ปลายทางกำหนดใน php.ini —
+ * Apache error log / stderr ตอน production) เพื่อให้ debug 500 ที่ไม่คาดคิดได้ ข้อมูลนี้ไม่เคยถูกเขียนลง
+ * response ของ HTTP — response ยังเป็น 500 ทั่วไปผ่าน Response::abort — จึงไม่มีข้อมูลอ่อนไหวรั่วไปถึง client
  */
 function log_uncaught_exception(\Throwable $exception): void
 {
@@ -147,26 +147,26 @@ function log_uncaught_exception(\Throwable $exception): void
 }
 
 /**
- * A short, per-request correlation id — generated once and reused for the whole request. It is emitted as the
- * X-Request-Id response header, shown on the generic 500 page, and prefixed onto every server-log line, so a
- * user's "I hit an error, reference ABC12345" ties straight to the matching log entry.
+ * รหัสอ้างอิง (correlation id) สั้น ๆ ต่อหนึ่ง request — สร้างครั้งเดียวแล้วใช้ซ้ำตลอดทั้ง request ถูกส่งออกเป็น
+ * response header ชื่อ X-Request-Id, แสดงบนหน้า 500 ทั่วไป และเติมนำหน้าทุกบรรทัดใน server log เพื่อให้คำพูดของ
+ * ผู้ใช้ "เจอ error เลข reference ABC12345" โยงตรงไปยังบรรทัด log ที่ตรงกันได้ทันที
  */
 function request_id(): string
 {
     static $id = null;
     if ($id === null) {
-        $id = bin2hex(random_bytes(4)); // 8 hex chars: enough to correlate, carries no PII
+        $id = bin2hex(random_bytes(4)); // 8 ตัวอักษร hex: พอสำหรับใช้โยงหากันได้ และไม่มีข้อมูลส่วนบุคคล (PII)
     }
 
     return $id;
 }
 
 /**
- * Whether the caller expects a JSON response (an AJAX/fetch call) rather than an HTML page — used so the
- * entry-point 500 handler returns a JSON error (with a reference) instead of an HTML page that would break the
- * client's response.json().
+ * บอกว่าผู้เรียกคาดหวัง response แบบ JSON หรือไม่ (การเรียกแบบ AJAX/fetch) แทนที่จะเป็นหน้า HTML — ใช้เพื่อให้
+ * ตัวจัดการ 500 ที่จุดเข้าโปรแกรมคืน error แบบ JSON (พร้อม reference) แทนหน้า HTML ที่จะทำให้
+ * response.json() ฝั่ง client พัง
  *
- * @param array<string, mixed>|null $server defaults to $_SERVER
+ * @param array<string, mixed>|null $server ค่าเริ่มต้นคือ $_SERVER
  */
 function request_wants_json(?array $server = null): bool
 {
@@ -178,9 +178,9 @@ function request_wants_json(?array $server = null): bool
 }
 
 /**
- * True when the app is configured to leak stack traces to clients: debug mode enabled under a production
- * environment (the entry-point handler rethrows in debug, so a prod error would expose its trace). The web
- * entry point refuses to serve in this state; local dev (APP_ENV=local) is unaffected.
+ * คืน true เมื่อแอปถูกตั้งค่าจนอาจปล่อย stack trace รั่วไปถึง client: เปิด debug mode อยู่ภายใต้ environment แบบ
+ * production (ตัวจัดการที่จุดเข้าโปรแกรมจะโยน exception ซ้ำตอน debug ทำให้ error ตอน production เผยให้เห็น trace)
+ * ตัว web entry point จะปฏิเสธไม่ให้บริการในสถานะนี้ ส่วนเครื่อง dev (APP_ENV=local) ไม่ได้รับผลกระทบ
  */
 function is_unsafe_production_debug(string $appEnv, bool $appDebug): bool
 {
@@ -188,9 +188,9 @@ function is_unsafe_production_debug(string $appEnv, bool $appDebug): bool
 }
 
 /**
- * Log an exception caught in a best-effort side-effect path (notifications, cleanup, audit) that is
- * deliberately swallowed so it can't fail the main operation. Records the marker, caller-supplied context,
- * and the exception CLASS + message + file:line — enough to debug without a noisy full stack trace.
+ * เขียน log ของ exception ที่ดักได้ในเส้นทางผลข้างเคียงแบบ best-effort (การแจ้งเตือน, การล้างข้อมูล, audit) ซึ่ง
+ * ตั้งใจกลืนไว้เพื่อไม่ให้ทำให้งานหลักล้มเหลว บันทึกทั้ง marker, context ที่ผู้เรียกส่งมา
+ * และ CLASS + ข้อความ + file:line ของ exception — พอสำหรับ debug โดยไม่ต้องมี stack trace เต็มที่รกไป
  *
  * @param array<string, mixed> $context
  */
@@ -202,8 +202,8 @@ function log_caught_exception(string $marker, \Throwable $exception, array $cont
     }
     $suffix = $parts === [] ? '' : ' ' . implode(' ', $parts);
 
-    // Walk to the deepest wrapped cause: services wrap a disk/DB/library failure in a friendly RuntimeException
-    // ("สร้างไฟล์ไม่ได้"), so the wrapper alone hides the real reason. Append the root class/message/file:line.
+    // ไล่ลงไปหาต้นเหตุที่ถูกห่อไว้ลึกสุด: service ห่อความล้มเหลวของ disk/DB/library ไว้ใน RuntimeException ที่อ่านง่าย
+    // ("สร้างไฟล์ไม่ได้") ตัวห่อเพียงอย่างเดียวจึงบังเหตุผลจริงไว้ ต่อท้ายด้วย class/ข้อความ/file:line ของต้นเหตุ
     $root = $exception;
     while ($root->getPrevious() !== null) {
         $root = $root->getPrevious();
@@ -225,23 +225,23 @@ function log_caught_exception(string $marker, \Throwable $exception, array $cont
     ));
 }
 
-/** Format-only validators (callers keep their own required/empty guards and error messages). */
+/** ตัวตรวจสอบเฉพาะรูปแบบ (ผู้เรียกยังต้องดูแลการเช็ค required/ค่าว่าง และข้อความ error ของตัวเองอยู่) */
 function is_valid_email(string $email): bool
 {
-    // Length-bounded to the users.email / *_email column (VARCHAR(190)) so a syntactically valid but
-    // over-long address is rejected with a friendly message instead of a raw DB error (strict mode).
+    // จำกัดความยาวให้พอดีกับคอลัมน์ users.email / *_email (VARCHAR(190)) เพื่อให้อีเมลที่รูปแบบถูกต้องแต่
+    // ยาวเกินไป ถูกปฏิเสธด้วยข้อความที่อ่านง่าย แทนที่จะเป็น DB error ดิบ ๆ (strict mode)
     return (function_exists('mb_strlen') ? mb_strlen($email) : strlen($email)) <= 190
         && filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
 }
 
 /**
- * Return the previewed import rows ONLY when the submitted one-time token matches the batch stored in the
- * session — so opening a second preview in another tab (which replaces the session batch + token) cannot make
- * the first tab's confirm import the second tab's rows. Pure (no session/HTTP), so it is directly testable;
- * the controller owns Session::get/forget. Throws DomainException on a token mismatch or an empty batch.
+ * คืนแถวข้อมูลที่ preview ไว้เฉพาะเมื่อ one-time token ที่ส่งมาตรงกับ batch ที่เก็บไว้ใน
+ * session เท่านั้น — เพื่อไม่ให้การเปิด preview อันที่สองในอีกแท็บ (ซึ่งจะไปแทนที่ batch + token ใน session) ทำให้
+ * การกดยืนยันในแท็บแรกนำเข้าแถวของแท็บที่สอง ฟังก์ชันนี้บริสุทธิ์ (ไม่แตะ session/HTTP) จึงทดสอบได้ตรง ๆ
+ * โดยที่ controller เป็นผู้ดูแล Session::get/forget เอง โยน DomainException เมื่อ token ไม่ตรงหรือ batch ว่างเปล่า
  *
  *
- * @param mixed $batch The session batch: ['token' => string, 'rows' => array<int, mixed>]
+ * @param mixed $batch batch ใน session: ['token' => string, 'rows' => array<int, mixed>]
  * @return array<int, mixed>
  */
 function verified_import_rows(mixed $batch, string $submittedToken): array
@@ -260,8 +260,8 @@ function verified_import_rows(mixed $batch, string $submittedToken): array
 }
 
 /**
- * Reject a value longer than its DB column so the user sees a clear message, not a raw
- * "Data too long" error under MySQL strict mode. No-op for values within the limit.
+ * ปฏิเสธค่าที่ยาวเกินคอลัมน์ใน DB เพื่อให้ผู้ใช้เห็นข้อความที่ชัดเจน ไม่ใช่ error ดิบ ๆ
+ * "Data too long" ภายใต้ MySQL strict mode ไม่ทำอะไรกับค่าที่อยู่ในขอบเขตที่กำหนด
  */
 function require_max_length(string $value, int $max, string $label): void
 {
@@ -271,7 +271,7 @@ function require_max_length(string $value, int $max, string $label): void
     }
 }
 
-/** Username format: 3–50 chars of a-z, 0-9, dot, dash, underscore. Shared by admin create + CSV import. */
+/** รูปแบบ username: 3–50 ตัวอักษรจาก a-z, 0-9, จุด, ขีดกลาง, ขีดล่าง ใช้ร่วมกันตอน admin สร้างผู้ใช้ + นำเข้า CSV */
 function is_valid_username(string $username): bool
 {
     return preg_match('/^[a-z0-9._-]{3,50}$/', $username) === 1;
@@ -282,20 +282,20 @@ function valid_phone_format(string $phone): bool
     return preg_match('/^[0-9+\-() .]{4,30}$/', $phone) === 1;
 }
 
-/** True for a 64-char lowercase-hex submission/idempotency token. */
+/** คืน true สำหรับ submission/idempotency token ที่เป็น hex ตัวพิมพ์เล็กยาว 64 ตัวอักษร */
 function is_submission_token(string $token): bool
 {
     return preg_match('/^[a-f0-9]{64}$/', $token) === 1;
 }
 
-/** Parse a truthy form/setting input: true for "1"/"true"/"yes"/"on" (case-insensitive). */
+/** ตีความค่า input จากฟอร์ม/setting ว่าเป็นจริงหรือไม่: true สำหรับ "1"/"true"/"yes"/"on" (ไม่สนตัวพิมพ์เล็กใหญ่) */
 function truthy_input(mixed $value): bool
 {
     return in_array(strtolower(trim((string) $value)), ['1', 'true', 'yes', 'on'], true);
 }
 
 /**
- * Offset-based pagination: clamp $page into [1, totalPages] and compute the SQL offset.
+ * การแบ่งหน้าแบบใช้ offset: บีบ $page ให้อยู่ในช่วง [1, totalPages] แล้วคำนวณค่า offset ของ SQL
  * @return array{page:int,offset:int,totalPages:int}
  */
 function paginate(int $page, int $perPage, int $total): array
@@ -307,10 +307,10 @@ function paginate(int $page, int $perPage, int $total): array
 }
 
 /**
- * Normalize a from/to date-range filter. Validates each side (YYYY-MM-DD → '' if invalid),
- * swaps when reversed so `from` always precedes `to`, then derives inclusive day-bound
- * datetimes (from = 00:00:00, to = 23:59:59). Single source of truth shared by the
- * dashboard and report filters so the two can't drift apart.
+ * ปรับค่าตัวกรองช่วงวันที่ from/to ให้เป็นมาตรฐาน ตรวจสอบแต่ละด้าน (YYYY-MM-DD → '' ถ้าไม่ถูกต้อง)
+ * สลับกันเมื่อกลับด้าน เพื่อให้ `from` มาก่อน `to` เสมอ แล้วแปลงเป็น datetime ที่ครอบคลุมทั้งวัน
+ * (from = 00:00:00, to = 23:59:59) เป็นแหล่งอ้างอิงเดียวที่ตัวกรองของ
+ * dashboard และรายงานใช้ร่วมกัน เพื่อไม่ให้ทั้งสองเพี้ยนไปคนละทาง
  *
  * @return array{from_date:string,to_date:string,from_datetime:string,to_datetime:string}
  */
@@ -322,8 +322,8 @@ function normalize_date_range(string $fromRaw, string $toRaw): array
             return '';
         }
         $timestamp = strtotime($value);
-        // strtotime rolls impossible-but-well-formed dates (2026-02-30 → 2026-03-02, 2025-02-29 → 2025-03-01).
-        // Reject when the round-trip changes the day, so a bad date is empty, not another day's data.
+        // strtotime จะเลื่อนวันที่ที่รูปแบบถูกแต่ไม่มีจริง (2026-02-30 → 2026-03-02, 2025-02-29 → 2025-03-01)
+        // ปฏิเสธเมื่อค่าแปลงไป-กลับแล้ววันเปลี่ยน เพื่อให้วันที่ผิดกลายเป็นค่าว่าง ไม่ใช่ข้อมูลของอีกวันหนึ่ง
         if ($timestamp === false || date('Y-m-d', $timestamp) !== $value) {
             return '';
         }
@@ -334,7 +334,7 @@ function normalize_date_range(string $fromRaw, string $toRaw): array
     $fromDate = $normalizeDay($fromRaw);
     $toDate = $normalizeDay($toRaw);
 
-    // Reversed range → swap the days first, so datetimes are always derived from the correct end.
+    // ช่วงที่กลับด้าน → สลับวันก่อน เพื่อให้ datetime ถูกคำนวณจากปลายที่ถูกต้องเสมอ
     if ($fromDate !== '' && $toDate !== '' && strcmp($fromDate, $toDate) > 0) {
         [$fromDate, $toDate] = [$toDate, $fromDate];
     }
@@ -360,9 +360,9 @@ function auth(): AuthManager
 }
 
 /**
- * Parse a form field that must be a whole number. Empty/missing → $default; a non-integer string like
- * "12junk" throws (PHP's (int) cast silently keeps the "12" prefix). Services own input validation, so this
- * throws DomainException for the caller to surface as a friendly message. (strict numeric input)
+ * ตีความ field ในฟอร์มที่ต้องเป็นจำนวนเต็ม ค่าว่าง/ไม่มี → $default; string ที่ไม่ใช่จำนวนเต็มอย่าง
+ * "12junk" จะโยน exception (การ cast แบบ (int) ของ PHP จะเก็บส่วน "12" ไว้เงียบ ๆ) service เป็นเจ้าของการตรวจสอบ input
+ * ฟังก์ชันนี้จึงโยน DomainException ให้ผู้เรียกนำไปแสดงเป็นข้อความที่อ่านง่าย (รับ input ตัวเลขแบบเข้มงวด)
  */
 function strict_int(mixed $raw, string $label, int $default = 0): int
 {
@@ -380,7 +380,7 @@ function strict_int(mixed $raw, string $label, int $default = 0): int
     return (int) $value;
 }
 
-/** Like strict_int but for a decimal ("abc" throws instead of (float) silently giving 0.0). */
+/** เหมือน strict_int แต่สำหรับเลขทศนิยม ("abc" จะโยน exception แทนที่ (float) จะคืน 0.0 เงียบ ๆ) */
 function strict_float(mixed $raw, string $label, float $default = 0.0): float
 {
     if ($raw === null) {

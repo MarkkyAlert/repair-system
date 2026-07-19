@@ -1,16 +1,16 @@
 <?php
 declare(strict_types=1);
 
-// Centralized Thai display labels — single source of truth shared by services and views.
-// Each label function returns the Thai label for a known enum value, falling back to
-// humanize_label() for anything unmapped. Kept as global helpers to match the existing
-// human_date() pattern (app/Helpers/view.php) and loaded via app/Helpers/helpers.php.
+// ป้ายข้อความ (label) ภาษาไทยที่รวมไว้ที่เดียว — เป็นแหล่งอ้างอิงเดียวที่ service และ view ใช้ร่วมกัน
+// แต่ละฟังก์ชัน label จะคืนป้ายไทยของค่า enum ที่รู้จัก ถ้าเจอค่าที่ไม่มีใน map จะถอยไปใช้
+// humanize_label() แทน เก็บเป็น global helper เพื่อให้เข้าชุดกับ
+// human_date() ที่มีอยู่เดิม (app/Helpers/view.php) และโหลดผ่าน app/Helpers/helpers.php
 
 if (!function_exists('humanize_label')) {
     /**
-     * Generic fallback formatter: "pending_approval" -> "Pending Approval".
-     * Replaces the duplicated private labelize() previously copied across
-     * TicketService, ReportService and AssetService.
+     * ตัวจัดรูปแบบสำรองแบบทั่วไป: "pending_approval" -> "Pending Approval"
+     * มาแทน labelize() ตัว private ที่เคยถูกคัดลอกซ้ำ ๆ อยู่ใน
+     * TicketService, ReportService และ AssetService
      */
     function humanize_label(string $value): string
     {
@@ -41,7 +41,7 @@ if (!function_exists('role_label_th')) {
 }
 
 if (!function_exists('valid_roles')) {
-    /** The four assignable account roles (mirrors the users.role ENUM). Single source for role validation/iteration. */
+    /** role บัญชีผู้ใช้ที่มอบหมายได้ 4 แบบ (สะท้อนค่า ENUM ของ users.role) — แหล่งเดียวสำหรับตรวจสอบ/วนลูป role */
     function valid_roles(): array
     {
         return \App\Support\Role::assignable();
@@ -99,8 +99,8 @@ if (!function_exists('guest_request_status_label_th')) {
 
 if (!function_exists('ticket_status_values')) {
     /**
-     * Canonical ordered list of tickets.status enum values — single source of truth for
-     * validation whitelists and filter dropdowns (keep in sync with schema.sql + [[ticket_status_label_th]]).
+     * รายการค่ามาตรฐานของ enum tickets.status แบบเรียงลำดับ — เป็นแหล่งอ้างอิงเดียวสำหรับ
+     * whitelist การตรวจสอบและ dropdown ตัวกรอง (ต้องให้ตรงกับ schema.sql + [[ticket_status_label_th]])
      */
     function ticket_status_values(): array
     {
@@ -123,12 +123,12 @@ if (!function_exists('ticket_status_values')) {
 
 if (!function_exists('ticket_terminal_statuses')) {
     /**
-     * Ticket statuses whose lifecycle has ended — SLA clock stops, excluded from "open" queues,
-     * counted as closed in reports. NOTE: this is the *lifecycle*-terminal set (includes 'resolved').
-     * It is deliberately different from the requester-facing "still needs my action" set
-     * (AdminRepository::hasOpenRequesterTickets — 'resolved' is still open for the requester)
-     * and from the per-action workflow gates in TicketService (canReopen/canDuplicate/...).
-     * Do NOT collapse those into this one list.
+     * สถานะ ticket ที่วงจรชีวิตงานสิ้นสุดแล้ว — นาฬิกา SLA หยุดนับ ไม่ถูกนับในคิว "งานที่เปิดอยู่"
+     * และนับเป็นงานปิดในรายงาน หมายเหตุ: นี่คือชุดสถานะสิ้นสุดเชิง *วงจรชีวิต* (รวม 'resolved' ด้วย)
+     * ตั้งใจให้ต่างจากชุด "ยังต้องให้ผู้แจ้งดำเนินการ" ที่ฝั่งผู้แจ้งเห็น
+     * (AdminRepository::hasOpenRequesterTickets — สำหรับผู้แจ้ง 'resolved' ยังถือว่าเปิดอยู่)
+     * และต่างจากเงื่อนไข workflow รายการแยกใน TicketService (canReopen/canDuplicate/...)
+     * ห้ามยุบชุดเหล่านั้นมารวมเป็นรายการเดียวกันนี้
      */
     function ticket_terminal_statuses(): array
     {
@@ -137,7 +137,7 @@ if (!function_exists('ticket_terminal_statuses')) {
 }
 
 if (!function_exists('ticket_terminal_statuses_sql')) {
-    /** Terminal statuses as a quoted, comma-joined SQL list for `status IN (...)` fragments. */
+    /** สถานะสิ้นสุดในรูปรายการ SQL ที่ครอบ quote คั่นด้วยจุลภาค สำหรับใช้ในส่วน `status IN (...)` */
     function ticket_terminal_statuses_sql(): string
     {
         return "'" . implode("','", ticket_terminal_statuses()) . "'";
@@ -146,9 +146,9 @@ if (!function_exists('ticket_terminal_statuses_sql')) {
 
 if (!function_exists('ticket_resolved_statuses')) {
     /**
-     * Statuses that count as resolved/completed work ("ปิดงาน") in report aggregates — the successful-completion
-     * subset. Deliberately EXCLUDES 'rejected'/'cancelled' (terminal but not resolved), so it is NARROWER than
-     * ticket_terminal_statuses(). Do NOT merge the two — they answer different business questions.
+     * สถานะที่นับเป็นงานที่แก้เสร็จ/ทำเสร็จ ("ปิดงาน") ในการสรุปยอดรายงาน — เป็นชุดย่อยของงานที่สำเร็จ
+     * ตั้งใจไม่รวม 'rejected'/'cancelled' (สิ้นสุดแล้วแต่ไม่ได้แก้สำเร็จ) จึงแคบกว่า
+     * ticket_terminal_statuses() ห้ามรวมสองชุดนี้เข้าด้วยกัน — มันตอบคำถามเชิงธุรกิจคนละอย่าง
      */
     function ticket_resolved_statuses(): array
     {
@@ -157,7 +157,7 @@ if (!function_exists('ticket_resolved_statuses')) {
 }
 
 if (!function_exists('ticket_resolved_statuses_sql')) {
-    /** Resolved statuses as a quoted, comma-joined SQL list for `status IN (...)` fragments. */
+    /** สถานะที่แก้สำเร็จในรูปรายการ SQL ที่ครอบ quote คั่นด้วยจุลภาค สำหรับใช้ในส่วน `status IN (...)` */
     function ticket_resolved_statuses_sql(): string
     {
         return "'" . implode("','", ticket_resolved_statuses()) . "'";
@@ -166,8 +166,8 @@ if (!function_exists('ticket_resolved_statuses_sql')) {
 
 if (!function_exists('ticket_status_options')) {
     /**
-     * Ticket-status filter dropdown options ([{value,label}]) with Thai labels from
-     * ticket_status_label_th(). Pass $includeAll to prepend an "all statuses" entry.
+     * ตัวเลือก dropdown ตัวกรองตามสถานะ ticket ([{value,label}]) พร้อมป้ายไทยจาก
+     * ticket_status_label_th() ส่ง $includeAll เพื่อเติมรายการ "ทุกสถานะ" ไว้ด้านหน้า
      *
      * @return array<int,array{value:string,label:string}>
      */
@@ -216,7 +216,7 @@ if (!function_exists('channel_label_th')) {
 }
 
 if (!function_exists('priority_label_th')) {
-    /** Keyed by priority_code (LOW/MEDIUM/HIGH/URGENT). */
+    /** ใช้ priority_code เป็น key (LOW/MEDIUM/HIGH/URGENT) */
     function priority_label_th(string $code): string
     {
         static $map = [
@@ -231,7 +231,7 @@ if (!function_exists('priority_label_th')) {
 }
 
 if (!function_exists('severity_label_th')) {
-    /** Impact / urgency. Bilingual by design (kept as-is): "ปานกลาง (Medium)". */
+    /** Impact / urgency ตั้งใจให้เป็นสองภาษา (คงไว้ตามเดิม): "ปานกลาง (Medium)" */
     function severity_label_th(string $level): string
     {
         static $map = [
@@ -246,7 +246,7 @@ if (!function_exists('severity_label_th')) {
 }
 
 if (!function_exists('severity_values')) {
-    /** Canonical impact_level/urgency_level enum values (keep in sync with schema.sql). */
+    /** ค่ามาตรฐานของ enum impact_level/urgency_level (ต้องให้ตรงกับ schema.sql) */
     function severity_values(): array
     {
         return ['low', 'medium', 'high', 'critical'];
@@ -254,7 +254,7 @@ if (!function_exists('severity_values')) {
 }
 
 if (!function_exists('work_order_status_label_th')) {
-    /** work_orders.status enum: assigned/accepted/in_progress/paused/completed/cancelled. */
+    /** enum ของ work_orders.status: assigned/accepted/in_progress/paused/completed/cancelled */
     function work_order_status_label_th(string $status): string
     {
         static $map = [
@@ -271,7 +271,7 @@ if (!function_exists('work_order_status_label_th')) {
 }
 
 if (!function_exists('asset_status_values')) {
-    /** Canonical assets.status enum values — single source for validation + option builders. */
+    /** ค่ามาตรฐานของ enum assets.status — แหล่งเดียวสำหรับการตรวจสอบ + ตัวสร้างตัวเลือก */
     function asset_status_values(): array
     {
         return ['active', 'maintenance', 'retired', 'disposed'];
@@ -279,7 +279,7 @@ if (!function_exists('asset_status_values')) {
 }
 
 if (!function_exists('asset_status_label_th')) {
-    /** assets.status enum: active/maintenance/retired/disposed. */
+    /** enum ของ assets.status: active/maintenance/retired/disposed */
     function asset_status_label_th(string $status): string
     {
         static $map = [

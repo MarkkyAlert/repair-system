@@ -18,8 +18,8 @@ class AuthMiddleware
             $auth->logout();
             Session::regenerate();
             $target = $returnTo ?? request_path();
-            // A JSON/AJAX caller (e.g. the notification-feed poller) must get a 401 JSON, not a 302 to the HTML
-            // login page — a 302+HTML breaks response.json() and leaves the client with no reference.
+            // ผู้เรียกแบบ JSON/AJAX (เช่น ตัว poll ฟีดการแจ้งเตือน) ต้องได้ 401 JSON ไม่ใช่ 302 ไปยังหน้า login
+            // แบบ HTML — 302+HTML จะทำให้ response.json() พังและทำให้ client ไม่มี reference เหลืออยู่
             if (request_wants_json()) {
                 self::denyJson();
             }
@@ -46,7 +46,7 @@ class AuthMiddleware
         Response::redirect('/login?return=' . rawurlencode($target));
     }
 
-    /** JSON 401 for an unauthenticated AJAX/fetch caller — carries a reference to tie the failure to a log line. */
+    /** JSON 401 สำหรับผู้เรียกแบบ AJAX/fetch ที่ยังไม่ได้ยืนยันตัวตน — พก reference ไว้โยงความล้มเหลวเข้ากับบรรทัด log */
     private static function denyJson(): never
     {
         Response::jsonError('เซสชันหมดอายุหรือยังไม่ได้เข้าสู่ระบบ กรุณาเข้าสู่ระบบใหม่', 401, ['reference' => request_id()]);
