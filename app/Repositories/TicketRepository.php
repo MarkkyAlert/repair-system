@@ -779,7 +779,7 @@ class TicketRepository
                 throw new RuntimeException('ไม่พบ work order สำหรับ ticket นี้');
             }
 
-            // As-reported (F1 Phase 2): rating ของ cycle ก่อนยังอยู่ (re-rate จะ append cycle ใหม่) และ
+            // As-reported: rating ของ cycle ก่อนยังอยู่ (re-rate จะ append cycle ใหม่) และ
             // แถว SLA ของ cycle ก่อนยังถูก freeze ไว้ — reopen จะ append cycle pending อันใหม่แทนการ
             // reset ผลตัดสิน SLA / CSAT ของงวดในอดีตจึงไม่เปลี่ยน
             $nextCycle = $this->currentTicketCycle($ticketId) + 1;
@@ -1190,7 +1190,7 @@ class TicketRepository
 
     private function upsertTicketRating(int $ticketId, int $requesterId, ?int $technicianId, int $score, string $feedback, string $createdAt): void
     {
-        // As-reported (F1 Phase 2): หนึ่ง rating ต่อหนึ่ง cycle ของ lifecycle การ re-rate หลัง reopen จะ append
+        // As-reported: หนึ่ง rating ต่อหนึ่ง cycle ของ lifecycle การ re-rate หลัง reopen จะ append
         // rating ของ cycle ใหม่ (created_at ของมันเอง) แทนการเขียนทับ cycle ก่อน — CSAT ของงวดในอดีต
         // (ที่ window บน created_at) จึงไม่เปลี่ยน และ idempotent ภายใน cycle เดียวกัน (ยืนยัน cycle เดิมซ้ำ
         // จะ update แถวของ cycle นั้น ไม่ไปชน UNIQUE(ticket_id, cycle))
@@ -1246,7 +1246,7 @@ class TicketRepository
 
     private function markSlaAchieved(int $ticketId, string $metricType, string $achievedAt): void
     {
-        // As-reported (F1 Phase 2): SLA track เป็นแบบราย cycle การ resolve จะสรุปผลตัดสินของ cycle ล่าสุด
+        // As-reported: SLA track เป็นแบบราย cycle การ resolve จะสรุปผลตัดสินของ cycle ล่าสุด
         // ส่วน met/breached ของ cycle ก่อน ๆ ยังถูก freeze ไว้ และ idempotent เพราะยึดจาก achieved timestamp
         $cycle = $this->latestSlaCycle($ticketId, $metricType);
         if ($cycle === 0) {

@@ -12,7 +12,7 @@ class NotificationRepository
     {
     }
 
-    /** คืน true ถ้า broadcast ที่มี idempotency token นี้ถูกส่งไปแล้ว (กัน retry / เปิดแท็บซ้ำ, R8-F2). */
+    /** คืน true ถ้า broadcast ที่มี idempotency token นี้ถูกส่งไปแล้ว (กัน retry / เปิดแท็บซ้ำ). */
     public function broadcastTokenExists(string $submissionToken): bool
     {
         if ($submissionToken === '') {

@@ -94,7 +94,7 @@ function sanitize_export_cell(mixed $value): string
     // ตัวเลขติดลบล้วน ("-1", "-1.5", "-1,234.0") เป็นค่าที่พิมพ์มาถูกต้องและ spreadsheet แสดงเป็นตัวเลข
     // ไม่ใช่สูตร เลยต้องคงเป็นตัวเลขและตรงกับที่เห็นบนจอทุก byte (เผื่อ Excel sum/pivot) ส่วนที่มีแค่
     // "-" นำหน้าแล้วตามด้วยอย่างอื่น (เช่น "-2+3") เสี่ยงเป็น formula-injection ส่วน "+ = @" นำหน้าเป็นตัวเปิดสูตร
-    // ใน spreadsheet เสมอ (แม้แต่ "+1234" ก็เป็นสูตร) เลยคงการกันไว้ (audit F2: negative net.)
+    // ใน spreadsheet เสมอ (แม้แต่ "+1234" ก็เป็นสูตร) เลยคงการกันไว้
     $isNegativeNumber = preg_match('/^-(\d+|\d{1,3}(,\d{3})+)(\.\d+)?$/', $trimmed) === 1;
 
     if (!$isNegativeNumber && $trimmed !== '' && in_array($trimmed[0], ['=', '+', '-', '@'], true)) {

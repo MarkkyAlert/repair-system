@@ -18,7 +18,7 @@ class TicketReadRepository
     }
 
     /**
-     * As-reported (F1 Phase 2): ตอนนี้ ticket_sla_tracks / ticket_ratings เก็บหนึ่งแถวต่อหนึ่ง cycle ของ lifecycle
+     * As-reported: ตอนนี้ ticket_sla_tracks / ticket_ratings เก็บหนึ่งแถวต่อหนึ่ง cycle ของ lifecycle
      * (reopen / re-rate จะ append เพิ่มแทนการเขียนทับ) ทุกจุดที่แสดงสถานะปัจจุบันตรงนี้ (overdue บน dashboard,
      * SLA + rating ในรายละเอียด ticket, filter "breached" ของ list) ต้องอ่านเฉพาะ cycle ล่าสุดของ ticket ไม่งั้นผลตัดสิน/rating
      * ของ cycle เก่าจะรั่วเข้ามาในมุมมองปัจจุบัน โค้ดพวกนี้จึงตรึง reference ที่มี alias ไว้กับ cycle นั้น

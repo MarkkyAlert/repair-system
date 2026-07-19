@@ -473,7 +473,7 @@ class ReportService
     /**
      * ทำเครื่องหมายเซลล์ text ที่ผู้ใช้กำหนดเอง (ป้าย dimension, ชื่อ entity, feedback แบบพิมพ์อิสระ, code) เพื่อให้ XLSX writer
      * เก็บเป็น text ตามตัวอักษรเป๊ะ ๆ ไม่เดาเป็นตัวเลขเมื่อค่าหน้าตาเหมือนตัวเลข (เช่น สถานที่ชื่อ
-     * "00970705.25") — ทำให้ไฟล์ byte ตรงกับหน้าจอ/CSV (audit R18). เซลล์ metric ไม่ต้อง wrap
+     * "00970705.25") — ทำให้ไฟล์ byte ตรงกับหน้าจอ/CSV. เซลล์ metric ไม่ต้อง wrap
      * (เป็นตัวเลขจริงอยู่แล้ว). ป้าย enum ของระบบ (status/health/warranty) เป็น string ไทยตายตัวและ
      * ไม่ต้อง wrap แต่ wrap ไปก็ไม่เสียหาย.
      */
@@ -643,7 +643,7 @@ class ReportService
      */
     private function collectTechnicianPerformanceRows(array $viewer, array $normalizedFilters): array
     {
-        // As-reported (Phase 2 + R13): ทุก performance metric ยกให้คนปิดงาน (resolver) โดย key ด้วย
+        // As-reported: ทุก performance metric ยกให้คนปิดงาน (resolver) โดย key ด้วย
         // resolver id — ไม่ขึ้นกับว่าตอนนี้ ticket ถูก assign ให้ใคร. query ของ resolver พก full_name มาด้วย
         $resolver = [];
         foreach ($this->reports->getTechnicianResolverStats($viewer, $normalizedFilters) as $row) {
@@ -684,7 +684,7 @@ class ReportService
     private function mapTechnicianPerformanceRow(string $fullName, array $resolver, array $live, int $totalOpenNow, int $teamSize): array
     {
         $openNow = (int) ($live['open_now'] ?? 0);
-        // As-reported (Phase 2 + R13): ทุก performance metric มาจากคนปิดงาน (resolver)
+        // As-reported: ทุก performance metric มาจากคนปิดงาน (resolver)
         // (getTechnicianResolverStats) บน "ticket ที่ช่างคนนี้ปิดจริงในช่วงนั้น" — resolved + MTTR
         // + SLA-on-time (เทียบกับเป้าที่ล็อกไว้ต่อรอบ) + CSAT (rating ต่อรอบ). ดังนั้น reopen/reassign ภายหลังจะไม่มีทาง
         // restate งวดที่ผ่านมา และหน้าภาพรวม /reports + หน้าเต็มอ่านแถวชุดเดียวกันแบบ immutable. คอลัมน์
@@ -719,8 +719,8 @@ class ReportService
             'workload_share_label' => $sharePct === null ? '-' : number_format($sharePct, 1) . '%',
             'workload_tone' => $workloadTone,
             'oldest_open_age_label' => $oldestAge === null ? '-' : number_format($oldestAge, 0) . ' วัน',
-            'oldest_open_age_export' => $oldestAge === null ? '-' : (int) round($oldestAge), // ตัวเลขเปล่าที่กำหนด type แล้วสำหรับ Excel (F3/R16)
-            // performance ในช่วง — ทุกตัว as-reported/immutable จาก resolver cohort (ไม่มี %ปิดงาน/รับ/เวลาตอบรับ/แรงงาน — R12/R13/R14)
+            'oldest_open_age_export' => $oldestAge === null ? '-' : (int) round($oldestAge), // ตัวเลขเปล่าที่กำหนด type แล้วสำหรับ Excel
+            // performance ในช่วง — ทุกตัว as-reported/immutable จาก resolver cohort (ไม่มี %ปิดงาน/รับ/เวลาตอบรับ/แรงงาน)
             'resolved' => $resolved,
             'sla_on_time_label' => $slaRate === null ? '-' : number_format($slaRate, 1) . '%',
             'sla_on_time_tone' => $this->slaComplianceTone($slaRate),
@@ -779,7 +779,7 @@ class ReportService
 
     private function technicianPerformanceExportRow(array $row): array
     {
-        // 'งาน SLA' และ 'จำนวนรีวิว' = base ของอัตรา/คะแนน — ให้ export บอก sample size เหมือนหน้าจอ (Finding B)
+        // 'งาน SLA' และ 'จำนวนรีวิว' = base ของอัตรา/คะแนน — ให้ export บอก sample size เหมือนหน้าจอ
         return [
             $this->txt($row['full_name']), $row['open_now'], $row['workload_share_label'], $row['oldest_open_age_export'],
             $row['resolved'], $row['sla_on_time_label'], $row['sla_base'],
@@ -1165,7 +1165,7 @@ class ReportService
             $ratingSum = (float) ($r['rating_sum'] ?? 0);
 
             // การมีอยู่ดูจาก base (จำนวน resolved/rating) ไม่ใช่ค่าที่ aggregate แล้ว — ค่า 0.0 ของจริง
-            // (MTTR ต่ำกว่านาที, SLA เกินทุกใบ) เป็นข้อมูลจริง ต่างจาก null ที่แปลว่า "ไม่มี base" (F2/F5)
+            // (MTTR ต่ำกว่านาที, SLA เกินทุกใบ) เป็นข้อมูลจริง ต่างจาก null ที่แปลว่า "ไม่มี base"
             $slaPct = $slaBase > 0 ? round($slaOnTime / $slaBase * 100, 1) : null;
             $mttrHours = $resolvedCount > 0 ? round($mttrMinutes / 60, 1) : null;
             $csat = $ratingCount > 0 ? round($ratingSum / $ratingCount, 2) : null;
@@ -3454,7 +3454,7 @@ class ReportService
 
         if ($achievedTimestamp !== false) {
             // การบรรลุเป้าที่เกิดก่อน ticket ถูกแจ้ง เป็นข้อมูลที่เป็นไปไม่ได้ (seed/import เพี้ยน) — ตัดสิน
-            // met/breached ไม่ได้ จึงถือว่า SLA ใช้ไม่ได้ (unavailable) แทนที่จะเป็น "met" ปลอม. (F1-residual)
+            // met/breached ไม่ได้ จึงถือว่า SLA ใช้ไม่ได้ (unavailable) แทนที่จะเป็น "met" ปลอม.
             if ($requestedTimestamp !== false && $achievedTimestamp < $requestedTimestamp) {
                 return ['status' => 'unavailable'];
             }

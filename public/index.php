@@ -9,10 +9,10 @@ use App\Repositories\SettingsRepository;
 // Bootstrap runs OUTSIDE the request try/catch below, so a startup failure (DB unreachable/misconfigured)
 // would surface as a raw uncaught error with no app reference — or be mistaken for "not yet installed". Wrap
 // it in an early boundary: log it and return a generic 500, using only native calls (the app handler may not
-// exist yet). (error-review-2 F6)
+// exist yet).
 // A native correlation reference generated BEFORE bootstrap (request_id() lives in a helper that may not have
 // loaded yet). The SAME value goes into the log, the X-Request-Id header, and the response body, so support can
-// tie a user's "ref XXXX" straight to the startup-failure log line. (error-review-3 O6)
+// tie a user's "ref XXXX" straight to the startup-failure log line.
 $bootReference = bin2hex(random_bytes(4));
 try {
     [$container, $router] = require dirname(__DIR__) . '/bootstrap.php';
@@ -40,7 +40,7 @@ if (is_unsafe_production_debug((string) config('app.env', 'production'), (bool) 
 // redirect below and file downloads — carries them. CSP is emitted per-response in View::render (needs the nonce).
 emit_security_headers();
 
-// Correlation id on every response so a user can quote a reference that ties to the server log. (error-review F8)
+// Correlation id on every response so a user can quote a reference that ties to the server log.
 if (!headers_sent()) {
     header('X-Request-Id: ' . request_id());
 }
@@ -74,7 +74,7 @@ try {
     }
 
     // An AJAX/fetch caller must get a JSON 500 (with the correlation reference), not an HTML error page that
-    // breaks response.json(). Same generic message either way — no stack/SQL leaks. (error-review-2 F3)
+    // breaks response.json(). Same generic message either way — no stack/SQL leaks.
     if (request_wants_json()) {
         Response::jsonError('ระบบเกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง', 500, ['reference' => request_id()]);
     }

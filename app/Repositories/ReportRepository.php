@@ -52,7 +52,7 @@ class ReportRepository
     }
 
     /**
-     * As-reported (F1 Phase 2): ตรึง reference ของ ticket_sla_tracks (alias $a) ไว้กับ cycle ล่าสุดของ ticket ต่อ
+     * As-reported: ตรึง reference ของ ticket_sla_tracks (alias $a) ไว้กับ cycle ล่าสุดของ ticket ต่อ
      * metric_type ตอนนี้ ticket_sla_tracks เก็บหนึ่งแถวต่อหนึ่ง cycle ของ lifecycle (reopen จะ append cycle ใหม่) จุดที่แสดง
      * SLA แบบสถานะปัจจุบัน (overdue ใน summary, hotspot, backlog, sla-compliance ปัจจุบัน) จึงต้องดูเฉพาะ
      * cycle ใหม่สุด — ผลตัดสิน breached/pending ของ cycle เก่าต้องไม่ไป flag ซ้ำให้ ticket ที่ถูก reopen
@@ -64,7 +64,7 @@ class ReportRepository
     }
 
     /**
-     * As-reported (F1 Phase 2): ตรึงการ join ticket_ratings (alias $a) ไว้กับ rating cycle ล่าสุดของ ticket =
+     * As-reported: ตรึงการ join ticket_ratings (alias $a) ไว้กับ rating cycle ล่าสุดของ ticket =
      * ความพึงพอใจ ณ ปัจจุบัน ตอนนี้ ticket_ratings เก็บหนึ่งแถวต่อ cycle (re-rate หลัง reopen จะ append เพิ่ม)
      * จุดที่แสดง CSAT แบบสถานะปัจจุบัน (executive summary, แถว overview, ค่าเฉลี่ยของช่าง) จึงอ่าน cycle ใหม่สุด
      * และไม่ fan-out (report CSAT แบบรายงวดจะ window บน tr.created_at แทน — ดู getRatingByDimension)
@@ -380,7 +380,7 @@ class ReportRepository
         $conditions = [$this->visibilityClause($viewer, $params)];
         $this->applyReportFilters($conditions, $filters, $params);
         $conditions[] = $this->slaApplicableCondition(); // cancelled ticket = ไม่คิด SLA
-        $conditions[] = $this->latestSlaCycleClause('ts'); // sla-compliance ปัจจุบัน = ผลตัดสินของ cycle ล่าสุด (F1 Phase 2)
+        $conditions[] = $this->latestSlaCycleClause('ts'); // sla-compliance ปัจจุบัน = ผลตัดสินของ cycle ล่าสุด
         $whereClause = implode(' AND ', $conditions);
 
         $stmt = $this->db->prepare(
@@ -424,7 +424,7 @@ class ReportRepository
         $conditions = [$this->visibilityClause($viewer, $params)];
         $this->applySlaBreachFilters($conditions, $filters, $params);
         $conditions[] = $this->slaApplicableCondition(); // cancelled ticket = ไม่คิด SLA
-        $conditions[] = $this->latestSlaCycleClause('ts'); // sla-breach ปัจจุบัน = ผลตัดสินของ cycle ล่าสุด (F1 Phase 2)
+        $conditions[] = $this->latestSlaCycleClause('ts'); // sla-breach ปัจจุบัน = ผลตัดสินของ cycle ล่าสุด
         $whereClause = implode(' AND ', $conditions);
 
         $stmt = $this->db->prepare(
@@ -513,7 +513,7 @@ class ReportRepository
     }
 
     /**
-     * As-reported resolver attribution (Phase 2, extended R13/R14) — ผลงานช่างแบบ immutable ผูกกับ "ช่างที่ปิดงานจริง"
+     * As-reported resolver attribution — ผลงานช่างแบบ immutable ผูกกับ "ช่างที่ปิดงานจริง"
      * (actor ของ event `ticket_resolved`) ไม่ใช่ t.assigned_technician_id: resolved + MTTR + SLA ตรงเวลา + CSAT
      * คิดจาก "งานที่ช่างคนนั้นปิดจริงในช่วง" ทั้งหมด จึงไม่เปลี่ยนย้อนหลังเมื่อ reopen/reassign (คนปิดยังได้
      * เครดิต, SLA/คะแนนอ่านจากรอบที่ปิดจริง ไม่ใช่สถานะปัจจุบัน) โครงเดียวกับ getTicketTrendResolved:
@@ -728,7 +728,7 @@ class ReportRepository
      * MAX(created_at) ในงวดนั้น → ปิดซ้ำในงวดเดียวนับครั้งเดียว แต่ปิดคนละงวดนับงวดละครั้ง (แต่ละงวดเห็นการปิดจริง —
      * กติกาเดียวกับ reopen cohort).
      *
-     * SLA/CSAT ผูก "รายรอบ (cycle)" (F1 Phase 2 Part B2): resolve event ที่ N ของ ticket = cycle N (ROW_NUMBER
+     * SLA/CSAT ผูก "รายรอบ (cycle)": resolve event ที่ N ของ ticket = cycle N (ROW_NUMBER
      * over ทุก event เรียง created_at,id — ตรงกับที่ reopenTicket append cycle) → SLA อ่านจาก ticket_sla_tracks
      * row (metric_type='resolution', cycle=N): sla_base = มีแถวรอบนั้น, sla_on_time = resolved_at ตัวแทน <=
      * target_at ของรอบนั้น (ไม่ใช่ t.resolution_due_at ปัจจุบันที่ reopen ทับ); CSAT อ่านจาก ticket_ratings row
@@ -897,7 +897,7 @@ class ReportRepository
         }
         $whereClause = implode(' AND ', $conditions);
 
-        // มิติ technician เป็นแบบ as-reported (Phase 2): ให้เครดิตกับ resolver ตัวแทนของ ticket —
+        // มิติ technician เป็นแบบ as-reported: ให้เครดิตกับ resolver ตัวแทนของ ticket —
         // คือ actor ของ event `ticket_resolved` ล่าสุดในช่วง มีเพียงหนึ่ง resolver ต่อ ticket — ไม่ใช่
         // t.assigned_technician_id (ผู้รับผิดชอบปัจจุบัน ซึ่งการ reassign หลังปิดงานจะย้ายไป) การมีหนึ่ง resolver
         // ต่อ ticket รักษา invariant ของยอด resolved-total ข้ามมิติ (แต่ละ ticket แมปไปยังกลุ่มเดียว)

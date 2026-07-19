@@ -5,7 +5,7 @@ declare(strict_types=1);
  * ตัวทำงานล้างไฟล์แนบที่กำพร้า (orphan attachment file cleanup worker).
  *
  * สแกน storage/uploads/tickets/ หาไฟล์ที่ไม่มีอยู่ใน DB (ticket_attachments)
- * แล้วลบทิ้ง เพื่อกัน disk leak จาก partial-failure (ดู P3 Fix-8)
+ * แล้วลบทิ้ง เพื่อกัน disk leak จาก partial-failure
  *
  * Usage:
  *   php bin/cleanup-orphan-attachments.php             # รันจริง grace = 3600s
