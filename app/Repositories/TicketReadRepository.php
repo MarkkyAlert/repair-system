@@ -766,6 +766,10 @@ class TicketReadRepository
         return (int) $this->db->query("SELECT COUNT(*) FROM users WHERE role = 'technician' AND is_active = 1")->fetchColumn();
     }
 
+    /**
+     * id ล่าสุดของ ticket ที่ viewer เห็นได้ (visibility เดียวกับหน้าคิว) — ให้ live poll เอาไปเทียบ:
+     * ถ้ามี ticket ใหม่เข้ามา (id เพิ่ม) ก็เด้ง banner ให้โหลดใหม่.
+     */
     public function getMaxVisibleTicketId(array $viewer): int
     {
         $params = [];

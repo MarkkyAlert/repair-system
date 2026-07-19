@@ -256,19 +256,18 @@ class SystemSettingsService
         ]);
     }
 
-    /**
-     * รัน swap ของ logo path (อ่านค่าปัจจุบัน → upsert → ลบไฟล์เดิม) ใต้ named lock ระดับ connection ให้ admin สอง
-     * คนที่เปลี่ยนโลโก้พร้อมกันทำทีละคน ไม่ใช่ต่างคนต่างลบ path เดิมที่ใช้ร่วมกันจน
-     * ไฟล์ที่คนแพ้เพิ่งเขียนกลายเป็นไฟล์กำพร้า. ใช้รูปแบบ GET_LOCK เดียวกับที่ใช้กับ
-     * เลขรันนิ่ง. ไฟล์ที่อัปโหลดถูกย้ายลงดิสก์ "ก่อน" lock (ชื่อสุ่มไม่ซ้ำ ไม่แย่งกัน);
-     * มีแค่การอ่าน/เขียน setting กับการลบไฟล์เดิมเท่านั้นที่ต้องทำทีละราย.
-     */
     /** โฟลเดอร์เก็บโลโก้ อ้างอิงจาก root ของแอป (กำหนดผ่าน config เพื่อให้ตอน deploy — หรือ test — เปลี่ยนปลายทางได้). */
     private function brandingRelativeDir(): string
     {
         return trim((string) config('uploads.branding_dir', 'storage/uploads/branding'), '/');
     }
 
+    /**
+     * รัน swap ของ logo path (อ่านค่าปัจจุบัน → upsert → ลบไฟล์เดิม) ใต้ named lock ระดับ connection ให้ admin สอง
+     * คนที่เปลี่ยนโลโก้พร้อมกันทำทีละคน ไม่ใช่ต่างคนต่างลบ path เดิมที่ใช้ร่วมกันจนไฟล์ที่คนแพ้เพิ่งเขียน
+     * กลายเป็นไฟล์กำพร้า. ใช้รูปแบบ GET_LOCK เดียวกับเลขรันนิ่ง. ไฟล์ที่อัปโหลดถูกย้ายลงดิสก์ "ก่อน" lock
+     * (ชื่อสุ่มไม่ซ้ำ ไม่แย่งกัน); มีแค่การอ่าน/เขียน setting กับลบไฟล์เดิมเท่านั้นที่ต้องทำทีละราย.
+     */
     private function withLogoPathLock(callable $fn): void
     {
         $lockName = 'system-setting-app_logo_path';

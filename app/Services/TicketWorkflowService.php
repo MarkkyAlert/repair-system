@@ -166,7 +166,7 @@ class TicketWorkflowService
         $this->notifications->notifyTicketEvent($ticketId, 'ticket.accepted', (int) ($viewer['id'] ?? 0));
     }
 
-    /** ช่างที่ถูกมอบหมายเริ่มงาน (accepted → in_progress). */
+    /** ช่างที่ถูกมอบหมายเริ่มงาน (assigned/accepted → in_progress — เริ่มได้เลยแม้ยังไม่กดรับ). */
     public function startAssignedWork(int $ticketId, array $viewer, array $input): void
     {
         $ticket = $this->requireTechnicianTicket($ticketId, $viewer);
@@ -181,7 +181,7 @@ class TicketWorkflowService
     }
 
     /**
-     * ช่างที่ถูกมอบหมายส่งผลวิเคราะห์ (diagnosis) + วิธีแก้ไข (resolution) (in_progress → resolved).
+     * ช่างที่ถูกมอบหมายส่งผลวิเคราะห์ (diagnosis) + วิธีแก้ไข (resolution) (accepted/in_progress → resolved).
      * ต้องกรอกสรุปทั้งสองอย่าง; labor_minutes (นาทีที่ใช้ทำงาน) ต้อง >= 0.
      */
     public function resolveAssignedWork(int $ticketId, array $viewer, array $input): void

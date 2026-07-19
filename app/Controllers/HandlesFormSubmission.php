@@ -12,7 +12,7 @@ use RuntimeException;
  * ตัวจัดการกลางสำหรับ action แบบส่งฟอร์ม POST ที่ต้องล็อกอิน: เช็ก auth ว่าล็อกอินแล้ว (+ เช็ก role ถ้าระบุ),
  * เช็ก CSRF, รัน mutation, แจ้งผลสำเร็จ/พังผ่าน flash, แล้วค่อย redirect. ส่ง
  * $oldInputOnError เข้ามาเมื่ออยากเติมค่าเดิมกลับเข้าฟอร์ม (ล้างเมื่อสำเร็จ / คืนค่าเดิมเมื่อ error).
- * ใช้เป็นที่เดียวสำหรับ AdminController / EmailQueueController / GuestRequestController / TicketsController.
+ * controller ที่มี action แบบ POST แล้วต้องล็อกอิน ดึง trait นี้ไปใช้ร่วมกัน.
  */
 trait HandlesFormSubmission
 {

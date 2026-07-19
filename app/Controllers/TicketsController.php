@@ -285,8 +285,8 @@ class TicketsController
     }
 
     /**
-     * Lightweight JSON state สำหรับ live poll ในหน้า ticket detail (status + comment_count).
-     * 404 ถ้าไม่มีสิทธิ์เห็น ticket (visibility เดียวกับ show).
+     * id ล่าสุดของ ticket ที่ viewer เห็นได้ (visibility เดียวกับหน้าคิว) — หน้าคิว/index เอาไป poll
+     * ถ้า id เพิ่มขึ้นแปลว่ามีงานใหม่เข้ามา ก็เด้ง banner ให้โหลดใหม่.
      */
     public function queueState(): void
     {
@@ -296,6 +296,10 @@ class TicketsController
         Response::json(['max_id' => $this->tickets->getQueueMaxVisibleId($viewer)]);
     }
 
+    /**
+     * สถานะสด (status + จำนวนคอมเมนต์) ของ ticket ใบเดียว — หน้า detail เอาไป poll;
+     * คืน 404 ถ้า viewer ไม่มีสิทธิ์เห็นใบนี้ (visibility เดียวกับ show).
+     */
     public function state(string $ticketId): void
     {
         AuthMiddleware::handle();

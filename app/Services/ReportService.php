@@ -704,7 +704,7 @@ class ReportService
         $sharePct = $totalOpenNow > 0 ? round($openNow / $totalOpenNow * 100, 1) : null;
         $oldestAge = $this->daysSince($live['oldest_open_at'] ?? null);
 
-        // workload tone เทียบ even split (โหลดเฉลี่ยต่อคน) — เกิน 2 เท่า = โหลดหนัก(danger), 1.5 เท่า = warning
+        // workload tone เทียบ even split (โหลดเฉลี่ยต่อคน) — ตั้งแต่ 2 เท่าขึ้นไป = โหลดหนัก (danger), ตั้งแต่ 1.5 เท่า = warning
         $workloadTone = 'default';
         $even = $teamSize > 0 ? $totalOpenNow / $teamSize : 0.0;
         if ($openNow > 0 && $even > 0) {
@@ -2180,7 +2180,7 @@ class ReportService
 
     private const CSAT_DIMENSIONS = ['technician', 'category', 'priority', 'department', 'location'];
     private const CSAT_FEEDBACK_PAGE_LIMIT = 100;   // แสดงบนหน้าจอ
-    private const CSAT_FEEDBACK_EXPORT_LIMIT = 500;  // Excel sheet 2 = ดึงได้มากกว่า (เพดาน repo = 500)
+    private const CSAT_FEEDBACK_EXPORT_LIMIT = 500;  // ชีต feedback ใน Excel ดึงได้มากกว่าหน้าจอ (เพดาน repo = 500)
 
     public function getCsatReportPage(array $viewer, array $filters = []): array
     {

@@ -34,7 +34,7 @@ git -C "$ROOT" archive HEAD | tar -x -C "$STAGING"
 
 # 4) belt-and-suspenders: never ship secrets or real data even if a stray copy slipped in.
 ( cd "$STAGING" && rm -f .env && rm -rf .git \
-    && rm -f storage/backups/*.gz storage/logs/*.log storage/mail-logs/*.eml storage/uploads/tickets/* )
+    && rm -f storage/backups/*.gz storage/logs/*.log storage/mail-logs/*.json storage/uploads/tickets/* )
 
 # 5) zip it up (keep the release artifacts out of git via a self-ignoring dist/ dir).
 OUT="$ROOT/dist"

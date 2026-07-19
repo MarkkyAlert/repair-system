@@ -824,7 +824,7 @@ class ReportRepository
 
     /**
      * Backlog Aging — pivot ticket ที่ยัง "ไม่ปิด" (status NOT IN terminal) ตามมิติ × ช่วงอายุ
-     * (0-3/3-7/7-30/>30 วัน). อายุ = DATEDIFF(NOW(), requested_at). Snapshot ปัจจุบัน ไม่มี date filter.
+     * (0-2/3-6/7-29/≥30 วัน). อายุ = DATEDIFF(NOW(), requested_at). Snapshot ปัจจุบัน ไม่มี date filter.
      * ไม่ fan-out (tickets ล้วน + join 1:1/nullable). dimension มาจาก whitelist เท่านั้น.
      */
     public function getBacklogAgingByDimension(array $viewer, array $filters, string $dimension): array
@@ -993,7 +993,9 @@ class ReportRepository
 
     /**
      * CSAT แยกตามมิติ — ค่าเฉลี่ยคะแนน/จำนวนรีวิว/พอใจ(≥4)/ไม่พอใจ(≤2) ต่อ ช่าง/หมวด/แผนก/สถานที่/priority.
-     * base = ticket_ratings (1:1 กับ ticket, UNIQUE(ticket_id)) → ไม่ fan-out ; dimension มาจาก whitelist เท่านั้น.
+     * base = ticket_ratings UNIQUE(ticket_id, cycle) — หนึ่งแถวต่อรอบ (re-rate หลัง reopen = append อีกแถว);
+     * ไม่ fan-out เพราะเริ่ม FROM ticket_ratings แล้ว join tickets 1:1 (รายงานรายงวด window บน tr.created_at นับทุกรอบในช่วง).
+     * dimension มาจาก whitelist เท่านั้น.
      */
     public function getRatingByDimension(array $viewer, array $filters, string $dimension): array
     {

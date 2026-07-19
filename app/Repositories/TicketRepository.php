@@ -846,11 +846,6 @@ class TicketRepository
         }
     }
 
-    /**
-     * Max id ของ ticket ที่ viewer มีสิทธิ์เห็น (ตาม visibility เดียวกับหน้าคิว) —
-     * ใช้เป็น baseline ให้ live poll: ถ้ามี ticket ใหม่เข้ามา (id เพิ่ม) → โชว์ banner โหลดใหม่.
-     */
-
     public function createSeedTicket(array $payload): int
     {
         // วันที่ปรับได้ (สำหรับ demo ที่กระจายช่วงเวลา) — ไม่ส่งมาก็ default = ตอนนี้ / +1h / +8h เหมือนเดิม.
