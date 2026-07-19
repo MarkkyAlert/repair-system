@@ -31,6 +31,11 @@ class UserImportController
         ]);
     }
 
+    /**
+     * ตรวจไฟล์ CSV ก่อนนำเข้าผู้ใช้ (POST + CSRF, เฉพาะ admin) — parse + validate ไม่สร้าง user ลง DB.
+     * ผลข้างเคียง: เก็บชุดแถวที่ผ่านไว้ใน session ('user_import_batch') ผูกกับ one-time token กัน confirm ข้ามแท็บ; render หน้า preview.
+     * error → redirect กลับ /admin/users/import.
+     */
     public function preview(): void
     {
         AuthMiddleware::handle();
@@ -67,6 +72,11 @@ class UserImportController
         }
     }
 
+    /**
+     * ยืนยันนำเข้าผู้ใช้จากชุดที่ preview ไว้ (POST + CSRF, เฉพาะ admin) ผ่าน UserImportService::executeImport.
+     * ผลข้างเคียง: ตรวจ import_token ให้ตรงกับ batch ใน session แล้ว bulk-insert user ทีละแถว (รหัสผ่านสุ่มถ้าไม่ระบุ) และเข้าคิวอีเมลตั้งรหัสผ่านให้แถวที่ตั้ง auto_password, จากนั้นล้าง batch.
+     * สำเร็จ → flash สรุป (พร้อมเตือนถ้าส่งอีเมลบางรายไม่สำเร็จ) แล้ว redirect ไป /admin; error → redirect กลับหน้า import.
+     */
     public function execute(): void
     {
         AuthMiddleware::handle();
@@ -117,6 +127,10 @@ class UserImportController
         Response::redirect('/admin');
     }
 
+    /**
+     * ดาวน์โหลดไฟล์ CSV ตัวอย่างสำหรับนำเข้าผู้ใช้ (GET, เฉพาะ admin) — เนื้อหา static (หัวคอลัมน์ + 1 แถวตัวอย่าง).
+     * ผลข้างเคียง: ไม่เขียน DB — stream ไฟล์ดาวน์โหลด (มี BOM ให้ Excel อ่านภาษาไทย).
+     */
     public function template(): void
     {
         AuthMiddleware::handle();

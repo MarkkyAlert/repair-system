@@ -69,6 +69,10 @@ class EmailTemplateController
         ]);
     }
 
+    /**
+     * บันทึกข้อความ override ของเทมเพลตอีเมล (POST, เฉพาะ admin + CSRF) ผ่าน EmailTemplateService::saveOverrides.
+     * ผลข้างเคียง: upsert แถว override ของ template key นั้น (heading/intro/footer). redirect กลับหน้าแก้ไข template (flash).
+     */
     public function update(string $templateKey): void
     {
         AuthMiddleware::handle();
@@ -89,6 +93,10 @@ class EmailTemplateController
         Response::redirect('/admin/email-templates/' . rawurlencode($templateKey));
     }
 
+    /**
+     * คืนเทมเพลตอีเมลกลับเป็นค่าเริ่มต้น (POST, เฉพาะ admin + CSRF) ผ่าน EmailTemplateService::resetOverrides.
+     * ผลข้างเคียง: ลบแถว override ของ template key นั้นออก (กลับไปใช้ข้อความ default ของระบบ). redirect กลับหน้าแก้ไข template (flash).
+     */
     public function reset(string $templateKey): void
     {
         AuthMiddleware::handle();

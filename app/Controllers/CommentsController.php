@@ -35,6 +35,11 @@ class CommentsController
 
     // ไม่ใช้ handleUpdate(): ตอบได้สองแบบ — คืน JSON ให้ตัวแก้ไขแบบ AJAX ในหน้า
     // (X-Requested-With) หรือถอยไปใช้ flash+redirect เมื่อเป็นการ POST ฟอร์มธรรมดา.
+    /**
+     * แก้ไข comment ของ ticket (POST, ต้องล็อกอิน + CSRF) ผ่าน CommentService::updateComment.
+     * ผลข้างเคียง: เขียนแถว comment ด้วย optimistic version lock + แจ้งเตือนแบบ best-effort (แก้สำเร็จแม้แจ้งเตือนพัง).
+     * ตอบสองแบบ: คำขอที่ต้องการ JSON (AJAX แก้ inline) → Response::jsonSuccess/jsonError; POST ฟอร์มธรรมดา → flash แล้ว redirect กลับหน้า ticket.
+     */
     public function update(string $ticketId, string $commentId): void
     {
         AuthMiddleware::handle();

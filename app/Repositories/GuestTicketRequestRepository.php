@@ -22,6 +22,14 @@ class GuestTicketRequestRepository
         return (int) $this->db->query('SELECT COALESCE(MAX(id), 0) FROM guest_ticket_requests')->fetchColumn();
     }
 
+    /**
+     * บันทึกคำขอแจ้งซ่อมจาก guest สถานะเริ่มต้น 'new'.
+     * ผลข้างเคียง: INSERT guest_ticket_requests หนึ่งแถว (ไม่ครอบ transaction เอง). submission_token ที่ว่างจะเก็บเป็น NULL
+     * (UNIQUE ที่ nullable ยอมให้ NULL ซ้ำได้ — idempotency ต่อ token จึงมีผลเฉพาะเมื่อส่ง token มาจริง)
+     * @param array<string, mixed> $payload ต้องมี 'request_no','guest_name','title','description';
+     *        ไม่บังคับ 'submission_token','asset_id','location_id','guest_email','guest_phone','submitted_ip'
+     * @return int id ของแถวที่เพิ่งสร้าง
+     */
     public function create(array $payload): int
     {
         $stmt = $this->db->prepare(
@@ -152,6 +160,11 @@ class GuestTicketRequestRepository
         return $stmt->rowCount() > 0;
     }
 
+    /**
+     * ปฏิเสธ guest request ('new' → 'rejected') บันทึกผู้ตรวจ/เวลา/หมายเหตุ แบบ atomic ใน statement เดียว.
+     * ผลข้างเคียง: UPDATE guest_ticket_requests เฉพาะแถวที่ยัง status='new' (แนวเดียวกับ claimAndLink)
+     * @return bool true = ปฏิเสธสำเร็จ; false = แพ้ race ให้ convert/reject ที่ทำไปก่อน (status ไม่ใช่ 'new' แล้ว)
+     */
     public function markRejected(int $id, int $reviewerId, string $note): bool
     {
         $stmt = $this->db->prepare(

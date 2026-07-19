@@ -7,6 +7,10 @@ use App\Core\Response;
 
 class BrandingController
 {
+    /**
+     * ส่งไฟล์โลโก้องค์กรที่ตั้งค่าไว้แบบ inline (GET) — public endpoint ไม่ต้องล็อกอิน.
+     * ผลข้างเคียง: ไม่เขียน DB — resolve path จาก setting('app_logo_path') โดยกัน path traversal (realpath ต้องอยู่ใต้ไดเรกทอรี branding ที่อนุญาต) แล้ว stream ไฟล์ออก; ไม่ตั้งค่า/หาไฟล์ไม่เจอ/หลุดขอบเขต → 404.
+     */
     public function showLogo(): void
     {
         $configuredPath = trim((string) setting('app_logo_path', ''));

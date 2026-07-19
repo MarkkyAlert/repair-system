@@ -23,6 +23,15 @@ class TicketService
     ) {
     }
 
+    /**
+     * รวบรวม view-model ของหน้า dashboard: metric สรุป, ticket ล่าสุด, กราฟรายเดือน/breakdown/CSAT, top list,
+     * แจ้งเตือนงานด่วน และ (เฉพาะ admin) สถานะ cron + checklist ตั้งค่า. อ่านอย่างเดียว — ไม่เขียน DB.
+     * breakdown/CSAT/top-list ถูกจำกัดขอบเขตตามปี ($filters['year']) เมื่อผู้ใช้ไม่ได้ตั้งช่วงวันที่เอง; metric/recent เป็น all-time.
+     * @param array<string, mixed> $viewer ต้องมี 'id' และ 'role' (คุมสิทธิ์การมองเห็น + เลือก CTA/พาเนลของ admin)
+     * @param array<string, mixed> $filters คีย์ที่รับ: 'from_date'/'to_date' (ช่วงวันที่), 'department_id', 'category_id',
+     *   'status', 'year', 'preset' (mine|overdue|pending_approval|today); ค่านอกเหนือถูก normalize ทิ้ง
+     * @return array<string, mixed> view-model (metrics/recentTickets/charts/filters/highlights/csat/...)
+     */
     public function getDashboardData(array $viewer, array $filters = []): array
     {
         $normalizedFilters = $this->normalizeDashboardFilters($filters);
@@ -295,6 +304,14 @@ class TicketService
         ];
     }
 
+    /**
+     * view-model ของหน้าคิว ticket: metric สรุป 5 ตัว + รายการ ticket ที่ผู้ดูเห็น (แบ่งหน้า 20/หน้า) + ตัวช่วยฟิลเตอร์.
+     * อ่านอย่างเดียว. ตั้งใจไม่เรียก dashboard เต็ม (กราฟ/breakdown/CSAT) เพื่อเลี่ยง query เพิ่มอีก ~11 ครั้ง.
+     * @param array<string, mixed> $viewer ต้องมี 'id'/'role' (คุมสิทธิ์การมองเห็นคิว)
+     * @param array<string, mixed> $filters คีย์ที่รับ: 'q' (คำค้น), 'status', 'priority', 'technician_id',
+     *   'sla' (มีผลเฉพาะค่า 'overdue'), 'page' (เริ่มที่ 1)
+     * @return array<string, mixed> view-model (metrics/tickets/filters/pagination/urgentAlerts/...)
+     */
     public function getTicketIndexData(array $viewer, array $filters = []): array
     {
         // ตรงนี้ต้องใช้แค่ metric สรุป 5 ตัวเท่านั้น — ดึงมาตรง ๆ แทนที่จะ
@@ -396,6 +413,14 @@ class TicketService
         return $this->reads->getMaxVisibleTicketId($viewer);
     }
 
+    /**
+     * view-model ของฟอร์มแจ้งซ่อมใหม่: ตัวเลือก priority/category/location/asset + ค่า default ของฟอร์ม.
+     * อ่านอย่างเดียว (ไม่เขียน DB) แต่จะ generate submission_token ใหม่ให้ถ้ายังไม่มี (กันกดส่งซ้ำตอน POST).
+     * @param array<string, mixed> $viewer ใช้ 'full_name'/'email' เติมช่องผู้แจ้ง
+     * @param array<string, mixed> $oldInput ค่าที่ผู้ใช้กรอกไว้ (repopulate หลัง validation fail); ถ้าว่างจึงใช้ $prefill
+     * @param array<string, mixed> $prefill ค่าตั้งต้น เช่น 'asset_id', 'source_ticket_id'/'source_ticket_no' และฟิลด์ฟอร์มตอนกด duplicate
+     * @return array<string, mixed> view-model ของฟอร์ม (priorities/categories/locations/assets/defaults/...)
+     */
     public function getCreateFormData(array $viewer, array $oldInput = [], array $prefill = []): array
     {
         $reference = $this->reads->getCreateFormReferenceData();
@@ -456,6 +481,25 @@ class TicketService
         ];
     }
 
+    /**
+     * สร้าง ticket ใหม่จากฟอร์มแจ้งซ่อม (validate input+ไฟล์แนบ → เขียน DB → แจ้งเตือน) แล้วคืน id ของ ticket.
+     * สถานะเริ่มต้น: status = pending_approval, approval_status = pending.
+     * ผลข้างเคียง (ผ่าน repository, อยู่ใน transaction เดียว): INSERT แถว tickets + คำขออนุมัติ (ticket_approvals ให้ผู้อนุมัติเริ่มต้น)
+     *   + SLA tracking 2 แถว (response/resolution) + activity log (ticket_submitted); เก็บไฟล์แนบลงดิสก์และตาราง attachments
+     *   เฉพาะเมื่อสร้างใบใหม่จริง. ถ้าเป็นฝ่ายเปิด transaction เอง: commit แล้วยิงแจ้งเตือน 'ticket.created' (in-app + คิวอีเมล)
+     *   ให้ผู้อนุมัติที่ใช้งานอยู่ แบบ best-effort (error ถูกกลืน). ถ้าล้มเหลว: rollback + ลบไฟล์ที่เพิ่งเก็บทิ้ง.
+     * idempotency: submission_token ที่เคยสร้างไปแล้วจะคืน id ใบเดิม (ไม่สร้างซ้ำ, ไม่เก็บไฟล์, ไม่แจ้งเตือน).
+     * transaction ที่ครอบมาก่อน (เช่น guest-convert): เมธอดนี้จะร่วมใช้ transaction เดิม — ผู้เรียกต้อง commit และยิงแจ้งเตือนเอง.
+     * @param array<string, mixed> $viewer ต้องมี 'id' (>0 = ผู้แจ้ง); ใช้ 'department_id' เป็นแผนกผู้แจ้งถ้ามี
+     * @param array<string, mixed> $input ต้องมี 'title' (ไม่ว่าง, ≤200 ตัวอักษร), 'description' (ไม่ว่าง),
+     *   'priority_id'/'ticket_category_id'/'location_id' (id ที่มีจริง), 'asset_id' (0=ไม่ระบุ; ถ้า >0 ต้องอยู่ใน location เดียวกัน),
+     *   'impact_level'/'urgency_level' (ค่าใน severity_values()), 'submission_token' (token ที่ valid — กันกดส่งซ้ำ)
+     * @param array<string, mixed> $files ไฟล์แนบรูปแบบ $_FILES (validate ก่อนเก็บ)
+     * @param string $channel ช่องทางที่มา — ผู้เรียกตั้งเองเท่านั้น (web/qr/phone/email/walk_in; ค่าที่ไม่รู้จัก→'web'); ห้ามอ่านจาก input ของผู้ใช้
+     * @return int id ของ ticket (ใบใหม่ หรือใบเดิมกรณี submission_token ซ้ำ)
+     * @throws DomainException เมื่อ title/description ว่าง, ไม่มี viewer id, title เกิน 200, impact/urgency ผิด,
+     *   priority/category/location/asset ไม่ถูกต้องหรือ asset ไม่อยู่ใน location, หรือ submission_token หมดอายุ
+     */
     public function createTicket(array $viewer, array $input, array $files = [], string $channel = 'web'): int
     {
         $validatedFiles = $this->attachments->validateUploads($files);
@@ -581,6 +625,13 @@ class TicketService
         return $ticketId;
     }
 
+    /**
+     * เตรียม view-model ฟอร์มแจ้งซ่อมใหม่โดย prefill จาก ticket ต้นทาง (ปุ่ม "ทำซ้ำ").
+     * เช็คสิทธิ์ให้แล้ว: ต้องมองเห็น ticket ($viewer) และ policy อนุญาต duplicate — ผู้เรียกไม่ต้องเช็คซ้ำ.
+     * @param array<string, mixed> $viewer ต้องมี 'id'/'role' (ใช้เช็คการมองเห็น + สิทธิ์ duplicate)
+     * @return array<string, mixed> view-model ฟอร์ม (เหมือน getCreateFormData แต่ prefill จาก ticket ต้นทาง)
+     * @throws DomainException เมื่อไม่พบ ticket, มองไม่เห็น, หรือไม่มีสิทธิ์ทำซ้ำ
+     */
     public function getDuplicateFormData(int $ticketId, array $viewer): array
     {
         $ticket = $this->reads->findVisibleTicketById($ticketId, $viewer);
@@ -662,6 +713,13 @@ class TicketService
         return $new;
     }
 
+    /**
+     * view-model ของหน้ารายละเอียด ticket: ข้อมูล ticket + ไฟล์แนบ + comment (พร้อมไฟล์แนบต่อ comment) + activity log + workflow.
+     * เช็ค visibility ให้แล้ว — คืน null ถ้าผู้ดูไม่มีสิทธิ์เห็น ticket นี้. requester จะไม่เห็น comment ภายใน (internal).
+     * @param array<string, mixed> $viewer ต้องมี 'id'/'role' (คุม visibility + ซ่อน comment ภายในจาก requester)
+     * @param array<string, mixed> $oldInput ค่าฟอร์ม workflow ที่ค้างไว้ (repopulate หลัง validation fail)
+     * @return array<string, mixed>|null view-model, หรือ null เมื่อมองไม่เห็น ticket
+     */
     public function getTicketDetailData(int $ticketId, array $viewer, array $oldInput = []): ?array
     {
         $ticket = $this->reads->findVisibleTicketById($ticketId, $viewer);
@@ -690,6 +748,11 @@ class TicketService
         ];
     }
 
+    /**
+     * ticket ล่าสุดของ asset หนึ่ง (สำหรับหน้ารายละเอียด asset) พร้อมจำนวนรวมทั้งหมด. อ่านอย่างเดียว.
+     * assetId ≤ 0 คืนผลว่าง (tickets=[], total=0) โดยไม่ query.
+     * @return array<string, mixed> รูปแบบ {tickets: <รายการ ticket summary>, total: int}
+     */
     public function getRecentTicketsForAsset(int $assetId, int $limit = 10): array
     {
         if ($assetId <= 0) {

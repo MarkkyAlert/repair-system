@@ -20,6 +20,10 @@ class ScanController
     ) {
     }
 
+    /**
+     * หน้าปลายทางเมื่อสแกน QR ทรัพย์สิน (GET /scan/{token}) — public endpoint ไม่ต้องล็อกอิน (layout สลับ guest/app ตามสถานะล็อกอิน).
+     * อ่านข้อมูล asset จาก token ผ่าน AssetService::getScanData (ไม่เขียน DB); ไม่พบ token/asset → 404. render ปุ่มไปทางแจ้งซ่อม (ล็อกอิน) หรือแจ้งปัญหาแบบ guest.
+     */
     public function show(string $token): void
     {
         $data = $this->assets->getScanData($token);
@@ -41,6 +45,11 @@ class ScanController
         ], $layout);
     }
 
+    /**
+     * ฟอร์มแจ้งปัญหาแบบ guest จากการสแกน QR (GET) — public endpoint ไม่ต้องล็อกอิน; ผู้ที่ล็อกอินอยู่จะถูก redirect ไปทางสร้าง ticket แบบปกติ.
+     * ผลข้างเคียง: ออก one-time form token ใหม่แล้วเก็บใน session ('guest_report_token') กัน double-submit/refresh สร้างคำขอซ้ำ.
+     * ไม่พบ token/asset → 404.
+     */
     public function showReport(string $token): void
     {
         $data = $this->assets->getScanData($token);
@@ -73,6 +82,11 @@ class ScanController
         ], $layout);
     }
 
+    /**
+     * รับฟอร์มแจ้งปัญหาแบบ guest (POST /scan/{token}/report) — public endpoint ไม่ต้องล็อกอิน แต่มี CSRF + idempotency ด้วย one-time form token (ต้องตรงกับ session แล้ว consume ทิ้ง).
+     * ผลข้างเคียง: ผ่าน GuestTicketService::submitGuestRequest สร้างแถวคำขอ guest (จำกัดอัตราต่อ IP + honeypot + unique submission_token กันซ้ำ) และแจ้ง manager/admin.
+     * สำเร็จ → render หน้ายืนยันพร้อมเลขอ้างอิง; error → เก็บค่าเดิมไว้แล้ว redirect กลับหน้าฟอร์ม (จะออก token ใหม่ให้).
+     */
     public function submitReport(string $token): void
     {
         try {

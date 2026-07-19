@@ -26,6 +26,10 @@ class SetupController
     ) {
     }
 
+    /**
+     * หน้าตัวช่วยตั้งค่าระบบครั้งแรก (GET /setup) — public endpoint แต่ล็อกตัวเองเมื่อ setup เสร็จแล้ว หรือมี admin ที่ active อยู่แล้ว (เช็คทั้ง flag และการมี admin กันช่องบน seed-deploy) → redirect ไป /login.
+     * render ฟอร์มตั้งค่า (layout guest).
+     */
     public function show(): void
     {
         // ล็อก setup เมื่อ setup เสร็จแล้ว หรือมี admin อยู่แล้ว — /setup เป็น guest endpoint,
@@ -43,6 +47,11 @@ class SetupController
         ], 'guest');
     }
 
+    /**
+     * รันการตั้งค่าระบบครั้งแรก (POST /setup) — public endpoint แต่ทำได้ครั้งเดียว (ล็อกเมื่อ setup เสร็จ/มี admin อยู่แล้ว).
+     * ผลข้างเคียง: ผ่าน runFirstRunSetup ตั้งชื่อระบบ + สร้าง admin คนแรก + (ถ้าเลือก) โหลด demo + ตั้ง flag setup_completed แบบ atomic ใน named lock กันการยิงพร้อมกันสร้าง admin ซ้ำ.
+     * สำเร็จ → redirect ไป /login (flash อาจมีรหัสช่างตัวอย่างที่โชว์ครั้งเดียว); error → rollback แล้ว redirect กลับ /setup.
+     */
     public function execute(): void
     {
         // ล็อก setup เมื่อ setup เสร็จแล้ว หรือมี admin อยู่แล้ว (กัน guest POST /setup บน seed-deploy

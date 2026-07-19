@@ -29,6 +29,11 @@ class CommentRepository
         return (int) $stmt->fetchColumn();
     }
 
+    /**
+     * ดึง comment ทั้ง thread ของ ticket (join ชื่อ/role ผู้เขียน) เรียงตามเวลาสร้าง.
+     * ความปลอดภัย: $includeInternal=false จะกรอง comment ภายใน (is_internal=1) ออก — ผู้เรียกต้องส่งค่านี้ตาม role ของผู้ดู
+     * @return array<int, array<string, mixed>>
+     */
     public function getCommentsByTicketId(int $ticketId, bool $includeInternal): array
     {
         $sql =
@@ -77,6 +82,11 @@ class CommentRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    /**
+     * ดึง comment เดี่ยวตาม id (join ชื่อ/role ผู้เขียน + version สำหรับ optimistic lock).
+     * ความปลอดภัย: ไม่กรอง is_internal — คืนทั้ง comment ภายในด้วย ผู้เรียกต้องเช็ค visibility ของผู้ดูเอง
+     * @return array<string, mixed>|null null เมื่อไม่พบ comment
+     */
     public function findCommentById(int $commentId): ?array
     {
         $stmt = $this->db->prepare(
@@ -91,6 +101,14 @@ class CommentRepository
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
+    /**
+     * สร้าง comment ใหม่บน ticket.
+     * ผลข้างเคียง: INSERT ticket_comments หนึ่งแถว (ไม่ครอบ transaction เอง). idempotent ด้วย submission_token —
+     * ถ้า INSERT ชน (โพสต์ซ้ำ) จะ fallback ไปค้นแถวเดิมจาก token แล้วคืนแทนการสร้างซ้ำ
+     * @param string $submissionToken token กัน double-submit; ต้อง unique ต่อการโพสต์หนึ่งครั้ง
+     * @return array{id: int, created: bool} created=false เมื่อชน token เดิม (คืน comment ที่มีอยู่)
+     * @throws Throwable เมื่อ INSERT ล้มเหลวด้วยเหตุอื่นที่ไม่ใช่การชน token เดิม
+     */
     public function createComment(int $ticketId, int $userId, string $body, bool $isInternal, string $submissionToken, ?int $parentId = null): array
     {
         $createdAt = date('Y-m-d H:i:s');
@@ -125,6 +143,12 @@ class CommentRepository
         }
     }
 
+    /**
+     * แก้ไข comment ด้วย optimistic lock (version) กันสองคนเขียนทับกันในวินาทีเดียว.
+     * ผลข้างเคียง: UPDATE ticket_comments (body/is_internal/version+1) เฉพาะเมื่อ version ในฟอร์มยังตรงกับใน DB
+     * @param int $originalVersion ค่า version ที่ฟอร์มถืออยู่ตอนเปิดแก้ (มาจากตอนโหลด comment)
+     * @throws DomainException เมื่อไม่พบ comment หรือ comment ถูกแก้โดยผู้อื่นไปแล้ว (version ไม่ตรง)
+     */
     public function updateComment(int $commentId, string $body, bool $isInternal, int $originalVersion): void
     {
         // optimistic lock ใช้ version ที่เป็น integer ไม่ใช่ updated_at: updated_at เป็น DATETIME ละเอียดแค่วินาที ถ้าเอามาเป็น token
@@ -164,6 +188,10 @@ class CommentRepository
         }
     }
 
+    /**
+     * ลบ comment ถาวร.
+     * ผลข้างเคียง: DELETE ticket_comments หนึ่งแถว (hard delete, ไม่ครอบ transaction เอง); ตัวเมธอดไม่ลบไฟล์แนบบนดิสก์เอง
+     */
     public function deleteComment(int $commentId): void
     {
         $stmt = $this->db->prepare(

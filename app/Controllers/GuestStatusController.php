@@ -20,6 +20,11 @@ class GuestStatusController
         $this->render(trim((string) (request()?->query['ref'] ?? '')), null, null);
     }
 
+    /**
+     * ค้นสถานะคำขอ guest ด้วย request_no + เบอร์/อีเมล (POST, public endpoint + CSRF) ผ่าน GuestTicketService::lookupGuestStatus.
+     * เป็นการอ่านอย่างเดียว (ไม่เขียน DB) แต่จำกัดอัตราต่อ IP; ไม่พบ → error กลาง ๆ ที่ไม่บอกว่าเลขมีจริงไหม (กัน enumeration).
+     * render หน้า track เดิมพร้อมผลลัพธ์หรือข้อความ error.
+     */
     public function lookup(): void
     {
         $requestNo = trim((string) ($_POST['request_no'] ?? ''));

@@ -15,6 +15,11 @@ class AttachmentsController
     {
     }
 
+    /**
+     * ส่งไฟล์แนบของ ticket แบบ inline (GET, ต้องล็อกอิน) ผ่าน AttachmentService::getVisibleAttachment.
+     * ผลข้างเคียง: ไม่เขียน DB — อ่านไฟล์จากดิสก์แล้ว stream ออก (Response::download inline, exit).
+     * ความปลอดภัย: service กัน IDOR โดยเช็คว่า viewer เห็น ticket ต้นทางได้จริง + ไฟล์ใน comment ภายในไม่หลุดถึง requester; ไม่พบ/ไม่มีสิทธิ์/ไฟล์หาย → 404 (RuntimeException ถูก log ก่อน).
+     */
     public function show(string $attachmentId): void
     {
         AuthMiddleware::handle();

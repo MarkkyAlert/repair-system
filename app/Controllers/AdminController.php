@@ -91,6 +91,11 @@ class AdminController
         ]);
     }
 
+    /**
+     * โหลดชุดข้อมูลตัวอย่างทั้งระบบ (POST, เฉพาะ admin + CSRF) ผ่าน DemoDataService::load.
+     * ผลข้างเคียง: seed master data + asset + ticket ทั้งชุดในทรานแซกชันเดียว (ถูก gate ด้วย ALLOW_DEMO_DATA และเฉพาะตอนยังไม่มี ticket); อาจสร้างบัญชีช่างตัวอย่างพร้อมรหัสผ่านสุ่มที่โชว์ครั้งเดียวใน flash.
+     * redirect กลับ /admin (flash).
+     */
     public function loadDemoData(): void
     {
         // เขียนเองแทน handleUpdate เพราะต้องเอารหัสช่างตัวอย่าง (สุ่มใหม่ทุกครั้ง) ใส่ลง flash
@@ -298,6 +303,11 @@ class AdminController
         ]);
     }
 
+    /**
+     * ส่งประกาศถึงผู้ใช้ (POST, เฉพาะ admin + CSRF) ผ่าน BroadcastService::sendBroadcast.
+     * ผลข้างเคียง: สร้างแจ้งเตือน in-app ให้ผู้ใช้ตามตัวกรอง role (ยกเว้นตัวผู้ส่ง) + เข้าคิวส่งอีเมล และบันทึก audit; กันส่งซ้ำด้วย one-time submission_token.
+     * flash รายงานผลตามจริง (สำเร็จ/บางส่วน/ล้มเหลว) แล้ว redirect กลับ /admin/broadcast; error → เก็บค่าเดิมไว้แล้ว redirect กลับ.
+     */
     public function sendBroadcast(): void
     {
         AuthMiddleware::handle();
@@ -341,6 +351,8 @@ class AdminController
      * สำรองฐานข้อมูลแบบ on-demand ให้ admin กดดาวน์โหลดจากหน้า UI — เป็น SQL dump ที่ทำด้วย PHP (PDO) ล้วน
      * เลยใช้ได้บน shared hosting ที่ปิด mysqldump / proc_open ไว้ (พวกนี้ backup อัตโนมัติผ่าน cron ไม่ได้).
      *
+     * เข้าถึงได้เฉพาะ admin (require_role) + ต้องผ่าน CSRF. ผลข้างเคียง: ไม่เขียน DB — อ่านทั้งฐานข้อมูลออกมาเป็น SQL
+     * แล้ว stream เป็นไฟล์ดาวน์โหลด (.sql.gz ถ้ามี zlib ไม่งั้น .sql ธรรมดา, ปิดด้วย exit). ไฟล์มีข้อมูลทั้งระบบ — ถือว่า sensitive.
      */
     public function downloadBackup(): void
     {

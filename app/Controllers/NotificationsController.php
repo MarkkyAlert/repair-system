@@ -40,6 +40,9 @@ class NotificationsController
         ]);
     }
 
+    /**
+     * ข้อมูลกระดิ่งแจ้งเตือนแบบสด (GET, ต้องล็อกอิน) สำหรับ poll — คืน JSON จาก NotificationService::getFeedData (ไม่เขียน DB).
+     */
     public function feed(): void
     {
         AuthMiddleware::handle();
@@ -50,6 +53,11 @@ class NotificationsController
 
     // ไม่ใช้ handleUpdate(): การ mark ว่าอ่านแล้วเงียบ ๆ พอสำเร็จ (ไม่มี flash toast — เพราะมันเป็นผลพลอยได้
     // จากการเปิดการแจ้งเตือนอยู่แล้ว) ส่วน handleUpdate จะ flash ข้อความสำเร็จเสมอ.
+    /**
+     * ทำเครื่องหมายว่าอ่านการแจ้งเตือนหนึ่งรายการ (POST, ต้องล็อกอิน + CSRF) ผ่าน NotificationService::markAsRead.
+     * ผลข้างเคียง: อัปเดตแถวแจ้งเตือนเป็นอ่านแล้ว (เฉพาะของเจ้าของ); ไม่มี flash toast เมื่อสำเร็จ (เงียบ ๆ).
+     * redirect ไป return_to ที่ sanitize แล้ว (ค่าเริ่มต้น /notifications).
+     */
     public function read(string $notificationId): void
     {
         AuthMiddleware::handle();
@@ -69,6 +77,11 @@ class NotificationsController
         Response::redirect($returnTo);
     }
 
+    /**
+     * ทำเครื่องหมายว่าอ่านการแจ้งเตือนทั้งหมดของ ticket หนึ่งใบ (POST, ต้องล็อกอิน + CSRF) ผ่าน NotificationService::markTicketAsRead.
+     * ผลข้างเคียง: อัปเดตแถวแจ้งเตือนที่ผูกกับ ticket นั้นเป็นอ่านแล้ว (เฉพาะของเจ้าของ); เงียบ ๆ ไม่มี flash toast.
+     * redirect ไป return_to ที่ sanitize แล้ว (ค่าเริ่มต้น /notifications).
+     */
     public function readTicket(string $ticketId): void
     {
         AuthMiddleware::handle();

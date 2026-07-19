@@ -72,6 +72,11 @@ class AssetsController
 
     // ไม่ใช้ handleUpdate(): พอสำเร็จต้อง redirect ไปหน้ารายละเอียดของ asset ที่เพิ่งสร้าง (ต้องใช้ id ที่เพิ่งได้),
     // ส่วนตอน error redirect กลับไปหน้าฟอร์มสร้างพร้อมค่าเดิม — ปลายทางคนละที่ handleUpdate เลยจัดการไม่ได้.
+    /**
+     * รับฟอร์มเพิ่มทรัพย์สินใหม่ (POST, ต้องล็อกอิน + CSRF; service กันสิทธิ์ manager/admin ซ้ำ) ผ่าน AssetService::createAsset.
+     * ผลข้างเคียง: สร้างแถว asset ใหม่พร้อม QR token.
+     * สำเร็จ → redirect ไปหน้ารายละเอียด asset ที่เพิ่งสร้าง; error → เก็บค่าเดิมไว้แล้ว redirect กลับ /asset-registry/create.
+     */
     public function store(): void
     {
         AuthMiddleware::handle();
@@ -153,6 +158,11 @@ class AssetsController
 
     // ไม่ใช้ handleUpdate(): พอสำเร็จ redirect ไปหน้ารายละเอียด asset ส่วนตอน error กลับไปหน้าฟอร์มแก้ไข
     // พร้อมค่าเดิม — ปลายทางสำเร็จกับ error คนละที่ redirect เดียวของ handleUpdate เลยรองรับไม่ได้.
+    /**
+     * อัปเดตทรัพย์สิน (POST, ต้องล็อกอิน + CSRF; service กันสิทธิ์ manager/admin ซ้ำ) ผ่าน AssetService::updateAsset.
+     * ผลข้างเคียง: เขียนแถว asset ด้วย optimistic lock (hidden original_version) กันเขียนทับข้อมูลที่ถูกแก้ไปแล้ว.
+     * สำเร็จ → redirect ไปหน้ารายละเอียด asset; error → เก็บค่าเดิมไว้แล้ว redirect กลับหน้าแก้ไข.
+     */
     public function update(string $assetId): void
     {
         AuthMiddleware::handle();
@@ -179,6 +189,11 @@ class AssetsController
         Response::redirect('/asset-registry/' . (int) $assetId);
     }
 
+    /**
+     * สร้าง QR token ใหม่ให้ทรัพย์สิน (POST, เฉพาะ manager/admin + CSRF) ผ่าน AssetService::regenerateQrToken.
+     * ผลข้างเคียง: เขียน token ใหม่ทับของเดิม + ล้าง cache PNG — QR ที่พิมพ์/ติดไว้เดิมจะสแกนไม่ได้อีก.
+     * redirect กลับหน้ารายละเอียด asset (flash).
+     */
     public function regenerateQr(string $assetId): void
     {
         $this->handleUpdate(
@@ -190,6 +205,10 @@ class AssetsController
         );
     }
 
+    /**
+     * ส่ง QR ของทรัพย์สินเป็น PNG แบบ inline (GET, ต้องล็อกอิน) ผ่าน AssetService::generateQrPng.
+     * ผลข้างเคียง: ไม่เขียน DB — render/อ่าน PNG แล้ว stream ออก (ปิดด้วย exit → return never); ไม่พบ/ไม่มีสิทธิ์ → 404.
+     */
     public function qrPng(string $assetId): never
     {
         AuthMiddleware::handle();
@@ -235,6 +254,10 @@ class AssetsController
         ]);
     }
 
+    /**
+     * ดาวน์โหลดทะเบียนทรัพย์สินเป็น CSV (POST + CSRF, ต้องล็อกอิน) ผ่าน AssetService::exportCsv (กรองตาม $_POST).
+     * ผลข้างเคียง: ไม่เขียน DB — stream ไฟล์ดาวน์โหลด (Response::download exit); error → redirect กลับ /asset-registry.
+     */
     public function exportCsv(): void
     {
         AuthMiddleware::handle();
@@ -260,6 +283,10 @@ class AssetsController
         }
     }
 
+    /**
+     * ดาวน์โหลดทะเบียนทรัพย์สินเป็น Excel (.xlsx) (POST + CSRF, ต้องล็อกอิน) ผ่าน AssetService::exportExcel (กรองตาม $_POST).
+     * ผลข้างเคียง: ไม่เขียน DB — stream ไฟล์ดาวน์โหลด (Response::download exit); error → redirect กลับ /asset-registry.
+     */
     public function exportExcel(): void
     {
         AuthMiddleware::handle();
@@ -300,6 +327,11 @@ class AssetsController
         ]);
     }
 
+    /**
+     * ตรวจไฟล์ CSV ก่อนนำเข้าทรัพย์สิน (POST + CSRF, เฉพาะ manager/admin) — parse + validate ไม่เขียน asset ลง DB.
+     * ผลข้างเคียง: เก็บชุดแถวที่ผ่านไว้ใน session ('asset_import_batch') ผูกกับ one-time token กัน confirm ข้ามแท็บ; render หน้า preview.
+     * error → redirect กลับ /asset-registry/import.
+     */
     public function importPreview(): void
     {
         AuthMiddleware::handle();
@@ -334,6 +366,11 @@ class AssetsController
         }
     }
 
+    /**
+     * ยืนยันนำเข้าทรัพย์สินจากชุดที่ preview ไว้ (POST + CSRF, เฉพาะ manager/admin) ผ่าน AssetImportService::executeImport.
+     * ผลข้างเคียง: ตรวจ import_token ให้ตรงกับ batch ใน session แล้ว bulk-insert asset ทีละแถว (ข้ามแถวซ้ำ/ผิดพลาด), จากนั้นล้าง batch ออกจาก session.
+     * สำเร็จ → flash สรุปจำนวนนำเข้า/ข้าม แล้ว redirect ไป /asset-registry; error → redirect กลับ /asset-registry/import.
+     */
     public function importExecute(): void
     {
         AuthMiddleware::handle();
@@ -372,6 +409,10 @@ class AssetsController
         Response::redirect('/asset-registry');
     }
 
+    /**
+     * ดาวน์โหลดไฟล์ CSV ตัวอย่างสำหรับนำเข้าทรัพย์สิน (GET, เฉพาะ manager/admin) — เนื้อหา static (หัวคอลัมน์ + 1 แถวตัวอย่าง).
+     * ผลข้างเคียง: ไม่เขียน DB — stream ไฟล์ดาวน์โหลด (มี BOM ให้ Excel อ่านภาษาไทย).
+     */
     public function importTemplate(): void
     {
         AuthMiddleware::handle();

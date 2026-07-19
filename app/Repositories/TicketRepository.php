@@ -14,6 +14,12 @@ class TicketRepository
     {
     }
 
+    /**
+     * ทำเครื่องหมาย SLA track ว่าเลยกำหนด (pending → breached) เฉพาะแถวที่ยัง pending และ target_at เลยเวลาแล้ว.
+     * ผลข้างเคียง: UPDATE ticket_sla_tracks หนึ่งแถว (ไม่ครอบ transaction เอง — เรียกจาก SLA cron; ผู้เรียกครอบ tx เองถ้าต้องการ).
+     * @param string $breachedAt เวลาที่ถือว่า breach ใช้เป็นทั้งค่า breached_at และเกณฑ์ตัดสิน (target_at < เวลานี้)
+     * @return bool true = มีแถวถูกเปลี่ยนจริง; false = ไม่มีแถวเข้าเงื่อนไข (เช่น เคย breach/met ไปแล้ว — idempotent)
+     */
     public function markSlaBreachedById(int $slaTrackId, string $breachedAt): bool
     {
         // :overdue_before ผูกค่าเดียวกับ :breached_at แต่ต้องแยกเป็นคนละ placeholder —
@@ -37,6 +43,18 @@ class TicketRepository
         return $stmt->rowCount() > 0;
     }
 
+    /**
+     * สร้าง ticket ใหม่พร้อมข้อมูลตั้งต้นทั้งชุด สถานะเริ่มต้น pending_approval / approval_status pending.
+     * ผลข้างเคียง: เขียนใน transaction เดียว (เปิดเองเฉพาะเมื่อผู้เรียกยังไม่ได้ครอบ tx ไว้) — INSERT tickets +
+     * ticket_approvals (คำขออนุมัติ pending) + ticket_sla_tracks 2 แถว (response/resolution) + ticket_activity_logs.
+     * กันเลข ticket ซ้ำด้วย named lock (GET_LOCK) ต่อวัน และ idempotent ด้วย submission_token (กดซ้ำ/refresh คืนใบเดิม).
+     * @param array<string, mixed> $payload ต้องมี 'title','description','requester_id','requester_department_id',
+     *        'location_id','asset_id','ticket_category_id','priority_id','impact_level','urgency_level';
+     *        ไม่บังคับ 'requested_at','response_due_at','resolution_due_at','submission_token','channel'
+     * @return array{id: int, created: bool} created=false เมื่อชน submission_token เดิม (คืน ticket ที่มีอยู่ ไม่สร้างซ้ำ)
+     * @throws RuntimeException เมื่อไม่พบผู้อนุมัติเริ่มต้น (ไม่มี user role manager/admin ที่ active)
+     * @throws Throwable เมื่อ write ใด ๆ ล้มเหลว (rollback tx ที่เปิดเองก่อน rethrow); การชน submission_token ถูกจับแล้วคืนใบเดิมแทน
+     */
     public function createTicket(array $payload): array
     {
         $requestedAt = (string) ($payload['requested_at'] ?? date('Y-m-d H:i:s'));
@@ -229,6 +247,15 @@ class TicketRepository
         }
     }
 
+    /**
+     * อนุมัติ ticket (pending_approval → approved, approval_status → approved).
+     * ผลข้างเคียง: ทำใน transaction เดียว — lock แถว ticket ด้วย FOR UPDATE แล้ว re-check สถานะใต้ lock
+     * (ต้องเป็น pending_approval + approval_status pending) จากนั้น UPDATE tickets + upsert ticket_approvals +
+     * INSERT ticket_activity_logs.
+     * @param string $currentStatus สถานะที่ caller เห็นก่อน lock ใช้เป็น from_status ในบันทึก activity log
+     * @throws DomainException เมื่อสถานะถูกเปลี่ยนไปแล้ว (re-check ใต้ lock ไม่ผ่าน)
+     * @throws Throwable เมื่อ write ใด ๆ ล้มเหลว (rollback tx ก่อน rethrow)
+     */
     public function approveTicket(int $ticketId, int $actorId, string $note, string $currentStatus): void
     {
         $actedAt = date('Y-m-d H:i:s');
@@ -266,6 +293,14 @@ class TicketRepository
         }
     }
 
+    /**
+     * ปฏิเสธ ticket (pending_approval → rejected, approval_status → rejected, ล้าง approved_at).
+     * ผลข้างเคียง: ทำใน transaction เดียว — lock แถว ticket (FOR UPDATE) + re-check สถานะใต้ lock
+     * (pending_approval + approval_status pending) แล้ว UPDATE tickets + upsert ticket_approvals + INSERT ticket_activity_logs.
+     * @param string $currentStatus สถานะที่ caller เห็นก่อน lock ใช้เป็น from_status ใน activity log
+     * @throws DomainException เมื่อสถานะถูกเปลี่ยนไปแล้ว (re-check ใต้ lock ไม่ผ่าน)
+     * @throws Throwable เมื่อ write ใด ๆ ล้มเหลว (rollback tx ก่อน rethrow)
+     */
     public function rejectTicket(int $ticketId, int $actorId, string $note, string $currentStatus): void
     {
         $actedAt = date('Y-m-d H:i:s');
@@ -302,6 +337,16 @@ class TicketRepository
         }
     }
 
+    /**
+     * มอบหมาย/ย้ายงานให้ช่าง (approved|assigned|accepted|in_progress → assigned) รองรับทั้ง assign ครั้งแรกและ reassign กลางงาน.
+     * ผลข้างเคียง: ทำใน transaction เดียว — lock แถว ticket (FOR UPDATE) + lock แถว users ของช่าง (FOR UPDATE) แล้ว
+     * re-check ใต้ lock (สถานะที่อนุญาต + approval_status approved, ช่างยัง role technician+active, ถ้า reassign กลางงานต้องมีเหตุผล)
+     * จากนั้น UPDATE tickets + INSERT/UPDATE work_orders (สร้างใหม่ใช้ named lock กันเลข work order ซ้ำ) + INSERT ticket_activity_logs;
+     * ถ้าเป็น reassign จะ reset แถว response SLA (ticket_sla_tracks) กลับเป็น pending.
+     * @param string $currentStatus สถานะที่ caller เห็นก่อน lock (from_status ที่บันทึกจริงยึดจากสถานะใต้ lock เพื่อกัน race)
+     * @throws DomainException เมื่อสถานะถูกเปลี่ยน, ช่างไม่พร้อมใช้งาน (ปิดบัญชี/เปลี่ยน role), หรือ reassign กลางงานโดยไม่ระบุเหตุผล
+     * @throws Throwable เมื่อ write ใด ๆ ล้มเหลว (rollback tx ก่อน rethrow)
+     */
     public function assignTechnician(int $ticketId, int $actorId, int $technicianId, string $technicianName, string $instructions, string $currentStatus): void
     {
         $assignedAt = date('Y-m-d H:i:s');
@@ -481,6 +526,16 @@ class TicketRepository
         }
     }
 
+    /**
+     * ช่างรับงานที่ได้รับมอบหมาย (assigned → accepted) บันทึกเวลาตอบสนองครั้งแรก.
+     * ผลข้างเคียง: ทำใน transaction เดียว — lock แถว ticket (FOR UPDATE) + re-check ใต้ lock (ต้องเป็น assigned,
+     * approval_status approved และผู้ทำต้องเป็นช่างที่ถูก assign) แล้ว UPDATE tickets (set first_response_at ครั้งแรก) +
+     * UPDATE work_orders + mark SLA response met/breached (ticket_sla_tracks) + INSERT ticket_activity_logs.
+     * @param string $currentStatus สถานะที่ caller เห็นก่อน lock ใช้เป็น from_status ใน activity log
+     * @throws DomainException เมื่อสถานะถูกเปลี่ยนหรือผู้ทำไม่ใช่ช่างที่ถูก assign (re-check ใต้ lock ไม่ผ่าน)
+     * @throws RuntimeException เมื่อไม่พบ work order ของ ticket นี้
+     * @throws Throwable เมื่อ write ใด ๆ ล้มเหลว (rollback tx ก่อน rethrow)
+     */
     public function acceptAssignedWork(int $ticketId, int $actorId, string $note, string $currentStatus): void
     {
         $acceptedAt = date('Y-m-d H:i:s');
@@ -536,6 +591,16 @@ class TicketRepository
         }
     }
 
+    /**
+     * ช่างเริ่มดำเนินงาน (assigned|accepted → in_progress) ข้ามขั้นรับงานได้ (backfill เวลารับ/ตอบสนองที่ยังว่าง).
+     * ผลข้างเคียง: ทำใน transaction เดียว — lock แถว ticket (FOR UPDATE) + re-check ใต้ lock (assigned/accepted,
+     * approval_status approved, ผู้ทำเป็นช่างที่ถูก assign) แล้ว UPDATE tickets + UPDATE work_orders +
+     * mark SLA response (ticket_sla_tracks) + INSERT ticket_activity_logs.
+     * @param string $currentStatus สถานะที่ caller เห็นก่อน lock (from_status ที่บันทึกจริงยึดจากสถานะใต้ lock)
+     * @throws DomainException เมื่อสถานะถูกเปลี่ยนหรือผู้ทำไม่ใช่ช่างที่ถูก assign (re-check ใต้ lock ไม่ผ่าน)
+     * @throws RuntimeException เมื่อไม่พบ work order ของ ticket นี้
+     * @throws Throwable เมื่อ write ใด ๆ ล้มเหลว (rollback tx ก่อน rethrow)
+     */
     public function startAssignedWork(int $ticketId, int $actorId, string $note, string $currentStatus): void
     {
         $startedAt = date('Y-m-d H:i:s');
@@ -597,6 +662,17 @@ class TicketRepository
         }
     }
 
+    /**
+     * ช่างสรุปปิดงาน (accepted|in_progress → resolved) บันทึกผลวิเคราะห์/วิธีแก้ และสะสมเวลาแรงงาน.
+     * ผลข้างเคียง: ทำใน transaction เดียว — lock แถว ticket (FOR UPDATE) + re-check ใต้ lock (accepted/in_progress,
+     * approval_status approved, ผู้ทำเป็นช่างที่ถูก assign) แล้ว UPDATE tickets + UPDATE work_orders
+     * (labor_minutes สะสมบวกเพิ่ม ไม่เขียนทับ) + mark SLA response+resolution (ticket_sla_tracks) + INSERT ticket_activity_logs.
+     * @param int $laborMinutes นาทีแรงงานรอบนี้ บวกสะสมเข้ากับ labor_minutes เดิม
+     * @param string $currentStatus สถานะที่ caller เห็นก่อน lock (from_status ที่บันทึกจริงยึดจากสถานะใต้ lock)
+     * @throws DomainException เมื่อสถานะถูกเปลี่ยนหรือผู้ทำไม่ใช่ช่างที่ถูก assign (re-check ใต้ lock ไม่ผ่าน)
+     * @throws RuntimeException เมื่อไม่พบ work order ของ ticket นี้
+     * @throws Throwable เมื่อ write ใด ๆ ล้มเหลว (rollback tx ก่อน rethrow)
+     */
     public function resolveAssignedWork(int $ticketId, int $actorId, string $diagnosisSummary, string $resolutionSummary, int $laborMinutes, string $currentStatus): void
     {
         $resolvedAt = date('Y-m-d H:i:s');
@@ -674,6 +750,17 @@ class TicketRepository
         }
     }
 
+    /**
+     * ผู้แจ้งยืนยันปิดงานและให้คะแนน (resolved → completed).
+     * ผลข้างเคียง: ทำใน transaction เดียว — lock แถว ticket (FOR UPDATE) + re-check ใต้ lock (ต้องเป็น resolved,
+     * approval_status approved และผู้ทำต้องเป็น requester) แล้ว UPDATE tickets + upsert ticket_ratings ของ cycle ปัจจุบัน +
+     * INSERT ticket_activity_logs.
+     * @param int|null $technicianId ช่างที่ผูกกับคะแนน (null ได้ถ้าไม่มีช่างในงานนั้น)
+     * @param int $score คะแนนความพึงพอใจ 1–5
+     * @param string $currentStatus สถานะที่ caller เห็นก่อน lock ใช้เป็น from_status ใน activity log
+     * @throws DomainException เมื่อสถานะถูกเปลี่ยนหรือผู้ทำไม่ใช่ requester (re-check ใต้ lock ไม่ผ่าน)
+     * @throws Throwable เมื่อ write ใด ๆ ล้มเหลว (rollback tx ก่อน rethrow)
+     */
     public function completeResolvedTicket(int $ticketId, int $actorId, ?int $technicianId, string $closureNote, int $score, string $feedback, string $currentStatus): void
     {
         $completedAt = date('Y-m-d H:i:s');
@@ -721,6 +808,19 @@ class TicketRepository
         }
     }
 
+    /**
+     * ผู้แจ้งเปิดงานซ้ำหลังปิด (resolved → assigned) ล้างเวลา/สรุปของรอบก่อน แล้วตั้ง due ใหม่.
+     * ผลข้างเคียง: ทำใน transaction เดียว — lock แถว ticket (FOR UPDATE) + re-check ใต้ lock (resolved,
+     * approval_status approved, ผู้ทำเป็น requester) แล้ว UPDATE tickets + UPDATE work_orders (คง labor_minutes ไว้ as-reported) +
+     * append แถว SLA cycle ใหม่ (ticket_sla_tracks response/resolution) + INSERT ticket_activity_logs.
+     * as-reported: cycle SLA/rating ของงวดก่อนถูก freeze ไว้ ไม่ถูก reset.
+     * @param string $currentStatus สถานะที่ caller เห็นก่อน lock ใช้เป็น from_status ใน activity log
+     * @param string $responseDueAt กำหนดตอบสนองใหม่ของ cycle ที่เปิดซ้ำ
+     * @param string $resolutionDueAt กำหนดปิดงานใหม่ของ cycle ที่เปิดซ้ำ
+     * @throws DomainException เมื่อสถานะถูกเปลี่ยนหรือผู้ทำไม่ใช่ requester (re-check ใต้ lock ไม่ผ่าน)
+     * @throws RuntimeException เมื่อไม่พบ work order ของ ticket นี้
+     * @throws Throwable เมื่อ write ใด ๆ ล้มเหลว (rollback tx ก่อน rethrow)
+     */
     public function reopenTicket(int $ticketId, int $actorId, string $note, string $currentStatus, string $responseDueAt, string $resolutionDueAt): void
     {
         $reopenedAt = date('Y-m-d H:i:s');
@@ -797,6 +897,15 @@ class TicketRepository
         }
     }
 
+    /**
+     * ยกเลิก ticket (สถานะปัจจุบันที่ caller ส่งมา → cancelled) ปรับ approval_status ตามจุดที่ยกเลิก.
+     * ผลข้างเคียง: ทำใน transaction เดียว — lock แถว ticket (FOR UPDATE) + re-check ใต้ lock (สถานะต้องตรงกับ
+     * $currentStatus, approval_status ต้องเป็น pending/approved ตามกรณี, ผู้ทำเป็น requester) แล้ว UPDATE tickets;
+     * ถ้ายกเลิกตอนยังรออนุมัติจะ DELETE คำขออนุมัติที่ค้าง (ticket_approvals) ทิ้ง; แล้ว INSERT ticket_activity_logs.
+     * @param string $currentStatus สถานะปัจจุบันที่ caller เห็น ใช้ทั้งเป็นเงื่อนไข re-check ใต้ lock และ from_status ใน activity log
+     * @throws DomainException เมื่อสถานะถูกเปลี่ยนไปจาก $currentStatus หรือผู้ทำไม่ใช่ requester (re-check ใต้ lock ไม่ผ่าน)
+     * @throws Throwable เมื่อ write ใด ๆ ล้มเหลว (rollback tx ก่อน rethrow)
+     */
     public function cancelTicket(int $ticketId, int $actorId, string $note, string $currentStatus): void
     {
         $cancelledAt = date('Y-m-d H:i:s');
@@ -846,6 +955,7 @@ class TicketRepository
         }
     }
 
+    /** สร้าง ticket สำหรับ demo (INSERT IGNORE — idempotent, ชน UNIQUE(ticket_no) เดิมจะข้าม); วันที่/สถานะปรับได้ผ่าน $payload. ใช้ตอนโหลด demo data. */
     public function createSeedTicket(array $payload): int
     {
         // วันที่ปรับได้ (สำหรับ demo ที่กระจายช่วงเวลา) — ไม่ส่งมาก็ default = ตอนนี้ / +1h / +8h เหมือนเดิม.
@@ -944,6 +1054,7 @@ class TicketRepository
         ]);
     }
 
+    /** สร้าง rating สำหรับ demo (INSERT IGNORE — idempotent, ชน UNIQUE เดิมจะข้าม); score ถูก clamp เป็น 1–5. ใช้ตอนโหลด demo data. */
     public function createSeedRating(int $ticketId, int $requesterId, ?int $technicianId, int $score, string $feedback): void
     {
         $stmt = $this->db->prepare(

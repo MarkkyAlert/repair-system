@@ -24,6 +24,16 @@ class NotificationRepository
         return (bool) $stmt->fetchColumn();
     }
 
+    /**
+     * สร้าง notification หนึ่งรายการแล้วแจกให้ผู้รับหลายคน.
+     * ผลข้างเคียง: ทำใน transaction เดียว — INSERT notifications + INSERT notification_recipients (multi-row แบ่ง chunk).
+     * ไม่ dedupe ในตัว: broadcast ที่มี submission_token ควรเช็ค broadcastTokenExists ก่อนเรียก; UNIQUE(submission_token)
+     * เป็นด่านสุดท้าย (ถ้าชนจะ throw). ผู้รับที่ id ซ้ำ/<=0 ถูกกรองทิ้ง ถ้าไม่เหลือผู้รับก็ยังสร้างตัว notification
+     * @param array<string, mixed> $payload ต้องมี 'type','title','message'; ไม่บังคับ 'payload','related_type','related_id','submission_token'
+     * @param int[] $recipientIds user id ผู้รับ
+     * @return int id ของ notification ที่สร้าง
+     * @throws Throwable เมื่อ write ใด ๆ ล้มเหลว (rollback tx ก่อน rethrow)
+     */
     public function createNotification(array $payload, array $recipientIds): int
     {
         $createdAt = date('Y-m-d H:i:s');
@@ -197,6 +207,10 @@ class NotificationRepository
         return $contexts;
     }
 
+    /**
+     * ทำเครื่องหมายว่าผู้ใช้อ่าน notification นี้แล้ว.
+     * ผลข้างเคียง: UPDATE notification_recipients (is_read=1, read_at ครั้งแรกด้วย COALESCE) เฉพาะแถวของ (user, notification) นี้; idempotent
+     */
     public function markAsRead(int $userId, int $notificationId): void
     {
         $readAt = date('Y-m-d H:i:s');
@@ -213,6 +227,10 @@ class NotificationRepository
         ]);
     }
 
+    /**
+     * ทำเครื่องหมายว่าอ่านแล้วทุก notification ของผู้ใช้ที่ผูกกับ ticket นี้ (ใช้ตอนเปิดหน้ารายละเอียด ticket).
+     * ผลข้างเคียง: UPDATE notification_recipients (join notifications) ทุกแถวที่ยัง unread ของ (user, related ticket) นี้; idempotent
+     */
     public function markTicketNotificationsAsRead(int $userId, int $ticketId): void
     {
         $readAt = date('Y-m-d H:i:s');
@@ -233,6 +251,10 @@ class NotificationRepository
         ]);
     }
 
+    /**
+     * ทำเครื่องหมายว่าอ่านแล้วทุก notification ที่ยัง unread ของผู้ใช้.
+     * ผลข้างเคียง: UPDATE notification_recipients ทุกแถวที่ is_read=0 ของ user นี้ (set is_read=1, read_at ครั้งแรกด้วย COALESCE)
+     */
     public function markAllAsRead(int $userId): void
     {
         $readAt = date('Y-m-d H:i:s');

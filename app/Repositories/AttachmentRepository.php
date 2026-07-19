@@ -11,6 +11,14 @@ class AttachmentRepository
     {
     }
 
+    /**
+     * บันทึกเมทาดาทาไฟล์แนบลง DB.
+     * ผลข้างเคียง: INSERT ticket_attachments หนึ่งแถว (ไม่ครอบ transaction เอง); ตัวเมธอด "ไม่" เขียนไฟล์ลงดิสก์ —
+     * ผู้เรียกต้อง move/เก็บไฟล์จริงเองแล้วส่ง disk_path/stored_name ที่ชี้ไฟล์นั้นมาใน $payload
+     * @param array<string, mixed> $payload ต้องมี 'ticket_id','comment_id','uploaded_by','original_name',
+     *        'stored_name','disk_path','mime_type','file_size' (created_at เติมให้อัตโนมัติ)
+     * @return int id ของแถวที่เพิ่งสร้าง
+     */
     public function create(array $payload): int
     {
         $stmt = $this->db->prepare(
@@ -24,6 +32,11 @@ class AttachmentRepository
         return (int) $this->db->lastInsertId();
     }
 
+    /**
+     * ดึงไฟล์แนบเดี่ยวตาม id (join is_internal ของ comment ที่ผูกไว้ เพื่อให้ผู้เรียกใช้ตัดสินสิทธิ์ดาวน์โหลด).
+     * ความปลอดภัย: ไม่กรอง visibility — คืนแม้ไฟล์ที่อยู่ใต้ comment ภายใน ผู้เรียกต้องเช็ค is_internal เอง
+     * @return array<string, mixed>|null null เมื่อไม่พบ
+     */
     public function findById(int $attachmentId): ?array
     {
         $stmt = $this->db->prepare(
@@ -37,6 +50,11 @@ class AttachmentRepository
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
+    /**
+     * ดึงไฟล์แนบทั้งหมดของ ticket (รวมทั้งที่แนบตรงกับ ticket และที่แนบผ่าน comment).
+     * ความปลอดภัย: $includeInternal=false จะกรองไฟล์แนบที่ผูกกับ comment ภายในออก — ผู้เรียกต้องส่งค่าตาม role ของผู้ดู
+     * @return array<int, array<string, mixed>>
+     */
     public function getByTicketId(int $ticketId, bool $includeInternal): array
     {
         $sql = 'SELECT a.*, c.is_internal

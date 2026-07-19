@@ -61,6 +61,11 @@ class TicketsController
         ]);
     }
 
+    /**
+     * รับฟอร์มแจ้งซ่อมใหม่ (POST /tickets, ต้องล็อกอิน + CSRF) แล้วส่งต่อ TicketService::createTicket.
+     * ผลข้างเคียง: สร้างแถว ticket + บันทึกไฟล์แนบจาก $_FILES['attachments'] ลงดิสก์ (service ทำในทรานแซกชันเดียว) และยิงแจ้งเตือน ticket.created ให้ผู้เกี่ยวข้อง.
+     * สำเร็จ → redirect ไปหน้ารายละเอียด ticket ที่เพิ่งสร้าง; error (validation/CSRF) → เก็บค่าเดิมไว้แล้ว redirect กลับ /tickets/create.
+     */
     public function store(): void
     {
         AuthMiddleware::handle();
@@ -120,6 +125,11 @@ class TicketsController
         ]);
     }
 
+    /**
+     * อนุมัติหลาย ticket พร้อมกันจากหน้าคิว (POST, เฉพาะ manager/admin + CSRF) — อ่าน id จาก $_POST['ticket_ids'] (คั่นด้วยจุลภาค).
+     * ผลข้างเคียง: ผ่าน TicketWorkflowService::bulkApproveTickets อนุมัติทีละใบ (แต่ละใบ transaction + row lock + แจ้งเตือน), จำกัด 50 ใบ/ครั้ง, ข้ามเฉพาะใบที่สถานะเปลี่ยนไปแล้ว/หมดสิทธิ์.
+     * flash สรุปจำนวนสำเร็จ/ล้มเหลว แล้ว redirect ไป /tickets?status=pending_approval.
+     */
     public function bulkApprove(): void
     {
         AuthMiddleware::handle();
@@ -371,6 +381,11 @@ class TicketsController
         ], 'print');
     }
 
+    /**
+     * สร้างและดาวน์โหลดใบสั่งงานเป็น PDF (GET, ต้องล็อกอิน) ผ่าน TicketPrintService::generatePrintableTicketPdf.
+     * ผลข้างเคียง: ไม่เขียน DB — render PDF ในหน่วยความจำแล้ว stream เป็นไฟล์ดาวน์โหลด (Response::download exit).
+     * ไม่พบ/ไม่มีสิทธิ์ → 404; render พัง → log แล้ว 500. paper size อ่านจาก query 'paper' (ค่าเริ่มต้น a4).
+     */
     public function printPdf(string $ticketId): void
     {
         AuthMiddleware::handle();
@@ -397,6 +412,11 @@ class TicketsController
         }
     }
 
+    /**
+     * สร้าง QR ของ ticket เป็น PNG แล้วส่งกลับแบบ inline (GET, ต้องล็อกอิน) ผ่าน TicketPrintService::generatePrintQrPng.
+     * ผลข้างเคียง: ไม่เขียน DB — render PNG แล้ว stream ออก (Response::download inline, ปิดด้วย exit → return never).
+     * ไม่พบ/ไม่มีสิทธิ์ → 404; render พัง → log แล้ว 500.
+     */
     public function printQr(string $ticketId): never
     {
         AuthMiddleware::handle();

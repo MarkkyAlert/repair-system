@@ -50,6 +50,11 @@ class AuthController
         ], 'guest');
     }
 
+    /**
+     * รับฟอร์มเข้าสู่ระบบ (POST, guest endpoint + CSRF) ผ่าน AuthService::attemptLogin.
+     * ผลข้างเคียง: ตรวจรหัสผ่านแบบเทียบเวลาคงที่ + จำกัดอัตราสองชั้น (ต่อคู่บัญชี-IP และต่อ IP); สำเร็จ → หมุน session id ใหม่ + สร้าง session ที่ล็อกอินแล้ว + อัปเดต last_login + บันทึก login_attempts, และตั้ง cookie remember-me ถ้าเลือก "จดจำ".
+     * สำเร็จ → redirect ไป return_to (sanitize แล้ว); error → เก็บ login เดิมไว้แล้ว redirect กลับ /login.
+     */
     public function login(): void
     {
         GuestMiddleware::handle();
@@ -101,6 +106,11 @@ class AuthController
         ], 'guest');
     }
 
+    /**
+     * รับคำขอลิงก์รีเซ็ตรหัสผ่าน (POST, guest endpoint + CSRF) ผ่าน AuthService::createPasswordReset.
+     * ผลข้างเคียง: จำกัดอัตราสามมิติ; เฉพาะบัญชีที่ active เท่านั้นที่จะเขียนแถว token รีเซ็ต + เข้าคิวส่งอีเมล — บัญชีที่ไม่รู้จัก/ถูกปิดจะไม่มีผลข้างเคียงใด (กัน enumeration).
+     * flash เป็นข้อความกลาง ๆ เหมือนกันทุกกรณี แล้ว redirect กลับ /forgot-password.
+     */
     public function sendResetLink(): void
     {
         GuestMiddleware::handle();
@@ -152,6 +162,11 @@ class AuthController
         ], 'guest');
     }
 
+    /**
+     * ตั้งรหัสผ่านใหม่จากลิงก์รีเซ็ต (POST, guest endpoint + CSRF) — ยืนยันตัวตนด้วย token จาก email/token, ผ่าน AuthService::resetPassword.
+     * ผลข้างเคียง: ตรวจ token (sha256) + ความถูกต้องของรหัสผ่านใหม่แล้วอัปเดต password hash ของบัญชี.
+     * สำเร็จ → redirect ไป /login; error (token ผิด/หมดอายุ, รหัสผ่านอ่อน) → redirect กลับหน้า reset พร้อม email/token เดิม.
+     */
     public function resetPassword(?string $token = null): void
     {
         GuestMiddleware::handle();
@@ -196,6 +211,11 @@ class AuthController
         ]);
     }
 
+    /**
+     * เปลี่ยนรหัสผ่านของผู้ใช้ที่ล็อกอินอยู่ (POST, ต้องล็อกอิน + CSRF) ผ่าน AuthService::changePassword.
+     * ผลข้างเคียง: ต้องยืนยันด้วยรหัสผ่านปัจจุบัน; อัปเดต password hash + เพิกถอน remember-me ทุกอุปกรณ์ + หมุน session id ใหม่ (เครื่องนี้ยังล็อกอินอยู่ เครื่องอื่นถูกเตะออก).
+     * ทั้งสำเร็จและ error → redirect กลับ /change-password (flash).
+     */
     public function changePassword(): void
     {
         AuthMiddleware::handle();
@@ -263,6 +283,11 @@ class AuthController
         ]);
     }
 
+    /**
+     * ยกเลิกการ "จดจำการเข้าระบบ" ทุกอุปกรณ์ (POST, ต้องล็อกอิน + CSRF) ผ่าน RememberMeService::revokeAllForUser.
+     * ผลข้างเคียง: ล้าง remember token ใน DB เป็น NULL + ลบ cookie ของเครื่องนี้ — cookie ที่ค้างบนอุปกรณ์อื่นจะใช้ auto-login ต่อไม่ได้.
+     * redirect กลับ /profile (flash).
+     */
     public function revokeRememberMe(): void
     {
         AuthMiddleware::handle();
@@ -287,6 +312,11 @@ class AuthController
         Response::redirect('/profile');
     }
 
+    /**
+     * อัปเดตข้อมูลบัญชีของผู้ใช้ที่ล็อกอินอยู่ (POST, ต้องล็อกอิน + CSRF) ผ่าน AuthService::updateProfile.
+     * ผลข้างเคียง: เขียนแถว users (full_name/email/phone) ด้วย optimistic lock; การเปลี่ยนอีเมลต้องยืนยันด้วยรหัสผ่านปัจจุบัน แล้ว refresh ข้อมูลใน session.
+     * สำเร็จ → ล้างค่าเดิม; error → เก็บค่าเดิมไว้; ทั้งคู่ redirect กลับ /profile.
+     */
     public function updateProfile(): void
     {
         AuthMiddleware::handle();
@@ -338,6 +368,11 @@ class AuthController
         ]);
     }
 
+    /**
+     * บันทึกตารางเปิด/ปิดการแจ้งเตือน (email/in-app ต่อประเภท) ของผู้ใช้ที่ล็อกอินอยู่ (POST, ต้องล็อกอิน + CSRF) ผ่าน NotificationService::saveUserPreferences.
+     * ผลข้างเคียง: upsert แถว preference ของ user (ช่องที่ไม่ถูกติ๊กใน $_POST['pref'] = ปิด).
+     * redirect กลับ /profile/notifications (flash).
+     */
     public function updateNotificationPreferences(): void
     {
         AuthMiddleware::handle();
