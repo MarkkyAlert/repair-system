@@ -20,3 +20,31 @@ test('deploy(D9): schema.sql warns that it is destructive / fresh-install only',
     );
     assert_true(stripos($header, 'database/upgrades/') !== false, 'schema.sql header must point existing systems to database/upgrades/');
 });
+
+test('deploy(D10): .env.production.example ships, covers the same keys, and defaults to safe production values', function (): void {
+    $root = dirname(__DIR__, 2);
+    $prodPath = $root . '/.env.production.example';
+    assert_true(is_file($prodPath), '.env.production.example must ship for production installs');
+
+    $keys = static function (string $path): array {
+        preg_match_all('/^([A-Z][A-Z0-9_]+)=/m', (string) file_get_contents($path), $m);
+        $k = array_unique($m[1]);
+        sort($k);
+        return $k;
+    };
+    // Drift-lock: production template must carry exactly the same keys as .env.example (no missing/extra env).
+    assert_same(
+        $keys($root . '/.env.example'),
+        $keys($prodPath),
+        '.env.production.example must have the same key set as .env.example (env drift)'
+    );
+
+    // Production-safe defaults.
+    $prod = (string) file_get_contents($prodPath);
+    assert_true((bool) preg_match('/^APP_ENV=production$/m', $prod), 'APP_ENV must be production');
+    assert_true((bool) preg_match('/^APP_DEBUG=false$/m', $prod), 'APP_DEBUG must be false');
+    assert_true((bool) preg_match('/^SESSION_SECURE=true$/m', $prod), 'SESSION_SECURE must be true (HTTPS-only)');
+    assert_true((bool) preg_match('/^ALLOW_DEMO_DATA=false$/m', $prod), 'ALLOW_DEMO_DATA must be false');
+    assert_true((bool) preg_match('/^MAIL_DRIVER=smtp$/m', $prod), 'MAIL_DRIVER must be smtp (real email)');
+    assert_true((bool) preg_match('/^DB_PASSWORD=\S+/m', $prod), 'DB_PASSWORD must not be blank in the production template');
+});
