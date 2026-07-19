@@ -85,3 +85,23 @@ test('deploy(D5): the production cron guidance is host-agnostic and points to th
     $checker = (string) file_get_contents($root . '/public/check-requirements.php');
     assert_true(str_contains($checker, '*/5 * * * * php') && str_contains($checker, 'run-maintenance-cron.php'), 'the checker must print the exact cron command');
 });
+
+test('deploy(D1,D6): the release-packaging script bundles vendor and excludes secrets/dev data', function (): void {
+    $root = dirname(__DIR__, 2);
+    $path = $root . '/bin/package-release.sh';
+    assert_true(is_file($path), 'bin/package-release.sh must ship so a clean release can be built');
+    $s = (string) file_get_contents($path);
+
+    // D1: production vendor/ must be bundled (shared hosts can't run composer).
+    assert_true(str_contains($s, 'composer install') && str_contains($s, '--no-dev'), 'must run composer install --no-dev to bundle production vendor/');
+    assert_true(str_contains($s, 'vendor/autoload.php'), 'must verify vendor/autoload.php ended up in the package');
+
+    // D6: build from tracked files only, and explicitly drop secrets + real data.
+    assert_true(str_contains($s, 'git archive'), 'must build from tracked files (git archive) — not the working tree');
+    assert_true((bool) preg_match('/rm -f[^\n]*\.env\b/', $s), 'must strip .env from the package');
+    assert_true((bool) preg_match('/storage\/backups\/\*/', $s), 'must strip real DB backups from the package');
+    foreach (['e2e', '.github', 'handoff'] as $devJunk) {
+        assert_true(str_contains($s, $devJunk), "must strip dev-only {$devJunk} from the package");
+    }
+    assert_true((bool) preg_match('/zip /', $s), 'must produce a .zip artifact');
+});
