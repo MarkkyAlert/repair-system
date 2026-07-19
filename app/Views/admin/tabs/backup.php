@@ -40,6 +40,22 @@ $cmdVerify = 'mysql -u ' . $dbUser . ' -p -e "SHOW TABLES" ' . $dbName;
         <span class="badge badge-<?= e($statusTone) ?>"><?= e($statusLabel) ?></span>
     </div>
 
+    <div class="panel-card panel-card-indigo stack-md">
+        <div class="panel-head">
+            <div>
+                <h3 class="panel-title panel-title-lg">สำรองทันที (ดาวน์โหลด)</h3>
+                <p class="field-hint">สร้างไฟล์สำรองฐานข้อมูลแล้วดาวน์โหลดเก็บไว้ทันที — ทำงานได้แม้โฮสต์ปิดสิทธิ์ shell/mysqldump (ต่างจากการสำรองอัตโนมัติด้วย cron). แนะนำให้กดก่อนอัปเดตระบบทุกครั้ง</p>
+            </div>
+        </div>
+        <form method="post" action="<?= e(url('/admin/backup/download')) ?>">
+            <?= csrf_field() ?>
+            <button type="submit" class="btn btn-primary">
+                <?= lucide('download', 'h-4 w-4') ?>
+                สำรอง &amp; ดาวน์โหลด (.sql.gz)
+            </button>
+        </form>
+    </div>
+
     <div class="panel-card panel-card-teal stack-md">
         <div class="panel-head">
             <div>

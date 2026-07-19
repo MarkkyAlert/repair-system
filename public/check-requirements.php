@@ -1,5 +1,5 @@
 <?php
-// public/check-requirements.php — Pre-install diagnostic for IT support (deploy-review D2/D3/D5).
+// public/check-requirements.php — Pre-install diagnostic for IT support.
 //
 // Open https://your-site/check-requirements.php BEFORE (and during) install. It runs standalone — no app
 // bootstrap — so it works even when the app cannot boot yet, and it is written in conservative PHP so it

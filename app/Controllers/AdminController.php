@@ -9,6 +9,7 @@ use App\Repositories\TicketReadRepository;
 use App\Repositories\UserRepository;
 use App\Services\AdminService;
 use App\Services\BackupService;
+use App\Services\DatabaseExportService;
 use App\Services\BroadcastService;
 use App\Services\DemoDataService;
 use App\Services\ReferenceDataService;
@@ -29,6 +30,7 @@ class AdminController
         private TicketReadRepository $reads,
         private UserRepository $users,
         private BackupService $backup,
+        private DatabaseExportService $databaseExport,
     ) {
     }
 
@@ -333,6 +335,30 @@ class AdminController
             flash('error', $exception->getMessage());
             Response::redirect('/admin/broadcast');
         }
+    }
+
+    /**
+     * On-demand database backup the admin can download from the UI — a pure-PHP (PDO) SQL dump, so it works on
+     * shared hosting where mysqldump / proc_open is disabled (the automated cron backup cannot run there).
+     *
+     */
+    public function downloadBackup(): void
+    {
+        AuthMiddleware::handle();
+        $viewer = auth()->user() ?? [];
+        require_role($viewer, ['admin'], 'หน้านี้สงวนสำหรับผู้ดูแลระบบเท่านั้น');
+        csrf_validate();
+
+        $sql = $this->databaseExport->toSql();
+        $stamp = date('Y-m-d_His');
+
+        $gz = gzencode($sql, 6);
+        if ($gz !== false) {
+            Response::download($gz, 'backup-' . $stamp . '.sql.gz', 'application/gzip');
+        }
+
+        // zlib not available → hand over the plain .sql (still fully restorable).
+        Response::download($sql, 'backup-' . $stamp . '.sql', 'application/sql');
     }
 
 }

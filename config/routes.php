@@ -49,6 +49,7 @@ return static function (Router $router): void {
     $router->post('/notifications/ticket/{ticketId}/read', [NotificationsController::class, 'readTicket']);
     $router->post('/notifications/{notificationId}/read', [NotificationsController::class, 'read']);
     $router->get('/admin', [AdminController::class, 'index']);
+    $router->post('/admin/backup/download', [AdminController::class, 'downloadBackup']);
     $router->post('/admin/users', [AdminController::class, 'createUser']);
     $router->get('/admin/users/import', [UserImportController::class, 'showForm']);
     $router->post('/admin/users/import', [UserImportController::class, 'preview']);
