@@ -71,7 +71,7 @@ class AuthController
             flash('success', 'เข้าสู่ระบบเรียบร้อยแล้ว');
             Response::redirect($returnTo);
         } catch (\PDOException $__infra) {
-            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
+            throw $__infra; // error ระดับ infra ปล่อยให้ตัวจัดการ error ส่วนกลาง log แล้วส่ง 500 กลาง ๆ ไม่ให้ SQL หลุดออกไป
         } catch (DomainException|RuntimeException $exception) {
             with_old_input(['login' => $login]);
             flash('error', $exception->getMessage());
@@ -114,12 +114,12 @@ class AuthController
             $this->service->createPasswordReset($email);
             flash('success', 'หากอีเมลนี้มีอยู่ในระบบ ระบบได้สร้างคำขอรีเซ็ตรหัสผ่านให้แล้ว');
         } catch (\PDOException $__infra) {
-            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
+            throw $__infra; // error ระดับ infra ปล่อยให้ตัวจัดการ error ส่วนกลาง log แล้วส่ง 500 กลาง ๆ ไม่ให้ SQL หลุดออกไป
         } catch (DomainException|RuntimeException $exception) {
-            // DomainException = กรณีที่คาดไว้ (อีเมลผิด, เกิน rate limit) → แค่ flash พอ. ส่วน RuntimeException คือ
-            // ความผิดพลาดระดับปฏิบัติการ (เช่น เขียนแถวข้อมูลรีเซ็ตแล้ว แต่ template/การ render อีเมลพัง) ที่ถูก
-            // flash ไปโดยไม่มีร่องรอย; ให้ log ไว้ เพื่อให้รายงาน "ขอรีเซ็ตไม่ได้" ของผู้ใช้ตรวจสอบได้ โดยไม่
-            // หลุดอีเมล/token ดิบออกไป.
+            // DomainException คือกรณีที่คาดไว้ (อีเมลผิด หรือเกิน rate limit) แค่ flash พอ. ส่วน RuntimeException
+            // เป็นปัญหาระดับปฏิบัติการ เช่น เขียนแถวข้อมูลรีเซ็ตลงแล้ว แต่ render อีเมลจาก template พัง ซึ่งเมื่อก่อน
+            // ถูก flash ไปเฉย ๆ ไม่เหลือร่องรอย; log ไว้จะได้ตามเคส "ขอรีเซ็ตไม่ได้" ที่ผู้ใช้แจ้งมา โดยไม่
+            // เผยอีเมล/token ดิบออกไป.
             if ($exception instanceof RuntimeException) {
                 log_caught_exception('auth.reset.request', $exception);
             }
@@ -172,11 +172,11 @@ class AuthController
             flash('success', 'ตั้งรหัสผ่านใหม่เรียบร้อยแล้ว กรุณาเข้าสู่ระบบอีกครั้ง');
             Response::redirect('/login');
         } catch (\PDOException $__infra) {
-            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
+            throw $__infra; // error ระดับ infra ปล่อยให้ตัวจัดการ error ส่วนกลาง log แล้วส่ง 500 กลาง ๆ ไม่ให้ SQL หลุดออกไป
         } catch (DomainException|RuntimeException $exception) {
-            // DomainException = กรณีที่คาดไว้ (token ผิด/หมดอายุ, รหัสผ่านอ่อนเกินไป, CSRF) → แค่ flash พอ. ส่วน RuntimeException
-            // คือความผิดพลาดระดับปฏิบัติการ (เช่น ระบบย่อย session/hash) ที่ถูก flash ไปโดยไม่มีร่องรอย; ให้ log ไว้ เพื่อให้
-            // รายงาน "รีเซ็ตไม่ได้" ของผู้ใช้ตรวจสอบได้.
+            // DomainException คือกรณีที่คาดไว้ (token ผิด/หมดอายุ, รหัสผ่านอ่อนไป, CSRF) แค่ flash พอ. ส่วน RuntimeException
+            // เป็นปัญหาระดับปฏิบัติการ เช่น ระบบย่อย session/hash พัง ที่ถูก flash ไปโดยไม่เหลือร่องรอย; log ไว้จะได้
+            // ตามเคส "รีเซ็ตไม่ได้" ที่ผู้ใช้แจ้งมาได้.
             if ($exception instanceof RuntimeException) {
                 log_caught_exception('auth.reset', $exception);
             }
@@ -210,7 +210,7 @@ class AuthController
             );
             flash('success', 'เปลี่ยนรหัสผ่านเรียบร้อยแล้ว');
         } catch (\PDOException $__infra) {
-            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
+            throw $__infra; // error ระดับ infra ปล่อยให้ตัวจัดการ error ส่วนกลาง log แล้วส่ง 500 กลาง ๆ ไม่ให้ SQL หลุดออกไป
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
         }
@@ -274,12 +274,12 @@ class AuthController
             if ($userId <= 0) {
                 throw new DomainException('ไม่พบบัญชีผู้ใช้งาน');
             }
-            // มอบหมายให้ method ของ service ที่ทำมาเพื่อการนี้โดยเฉพาะ (เซ็ต token ที่เก็บไว้เป็น NULL + ลบ cookie) แทนที่จะ
-            // ไปเขียนซ้ำเองโดยยิงตรงที่ repository เพื่อให้พฤติกรรมการยกเลิก (revoke) ในอนาคตอยู่รวมที่เดียว.
+            // เรียก method ของ service ที่ทำมาเพื่อการนี้ตรง ๆ (เคลียร์ token ที่เก็บไว้เป็น NULL + ลบ cookie) ดีกว่า
+            // ไปเขียนซ้ำเองด้วยการยิงตรงที่ repository — โค้ดยกเลิก remember-me จะได้อยู่รวมที่เดียวเวลาแก้ทีหลัง.
             $this->rememberMe->revokeAllForUser($userId);
             flash('success', 'ยกเลิกการจดจำการเข้าระบบทุกอุปกรณ์เรียบร้อยแล้ว');
         } catch (\PDOException $__infra) {
-            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
+            throw $__infra; // error ระดับ infra ปล่อยให้ตัวจัดการ error ส่วนกลาง log แล้วส่ง 500 กลาง ๆ ไม่ให้ SQL หลุดออกไป
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
         }
@@ -297,7 +297,7 @@ class AuthController
             clear_old_input();
             flash('success', 'อัปเดตข้อมูลบัญชีเรียบร้อยแล้ว');
         } catch (\PDOException $__infra) {
-            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
+            throw $__infra; // error ระดับ infra ปล่อยให้ตัวจัดการ error ส่วนกลาง log แล้วส่ง 500 กลาง ๆ ไม่ให้ SQL หลุดออกไป
         } catch (DomainException|RuntimeException $exception) {
             with_old_input([
                 'full_name' => (string) ($_POST['full_name'] ?? ''),
@@ -346,12 +346,12 @@ class AuthController
 
         try {
             csrf_validate();
-            // มอบหมายการปรับข้อมูลให้เป็นมาตรฐาน (normalization) + การเขียน ให้ service ที่เป็นเจ้าของ preference repository เพื่อให้การ
-            // แก้ไขข้อมูล (mutation) นี้ผ่าน service เหมือนที่อื่นทุกจุด.
+            // ปล่อยให้ service ที่เป็นเจ้าของ preference repository จัดการทั้ง normalize ข้อมูลและเขียนลง DB — งาน mutation
+            // ตรงนี้จะได้ผ่าน service เหมือนที่อื่นทุกจุด.
             $this->notifications->saveUserPreferences($userId, (array) ($_POST['pref'] ?? []));
             flash('success', 'บันทึกการตั้งค่าการแจ้งเตือนเรียบร้อยแล้ว');
         } catch (\PDOException $__infra) {
-            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
+            throw $__infra; // error ระดับ infra ปล่อยให้ตัวจัดการ error ส่วนกลาง log แล้วส่ง 500 กลาง ๆ ไม่ให้ SQL หลุดออกไป
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
         }

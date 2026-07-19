@@ -1,15 +1,15 @@
 <?php
 declare(strict_types=1);
 
-// ป้ายข้อความ (label) ภาษาไทยที่รวมไว้ที่เดียว — เป็นแหล่งอ้างอิงเดียวที่ service และ view ใช้ร่วมกัน
-// แต่ละฟังก์ชัน label จะคืนป้ายไทยของค่า enum ที่รู้จัก ถ้าเจอค่าที่ไม่มีใน map จะถอยไปใช้
-// humanize_label() แทน เก็บเป็น global helper เพื่อให้เข้าชุดกับ
+// ป้ายข้อความ (label) ภาษาไทยรวมไว้ที่เดียว เป็นแหล่งอ้างอิงเดียวที่ service กับ view ใช้ร่วมกัน
+// แต่ละฟังก์ชัน label จะคืนป้ายไทยของค่า enum ที่รู้จัก ถ้าเจอค่าที่ไม่มีใน map ก็ถอยไปใช้
+// humanize_label() แทน เก็บเป็น global helper ให้เข้าชุดกับ
 // human_date() ที่มีอยู่เดิม (app/Helpers/view.php) และโหลดผ่าน app/Helpers/helpers.php
 
 if (!function_exists('humanize_label')) {
     /**
      * ตัวจัดรูปแบบสำรองแบบทั่วไป: "pending_approval" -> "Pending Approval"
-     * มาแทน labelize() ตัว private ที่เคยถูกคัดลอกซ้ำ ๆ อยู่ใน
+     * มาแทน labelize() ตัว private ที่เคยก๊อปซ้ำ ๆ อยู่ใน
      * TicketService, ReportService และ AssetService
      */
     function humanize_label(string $value): string
@@ -71,7 +71,7 @@ if (!function_exists('ticket_status_label_th')) {
 }
 
 if (!function_exists('ticket_status_tone')) {
-    /** สี badge ตามสถานะ ticket — single source of truth (TicketService::statusTone เรียกต่อจากตัวนี้). */
+    /** สี badge ตามสถานะ ticket เป็นแหล่งเดียว (TicketService::statusTone เรียกต่อจากตัวนี้). */
     function ticket_status_tone(string $status): string
     {
         return match ($status) {
@@ -99,8 +99,8 @@ if (!function_exists('guest_request_status_label_th')) {
 
 if (!function_exists('ticket_status_values')) {
     /**
-     * รายการค่ามาตรฐานของ enum tickets.status แบบเรียงลำดับ — เป็นแหล่งอ้างอิงเดียวสำหรับ
-     * whitelist การตรวจสอบและ dropdown ตัวกรอง (ต้องให้ตรงกับ schema.sql + [[ticket_status_label_th]])
+     * รายการค่ามาตรฐานของ enum tickets.status แบบเรียงลำดับ เป็นแหล่งอ้างอิงเดียวสำหรับ
+     * whitelist ตอนตรวจสอบและ dropdown ตัวกรอง (ต้องตรงกับ schema.sql + [[ticket_status_label_th]])
      */
     function ticket_status_values(): array
     {
@@ -123,12 +123,12 @@ if (!function_exists('ticket_status_values')) {
 
 if (!function_exists('ticket_terminal_statuses')) {
     /**
-     * สถานะ ticket ที่วงจรชีวิตงานสิ้นสุดแล้ว — นาฬิกา SLA หยุดนับ ไม่ถูกนับในคิว "งานที่เปิดอยู่"
-     * และนับเป็นงานปิดในรายงาน หมายเหตุ: นี่คือชุดสถานะสิ้นสุดเชิง *วงจรชีวิต* (รวม 'resolved' ด้วย)
+     * สถานะ ticket ที่วงจรชีวิตงานจบแล้ว นาฬิกา SLA หยุดนับ ไม่ถูกนับในคิว "งานที่เปิดอยู่"
+     * และนับเป็นงานปิดในรายงาน หมายเหตุ: นี่คือชุดสถานะที่จบในเชิงวงจรชีวิต (รวม 'resolved' ด้วย)
      * ตั้งใจให้ต่างจากชุด "ยังต้องให้ผู้แจ้งดำเนินการ" ที่ฝั่งผู้แจ้งเห็น
-     * (AdminRepository::hasOpenRequesterTickets — สำหรับผู้แจ้ง 'resolved' ยังถือว่าเปิดอยู่)
-     * และต่างจากเงื่อนไข workflow รายการแยกใน TicketService (canReopen/canDuplicate/...)
-     * ห้ามยุบชุดเหล่านั้นมารวมเป็นรายการเดียวกันนี้
+     * (AdminRepository::hasOpenRequesterTickets สำหรับผู้แจ้ง 'resolved' ยังถือว่าเปิดอยู่)
+     * และต่างจากเงื่อนไข workflow แยกรายการใน TicketService (canReopen/canDuplicate/...)
+     * ห้ามยุบชุดพวกนั้นมารวมเป็นรายการเดียวกันนี้
      */
     function ticket_terminal_statuses(): array
     {
@@ -146,9 +146,9 @@ if (!function_exists('ticket_terminal_statuses_sql')) {
 
 if (!function_exists('ticket_resolved_statuses')) {
     /**
-     * สถานะที่นับเป็นงานที่แก้เสร็จ/ทำเสร็จ ("ปิดงาน") ในการสรุปยอดรายงาน — เป็นชุดย่อยของงานที่สำเร็จ
-     * ตั้งใจไม่รวม 'rejected'/'cancelled' (สิ้นสุดแล้วแต่ไม่ได้แก้สำเร็จ) จึงแคบกว่า
-     * ticket_terminal_statuses() ห้ามรวมสองชุดนี้เข้าด้วยกัน — มันตอบคำถามเชิงธุรกิจคนละอย่าง
+     * สถานะที่นับเป็นงานที่แก้เสร็จ/ทำเสร็จ ("ปิดงาน") ในการสรุปยอดรายงาน เป็นชุดย่อยของงานที่สำเร็จ
+     * ตั้งใจไม่รวม 'rejected'/'cancelled' (จบแล้วแต่ไม่ได้แก้สำเร็จ) เลยแคบกว่า
+     * ticket_terminal_statuses() ห้ามรวมสองชุดนี้เข้าด้วยกัน มันตอบคำถามทางธุรกิจคนละอย่าง
      */
     function ticket_resolved_statuses(): array
     {

@@ -152,9 +152,9 @@ class AssetRepository
     }
 
     /**
-     * ชุดข้อมูลอ้างอิง (reference set) แบบเบาสำหรับ filter ของหน้า LIST asset (เฉพาะ category + location) แถบ filter
-     * ของ list ไม่มีตัวเลือก department/custodian การโหลดมันมาด้วย (แบบที่ getAssetFormReferenceData ทำสำหรับฟอร์ม
-     * create/edit) จึงเป็น query ที่เสียเปล่าสองครั้งต่อการดูหนึ่ง list
+     * ชุดข้อมูลอ้างอิงแบบเบาสำหรับ filter ของหน้า list asset (แค่ category + location) — แถบ filter
+     * ของ list ไม่มีตัวเลือก department/custodian ถ้าโหลดมาด้วย (แบบที่ getAssetFormReferenceData ทำให้ฟอร์ม
+     * create/edit) ก็เท่ากับเสีย query ฟรีสองครั้งต่อการดู list หนึ่งครั้ง
      */
     public function getAssetIndexReferenceData(): array
     {
@@ -318,9 +318,9 @@ class AssetRepository
 
     public function updateAsset(int $assetId, array $payload): void
     {
-        // Optimistic lock (ล็อกแบบมองโลกในแง่ดี) บน version ที่เป็น integer (ไม่ใช่ updated_at): token แบบ DATETIME ละเอียดแค่ระดับวินาที การแก้
+        // optimistic lock ใช้ version ที่เป็น integer ไม่ใช่ updated_at: updated_at เป็น DATETIME ละเอียดแค่วินาที การแก้
         // สองครั้งในวินาทีเดียวกันจึงอาจ match ทั้งคู่ แล้วครั้งหลังเขียนทับครั้งแรกแบบเงียบ ๆ version จะเพิ่มขึ้น
-        // ทุกครั้งที่เขียน ฟอร์มแก้ไขที่เก่า (stale) จึงไม่มีวัน match
+        // ทุกครั้งที่เขียน ฟอร์มแก้ไขที่ถือ version เก่าไว้จึงไม่มีวัน match
         $stmt = $this->db->prepare(
             'UPDATE assets
              SET asset_code = :asset_code,
@@ -381,9 +381,9 @@ class AssetRepository
 
     public function regenerateQrToken(int $assetId, ?int $generatedBy = null): string
     {
-        // เก็บ deactivate+insert ไว้ใน transaction เดียว และ lock แถว asset ด้วย FOR UPDATE ก่อน เพื่อให้
-        // การ regenerate ของ asset เดียวกันแบบพร้อมกัน (concurrent) ทำงานเรียงทีละอัน (serialize) — ไม่งั้นทั้งคู่อาจ deactivate
-        // token เก่า แล้วต่างก็ insert token active อันใหม่ ทำให้มี token active หลายอันต่อ asset
+        // เก็บ deactivate+insert ไว้ใน transaction เดียว แล้ว lock แถว asset ด้วย FOR UPDATE ก่อน เพื่อให้
+        // การ regenerate ของ asset เดียวกันที่ยิงมาพร้อมกันทำงานเรียงทีละอัน — ไม่งั้นทั้งคู่อาจ deactivate
+        // token เก่า แล้วต่างคน insert token active อันใหม่ กลายเป็นมี token active หลายอันต่อ asset
         $createdAt = date('Y-m-d H:i:s');
         $token = $this->generateUniqueQrToken();
 
@@ -557,10 +557,10 @@ class AssetRepository
     }
 
     /**
-     * insert QR token แบบสุ่มอันใหม่ให้ asset ที่เพิ่งสร้าง โดยพึ่ง constraint UNIQUE(token) เป็นตัวกันการชนกัน
-     * (collision) แทนที่จะ SELECT ตรวจการมีอยู่ทีละ token (generateUniqueQrToken) — เขียนครั้งเดียว
-     * แทน check + write ซึ่งลดต้นทุน token ลงครึ่งหนึ่งตอน bulk import แถว asset ถูก insert ไปแล้ว
-     * ดังนั้น duplicate-key error ตรงนี้ย่อมมาจาก token แน่นอน; เมื่อเกิดเหตุ (ซึ่งหายากมาก ๆ) นั้น ให้ regenerate
+     * insert QR token สุ่มอันใหม่ให้ asset ที่เพิ่งสร้าง โดยพึ่ง constraint UNIQUE(token) เป็นตัวกันชนกันเอง
+     * แทนที่จะ SELECT ตรวจว่ามีอยู่แล้วทีละ token (generateUniqueQrToken) — เขียนทีเดียว
+     * แทน check + write ช่วยลดต้นทุน token ลงครึ่งหนึ่งตอน bulk import แถว asset ถูก insert ไปแล้ว
+     * duplicate-key error ตรงนี้จึงมาจาก token แน่ ๆ เมื่อเจอ (ซึ่งหายากมาก) ก็ regenerate
      * แล้วลองใหม่
      */
     private function insertUniqueQrToken(int $assetId, ?int $generatedBy, string $createdAt): void

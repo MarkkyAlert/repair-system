@@ -29,17 +29,17 @@ class Response
     }
 
     /**
-     * รูปแบบ JSON มาตรฐานสำหรับ endpoint ที่ "เปลี่ยนข้อมูล" (mutation เช่น สร้าง/แก้/ลบ): {"success":true,"message":...,...$data}.
-     * ใช้ตัวนี้คู่กับ jsonError() กับทุก action ที่ฟอร์ม/AJAX ส่งมา. ส่วน endpoint แบบ "อ่าน/ดึงสถานะเป็นระยะ" (polling)
-     * เช่น สถานะ ticket, ฟีดคอมเมนต์, {max_id}, ฟีดแจ้งเตือน — จงใจใช้รูปแบบเฉพาะของตัวเอง
-     * (JS ฝั่งนั้นอ่านค่าตามชื่อฟิลด์ ไม่ได้อ่าน envelope นี้)
+     * รูปแบบ JSON มาตรฐานสำหรับ endpoint ที่เปลี่ยนข้อมูล (สร้าง/แก้/ลบ): {"success":true,"message":...,...$data}
+     * ใช้คู่กับ jsonError() กับทุก action ที่ฟอร์ม/AJAX ส่งมา ส่วน endpoint แบบดึงสถานะเป็นระยะ (polling)
+     * อย่างสถานะ ticket, ฟีดคอมเมนต์, {max_id}, ฟีดแจ้งเตือน จงใจใช้รูปแบบเฉพาะของตัวเอง
+     * เพราะ JS ฝั่งนั้นอ่านค่าตามชื่อฟิลด์ ไม่ได้อ่าน envelope นี้
      */
     public static function jsonSuccess(array $data = [], string $message = '', int $status = 200): never
     {
         self::json(['success' => true, 'message' => $message] + $data, $status);
     }
 
-    /** รูปแบบ JSON มาตรฐานสำหรับคำสั่งที่ "ล้มเหลว": {"success":false,"message":...,...$data}. */
+    /** รูปแบบ JSON มาตรฐานสำหรับคำสั่งที่ล้มเหลว: {"success":false,"message":...,...$data}. */
     public static function jsonError(string $message, int $status = 422, array $data = []): never
     {
         self::json(['success' => false, 'message' => $message] + $data, $status);
@@ -48,9 +48,9 @@ class Response
     public static function download(string $content, string $fileName, string $contentType, string $disposition = 'attachment', int $status = 200): never
     {
         http_response_code($status);
-        // คุกกี้สัญญาณ "เริ่มดาวน์โหลด": ส่งโทเคนของ client กลับไป เพื่อให้ JS ของหน้าจอ export รู้ว่าดาวน์โหลดเริ่มแล้ว
-        // จะได้ซ่อนวงล้อหมุนรอ. การตอบกลับแบบไฟล์แนบ (attachment) ไม่พาออกจากหน้า และไม่ยิง event blur/unload
-        // ที่เชื่อถือได้ คุกกี้นี้จึงเป็นสัญญาณ "ดาวน์โหลดเริ่มแล้ว" ที่แน่นอนกว่า
+        // คุกกี้บอกสัญญาณ "เริ่มดาวน์โหลด": ส่ง token ของ client กลับไปให้ JS หน้า export รู้ว่าดาวน์โหลดเริ่มแล้ว
+        // จะได้ซ่อนวงล้อหมุนรอ การตอบกลับแบบไฟล์แนบไม่พาออกจากหน้า แล้วก็ไม่ยิง event blur/unload
+        // ที่เชื่อถือได้ คุกกี้นี้เลยเป็นสัญญาณว่าดาวน์โหลดเริ่มแล้วที่แน่นอนกว่า
         $downloadToken = preg_replace('/[^A-Za-z0-9._-]/', '', (string) ($_POST['_download_token'] ?? $_GET['_download_token'] ?? ''));
         if ($downloadToken !== '' && !headers_sent()) {
             setcookie('fileDownload', substr($downloadToken, 0, 64), ['expires' => 0, 'path' => '/', 'samesite' => 'Lax']);
@@ -68,10 +68,10 @@ class Response
         $view = View::exists('errors/' . $status) ? 'errors/' . $status : 'errors/500';
         $reference = request_id();
         http_response_code($status);
-        // แนบรหัสอ้างอิงของ request (correlation id) ไว้ เพื่อให้หน้า error โชว์รหัสที่ตรงกับ log ฝั่งเซิร์ฟเวอร์
-        // เรนเดอร์ผ่าน layout `error` ที่ไม่แตะฐานข้อมูล (ไม่ใช่ `guest` ซึ่งเรียก setting()) เพื่อให้ 500 ที่เกิด
-        // "เพราะ" ฐานข้อมูลล่ม ยังแสดงหน้าเต็มที่มีสไตล์ได้. ถ้าแม้แต่ตัวนั้นยังพังอีก ให้ถอยไปใช้ HTML สำเร็จรูป
-        // ในตัว (static shell) ผู้ใช้จะได้ไม่เห็นหน้าว่างหรือหน้าดิบ ๆ
+        // แนบรหัสอ้างอิงของ request ไว้ ให้หน้า error โชว์รหัสที่ตรงกับ log ฝั่งเซิร์ฟเวอร์
+        // เรนเดอร์ผ่าน layout `error` ที่ไม่แตะฐานข้อมูล ไม่ใช่ `guest` ที่เรียก setting() เพราะแบบนี้ 500 ที่เกิด
+        // เพราะฐานข้อมูลล่มยังแสดงหน้าเต็มมีสไตล์ได้ ถ้าตัวนั้นยังพังอีก ค่อยถอยไปใช้ HTML สำเร็จรูป
+        // ในตัว ผู้ใช้จะได้ไม่เห็นหน้าว่างหรือหน้าดิบ ๆ
         try {
             View::render($view, ['title' => (string) $status, 'message' => $message, 'reference' => $reference], 'error');
         } catch (\Throwable $renderFailure) {

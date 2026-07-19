@@ -9,7 +9,7 @@ use RuntimeException;
 class MailerService
 {
     /**
-     * ชื่อผู้ส่งอีเมล: ถ้าตั้ง MAIL_FROM_NAME ไว้ (ไม่ว่าง) ใช้ค่านั้น — ให้ ops override ได้ เช่นเพื่อจัด DMARC/ชื่อเฉพาะ;
+     * ชื่อผู้ส่งอีเมล: ถ้าตั้ง MAIL_FROM_NAME ไว้ (ไม่ว่าง) ใช้ค่านั้น — ให้ ops override ได้ เช่นเพื่อจัด DMARC หรือชื่อเฉพาะ;
      * ถ้าเว้นว่าง ให้ตามชื่อระบบที่แอดมินตั้งใน Admin (setting app_name) เป็น single source
      * ที่ทั้ง send() และหน้า diagnostics ของแอดมินใช้ร่วมกัน กันชื่อผู้ส่งเพี้ยนจากค่า template หลัง rebrand.
      */
@@ -24,9 +24,9 @@ class MailerService
     {
         $driver = strtolower((string) config('mail.driver', 'log'));
 
-        // รองรับแค่ 'log' และ 'smtp' เท่านั้น. ถ้าเป็นค่าอื่นให้ปฏิเสธแบบดัง ๆ แทนที่จะเงียบ ๆ ตกไปใช้
-        // transport mail() เริ่มต้นของ PHPMailer — เพราะถ้าพิมพ์ MAIL_DRIVER ผิด มันจะส่ง (หรือทิ้ง) เมลผ่าน
-        // sendmail ที่ยังไม่ได้ตั้งค่าโดยไม่มีข้อมูลวินิจฉัย (diagnostic) ใด ๆ.
+        // รองรับแค่ 'log' กับ 'smtp'. ค่าอื่นให้ปฏิเสธแบบดัง ๆ ไม่เงียบ ๆ ตกไปใช้ transport
+        // mail() เริ่มต้นของ PHPMailer — เพราะถ้าพิมพ์ MAIL_DRIVER ผิด มันจะส่ง (หรือทิ้ง) เมลผ่าน
+        // sendmail ที่ยังไม่ได้ตั้งค่า โดยไม่มีข้อมูลวินิจฉัยอะไรเลย.
         if (!in_array($driver, ['log', 'smtp'], true)) {
             throw new RuntimeException(sprintf('MAIL_DRIVER "%s" ไม่รองรับ — ตั้งค่าได้เฉพาะ log หรือ smtp', $driver));
         }
@@ -92,12 +92,12 @@ class MailerService
         $timestamp = date('Ymd-His');
         $slug = preg_replace('/[^a-z0-9]+/i', '-', strtolower((string) ($message['subject'] ?? 'mail')));
         $slug = trim((string) $slug, '-');
-        // ต่อท้ายด้วยค่าสุ่ม (random suffix) เพื่อให้เมล 2 ฉบับในวินาทีเดียวกันที่มีหัวข้อเดียวกันได้ไฟล์ของตัวเองแยกกัน —
-        // เพราะชื่อที่ใช้แค่ timestamp+slug จะเขียนทับฉบับแรกแบบเงียบ ๆ (ข้อมูลหาย).
+        // ต่อท้ายด้วยค่าสุ่ม เมล 2 ฉบับในวินาทีเดียวกันที่หัวข้อเหมือนกันจะได้ไฟล์ของตัวเองแยกกัน —
+        // เพราะชื่อที่ใช้แค่ timestamp+slug จะเขียนทับฉบับแรกแบบเงียบ ๆ ข้อมูลหาย.
         $file = $directory . '/' . $timestamp . '-' . ($slug !== '' ? $slug : 'mail') . '-' . bin2hex(random_bytes(4)) . '.json';
 
-        // บน PRODUCTION log driver ต้องไม่เก็บ PII (ข้อมูลระบุตัวตน): ปิดบัง (mask) ผู้รับ และตัด body/payload ทิ้ง
-        // เก็บไว้แค่หัวข้อของ template + เวลา (พอยืนยันได้ว่ามีการสร้างเมลขึ้น). บน dev/local
+        // บน production log driver ต้องไม่เก็บ PII (ข้อมูลระบุตัวตน): mask ผู้รับ และตัด body/payload ทิ้ง
+        // เก็บไว้แค่หัวข้อของ template + เวลา พอยืนยันว่ามีการสร้างเมลขึ้น. บน dev/local
         // เก็บเนื้อหาเต็มไว้เพื่อ debug. เป็นการตัดสินใจของเจ้าของระบบ.
         if ((string) config('app.env', 'production') === 'production') {
             $payload = [
@@ -120,8 +120,8 @@ class MailerService
             ];
         }
 
-        // log driver เก็บเมลไว้บนดิสก์อย่างไม่มีกำหนด; มันต้องไม่เก็บ password-reset token ที่ยังใช้ได้จริงเป็น
-        // plaintext (ข้อความธรรมดาไม่เข้ารหัส). จึงลบ (redact) reset token (ทั้งแบบ path และ query) ออกจาก record ที่ serialize แล้ว.
+        // log driver เก็บเมลไว้บนดิสก์แบบไม่มีกำหนด; มันต้องไม่เก็บ password-reset token ที่ยังใช้ได้จริงเป็น
+        // plaintext. เลยลบ (redact) reset token ทั้งแบบ path และ query ออกจาก record ที่ serialize แล้ว.
         $json = self::redactSecrets((string) json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
         $written = file_put_contents($file, $json);

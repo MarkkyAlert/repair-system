@@ -44,8 +44,8 @@ class EmailQueueService
 
     public function queueSystemAnnouncementEmails(array $recipientIds, string $title, string $message): void
     {
-        // สร้างข้อความของผู้รับทุกคนก่อน แล้ว enqueue เข้าคิวด้วย INSERT แบบหลาย row ที่จำกัดขนาด — เพราะการ broadcast ถึง
-        // ทั้งองค์กรเดิมเป็น 1 INSERT ต่อผู้รับ 1 คน (2 การเขียนต่อผู้รับ รวมกับ notification).
+        // สร้างข้อความของผู้รับทุกคนก่อน แล้ว enqueue ด้วย INSERT แบบหลาย row ที่จำกัดขนาด — เพราะเดิมการ broadcast
+        // ทั้งองค์กรเป็น 1 INSERT ต่อผู้รับ 1 คน (2 การเขียนต่อผู้รับ รวมกับ notification).
         $payloads = [];
         foreach ($this->users->findActiveUsersByIds($recipientIds) as $recipient) {
             $email = $this->templates->buildSystemAnnouncement($recipient, $title, $message);
@@ -94,14 +94,14 @@ class EmailQueueService
             $emailId = (int) ($job['id'] ?? 0);
             $subject = (string) ($job['subject'] ?? '');
             $recipient = (string) ($job['to_email'] ?? '');
-            // ค่า attempts ที่ตอน claim กำหนดให้ job นี้ — การ update สถานะสุดท้ายด้านล่างจะ compare-and-set (ตรวจแล้วค่อยตั้งค่า) กับ
-            // ค่านี้ เพื่อไม่ให้ worker ที่ค้าง (stale) เขียนทับ row ที่ worker อื่นเคลมไปแล้ว. ดู markSent().
+            // ค่า attempts ที่ job นี้ได้ตอน claim — การ update สถานะสุดท้ายด้านล่างจะ compare-and-set กับค่านี้
+            // ไม่ให้ worker ที่ค้าง (stale) เขียนทับ row ที่ worker อื่นเคลมไปแล้ว. ดู markSent().
             $claimAttempt = (int) ($job['attempts'] ?? 0);
 
             try {
-                // RISK MAP: การส่งเป็นแบบ at-least-once (ส่งอย่างน้อยหนึ่งครั้ง) โดยตั้งใจออกแบบ (เป็น tradeoff ที่ยอมรับ). ลำดับคือ send() แล้ว markSent() —
-                // ถ้า crash ระหว่างนั้น row จะค้างที่ 'processing' จึงถูกเคลมกลับมาใหม่หลัง timeout และอาจ
-                // ถูกส่งซ้ำได้. การทำ exactly-once (ส่งครั้งเดียวเป๊ะ) ต้องอาศัย idempotency ฝั่ง provider; อีเมลซ้ำที่เกิดนาน ๆ ครั้ง
+                // RISK MAP: การส่งเป็นแบบ at-least-once คือส่งอย่างน้อยหนึ่งครั้ง ตั้งใจออกแบบแบบนี้ (tradeoff ที่ยอมรับ). ลำดับคือ send() แล้ว markSent() —
+                // ถ้า crash ระหว่างนั้น row จะค้างที่ 'processing' แล้วถูกเคลมกลับมาใหม่หลัง timeout อาจ
+                // ถูกส่งซ้ำได้. การทำ exactly-once ต้องอาศัย idempotency ฝั่ง provider; อีเมลซ้ำที่นาน ๆ เกิดที
                 // ยอมรับได้สำหรับระบบนี้ และไม่มีข้อมูลเสียหาย.
                 $this->mailer->send($job);
                 $this->queue->markSent($emailId, $claimAttempt);

@@ -56,8 +56,8 @@ function lucide(string $name, string $classes = 'icon'): string
         'send' => '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
         'megaphone' => '<path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>',
         'check' => '<path d="M20 6 9 17l-5-5"/>',
-        // ไอคอนที่ template เรียกใช้แต่ไม่มีอยู่ใน map ข้างบน (เดิมจะขึ้นเป็นรูป fallback สีแดงแบบ "หาไม่เจอ"
-        // + เขียน log "[lucide] missing icon") — เส้น path เอามาจากไอคอน lucide ที่ตรงกัน
+        // ไอคอนที่ template เรียกใช้แต่ไม่มีใน map ข้างบน (ถ้าไม่ใส่ไว้จะขึ้นรูป fallback สีแดงแบบ "หาไม่เจอ"
+        // + เขียน log "[lucide] missing icon") เส้น path ก๊อปมาจากไอคอน lucide ที่ตรงกัน
         'plus-circle' => '<circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/>',
         'alert-circle' => '<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
         'rotate-ccw' => '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',

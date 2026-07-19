@@ -9,9 +9,9 @@ use Throwable;
 
 class ReportRepository
 {
-    // Absolute runaway-query ceiling. ต้อง >= ReportService::EXPORT_MAX_ROWS_* ที่ใหญ่สุด (CSV 50k)
+    // เพดานกัน query วิ่งหลุด ต้อง >= ReportService::EXPORT_MAX_ROWS_* ที่ใหญ่สุด (CSV 50k)
     // เสมอ — ไม่งั้น overflow probe ของ export (getRows(maxRows+1)) จะถูกตัดเงียบ ๆ แล้ว export ได้ข้อมูล
-    // ไม่ครบโดยไม่มี warning. limit จริง (screen 250 / export 10k-3k-50k) + overflow warning เป็นของ service.
+    // ไม่ครบโดยไม่มี warning limit จริง (screen 250 / export 10k-3k-50k) + overflow warning เป็นของ service
     private const MAX_ROWS = 100000;
 
     public function __construct(private PDO $db)
@@ -52,11 +52,11 @@ class ReportRepository
     }
 
     /**
-     * As-reported (F1 Phase 2): ตรึง (pin) reference ของ ticket_sla_tracks (alias $a) ไว้กับ cycle ล่าสุด (LATEST) ของ ticket ต่อ
-     * metric_type ตอนนี้ ticket_sla_tracks เก็บหนึ่งแถวต่อหนึ่ง CYCLE ของ lifecycle (reopen จะ append cycle ใหม่) ดังนั้นจุดที่แสดง
-     * SLA แบบสถานะปัจจุบัน (CURRENT-STATE) (overdue ใน summary, hotspot, backlog, sla-compliance ปัจจุบัน) ต้องดูเฉพาะ
-     * cycle ใหม่สุดเท่านั้น — ผลตัดสิน breached/pending ของ cycle เก่าต้องไม่ไป flag ซ้ำให้ ticket ที่ถูก reopen
-     * ไปแล้ว ทำให้ join ไม่ fan-out (หนึ่งแถวต่อ (ticket, metric))
+     * As-reported (F1 Phase 2): ตรึง reference ของ ticket_sla_tracks (alias $a) ไว้กับ cycle ล่าสุดของ ticket ต่อ
+     * metric_type ตอนนี้ ticket_sla_tracks เก็บหนึ่งแถวต่อหนึ่ง cycle ของ lifecycle (reopen จะ append cycle ใหม่) จุดที่แสดง
+     * SLA แบบสถานะปัจจุบัน (overdue ใน summary, hotspot, backlog, sla-compliance ปัจจุบัน) จึงต้องดูเฉพาะ
+     * cycle ใหม่สุด — ผลตัดสิน breached/pending ของ cycle เก่าต้องไม่ไป flag ซ้ำให้ ticket ที่ถูก reopen
+     * ไปแล้ว และทำให้ join ไม่ fan-out (หนึ่งแถวต่อ (ticket, metric))
      */
     private function latestSlaCycleClause(string $a): string
     {
@@ -64,10 +64,10 @@ class ReportRepository
     }
 
     /**
-     * As-reported (F1 Phase 2): ตรึง (pin) การ join ticket_ratings (alias $a) ไว้กับ rating cycle ล่าสุด (LATEST) ของ ticket =
-     * ความพึงพอใจ ณ ปัจจุบัน (CURRENT) ตอนนี้ ticket_ratings เก็บหนึ่งแถวต่อ cycle (การ re-rate หลัง reopen จะ append เพิ่ม)
-     * ดังนั้นจุดที่แสดง CSAT แบบสถานะปัจจุบัน (executive summary, แถว overview, ค่าเฉลี่ยของช่าง) จะอ่าน cycle ใหม่สุด
-     * และไม่ fan-out (report แบบ CSAT-BY-PERIOD จะ window บน tr.created_at แทน — ดู getRatingByDimension)
+     * As-reported (F1 Phase 2): ตรึงการ join ticket_ratings (alias $a) ไว้กับ rating cycle ล่าสุดของ ticket =
+     * ความพึงพอใจ ณ ปัจจุบัน ตอนนี้ ticket_ratings เก็บหนึ่งแถวต่อ cycle (re-rate หลัง reopen จะ append เพิ่ม)
+     * จุดที่แสดง CSAT แบบสถานะปัจจุบัน (executive summary, แถว overview, ค่าเฉลี่ยของช่าง) จึงอ่าน cycle ใหม่สุด
+     * และไม่ fan-out (report CSAT แบบรายงวดจะ window บน tr.created_at แทน — ดู getRatingByDimension)
      */
     private function latestRatingCycleClause(string $a): string
     {
@@ -513,16 +513,16 @@ class ReportRepository
     }
 
     /**
-     * As-reported resolver attribution (Phase 2, extended R13/R14) — ผลงานช่างแบบ **immutable** ต่อ "ช่างที่ปิดงานจริง"
+     * As-reported resolver attribution (Phase 2, extended R13/R14) — ผลงานช่างแบบ immutable ผูกกับ "ช่างที่ปิดงานจริง"
      * (actor ของ event `ticket_resolved`) ไม่ใช่ t.assigned_technician_id: resolved + MTTR + SLA ตรงเวลา + CSAT
-     * คิดจาก "งานที่ช่างคนนั้นปิดจริงในช่วง" ทั้งหมด จึง **ไม่เปลี่ยนย้อนหลัง** เมื่อ reopen/reassign (คนปิดยังได้
-     * เครดิต, SLA/คะแนนอ่านจากรอบที่ปิดจริง ไม่ใช่สถานะปัจจุบัน). โครงเดียวกับ getTicketTrendResolved:
+     * คิดจาก "งานที่ช่างคนนั้นปิดจริงในช่วง" ทั้งหมด จึงไม่เปลี่ยนย้อนหลังเมื่อ reopen/reassign (คนปิดยังได้
+     * เครดิต, SLA/คะแนนอ่านจากรอบที่ปิดจริง ไม่ใช่สถานะปัจจุบัน) โครงเดียวกับ getTicketTrendResolved:
      *   - cycle = ROW_NUMBER ของ resolve event ในแต่ละ ticket (created_at,id) → ตรงกับที่ reopen ไล่เลข cycle
      *   - dedup ตัวแทนต่อ (ticket, resolver) = resolve ล่าสุด (ปิดซ้ำโดยคนเดิมนับครั้งเดียว)
-     *   - SLA on-time = resolved_at ตัวแทน <= target_at ของ "รอบนั้น" (frozen ใน ticket_sla_tracks.cycle ไม่ใช่
+     *   - SLA on-time = resolved_at ตัวแทน <= target_at ของ "รอบนั้น" (freeze ไว้ใน ticket_sla_tracks.cycle ไม่ใช่
      *     resolution_due_at ปัจจุบันที่ reopen ทับ) ; CSAT อ่านจาก ticket_ratings.cycle
-     * window บน event.created_at (numbering ก่อน filter → cycle ordinal นิ่ง) ; dept/category + visibility บน ticket ;
-     * ตัด backwards timestamp. key = resolver id → service overlay ทับแถวช่าง. resolved == resolution_base.
+     * window บน event.created_at (ไล่เลขก่อน filter → cycle ordinal นิ่ง) ; dept/category + visibility บน ticket ;
+     * ตัด timestamp ที่ย้อนหลังทิ้ง key = resolver id → service overlay ทับแถวช่าง resolved == resolution_base
      */
     public function getTechnicianResolverStats(array $viewer, array $filters): array
     {
@@ -535,7 +535,7 @@ class ReportRepository
         $this->applyTrendDimensionFilters($conditions, $filters, $params); // dept/category (บน t) ไม่มี date/status
         $whereClause = implode(' AND ', $conditions);
 
-        // window ถูกใช้หลัง (AFTER) การไล่เลข cycle (bound ord.resolved_at) เพื่อให้ลำดับ cycle นิ่งแม้
+        // window ถูกใช้หลังการไล่เลข cycle (bound ที่ ord.resolved_at) เพื่อให้ลำดับ cycle นิ่งแม้
         // cycle ก่อนหน้าจะถูกปิดนอกช่วง — กติกาเดียวกับ getTicketTrendResolved
         $reBounds = '';
         if ($from !== '') {
@@ -594,9 +594,9 @@ class ReportRepository
     }
 
     /**
-     * งานค้างของช่าง ณ ปัจจุบัน (live snapshot) — นับ ticket ที่ยังไม่ terminal ต่อช่าง โดย **ไม่ขึ้นกับ
-     * date filter** (= backlog จริงตอนนี้). base = ช่าง active ทุกคน (LEFT JOIN → idle ก็ได้แถว open_now=0)
-     * เพื่อให้เห็นทั้งทีมสำหรับเกลี่ยงาน. terminal ไม่นับ (ticket_terminal_statuses_sql).
+     * งานค้างของช่าง ณ ปัจจุบัน (live snapshot) — นับ ticket ที่ยังไม่ terminal ต่อช่าง โดยไม่ขึ้นกับ
+     * date filter (= backlog จริงตอนนี้) base = ช่าง active ทุกคน (LEFT JOIN → idle ก็ได้แถว open_now=0)
+     * เพื่อให้เห็นทั้งทีมสำหรับเกลี่ยงาน terminal ไม่นับ (ticket_terminal_statuses_sql)
      */
     public function getTechnicianLiveWorkload(array $viewer): array
     {
@@ -729,7 +729,7 @@ class ReportRepository
      * กติกาเดียวกับ reopen cohort).
      *
      * SLA/CSAT ผูก "รายรอบ (cycle)" (F1 Phase 2 Part B2): resolve event ที่ N ของ ticket = cycle N (ROW_NUMBER
-     * over ALL events เรียง created_at,id — ตรงกับที่ reopenTicket append cycle) → SLA อ่านจาก ticket_sla_tracks
+     * over ทุก event เรียง created_at,id — ตรงกับที่ reopenTicket append cycle) → SLA อ่านจาก ticket_sla_tracks
      * row (metric_type='resolution', cycle=N): sla_base = มีแถวรอบนั้น, sla_on_time = resolved_at ตัวแทน <=
      * target_at ของรอบนั้น (ไม่ใช่ t.resolution_due_at ปัจจุบันที่ reopen ทับ); CSAT อ่านจาก ticket_ratings row
      * (cycle=N). ทั้งสอง LEFT JOIN + UNIQUE(ticket,metric,cycle)/(ticket,cycle) → ไม่ fan-out และ resolve ที่ไม่มี
@@ -744,7 +744,7 @@ class ReportRepository
         $to = is_string($filters['to_datetime'] ?? null) ? trim((string) $filters['to_datetime']) : '';
 
         $params = [];
-        // filter ของ window ถูกใช้หลัง (AFTER) การไล่เลข cycle (ดูด้านล่าง) เพื่อให้ลำดับ cycle นิ่งแม้
+        // filter ของ window ถูกใช้หลังการไล่เลข cycle (ดูด้านล่าง) เพื่อให้ลำดับ cycle นิ่งแม้
         // cycle ก่อนหน้าจะถูกปิดนอกช่วง — จึง bound ที่ ord.resolved_at ไม่ใช่ event ดิบ
         $reBounds = '';
         if ($from !== '') {
@@ -762,7 +762,7 @@ class ReportRepository
         $this->applyTrendDimensionFilters($conditions, $filters, $params);
         $whereClause = implode(' AND ', $conditions);
 
-        // re = การ resolve ตัวแทนหนึ่งตัวต่อ (ticket, bucket) ที่พก CYCLE ordinal ของมันมาด้วย:
+        // re = การ resolve ตัวแทนหนึ่งตัวต่อ (ticket, bucket) ที่พก cycle ordinal ของมันมาด้วย:
         //   ord   : ไล่เลขทุก event ticket_resolved 1..N ต่อ ticket (created_at,id) → cycle N (ตรงกับที่
         //           reopenTicket append cycle N+1); ไล่เลขบน event ทั้งหมดโดยไม่กรอง ordinal จึงนิ่ง
         //   dedup : ภายใน (ticket, bucket) จัดอันดับด้วย resolved_at DESC หลัง filter ของ window → rep_rank 1 = การปิด
@@ -897,7 +897,7 @@ class ReportRepository
         }
         $whereClause = implode(' AND ', $conditions);
 
-        // มิติ technician เป็นแบบ as-reported (Phase 2): ให้เครดิตกับ resolver ตัวแทน (REPRESENTATIVE) ของ ticket —
+        // มิติ technician เป็นแบบ as-reported (Phase 2): ให้เครดิตกับ resolver ตัวแทนของ ticket —
         // คือ actor ของ event `ticket_resolved` ล่าสุดในช่วง มีเพียงหนึ่ง resolver ต่อ ticket — ไม่ใช่
         // t.assigned_technician_id (ผู้รับผิดชอบปัจจุบัน ซึ่งการ reassign หลังปิดงานจะย้ายไป) การมีหนึ่ง resolver
         // ต่อ ticket รักษา invariant ของยอด resolved-total ข้ามมิติ (แต่ละ ticket แมปไปยังกลุ่มเดียว)
@@ -930,9 +930,9 @@ class ReportRepository
                  LEFT JOIN users dim ON dim.id = resv.actor_id";
         }
 
-        // As-reported (business decision): นับเฉพาะ (ONLY) การ reopen ที่เกิดขึ้นภายใน (WITHIN) ช่วงเท่านั้น เพื่อให้
-        // งวดในอดีตไม่เปลี่ยนแปลง (immutable) — ticket ที่ปิดในช่วงแล้วถูก reopen ในงวดถัดไปจะไม่ย้อนหลังไป
-        // ลด First-Time-Fix ของช่วงนี้ แยก placeholder (:reopen_ro_*) — การใช้ :reopen_from/_to ซ้ำ
+        // As-reported (business decision): นับเฉพาะการ reopen ที่เกิดขึ้นภายในช่วงเท่านั้น เพื่อให้
+        // งวดในอดีตไม่เปลี่ยน — ticket ที่ปิดในช่วงแล้วถูก reopen ในงวดถัดไปจะไม่ย้อนกลับมา
+        // ลด First-Time-Fix ของช่วงนี้ แยก placeholder (:reopen_ro_*) — ถ้าใช้ :reopen_from/_to ซ้ำ
         // จะ throw HY093 ภายใต้ EMULATE_PREPARES=false
         $reopenBound = '';
         if ($from !== '') {
@@ -1120,7 +1120,7 @@ class ReportRepository
     public function markExportJobCompleted(int $jobId, string $fileName, ?string $filePath = null): void
     {
         if ($jobId <= 0) {
-            return; // suppressed job (sample-pack preview) — ไม่มีแถวให้ update ข้าม UPDATE ที่ไม่ได้ทำอะไร (no-op)
+            return; // suppressed job (sample-pack preview) — ไม่มีแถวให้ update ข้าม UPDATE ที่ไม่ได้ทำอะไร
         }
 
         $stmt = $this->db->prepare(

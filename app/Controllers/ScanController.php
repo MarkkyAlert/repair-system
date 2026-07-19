@@ -48,7 +48,7 @@ class ScanController
             Response::abort(404, 'ไม่พบ QR token หรือ Asset ที่เกี่ยวข้อง');
         }
 
-        // เจ้าหน้าที่ที่ล็อกอินอยู่ควรอยู่ในเส้นทางสร้าง ticket แบบล็อกอิน (กรอกข้อมูล asset ให้ล่วงหน้า),
+        // เจ้าหน้าที่ที่ล็อกอินอยู่ควรไปทางสร้าง ticket แบบล็อกอิน (เติมข้อมูล asset ให้ล่วงหน้า),
         // ไม่ใช่ฟอร์มแจ้งปัญหาแบบ guest ที่ "ไม่ต้องล็อกอิน".
         if (auth()->check()) {
             Response::redirect((string) $data['ticket_create_path']);
@@ -56,8 +56,8 @@ class ScanController
 
         $layout = 'guest';
 
-        // One-time form token → กัน double-submit/refresh สร้าง guest request ซ้ำ (idempotency).
-        // ออกใหม่ทุกครั้งที่เปิดฟอร์ม, consume ตอน submit สำเร็จ.
+        // One-time form token → กัน double-submit/refresh สร้าง guest request ซ้ำ.
+        // ออกใหม่ทุกครั้งที่เปิดฟอร์ม แล้ว consume ตอน submit สำเร็จ.
         $formToken = bin2hex(random_bytes(16));
         Session::put('guest_report_token', $formToken);
 
@@ -79,8 +79,8 @@ class ScanController
             csrf_validate();
 
             // Idempotency: one-time form token ต้องตรงกับที่เก็บใน session และยังไม่ถูก consume.
-            // double-submit/refresh → token ถูก consume ไปแล้ว → mismatch → ไม่สร้างคำขอซ้ำ.
-            // error path redirect กลับ showReport ซึ่งออก token ใหม่ให้ retry ปกติได้.
+            // double-submit/refresh → token ถูก consume ไปแล้ว → ไม่ตรง → ไม่สร้างคำขอซ้ำ.
+            // ทาง error redirect กลับ showReport ที่จะออก token ใหม่ให้ ลองส่งใหม่ได้ตามปกติ.
             $sessionToken = (string) Session::get('guest_report_token', '');
             if ($sessionToken === '' || !hash_equals($sessionToken, (string) ($_POST['form_token'] ?? ''))) {
                 throw new DomainException('คำขอนี้ถูกส่งไปแล้ว หรือฟอร์มหมดอายุ กรุณาสแกน QR ใหม่อีกครั้งหากต้องการแจ้ง');
@@ -98,7 +98,7 @@ class ScanController
                 'requestNo' => (string) ($result['request_no'] ?? ''),
             ], $layout);
         } catch (\PDOException $__infra) {
-            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
+            throw $__infra; // error ระดับ infra ปล่อยให้ตัวจัดการ error ส่วนกลาง log แล้วส่ง 500 กลาง ๆ ไม่ให้ SQL หลุดออกไป
         } catch (DomainException|RuntimeException $exception) {
             with_old_input([
                 'guest_name' => (string) ($_POST['guest_name'] ?? ''),

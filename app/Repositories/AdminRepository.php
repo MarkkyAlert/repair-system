@@ -219,8 +219,8 @@ class AdminRepository
                 throw new DomainException('ผู้ใช้นี้ยังมี Ticket ที่เป็นผู้แจ้ง กรุณาปิดงานให้เรียบร้อยก่อนปิดบัญชี');
             }
 
-            // Optimistic lock (ล็อกแบบมองโลกในแง่ดี): เพิ่ม version เฉพาะเมื่อมันยังตรงกับ snapshot ของฟอร์ม เพื่อไม่ให้การเซฟฟอร์มเต็ม
-            // ที่เก่า (stale) (Admin B แก้จากหน้าเก่า) ไปเขียนทับการเปลี่ยนแปลงที่ใหม่กว่าของ Admin A แบบเงียบ ๆ
+            // optimistic lock: บวก version เฉพาะเมื่อยังตรงกับค่าที่ฟอร์มอ่านไปตอนเปิด เพื่อไม่ให้การเซฟฟอร์มเต็ม
+            // จากหน้าเก่า (Admin B แก้จากหน้าที่ค้างไว้) ไปเขียนทับงานที่ใหม่กว่าของ Admin A แบบเงียบ ๆ
             $stmt = $this->db->prepare(
                 'UPDATE users
                  SET full_name = :full_name,
@@ -260,8 +260,8 @@ class AdminRepository
                 throw $exception;
             }
 
-            // แถวถูก lock ด้วย FOR UPDATE ไปแล้วข้างบน (จึงมีอยู่แน่นอน); การที่ 0 แถวถูกเปลี่ยน หมายความว่าเงื่อนไข version
-            // เท่านั้นที่ไม่ผ่าน → ฟอร์มที่ส่งมาถูกสร้างจาก snapshot ที่เก่า ให้ปฏิเสธ อย่าเขียนทับ
+            // แถวถูก lock ด้วย FOR UPDATE ไปแล้วข้างบน จึงมีอยู่แน่ ๆ — ถ้าไม่มีแถวไหนถูกเปลี่ยน แปลว่าติดที่เงื่อนไข version
+            // อย่างเดียว → ฟอร์มที่ส่งมาสร้างจากค่าเก่า ให้ปฏิเสธ อย่าเขียนทับ
             if ($stmt->rowCount() === 0) {
                 throw new DomainException('ข้อมูลผู้ใช้ถูกแก้ไขโดยผู้ใช้อื่นแล้ว กรุณารีเฟรชหน้าแล้วลองอีกครั้ง');
             }
@@ -292,9 +292,9 @@ class AdminRepository
 
     private function hasOpenRequesterTickets(int $userId): bool
     {
-        // ชุดสถานะ "ยังมีงานค้าง" ในมุมของผู้แจ้ง — จงใจ NOT ใช้ ticket_terminal_statuses():
+        // ชุดสถานะ "ยังมีงานค้าง" ในมุมของผู้แจ้ง — จงใจไม่ใช้ ticket_terminal_statuses():
         // 'resolved' ถูกตัดออกตรงนี้เพราะ ticket ที่ resolved แล้วยังรอให้ผู้แจ้งกด
-        // confirm/reopen เอง จึงนับเป็นงานค้างสำหรับเขา อย่าสลับไปใช้ชุด terminal
+        // confirm/reopen เอง เลยยังนับเป็นงานค้างของเขา อย่าสลับไปใช้ชุด terminal
         $stmt = $this->db->prepare(
             "SELECT EXISTS(
                 SELECT 1 FROM tickets

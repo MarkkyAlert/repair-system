@@ -5,10 +5,10 @@ namespace App\Support;
 
 /**
  * แหล่งอ้างอิงเดียวของตัวระบุ role ผู้ใช้ ค่า string ตรงกับ ENUM ของ users.role ใน
- * database/schema.sql และ role ที่เก็บไว้ใน session — ดังนั้น Role::ADMIN ใช้แทนค่าตรง ๆ
- * 'admin' ได้ทันที การเพิ่ม role: เพิ่มค่าคงที่, เพิ่มลงใน assignable() และขยาย ENUM ของ users.role
+ * database/schema.sql และ role ที่เก็บใน session เลยเอา Role::ADMIN มาใช้แทนค่าตรง ๆ
+ * 'admin' ได้ทันที จะเพิ่ม role ก็: เพิ่มค่าคงที่, เพิ่มลงใน assignable() แล้วขยาย ENUM ของ users.role
  *
- * GUEST ไม่ใช่ role ที่เก็บใน DB — เป็นค่าสำรองสำหรับ request ที่ไม่มีผู้ใช้ล็อกอินอยู่
+ * GUEST ไม่ใช่ role ที่เก็บใน DB เป็นแค่ค่าสำรองสำหรับ request ที่ไม่มีผู้ใช้ล็อกอินอยู่
  */
 final class Role
 {

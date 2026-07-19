@@ -6,10 +6,10 @@ namespace App\Repositories;
 use PDO;
 
 /**
- * query ฝั่งอ่าน (read-side) ของ ticket ที่แยกออกมาจาก TicketRepository (อ่านอย่างเดียว — ไม่มี mutation/lock/transaction):
- * ค่าสรุป (aggregate) ของ dashboard, การแบ่งหน้า list/queue, รายละเอียด ticket, comment/activity, ข้อมูลอ้างอิง และ
- * การอ่าน context ของ asset/notification จัดกลุ่มตาม section comment ด้านล่าง ฝั่งที่แก้ไขข้อมูล (mutation) อยู่ใน
- * TicketRepository; ตัวสร้าง query สำหรับ visibility + filter อยู่ที่นี่ในรูป private helper
+ * query ฝั่งอ่านของ ticket ที่แยกออกมาจาก TicketRepository (อ่านอย่างเดียว — ไม่มี mutation/lock/transaction):
+ * ค่าสรุปของ dashboard, การแบ่งหน้า list/queue, รายละเอียด ticket, comment/activity, ข้อมูลอ้างอิง และ
+ * การอ่าน context ของ asset/notification จัดกลุ่มตาม section comment ด้านล่าง ส่วนที่แก้ไขข้อมูลอยู่ใน
+ * TicketRepository ตัวสร้าง query สำหรับ visibility + filter อยู่ที่นี่ในรูป private helper
  */
 class TicketReadRepository
 {
@@ -18,10 +18,10 @@ class TicketReadRepository
     }
 
     /**
-     * As-reported (F1 Phase 2): ตอนนี้ ticket_sla_tracks / ticket_ratings เก็บหนึ่งแถวต่อหนึ่ง CYCLE ของ lifecycle
-     * (การ reopen / re-rate จะ append เพิ่มแทนการเขียนทับ) ทุกจุดที่แสดงสถานะปัจจุบัน (CURRENT-STATE) ตรงนี้ (overdue บน dashboard,
-     * SLA + rating ในรายละเอียด ticket, filter "breached" ของ list) ต้องอ่านเฉพาะ cycle ล่าสุด (LATEST) ของ ticket ไม่งั้นผลตัดสิน/rating
-     * ของ cycle เก่าจะรั่วเข้ามาในมุมมองปัจจุบัน โค้ดพวกนี้จึงตรึง (pin) reference ที่มี alias ไว้กับ cycle นั้น
+     * As-reported (F1 Phase 2): ตอนนี้ ticket_sla_tracks / ticket_ratings เก็บหนึ่งแถวต่อหนึ่ง cycle ของ lifecycle
+     * (reopen / re-rate จะ append เพิ่มแทนการเขียนทับ) ทุกจุดที่แสดงสถานะปัจจุบันตรงนี้ (overdue บน dashboard,
+     * SLA + rating ในรายละเอียด ticket, filter "breached" ของ list) ต้องอ่านเฉพาะ cycle ล่าสุดของ ticket ไม่งั้นผลตัดสิน/rating
+     * ของ cycle เก่าจะรั่วเข้ามาในมุมมองปัจจุบัน โค้ดพวกนี้จึงตรึง reference ที่มี alias ไว้กับ cycle นั้น
      */
     private function latestSlaCycleClause(string $a): string
     {
@@ -385,7 +385,7 @@ class TicketReadRepository
         ];
     }
 
-    // ── private query helper — filter ของ dashboard + การมองเห็นแถว (row visibility) ──
+    // ── private query helper — filter ของ dashboard + การมองเห็นแถว ──
     private function applyDashboardFilters(array &$conditions, array $filters, array &$params): void
     {
         $fromDate = is_string($filters['from_datetime'] ?? null) ? trim((string) $filters['from_datetime']) : '';
@@ -466,7 +466,7 @@ class TicketReadRepository
         return '0 = 1';
     }
 
-    // ── รายการ / คิว ของ ticket — การแบ่งหน้า (pagination) + filter ──
+    // ── รายการ / คิว ของ ticket — การแบ่งหน้า + filter ──
     public function getVisibleTicketsPage(array $viewer, array $filters, int $page, int $perPage): array
     {
         $params = [];
@@ -520,7 +520,7 @@ class TicketReadRepository
         ];
     }
 
-    // ── การอ่านข้อมูล SLA breach (การละเมิด SLA) ──
+    // ── การอ่านข้อมูล SLA breach ──
     public function getPendingOverdueSlaBreaches(): array
     {
         $closed = ticket_terminal_statuses_sql();
@@ -551,7 +551,7 @@ class TicketReadRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    // ── ข้อมูลอ้างอิง (reference data) — ฟอร์มสร้าง ──
+    // ── ข้อมูลอ้างอิง — ฟอร์มสร้าง ──
     public function getCreateFormReferenceData(): array
     {
         $priorities = $this->db->query(
@@ -604,7 +604,7 @@ class TicketReadRepository
 
     // ── รายละเอียด ticket — ticket เดี่ยว, comment, activity ──
     /**
-     * ดึงข้อมูลคอลัมน์ที่ workflow-policy ใช้ของ ticket หลายใบพร้อมกัน (batch) โดยจำกัดตาม visibility — สำหรับ bulk action
+     * ดึงคอลัมน์ที่ workflow-policy ใช้ของ ticket หลายใบพร้อมกัน โดยจำกัดตาม visibility — สำหรับ bulk action
      * (เช่น อนุมัติแบบกลุ่ม) ที่ไม่งั้นต้องเรียก findVisibleTicketById ทีละ id คืนเฉพาะคอลัมน์
      * ที่ policy + transition ต้องใช้ ไม่ใช่แถวรายละเอียดทั้งหมด
      *
@@ -754,7 +754,7 @@ class TicketReadRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    // ── ตัวนับ (counters) & ขอบเขต (bounds) ──
+    // ── ตัวนับ & ขอบเขต ──
     public function countAllTickets(): int
     {
         return (int) $this->db->query('SELECT COUNT(*) FROM tickets')->fetchColumn();

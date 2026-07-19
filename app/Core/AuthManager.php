@@ -20,9 +20,9 @@ class AuthManager
     }
 
     /**
-     * ตรวจสถานะล็อกอินแบบไม่แตะฐานข้อมูล: อ่านจาก session อย่างเดียว — ไม่เรียก UserRepository ไม่ resolve PDO.
-     * หน้า error ต้องเรนเดอร์ได้แม้ตอนต่อฐานข้อมูลไม่ได้ จึงห้ามไปผ่าน auth() (ซึ่งจะ resolve repository ที่ PDO
-     * ต่อฐานข้อมูลทันที และจะโยน exception ตอนฐานข้อมูลล่ม)
+     * เช็คสถานะล็อกอินโดยไม่แตะฐานข้อมูล: อ่านจาก session อย่างเดียว ไม่เรียก UserRepository ไม่ resolve PDO
+     * หน้า error ต้องเรนเดอร์ได้แม้ตอนต่อฐานข้อมูลไม่ได้ เลยห้ามไปผ่าน auth() เพราะ auth() จะ resolve repository
+     * ที่เปิด PDO ต่อฐานข้อมูลทันที แล้วโยน exception ตอนฐานข้อมูลล่ม
      */
     public static function checkSession(): bool
     {
@@ -46,8 +46,8 @@ class AuthManager
     public function login(array $user): void
     {
         $passwordStamp = (string) ($user['password_changed_at'] ?? '');
-        // เก็บลง session เฉพาะข้อมูลที่ไม่ลับ — password hash / remember token คงอยู่ใน DB ที่เดียว
-        // ไม่ติดไปกับ session (ที่ถูกเขียนลงไฟล์ฝั่ง server และโผล่ตาม debug/dump ได้ง่ายกว่า)
+        // เก็บลง session เฉพาะข้อมูลที่ไม่ลับ ส่วน password hash กับ remember token ให้อยู่ใน DB ที่เดียว
+        // ไม่ต้องติดไปกับ session ที่เขียนลงไฟล์ฝั่ง server แล้วหลุดตาม debug/dump ได้ง่ายกว่า
         unset($user['password_hash'], $user['remember_token']);
         Session::put(self::SESSION_KEY, $user);
         Session::put(self::PASSWORD_STAMP_KEY, $passwordStamp);
@@ -80,7 +80,7 @@ class AuthManager
         $storedStamp = (string) (Session::get(self::PASSWORD_STAMP_KEY) ?? '');
         $currentStamp = (string) ($user['password_changed_at'] ?? '');
         if ($storedStamp !== $currentStamp) {
-            // รหัสผ่านถูกเปลี่ยนใน session อื่นหลังจาก session นี้ถูกสร้าง -> บังคับให้ล็อกอินใหม่
+            // รหัสผ่านโดนเปลี่ยนจาก session อื่นหลังสร้าง session นี้ -> บังคับล็อกอินใหม่
             $this->logout();
             return false;
         }

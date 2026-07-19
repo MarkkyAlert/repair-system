@@ -129,11 +129,11 @@ class GuestTicketRequestRepository
     }
 
     /**
-     * ทำเครื่องหมายว่า request สถานะ 'new' ถูก converted และ link ticket ของมันแบบ atomic ใน statement เดียว — status และ
+     * ทำเครื่องหมายว่า request สถานะ 'new' ถูก converted แล้ว link ticket แบบ atomic ใน statement เดียว — status กับ
      * converted_ticket_id ถูก set พร้อมกัน จึงไม่มีทางเกิด request 'converted' ที่ converted_ticket_id
-     * เป็น NULL (invariant นี้บังคับด้วยโครงสร้าง SQL) Ticket ต้องถูกสร้าง (commit) มาก่อนเรียก
-     * คืน false เมื่อ concurrent convert/reject ชิงไปแล้ว (status ไม่ใช่ 'new') — caller ควร
-     * แจ้ง (surface) + ตรวจสอบ ticket ที่สร้างไว้ (ticket ยังเป็น valid record)
+     * เป็น NULL (โครงสร้าง SQL บังคับ invariant นี้ไว้) ต้องสร้าง ticket (commit) มาก่อนเรียก
+     * คืน false เมื่อ convert/reject ที่แข่งกันชิงไปก่อนแล้ว (status ไม่ใช่ 'new') — caller ควรแจ้งผู้ใช้
+     * แล้วไปตรวจ ticket ที่สร้างไว้ (ticket ยังเป็น record ที่ใช้ได้)
      */
     public function claimAndLink(int $id, int $ticketId, int $reviewerId): bool
     {
@@ -169,9 +169,9 @@ class GuestTicketRequestRepository
     }
 
     /**
-     * advisory lock (ล็อกแบบ advisory) ผูกกับ connection ต่อ guest request 1 อัน — ทำให้ convert/reject ที่แข่งกันทำงานเรียงทีละอัน (serialize)
-     * (สะท้อนแบบเดียวกับ TicketRepository::acquireNamedLock) ถือ lock ระหว่างตรวจ status + สร้าง ticket + link
-     * เพื่อกันการสร้าง orphan ticket จาก concurrent convert
+     * advisory lock ผูกกับ connection หนึ่งอันต่อ guest request หนึ่งอัน — บังคับให้ convert/reject ที่แข่งกันทำงานเรียงทีละอัน
+     * (แนวเดียวกับ TicketRepository::acquireNamedLock) ถือ lock ไว้ตลอดช่วงตรวจ status + สร้าง ticket + link
+     * กันการสร้าง orphan ticket จาก convert ที่เกิดพร้อมกัน
      */
     public function acquireConvertLock(int $requestId): void
     {

@@ -23,9 +23,9 @@ class View
             return;
         }
 
-        // ส่ง header Content-Security-Policy (CSP — นโยบายกันสคริปต์แปลกปลอม) สำหรับ HTML ทั้งหน้า. view ด้านบน
-        // เรนเดอร์ลง buffer ไว้ก่อน จึงยังไม่มีอะไรส่งถึง client — การ include layout ด้านล่างคือ output แรก.
-        // csp_nonce() ถูก cache ต่อหนึ่ง request ดังนั้น header กับ <script nonce> ของ theme-init จึงได้ค่า nonce เดียวกัน
+        // ส่ง header Content-Security-Policy (CSP กันสคริปต์แปลกปลอม) สำหรับ HTML ทั้งหน้า view ด้านบน
+        // เรนเดอร์ลง buffer ไว้ก่อน เลยยังไม่มีอะไรส่งถึง client การ include layout ด้านล่างคือ output แรก
+        // csp_nonce() ถูก cache ต่อ request เดียว header กับ <script nonce> ของ theme-init เลยได้ค่า nonce เดียวกัน
         if (!headers_sent()) {
             $cspHeader = config('security.csp_report_only', false)
                 ? 'Content-Security-Policy-Report-Only'

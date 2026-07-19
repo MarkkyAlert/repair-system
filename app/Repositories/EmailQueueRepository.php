@@ -175,10 +175,10 @@ class EmailQueueRepository
         }
     }
 
-    // การ update ขั้นสุดท้าย (markSent/releaseForRetry/markFailed) ต้องแตะเฉพาะแถวที่ worker ตัวนี้ (THIS) ยังถือครองอยู่
+    // การ update ขั้นสุดท้าย (markSent/releaseForRetry/markFailed) ต้องแตะเฉพาะแถวที่ worker ตัวนี้ยังถือครองอยู่
     // มันทำ compare-and-set บน claim: status='processing' AND attempts=:claim_attempt (ค่า attempts ที่
-    // claim กำหนดไว้) ถ้ามี worker อื่น claim แถวนี้ไปใหม่หลังหมด stale timeout (attempts ถูกเพิ่มอีก)
-    // การ update ขั้นสุดท้ายของ worker ที่ค้าง (stale) จะ match 0 แถวและไม่ทำอะไร (no-op) แทนที่จะไปทับ claim ใหม่ คืนค่า
+    // claim กำหนดไว้) ถ้ามี worker อื่นมา claim แถวนี้ใหม่หลังหมด stale timeout (attempts ถูกบวกเพิ่มอีก)
+    // การ update ขั้นสุดท้ายของ worker ที่ค้างอยู่จะ match 0 แถวและไม่ทำอะไร แทนที่จะไปทับ claim ใหม่ แล้วคืนค่า
     // ว่าแถวยังถูกถือครองอยู่หรือไม่ (rowCount > 0)
     public function markSent(int $emailId, int $claimAttempt): bool
     {

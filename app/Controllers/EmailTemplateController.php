@@ -81,7 +81,7 @@ class EmailTemplateController
             $this->templateService->saveOverrides($templateKey, $_POST, $userId);
             flash('success', 'บันทึกการตั้งค่า template เรียบร้อยแล้ว');
         } catch (\PDOException $__infra) {
-            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
+            throw $__infra; // error ระดับ infra ปล่อยให้ตัวจัดการ error ส่วนกลาง log แล้วส่ง 500 กลาง ๆ ไม่ให้ SQL หลุดออกไป
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
         }
@@ -100,7 +100,7 @@ class EmailTemplateController
             $this->templateService->resetOverrides($templateKey);
             flash('success', 'คืนค่า template เป็นค่าเริ่มต้นเรียบร้อยแล้ว');
         } catch (\PDOException $__infra) {
-            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
+            throw $__infra; // error ระดับ infra ปล่อยให้ตัวจัดการ error ส่วนกลาง log แล้วส่ง 500 กลาง ๆ ไม่ให้ SQL หลุดออกไป
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
         }

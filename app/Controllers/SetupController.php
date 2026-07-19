@@ -76,7 +76,7 @@ class SetupController
             flash('success', $message . ' กรุณาเข้าสู่ระบบ');
             Response::redirect('/login');
         } catch (\PDOException $__infra) {
-            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
+            throw $__infra; // error ระดับ infra ปล่อยให้ตัวจัดการ error ส่วนกลาง log แล้วส่ง 500 กลาง ๆ ไม่ให้ SQL หลุดออกไป
         } catch (DomainException|RuntimeException $exception) {
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
@@ -94,11 +94,11 @@ class SetupController
     }
 
     /**
-     * เตรียมสถานะการตั้งค่าครั้งแรก (ชื่อระบบ → admin คนแรก → demo ถ้าเลือก → flag ว่าตั้งค่าเสร็จ) แบบ atomic (ทำสำเร็จทั้งหมดหรือไม่ทำเลย),
-     * เรียงลำดับด้วย named lock ของ DB พร้อม RE-CHECK admin/flag ซ้ำ "ข้างใน" lock เพื่อไม่ให้การตั้งค่าที่ทำพร้อมกันสองชุด
-     * ต่างฝ่ายต่างสร้าง admin ได้ (unique key ผูกกับ username/email แต่ละตัว ไม่ใช่ "มี admin ได้แค่คนเดียว"). ไม่มี HTTP/redirect
-     * จึงทดสอบได้โดยตรง. throw DomainException ถ้าตั้งค่าเสร็จไปแล้ว (ฝ่ายที่แพ้การแข่งกันทำพร้อมกัน) หรือข้อมูล admin
-     * ที่กรอกมาไม่ถูกต้อง; คืนค่าสรุปข้อมูล demo (หรือ null).
+     * เตรียมสถานะการตั้งค่าครั้งแรก (ชื่อระบบ → admin คนแรก → demo ถ้าเลือก → flag ว่าตั้งค่าเสร็จ) แบบ atomic คือทำสำเร็จหมดหรือไม่ทำเลย,
+     * เรียงคิวด้วย named lock ของ DB แล้วเช็ค admin/flag ซ้ำอีกทีตอนอยู่ในล็อก กันไม่ให้ setup ที่ยิงพร้อมกันสองชุด
+     * ต่างคนต่างสร้าง admin (unique key ผูกกับ username/email แต่ละตัว ไม่ใช่ "มี admin ได้คนเดียว"). ไม่มี HTTP/redirect
+     * เลยเทสต์ตรง ๆ ได้. โยน DomainException ถ้าตั้งค่าเสร็จไปแล้ว (ฝ่ายที่แพ้ตอนแข่งกันยิงพร้อมกัน) หรือข้อมูล admin
+     * ที่กรอกมาไม่ถูกต้อง; คืนค่าสรุป demo (หรือ null).
      *
      * @param array<string, mixed> $input ฟิลด์ admin_* / load_demo แบบดิบ
      * @return array<string, mixed>|null
@@ -133,7 +133,7 @@ class SetupController
             }
 
             try {
-                // เขียนข้อมูลตั้งค่าครั้งแรกแบบทำทั้งหมดหรือไม่ทำเลย (all-or-nothing) (เป็นข้อยกเว้นช่วง bootstrap ของกฎ "transaction ต้องอยู่ใน service")
+                // เขียนข้อมูลตั้งค่าครั้งแรกแบบทำทั้งหมดหรือไม่ทำเลย (ยกเว้นให้ช่วง bootstrap ของกฎ "transaction ต้องอยู่ใน service")
                 $this->db->beginTransaction();
                 $this->settings->upsert('app_name', $appName, 'string', true, 0);
 
@@ -178,9 +178,9 @@ class SetupController
     }
 
     /**
-     * คืน true ถ้ามี admin ที่ active อยู่แล้วอย่างน้อยหนึ่งคน (การ deploy แบบ seed/ทำเอง มีอยู่แล้ว). เป็น static +
-     * รับ PDO เป็น argument เพราะด่านกั้น setup (public/index.php) รันก่อนที่ container จะประกอบ controller; ตัว
-     * SQL เองอยู่ใน UserRepository จึงไม่มีข้อความ query อยู่ใน controller นี้.
+     * คืน true ถ้ามี admin ที่ active อยู่แล้วอย่างน้อยหนึ่งคน (เคส deploy แบบ seed หรือสร้างเอง). เป็น static +
+     * รับ PDO เข้ามาเป็น argument เพราะด่านกั้น setup (public/index.php) รันก่อน container จะประกอบ controller; ตัว
+     * SQL อยู่ใน UserRepository เลยไม่มีข้อความ query ปนอยู่ใน controller นี้.
      */
     public static function hasActiveAdmin(PDO $db): bool
     {
@@ -188,9 +188,9 @@ class SetupController
     }
 
     /**
-     * บอกว่า request ต้องถูก redirect ไป /setup หรือไม่. ถือว่า setup เสร็จเมื่อ flag ถูกตั้ง หรือมี
-     * admin ที่ active อยู่แล้ว — เป็นกฎเดียวกับที่ show()/execute() ใช้กั้น /setup. การให้ด่านกั้น
-     * (public/index.php) สอดคล้องกัน ป้องกันการวนลูป /setup ↔ /login บน deploy แบบ seed/มี admin ให้อยู่แล้ว.
+     * บอกว่า request ต้องถูก redirect ไป /setup ไหม. ถือว่า setup เสร็จเมื่อ flag ถูกตั้ง หรือมี
+     * admin ที่ active อยู่แล้ว — กฎเดียวกับที่ show()/execute() ใช้กั้น /setup. ให้ด่านกั้น
+     * (public/index.php) ใช้กฎเดียวกันจะได้ไม่วนลูป /setup ↔ /login บน deploy แบบ seed/มี admin มาให้แล้ว.
      */
     public static function requiresSetupRedirect(SettingsRepository $settings, PDO $db): bool
     {
@@ -213,8 +213,8 @@ class SetupController
         $stmt = $this->db->prepare('SELECT GET_LOCK(:name, 10)');
         $stmt->execute(['name' => 'maintenance-first-run-setup']);
         if ((int) $stmt->fetchColumn() !== 1) {
-            // มีการตั้งค่าที่ทำพร้อมกันถือ lock อยู่ — เป็นสถานการณ์ "ลองใหม่" ที่คาดไว้ (EXPECTED) ไม่ใช่ความผิดพลาดระดับปฏิบัติการ
-            // จึงเป็น DomainException (แจ้งผ่าน flash, ลองใหม่ได้) ตามการจัดหมวดหมู่ (taxonomy).
+            // มี setup อีกชุดที่ยิงพร้อมกันถือ lock อยู่ — เป็นสถานการณ์ "ลองใหม่" ที่คาดไว้ ไม่ใช่ปัญหาระดับปฏิบัติการ
+            // เลยจัดเป็น DomainException (แจ้งผ่าน flash แล้วให้ลองใหม่) ตามหมวดหมู่ error ที่วางไว้.
             throw new DomainException('ระบบกำลังตั้งค่าอยู่ กรุณาลองใหม่อีกครั้ง');
         }
     }

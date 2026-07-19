@@ -185,9 +185,9 @@ class UserRepository
     }
 
     /**
-     * ล้าง remember token เฉพาะ (ONLY) แถวที่ hash ที่เก็บไว้เท่ากับ $tokenHash ใช้ตอน logout เพื่อไม่ให้ผู้เรียก
-     * ไปเพิกถอน persistent login ของคนอื่นได้ด้วยการปลอม cookie ให้มี id ของผู้ใช้อื่น — hash ที่ไม่ตรง
-     * (หรือถูกปลอม) จะไม่ match แถวใดเลยและไม่ล้างอะไรทั้งสิ้น
+     * ล้าง remember token เฉพาะแถวที่ hash ที่เก็บไว้ตรงกับ $tokenHash เท่านั้น ใช้ตอน logout เพื่อไม่ให้ผู้เรียก
+     * ไปเพิกถอน persistent login ของคนอื่นด้วยการปลอม cookie ให้มี id ของผู้ใช้อื่น — hash ที่ไม่ตรง
+     * (หรือถูกปลอม) จะไม่ match แถวไหนเลย เลยไม่ล้างอะไรทั้งสิ้น
      */
     public function clearRememberTokenByHash(string $tokenHash): void
     {
@@ -266,9 +266,9 @@ class UserRepository
 
     public function updatePassword(int $userId, string $passwordHash): bool
     {
-        // เพิกถอน (revoke) ทุก remember-me session ใน statement เดียวกัน (SAME) กับการเขียน password เพื่อไม่ให้ทั้งสอง
-        // เกิดความไม่สอดคล้องกัน: การเรียก revoke แยกต่างหากอาจล้มเหลวหลัง password เปลี่ยนไปแล้ว ทำให้ cookie เก่า
-        // ยังใช้ login ได้ UPDATE เดียว = การเปลี่ยน password และการเพิกถอน token เป็น atomic
+        // ล้างทุก remember-me session ทิ้งใน statement เดียวกับที่เขียน password เพื่อไม่ให้สองอย่างนี้
+        // หลุดจากกัน: ถ้าแยกไปเรียกล้าง token ต่างหาก มันอาจพังหลัง password เปลี่ยนไปแล้ว ทำให้ cookie เก่า
+        // ยังใช้ login ได้ UPDATE เดียวจบ = เปลี่ยน password กับล้าง token เป็น atomic
         $stmt = $this->db->prepare(
             'UPDATE users
              SET password_hash = :password_hash,
@@ -291,9 +291,9 @@ class UserRepository
 
     public function updateProfile(int $userId, array $data): bool
     {
-        // ใช้สัญญา optimistic-lock (ล็อกแบบมองโลกในแง่ดี) แบบเดียวกับหน้าแก้ไขผู้ใช้ของ admin: profile และ admin เขียนแถวเดียวกัน (SAME)
-        // ดังนั้น profile ต้องเพิ่ม version โดยมีเงื่อนไข WHERE ว่ายังตรงอยู่ด้วย — ไม่งั้นการเซฟ profile (หรือแท็บที่สอง)
-        // จะไปเขียนทับการเปลี่ยนแปลงที่ใหม่กว่าของ admin แบบเงียบ ๆ และในทางกลับกันก็เช่นเดียวกัน
+        // ใช้สัญญา optimistic-lock แบบเดียวกับหน้าแก้ไขผู้ใช้ของ admin: profile กับ admin เขียนแถวเดียวกัน
+        // profile จึงต้องบวก version พร้อมเงื่อนไข WHERE ว่า version ยังตรงอยู่ด้วย — ไม่งั้นการเซฟ profile (หรือแท็บที่สอง)
+        // จะไปเขียนทับงานที่ใหม่กว่าของ admin แบบเงียบ ๆ และกลับกันก็เช่นกัน
         $stmt = $this->db->prepare(
             'UPDATE users
              SET full_name = :full_name,

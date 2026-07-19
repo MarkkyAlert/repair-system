@@ -12,9 +12,9 @@ use DomainException;
 
 class AuthService
 {
-    // เพดานจำนวนครั้ง login ล้มเหลวต่อ IP (กัน password-spraying = ยิงรหัสเดียวไล่หลายชื่อผู้ใช้). ตั้งไว้สูงกว่าเพดานต่อบัญชี (5) โดยตั้งใจ เพื่อให้
-    // ออฟฟิศที่ใช้ NAT ร่วมกัน (shared-NAT = หลายเครื่องออกเน็ตผ่าน IP เดียว) ไม่ถูกล็อกเพราะคนไม่ดีคนเดียว แต่ก็ต่ำพอจะสกัดการยิงรหัสเดียว
-    // ไล่หลายชื่อผู้ใช้จากแหล่งเดียว.
+    // เพดานจำนวนครั้ง login ล้มเหลวต่อ IP กัน password-spraying คือยิงรหัสเดียวไล่หลายชื่อผู้ใช้จากแหล่งเดียว. ตั้งสูงกว่าเพดานต่อบัญชี (5)
+    // โดยตั้งใจ ออฟฟิศที่หลายเครื่องออกเน็ตผ่าน IP เดียว (shared-NAT) จะได้ไม่โดนล็อกเพราะคนไม่ดีคนเดียว แต่ก็ยังต่ำพอจะสกัด
+    // การยิงกระจายแบบนี้ที่เพดานต่อบัญชีจับไม่ได้.
     private const IP_ATTEMPT_CAP = 20;
     private const ATTEMPT_DECAY_SECONDS = 900;
 
@@ -36,8 +36,8 @@ class AuthService
         $ipKey = $this->ipLimiterKey($ipAddress);
         $userAgent = (string) ($_SERVER['HTTP_USER_AGENT'] ?? '');
 
-        // ตาข่ายสองชั้น: เพดานต่อ (บัญชี, IP) กันการเดารหัสรัว ๆ (brute-force) ใส่บัญชีเดียว; เพดานต่อ IP กัน password
-        // spraying (รหัสเดียวไล่หลายชื่อผู้ใช้จากแหล่งเดียว) ซึ่งเพดานต่อบัญชีอย่างเดียวจับไม่ได้.
+        // ตาข่ายสองชั้น: เพดานต่อคู่ (บัญชี, IP) กันการเดารหัสรัว ๆ ใส่บัญชีเดียว (brute-force); เพดานต่อ IP กัน
+        // password-spraying คือรหัสเดียวไล่หลายชื่อผู้ใช้จากแหล่งเดียว ที่เพดานต่อบัญชีอย่างเดียวจับไม่ได้.
         if ($this->rateLimiter->tooManyAttempts($limiterKey)
             || $this->rateLimiter->tooManyAttempts($ipKey, self::IP_ATTEMPT_CAP, self::ATTEMPT_DECAY_SECONDS)) {
             $seconds = max(
@@ -49,8 +49,8 @@ class AuthService
         }
 
         if ($login === '' || $password === '') {
-            // นับใส่ bucket ของ IP ด้วย — ไม่งั้นการหมุนเปลี่ยนค่า login พร้อมรหัสว่างจาก IP เดียว
-            // จะสร้างคู่ (login,IP) ใหม่ทุกครั้ง ไม่เคยชนเพดานใด ๆ เลยขณะที่ยังผลิต key เพิ่มไปเรื่อย ๆ.
+            // นับใส่ bucket ของ IP ด้วย — ไม่งั้นถ้ายิงเปลี่ยนค่า login ไปเรื่อย ๆ พร้อมรหัสว่างจาก IP เดียว
+            // มันจะสร้างคู่ (login,IP) ใหม่ทุกครั้ง ไม่เคยชนเพดานไหนเลย แถมยังผลิต key เพิ่มไม่หยุด.
             $this->rateLimiter->hit($limiterKey);
             $this->rateLimiter->hit($ipKey, self::ATTEMPT_DECAY_SECONDS);
             $this->logAttempt($login, null, $ipAddress, $userAgent, false, 'empty_credentials');
@@ -58,10 +58,10 @@ class AuthService
         }
 
         $user = $this->users->findByLogin($login);
-        // ทำงานเวลาคงที่ (constant-time) เพื่อกันการไล่เดาว่ามีบัญชีอยู่จริงไหม (user enumeration): รัน bcrypt verify ทุกครั้งที่พยายาม login แม้ login จะไม่รู้จัก
-        // เพื่อให้เวลาตอบกลับไม่เผยว่าบัญชีมีอยู่จริงหรือไม่. login ที่ไม่รู้จักจะ verify กับ hash ทิ้ง
-        // (ได้ false เสมอ) แทนที่จะลัดข้ามงาน bcrypt ที่กินเวลา ~100ms. ข้อความ error กลาง ๆ ข้างล่าง
-        // ปิดบังการมีอยู่ของบัญชีใน "เนื้อหาที่ตอบกลับ" (RESPONSE BODY) อยู่แล้ว; ตรงนี้ปิดช่องรั่วผ่าน "เวลา" (TIMING side-channel) ที่อยู่เบื้องหลัง.
+        // รัน bcrypt verify ทุกครั้งแม้ไม่เจอ user เพื่อให้เวลาตอบกลับพอ ๆ กันทั้งกรณีเจอและไม่เจอบัญชี — ไม่งั้นคนร้ายจับเวลาดูได้ว่า
+        // username ไหนมีอยู่จริง (user enumeration). login ที่ไม่รู้จักจะ verify กับ hash ทิ้งที่ได้ false เสมอ แทนที่จะลัดข้าม
+        // งาน bcrypt ที่กินเวลา ~100ms. ข้อความ error กลาง ๆ ข้างล่างปิดบังการมีอยู่ของบัญชีในเนื้อหาที่ตอบกลับอยู่แล้ว
+        // ตรงนี้แค่ปิดช่องที่ยังรั่วผ่าน "เวลา" ที่ตอบ (timing side-channel) ซึ่งอยู่เบื้องหลัง.
         $storedHash = ($user && isset($user['password_hash']))
             ? (string) $user['password_hash']
             : $this->dummyPasswordHash();
@@ -84,15 +84,15 @@ class AuthService
             $this->rateLimiter->hit($limiterKey);
             $this->rateLimiter->hit($ipKey, self::ATTEMPT_DECAY_SECONDS);
             $this->logAttempt($login, (int) ($user['id'] ?? 0), $ipAddress, $userAgent, false, 'account_disabled');
-            // ใช้ข้อความกลาง ๆ เพื่อกันการไล่เดาบัญชี (user enumeration) ด้วยการหยั่งสถานะบัญชี.
+            // ใช้ข้อความกลาง ๆ กันคนหยั่งสถานะบัญชีเพื่อไล่เดาว่ามีบัญชีอยู่จริงไหม (user enumeration).
             // เหตุผลจริงถูกบันทึกไว้ใน login_attempts สำหรับแท็บ Security ของ admin.
             throw new DomainException('ชื่อผู้ใช้ อีเมล หรือรหัสผ่านไม่ถูกต้อง');
         }
 
         $this->rateLimiter->clear($limiterKey);
-        // หมุน session id ใหม่ ณ จุดยกระดับสิทธิ์ — กัน session fixation (ผู้โจมตีหลอกฝัง session id ที่ตัวเองรู้ค่า
-        // ไว้ก่อน แล้วรอสวมรอยหลังเหยื่อ login ทับ id เดิม); จุดคู่กันคือ RememberMeService::attemptRestore
-        // และถูก lock ไว้ด้วย session_fixation_test
+        // หมุน session id ใหม่ตอนยกระดับสิทธิ์ กัน session fixation — คนร้ายแอบฝัง session id ที่ตัวเองรู้ค่าไว้ก่อน
+        // แล้วรอสวมรอยหลังเหยื่อ login ทับ id เดิม. จุดคู่กันอยู่ที่ RememberMeService::attemptRestore
+        // ล็อกไว้ด้วย session_fixation_test
         Session::regenerate();
         $this->auth->login($user);
 
@@ -107,10 +107,10 @@ class AuthService
     }
 
     /**
-     * hash bcrypt แบบใช้แล้วทิ้ง มีไว้เพื่อใช้เวลา bcrypt ให้ใกล้เคียงกันระหว่างการ login ด้วย login ที่ไม่รู้จัก
-     * กับการ login จริง (ดู attemptLogin) เพื่อให้เวลาตอบกลับไม่เผยว่าบัญชีมีอยู่จริงไหม. คำนวณ
-     * ครั้งเดียวต่อ process ที่ค่า cost เริ่มต้นปัจจุบัน — PASSWORD_BCRYPT ตัวเดียวกับที่ changePassword/resetPassword
-     * ใช้ hash — จึงมี cost เท่ากันเสมอแม้ค่าเริ่มต้นนั้นจะเปลี่ยนไป. การ verify กับมันจะล้มเหลว (false) เสมอ.
+     * hash bcrypt แบบใช้แล้วทิ้ง มีไว้ให้เวลา bcrypt ตอน login ด้วย login ที่ไม่รู้จักใกล้เคียงกับตอน login จริง
+     * (ดู attemptLogin) เวลาตอบกลับจะได้ไม่เผยว่าบัญชีมีอยู่จริงไหม. คำนวณครั้งเดียวต่อ process ที่ค่า cost
+     * เริ่มต้นปัจจุบัน ใช้ PASSWORD_BCRYPT ตัวเดียวกับที่ changePassword/resetPassword ใช้ hash cost จึงเท่ากัน
+     * เสมอแม้ค่าเริ่มต้นจะเปลี่ยนไป. การ verify กับมันจะได้ false เสมอ.
      */
     private function dummyPasswordHash(): string
     {
@@ -148,9 +148,9 @@ class AuthService
             throw new DomainException('กรุณากรอกอีเมล');
         }
 
-        // จำกัดจำนวนคำขอรีเซ็ตใน 3 มิติ ทุกมิติถูกนับเสมอไม่มีเงื่อนไข เพื่อไม่ให้มิติไหนเผยว่าอีเมลนั้น
-        // มีอยู่จริงไหม: คู่ (email,IP) (3 ครั้ง/15 นาที), bucket ต่อ IP อย่างเดียว (10 ครั้ง/15 นาที — จำกัดแหล่งเดียวที่ยิงกระจาย
-        // ไปหลายอีเมล), และ bucket ต่ออีเมลอย่างเดียว (5 ครั้ง/1 ชม. — จำกัดการถล่มอีเมลกล่องเดียวจากหลาย
+        // จำกัดจำนวนคำขอรีเซ็ต 3 มิติ นับทุกมิติเสมอไม่มีเงื่อนไข จะได้ไม่มีมิติไหนเผยว่าอีเมลนั้น
+        // มีอยู่จริงไหม: คู่ (email,IP) 3 ครั้ง/15 นาที, ต่อ IP อย่างเดียว 10 ครั้ง/15 นาที (กันแหล่งเดียวยิงกระจาย
+        // ไปหลายอีเมล), และต่ออีเมลอย่างเดียว 5 ครั้ง/1 ชม. (กันการถล่มอีเมลกล่องเดียวจากหลาย
         // IP).
         $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
         $normalizedIp = $ip !== '' ? $ip : 'unknown';
@@ -168,12 +168,12 @@ class AuthService
 
         $user = $this->users->findByEmail($email);
         if (!$user || !(bool) $user['is_active']) {
-            // กันการไล่เดาบัญชี (anti-enumeration): อีเมลที่ไม่รู้จัก/ถูกปิดใช้งานจะไม่สร้าง token และไม่ส่งอีเมล — การมีอยู่ของบัญชี
-            // จึงรั่วผ่านแถว reset, อีเมลที่ถูกส่ง หรือผลข้างเคียงในคิวไม่ได้. ข้อความตอบกลับเป็น
-            // ข้อความกลาง ๆ เหมือนกันทั้งสองทาง (AuthController) และ rate-limiter ข้างบนก็ถูกนับ
-            // แบบไม่มีเงื่อนไข. ส่วนต่างของเวลาที่เหลืออยู่ (บัญชีที่ active เขียน DB เพิ่มอีก ~2 ครั้ง) เป็น
-            // ค่าตกค้างที่ยอมรับได้และถูกจำกัดอัตราแล้ว — สัญญาณจากการเขียน DB นั้นเล็กและมีสัญญาณรบกวน ต่างจาก bcrypt ของ login.
-            // ความเท่ากันของผลข้างเคียงถูกล็อกไว้ด้วย auth_test 'password reset creates a token+email ONLY for active'.
+            // กันการไล่เดาบัญชี: อีเมลที่ไม่รู้จักหรือถูกปิดใช้งานจะไม่สร้าง token และไม่ส่งอีเมล — การมีอยู่ของบัญชี
+            // จึงไม่รั่วผ่านแถว reset, อีเมลที่ส่ง หรือผลข้างเคียงในคิว. ข้อความที่ตอบกลับเป็นข้อความกลาง ๆ
+            // เหมือนกันทั้งสองทาง (AuthController) และ rate-limiter ข้างบนก็นับแบบไม่มีเงื่อนไข. ส่วนต่างของเวลา
+            // ที่ยังเหลือ (บัญชีที่ active เขียน DB เพิ่มอีก ~2 ครั้ง) เป็นค่าตกค้างที่ยอมรับได้และถูกจำกัดอัตราแล้ว —
+            // สัญญาณจากการเขียน DB นั้นเล็กและมีสัญญาณรบกวน ต่างจาก bcrypt ของ login. ความเท่ากันของผลข้างเคียง
+            // ถูกล็อกไว้ด้วย auth_test 'password reset creates a token+email ONLY for active'.
             return null;
         }
 
@@ -257,15 +257,15 @@ class AuthService
             throw new DomainException('รหัสผ่านใหม่ต้องไม่เหมือนรหัสผ่านปัจจุบัน');
         }
 
-        // updatePassword จะเซ็ต remember token เป็น NULL แบบ atomic (ใน UPDATE เดียวกัน) เพื่อให้การเพิกถอนฝั่ง DB
-        // ไม่ค้างคาถ้ามีการเรียกทีหลังล้มเหลว. จากนั้น revokeAllForUser จะลบ cookie ของ "เครื่องนี้" (และ
-        // เซ็ต NULL ซ้ำเผื่อไว้). รวมกัน: ทุกเครื่องที่จำ login ไว้ — รวมถึงเครื่องที่กำลังใช้อยู่ — จะถูกเตะออก.
+        // updatePassword เซ็ต remember token เป็น NULL ไปในตัว (UPDATE เดียวกัน) การเพิกถอนฝั่ง DB จะได้ไม่ค้าง
+        // ถ้าการเรียกทีหลังล้มเหลว. จากนั้น revokeAllForUser ลบ cookie ของเครื่องนี้ (แล้วเซ็ต NULL ซ้ำเผื่อไว้).
+        // รวมกันแล้ว ทุกเครื่องที่จำ login ไว้ รวมถึงเครื่องที่กำลังใช้อยู่ จะถูกเตะออกหมด.
         $this->users->updatePassword($userId, password_hash($password, PASSWORD_BCRYPT));
         $this->rememberMe->revokeAllForUser($userId);
         Session::regenerate();
 
-        // ออก session ปัจจุบันใหม่พร้อมตราประทับรหัสผ่านใหม่ เพื่อให้เครื่องนี้ยังคง login อยู่
-        // ขณะที่ session อื่น ๆ ของผู้ใช้คนเดียวกันจะถูกเตะออกตอน AuthMiddleware refresh ครั้งถัดไป.
+        // ออก session ปัจจุบันใหม่พร้อมตราประทับรหัสผ่านใหม่ เครื่องนี้จะได้ยัง login อยู่
+        // ส่วน session อื่นของผู้ใช้คนเดียวกันจะถูกเตะออกตอน AuthMiddleware refresh รอบถัดไป.
         $freshUser = $this->users->findById($userId);
         if ($freshUser !== null) {
             $this->auth->login($freshUser);

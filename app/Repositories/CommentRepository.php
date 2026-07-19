@@ -127,9 +127,9 @@ class CommentRepository
 
     public function updateComment(int $commentId, string $body, bool $isInternal, int $originalVersion): void
     {
-        // Optimistic lock (ล็อกแบบมองโลกในแง่ดี) บน version ที่เป็น integer ไม่ใช่ updated_at: token แบบ DATETIME ละเอียดแค่ระดับวินาที ดังนั้น
-        // การแก้สองครั้งภายในวินาทีเดียวกัน (และแถวถูกแตะครั้งสุดท้ายในวินาทีนั้น) อาจ match ทั้งคู่ แล้วครั้งหลัง
-        // เขียนทับครั้งแรกแบบเงียบ ๆ version จะเพิ่มขึ้นทุกครั้งที่เขียน ตัวแก้ไขที่เก่า (stale) จึงไม่มีวัน match
+        // optimistic lock ใช้ version ที่เป็น integer ไม่ใช่ updated_at: updated_at เป็น DATETIME ละเอียดแค่วินาที ถ้าเอามาเป็น token
+        // การแก้สองครั้งในวินาทีเดียวกัน (โดยแถวเพิ่งถูกแตะครั้งสุดท้ายในวินาทีนั้น) อาจ match ทั้งคู่ แล้วครั้งหลังเขียนทับครั้งแรกแบบเงียบ ๆ
+        // version เพิ่มขึ้นทุกครั้งที่เขียน ฟอร์มแก้ไขที่ถือ version เก่าไว้จึงไม่มีวัน match
         $stmt = $this->db->prepare(
             'UPDATE ticket_comments
              SET body = :body,

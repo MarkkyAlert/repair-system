@@ -22,9 +22,9 @@ class AuditLogger
         $server = $request?->server ?? $_SERVER;
         $userAgent = substr((string) ($server['HTTP_USER_AGENT'] ?? ''), 0, 255);
 
-        // Best-effort: ทุกผู้เรียกจะบันทึก audit หลังจากที่การแก้ไขหลัก commit ไปแล้ว (หรือ
-        // side-effect — เช่น broadcast — ถูกส่งออกไปแล้ว) ดังนั้นการ insert audit ที่ล้มเหลวต้องไม่โผล่มาเป็น
-        // error ให้ user เห็น (เพราะเขาจะนึกว่างานล้มเหลวแล้วลองใหม่ กลายเป็นส่งซ้ำสองครั้ง). ให้ log ไว้ในแท็บ
+        // best-effort: ทุกผู้เรียกจะบันทึก audit หลังการแก้ไขหลัก commit ไปแล้ว (หรือ side-effect
+        // เช่น broadcast ถูกส่งออกไปแล้ว) การ insert audit ที่ล้มเหลวจึงต้องไม่โผล่มาเป็น error ให้ user
+        // เห็น เพราะเขาจะนึกว่างานล้มเหลวแล้วลองใหม่ กลายเป็นส่งซ้ำสองครั้ง. ให้ log ไว้ในแท็บ
         // Security ของ admin แทน แล้วคงผลลัพธ์ว่าสำเร็จไว้.
         try {
             $this->auditLogs->record([

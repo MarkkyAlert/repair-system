@@ -75,11 +75,11 @@ class TicketsController
             flash('success', 'สร้างรายการแจ้งซ่อมเรียบร้อยแล้ว');
             Response::redirect('/tickets/' . $ticketId);
         } catch (\PDOException $__infra) {
-            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
+            throw $__infra; // error ระดับ infra ปล่อยให้ตัวจัดการ error ส่วนกลาง log แล้วส่ง 500 กลาง ๆ ไม่ให้ SQL หลุดออกไป
         } catch (DomainException|RuntimeException $exception) {
-            // DomainException คือข้อมูลนำเข้าที่คาดไว้ (CSRF/validation) — แค่ flash พอ. ส่วน RuntimeException ตรงนี้คือ
-            // ความผิดพลาดระดับปฏิบัติการ (เช่น ที่เก็บไฟล์แนบเขียนลงดิสก์ไม่ได้) ซึ่งเมื่อก่อนถูก flash ไป
-            // โดยไม่มีร่องรอยใน server log; ให้บันทึกไว้เพื่อให้ตรวจสอบได้.
+            // DomainException คือ input ที่คาดไว้อยู่แล้ว (CSRF/validation ไม่ผ่าน) แค่ flash บอกผู้ใช้ก็พอ. ส่วน RuntimeException ตรงนี้
+            // เป็นปัญหาระดับปฏิบัติการ เช่น เขียนไฟล์แนบลงดิสก์ไม่ได้ เมื่อก่อนถูก flash ทิ้งไป
+            // ไม่เหลือร่องรอยใน server log เลย เลย log เก็บไว้ให้ตามสืบได้.
             if ($exception instanceof RuntimeException) {
                 log_caught_exception('ticket.store', $exception, ['user' => (int) ($viewer['id'] ?? 0)]);
             }
@@ -144,7 +144,7 @@ class TicketsController
             }
             flash('success', $message);
         } catch (\PDOException $__infra) {
-            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
+            throw $__infra; // error ระดับ infra ปล่อยให้ตัวจัดการ error ส่วนกลาง log แล้วส่ง 500 กลาง ๆ ไม่ให้ SQL หลุดออกไป
         } catch (DomainException|RuntimeException $exception) {
             flash('error', $exception->getMessage());
         }
@@ -382,12 +382,12 @@ class TicketsController
                 (string) ($export['content_type'] ?? 'application/pdf')
             );
         } catch (\PDOException $__infra) {
-            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
+            throw $__infra; // error ระดับ infra ปล่อยให้ตัวจัดการ error ส่วนกลาง log แล้วส่ง 500 กลาง ๆ ไม่ให้ SQL หลุดออกไป
         } catch (DomainException $exception) {
             Response::abort(404, $exception->getMessage()); // ไม่พบ / ไม่มีสิทธิ์เข้าถึง — เป็น 404 ที่คาดไว้ ไม่ต้องเขียน server log
         } catch (Throwable $exception) {
-            // ความผิดพลาดระดับปฏิบัติการ (RuntimeException จากการ render PDF หรืออย่างอื่น) ไม่ใช่ 404 — เมื่อก่อน
-            // ถูกรายงานผิดว่า "ไม่พบ" โดยไม่มี log. ให้ log ไว้แล้วส่ง 500.
+            // ปัญหาระดับปฏิบัติการ เช่น RuntimeException ตอน render PDF ไม่ใช่ 404 — เมื่อก่อน
+            // ดันตอบว่า "ไม่พบ" ทั้งที่ไม่มี log. คราวนี้ log ไว้แล้วส่ง 500.
             log_caught_exception('ticket.jobpdf', $exception, ['ticket' => (int) $ticketId]);
             Response::abort(500, 'ไม่สามารถสร้างไฟล์ Job Order PDF ได้ กรุณาลองใหม่อีกครั้ง');
         }
@@ -403,12 +403,12 @@ class TicketsController
             $png = $this->print->generatePrintQrPng((int) $ticketId, $viewer);
             Response::download($png, 'ticket-qr-' . (int) $ticketId . '.png', 'image/png', 'inline');
         } catch (\PDOException $__infra) {
-            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
+            throw $__infra; // error ระดับ infra ปล่อยให้ตัวจัดการ error ส่วนกลาง log แล้วส่ง 500 กลาง ๆ ไม่ให้ SQL หลุดออกไป
         } catch (DomainException $exception) {
             Response::abort(404, $exception->getMessage()); // ไม่พบ / ไม่มีสิทธิ์เข้าถึง — เป็น 404 ที่คาดไว้ ไม่ต้องเขียน server log
         } catch (Throwable $exception) {
-            // ความผิดพลาดระดับปฏิบัติการตอน render (RuntimeException, GD/imagick ฯลฯ) — เมื่อก่อนถูกปิดบังเป็น 404 โดย
-            // ไม่มี log; ให้แสดงเป็น 500 ที่ log ไว้ เหมือน printPdf.
+            // ปัญหาระดับปฏิบัติการตอน render เช่น RuntimeException หรือ GD/imagick — เมื่อก่อนถูกกลบเป็น 404
+            // ไม่มี log เลย; คราวนี้ตอบเป็น 500 ที่ log ไว้ เหมือน printPdf.
             log_caught_exception('ticket.qrpng', $exception, ['ticket' => (int) $ticketId]);
             Response::abort(500, 'ไม่สามารถสร้าง QR ของ Ticket ได้ กรุณาลองใหม่อีกครั้ง');
         }

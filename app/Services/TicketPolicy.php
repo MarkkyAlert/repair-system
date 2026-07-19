@@ -6,9 +6,9 @@ namespace App\Services;
 use App\Support\Role;
 
 /**
- * predicate (ฟังก์ชันที่คืน true/false) ล้วน ๆ สำหรับสิทธิ์/การเปลี่ยนสถานะของ ticket (รับ array ของ ticket + viewer → bool) ใช้ร่วมกันทั้ง
+ * predicate (ฟังก์ชันที่คืน true/false) ล้วน ๆ สำหรับสิทธิ์และการเปลี่ยนสถานะของ ticket (รับ array ของ ticket + viewer แล้วคืน bool) ใช้ร่วมกันทั้ง
  * flow แสดงรายละเอียด (TicketService) และ flow แก้ไขข้อมูล (TicketWorkflowService). ไม่มี DB ไม่มี state
- * — เป็น single source ของ "ใครทำอะไรได้ จากสถานะไหน" เพื่อไม่ให้สอง flow เพี้ยนไปคนละทาง.
+ * — เป็น single source ของ "ใครทำอะไรได้จากสถานะไหน" กันไม่ให้สอง flow เพี้ยนไปคนละทาง.
  */
 class TicketPolicy
 {
@@ -40,8 +40,8 @@ class TicketPolicy
             return false;
         }
 
-        // รวม accepted/in_progress ไว้ด้วย เพื่อให้ manager/admin สามารถมอบหมายงานใหม่ (REASSIGN) ในกรณีที่ช่างเดิม
-        // ไม่ว่าง (ลาป่วย / ลาออก) — ไม่งั้น ticket จะค้างตลอดกาล: มีแต่ช่างที่ถูกมอบหมาย
+        // รวม accepted/in_progress ไว้ด้วย manager/admin จะได้มอบหมายช่างใหม่ได้ถ้าช่างเดิม
+        // ไม่ว่าง (ลาป่วย / ลาออก) — ไม่งั้น ticket จะค้างตลอดกาล เพราะมีแต่ช่างที่ถูกมอบหมาย
         // เท่านั้นที่ปิดงานได้ และ requester ก็ยกเลิกไม่ได้แล้ว
         // (ยืนยันโดยฝั่งธุรกิจ). การมอบหมายใหม่ระหว่างทำงานต้องมีเหตุผล (บังคับใน TicketWorkflowService).
         return (string) ($ticket['approval_status'] ?? '') === 'approved'

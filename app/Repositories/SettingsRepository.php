@@ -24,7 +24,7 @@ class SettingsRepository
 
     public function upsert(string $key, ?string $value, string $type, bool $isPublic, int $updatedBy): void
     {
-        // RISK MAP: การ check-then-insert (เช็คก่อนแล้วค่อย insert) อาศัย uq_system_settings_key; ควร catch duplicate-key หากมีการเขียนพร้อมกัน (concurrent writes) มากขึ้น
+        // check-then-insert ตรงนี้อาศัย uq_system_settings_key ถ้าเริ่มมีการเขียนพร้อมกันเยอะขึ้นควร catch duplicate-key เพิ่ม
         $existing = $this->getByKey($key);
         $now = date('Y-m-d H:i:s');
 

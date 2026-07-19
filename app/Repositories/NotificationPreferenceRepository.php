@@ -40,9 +40,9 @@ class NotificationPreferenceRepository
     }
 
     /**
-     * คู่แบบ batch ของ isEnabled(): คืนชุดย่อยของ $userIds ที่มีแถว is_enabled=0 แบบชัดเจน (EXPLICIT)
-     * สำหรับ type/channel นี้ ผู้ใช้ที่ไม่มีแถวจะถือว่ายังเปิดอยู่ (โมเดลแบบ opt-out)
-     * ช่วยให้ผู้เรียกกรองผู้รับหลายคนได้ด้วย query เดียว แทนที่จะ query ทีละผู้ใช้
+     * ฝาแฝดแบบ batch ของ isEnabled(): คืนเฉพาะ $userIds ที่มีแถว is_enabled=0 ตั้งไว้ชัด ๆ
+     * สำหรับ type/channel นี้ ผู้ใช้ที่ไม่มีแถวถือว่ายังเปิดอยู่ (โมเดลแบบ opt-out)
+     * ช่วยให้ผู้เรียกกรองผู้รับหลายคนได้ด้วย query เดียว ไม่ต้อง query ทีละคน
      */
     public function disabledUserIds(array $userIds, string $notificationType, string $channel): array
     {
@@ -107,8 +107,8 @@ class NotificationPreferenceRepository
         );
 
         $now = date('Y-m-d H:i:s');
-        // แบบทั้งหมดหรือไม่ทำเลย (all-or-nothing): matrix ของ preference ทั้งชุดคือการบันทึกครั้งเดียว ห่อ upsert ของแต่ละ cell ไว้ใน transaction เพื่อให้
-        // เมื่อเกิดข้อผิดพลาดกลางคัน จะ rollback cell ก่อนหน้ากลับ แทนที่จะบันทึก matrix ที่เซฟไปครึ่งเดียวค้างไว้
+        // ทั้งหมดหรือไม่ทำเลย: matrix ของ preference ทั้งชุดถือเป็นการบันทึกครั้งเดียว ห่อ upsert ของแต่ละ cell ไว้ใน transaction
+        // ถ้าพังกลางคันจะ rollback cell ก่อนหน้ากลับ ไม่ให้เหลือ matrix ที่เซฟไปครึ่งเดียวค้างไว้
         try {
             $this->db->beginTransaction();
             foreach ($matrix as $type => $channels) {

@@ -55,8 +55,8 @@ function asset(string $path): string
 }
 
 /**
- * โลโก้ขององค์กรในรูป base64 data URI สำหรับฝังลงใน PDF — dompdf รันด้วย isRemoteEnabled=false จึงดึงจาก URL
- * ไม่ได้; data URI ใช้ได้ไม่ว่าจะตั้งค่า chroot/remote อย่างไร คืน null ถ้าไม่ได้ตั้งโลโก้ไว้ หรือ
+ * โลโก้องค์กรในรูป base64 data URI สำหรับฝังลงใน PDF dompdf รันด้วย isRemoteEnabled=false เลยดึงจาก URL
+ * ไม่ได้ ต้องใช้ data URI ที่ใช้ได้ไม่ว่าตั้งค่า chroot/remote ยังไง คืน null ถ้ายังไม่ได้ตั้งโลโก้ หรือ
  * ไฟล์หายไป/อ่านไม่ได้
  */
 function branding_logo_data_uri(): ?string
@@ -147,8 +147,8 @@ function sanitize_return_path(string $path): string
 {
     $path = trim($path);
 
-    // Hardening: บาง browser normalize "\" เป็น "/" ตอนตีความ URL — แปลงก่อน
-    // เพื่อกัน "/\evil.com" หลุดเป็น protocol-relative "//evil.com" (open redirect).
+    // กันเหนียว: บาง browser normalize "\" เป็น "/" ตอนตีความ URL เลยแปลงก่อน
+    // จะได้ไม่ให้ "/\evil.com" หลุดเป็น protocol-relative "//evil.com" ที่เป็น open redirect
     $path = str_replace('\\', '/', $path);
 
     if ($path === '' || preg_match('#^https?://#i', $path)) {

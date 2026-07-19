@@ -37,9 +37,9 @@ class RememberMeService
         if ($cookie !== '') {
             $parsed = $this->parseCookie($cookie);
             if ($parsed !== null) {
-                // ล้างด้วย HASH ของ token ไม่ใช่ user_id ที่ cookie อ้าง — cookie ปลอมที่พก id ของ user คนอื่น
-                // แต่ใช้ token มั่ว ๆ จะ hash ออกมาไม่ตรงกับอะไรเลย จึงเพิกถอน remember-me ของ user คนนั้นไม่ได้.
-                // มีแต่เจ้าของ cookie ตัวจริง (ที่ hash ตรงกับ row ที่เก็บไว้) เท่านั้นที่ล้างมันได้.
+                // ล้างด้วย hash ของ token ไม่ใช่ user_id ที่ cookie อ้าง — cookie ปลอมที่พก id ของ user คนอื่น
+                // แต่ใช้ token มั่ว ๆ จะ hash ออกมาไม่ตรงกับอะไรเลย เพิกถอน remember-me ของ user คนนั้นไม่ได้.
+                // มีแต่เจ้าของ cookie ตัวจริงที่ hash ตรงกับ row ที่เก็บไว้เท่านั้นที่ล้างมันได้.
                 $this->users->clearRememberTokenByHash(hash('sha256', $parsed['raw']));
             }
         }
@@ -49,10 +49,10 @@ class RememberMeService
 
     /**
      * เพิกถอน remember-me ทุก session ของ user คนหนึ่ง ไม่ว่าจะเรียกจากอุปกรณ์ไหน. ใช้ตอนเปลี่ยนรหัสผ่าน:
-     * การ NULL token ตัวเดียวที่เก็บไว้จะทำให้ cookie ที่ยังค้างอยู่ทุกอันใช้ไม่ได้ (hash ของมันจะไม่มีทาง
-     * ตรงอีก), จากนั้นลบ cookie ของอุปกรณ์ปัจจุบันทิ้งเพื่อไม่ให้มันพยายาม restore ทันที. ต่างจาก
-     * clearCurrent() ตรงที่วิธีนี้ไม่ต้องพึ่งว่าอุปกรณ์ที่กำลังทำต้องถือ remember cookie อยู่ — ดังนั้นการ
-     * เปลี่ยนรหัสผ่านจาก session ธรรมดา (ที่ไม่ได้ remember) ก็ยังเตะอุปกรณ์ที่ remember ไว้ที่อื่นออกได้.
+     * NULL token ตัวเดียวที่เก็บไว้ cookie ที่ยังค้างอยู่ทุกอันก็ใช้ไม่ได้ (hash ของมันจะไม่มีทางตรงอีก)
+     * จากนั้นลบ cookie ของอุปกรณ์ปัจจุบันทิ้ง มันจะได้ไม่พยายาม restore ทันที. ต่างจาก clearCurrent()
+     * ตรงที่วิธีนี้ไม่ต้องอาศัยว่าอุปกรณ์ที่กำลังทำถือ remember cookie อยู่ — เปลี่ยนรหัสผ่านจาก session
+     * ธรรมดาที่ไม่ได้ remember ก็ยังเตะอุปกรณ์ที่ remember ไว้ที่อื่นออกได้.
      */
     public function revokeAllForUser(int $userId): void
     {
@@ -83,9 +83,9 @@ class RememberMeService
             return false;
         }
 
-        // การ restore remember-me cookie เท่ากับยืนยันตัวตนให้ session ปัจจุบัน จึงต้องหมุน (rotate) id ก่อน — เป็น
-        // ขั้นตอนกัน session fixation ตัวเดียวกับใน AuthService::attemptLogin. ถ้าไม่ทำ, session id ที่ถูกวางไว้ล่วงหน้า
-        // (ที่ผู้โจมตีรู้ค่า) จะถูกยกระดับเป็น session ที่ยืนยันตัวตนแล้วในคำขอ protected ครั้งถัดไปของเหยื่อ.
+        // การ restore remember-me cookie เท่ากับยืนยันตัวตนให้ session ปัจจุบัน จึงต้องหมุน id ใหม่ก่อน เป็น
+        // ขั้นตอนกัน session fixation ตัวเดียวกับใน AuthService::attemptLogin. ถ้าไม่ทำ session id ที่คนร้าย
+        // วางไว้ล่วงหน้าและรู้ค่า จะถูกยกระดับเป็น session ที่ยืนยันตัวตนแล้วในคำขอ protected ครั้งถัดไปของเหยื่อ.
         Session::regenerate();
         $this->auth->login($user);
         $this->issueFor((int) $user['id']);

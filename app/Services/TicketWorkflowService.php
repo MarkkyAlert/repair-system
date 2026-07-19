@@ -8,9 +8,9 @@ use App\Repositories\TicketRepository;
 use DomainException;
 
 /**
- * การเปลี่ยนสถานะตลอดวงจรชีวิต (lifecycle) ของ ticket ที่แยกออกมาจาก TicketService: approve/reject/assign (manager),
+ * การเปลี่ยนสถานะตลอดวงจรชีวิตของ ticket ที่แยกออกมาจาก TicketService: approve/reject/assign (manager),
  * accept/start/resolve (technician), complete/reopen/cancel (requester), + bulk approve (อนุมัติทีละหลายรายการ).
- * แต่ละอันมีด่านตรวจสิทธิ์ผ่าน TicketPolicy (ใช้ร่วมกับ flow หน้าแสดงรายละเอียด), เปลี่ยนข้อมูลผ่าน
+ * แต่ละตัวมีด่านตรวจสิทธิ์ผ่าน TicketPolicy (ใช้ร่วมกับ flow หน้าแสดงรายละเอียด), แก้ข้อมูลผ่าน
  * TicketRepository และส่ง notification. มีเทสต์ครอบคลุมใน tests/cases/workflow_test.php.
  */
 class TicketWorkflowService
@@ -25,9 +25,9 @@ class TicketWorkflowService
 
     public function approveTicket(int $ticketId, array $viewer, array $input, ?array $ticket = null): void
     {
-        // $ticket อาจถูกโหลดมาล่วงหน้าโดย bulkApproveTickets (ดึงสิทธิ์การมองเห็นทีเดียวเป็น batch แทนที่จะอ่าน
-        // ทีละ ticket); ถ้าถูกโหลดมาแล้วก็ยังต้องบังคับ policy manage-workflow เดียวกับที่ requireManageableTicket ทำ.
-        // การตรวจสถานะที่ถือเป็นตัวจริงเกิดขึ้นใต้ row lock ใน TicketRepository::approveTicket.
+        // $ticket อาจถูก bulkApproveTickets โหลดมาล่วงหน้า (ดึงสิทธิ์การมองเห็นทีเดียวเป็น batch ไม่ต้องอ่าน
+        // ทีละ ticket); ถ้าโหลดมาแล้วก็ยังต้องบังคับ policy manage-workflow ตัวเดียวกับที่ requireManageableTicket ทำ.
+        // ส่วนการตรวจสถานะที่ถือเป็นตัวจริงเกิดใต้ row lock ใน TicketRepository::approveTicket.
         if ($ticket === null) {
             $ticket = $this->requireManageableTicket($ticketId, $viewer);
         } elseif (!$this->policy->canManageWorkflow($ticket, $viewer)) {
@@ -38,8 +38,8 @@ class TicketWorkflowService
             throw new DomainException('รายการนี้ไม่อยู่ในสถานะที่อนุมัติได้');
         }
 
-        // แยกหน้าที่ความรับผิดชอบ (separation of duties): manager ห้ามอนุมัติคำขอที่ตัวเองเป็นผู้แจ้ง — ต้องให้ผู้อนุมัติท่านอื่น.
-        // admin ยกเว้น (เป็น fallback ผู้อนุมัติ กัน deadlock องค์กรที่มี manager คนเดียว).
+        // แยกหน้าที่กันตรวจสอบ (separation of duties): manager ห้ามอนุมัติคำขอที่ตัวเองเป็นผู้แจ้ง ต้องให้ผู้อนุมัติคนอื่น.
+        // admin ยกเว้นให้ (เป็น fallback ผู้อนุมัติ กัน deadlock ในองค์กรที่มี manager คนเดียว).
         if ((string) ($viewer['role'] ?? '') === 'manager'
             && (int) ($ticket['requester_id'] ?? 0) === (int) ($viewer['id'] ?? 0)) {
             throw new DomainException('ไม่สามารถอนุมัติคำขอที่คุณเป็นผู้แจ้งเองได้ กรุณาให้ผู้จัดการหรือผู้ดูแลระบบท่านอื่นอนุมัติ');
@@ -62,8 +62,8 @@ class TicketWorkflowService
             throw new DomainException('Approve ได้สูงสุด 50 รายการต่อครั้ง');
         }
 
-        // ดึงข้อมูลทีเดียวเป็น batch ตามขอบเขตสิทธิ์การมองเห็นสำหรับทั้งชุดที่เลือก แทนที่จะอ่านทีละ ticket ภายใน
-        // approveTicket แต่ละครั้ง. การ approve แต่ละครั้งยังคง lock + ตรวจสถานะซ้ำอย่างเป็นตัวจริง.
+        // ดึงข้อมูลทีเดียวเป็น batch ตามสิทธิ์การมองเห็นของทั้งชุดที่เลือก ไม่ต้องอ่านทีละ ticket ใน
+        // approveTicket แต่ละครั้ง. การ approve แต่ละครั้งยังคง lock + ตรวจสถานะซ้ำอย่างเป็นตัวจริงอยู่.
         $byId = [];
         foreach ($this->reads->findVisibleTicketsByIds($ticketIds, $viewer) as $row) {
             $byId[(int) ($row['id'] ?? 0)] = $row;
@@ -135,8 +135,8 @@ class TicketWorkflowService
 
         $instructions = trim((string) ($input['instructions'] ?? ''));
 
-        // การย้ายงานกลางคัน (ช่างรับ/เริ่มงานไปแล้ว) เป็นการกระทำที่ผิดปกติ — ต้องระบุ
-        // เหตุผล เพื่อให้ activity log บันทึกว่าทำไมงานถึงถูกย้าย.
+        // การย้ายงานกลางคัน (ช่างรับหรือเริ่มงานไปแล้ว) เป็นเรื่องผิดปกติ ต้องระบุเหตุผล
+        // activity log จะได้บันทึกว่าทำไมงานถึงถูกย้าย.
         if (in_array((string) ($ticket['status'] ?? ''), ['accepted', 'in_progress'], true) && $instructions === '') {
             throw new DomainException('กรุณาระบุเหตุผลในการย้ายงานที่ช่างรับไปแล้ว');
         }
@@ -341,9 +341,9 @@ class TicketWorkflowService
 
     /**
      * กำหนดเวลา SLA ของรอบใหม่หลัง reopen = คงระยะเวลาที่เคยให้ไว้เดิม (นาทีจากวันแจ้งถึงกำหนดเดิม)
-     * แล้วเริ่มนับใหม่จากเวลาที่ reopen — งานที่ถูกส่งกลับมาแก้จึงได้เวลาเท่ารอบแรก ไม่ใช่กำหนดเดิมที่ผ่านไปแล้ว.
-     * ถ้าข้อมูลเดิมเพี้ยน (อ่านวันที่ไม่ได้ / กำหนดอยู่ก่อนวันแจ้ง) จะใช้เวลา reopen เป็นกำหนดทันทีแบบระวังไว้ก่อน
-     * แทนการเดาระยะเวลาใหม่.
+     * แล้วเริ่มนับใหม่จากเวลาที่ reopen — งานที่ส่งกลับมาแก้จะได้เวลาเท่ารอบแรก ไม่ใช่กำหนดเดิมที่ผ่านไปแล้ว.
+     * ถ้าข้อมูลเดิมเพี้ยน (อ่านวันที่ไม่ได้ หรือกำหนดอยู่ก่อนวันแจ้ง) จะใช้เวลา reopen เป็นกำหนดทันทีไว้ก่อน
+     * ดีกว่าเดาระยะเวลาใหม่.
      */
     private function calculateReopenDueAt(array $ticket, string $dueField, string $reopenedAt): string
     {

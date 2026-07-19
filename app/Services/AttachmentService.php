@@ -40,16 +40,16 @@ class AttachmentService
         $maxBytes = (int) config('uploads.attachment_max_bytes', 5242880);
         $finfo = new \finfo(FILEINFO_MIME_TYPE);
         foreach ($normalized as &$file) {
-            // is_uploaded_file: ต้องเป็นไฟล์ที่แนบมากับ HTTP request นี้จริง ๆ เท่านั้น — กันการปลอมค่า tmp_name
-            // ให้ชี้ไปไฟล์อื่นบนเซิร์ฟเวอร์ (เช่นไฟล์ config) แล้วหลอกให้ระบบอ่าน/ย้ายมันมาเป็นไฟล์แนบ
+            // เช็ค is_uploaded_file ก่อนเสมอ ยืนยันว่าเป็นไฟล์ที่อัปโหลดมากับ request นี้จริง ไม่ใช่ path
+            // ที่ถูกยัดค่ามาให้ชี้ไปไฟล์อื่นในเครื่อง (เช่น config) แล้วดูดออกไปเป็นไฟล์แนบ
             if ((int) $file['error'] !== UPLOAD_ERR_OK || !is_uploaded_file((string) $file['tmp_name'])) {
                 throw new DomainException('ไม่สามารถอ่านไฟล์แนบได้ กรุณาลองใหม่');
             }
             if ((int) $file['size'] > $maxBytes) {
                 throw new DomainException('รูปแนบแต่ละไฟล์ต้องมีขนาดไม่เกิน ' . (int) ($maxBytes / 1048576) . 'MB');
             }
-            // ตัดสินชนิดไฟล์จาก "เนื้อไฟล์จริง" (finfo อ่าน byte ต้นไฟล์) — นามสกุล/ชนิดที่ browser ส่งมา
-            // ผู้ใช้ปลอมได้อิสระ (เช่นสคริปต์อันตรายเปลี่ยนชื่อเป็น .jpg); ชนิดนอก whitelist ปฏิเสธทั้งหมด
+            // ตัดสินชนิดไฟล์จากเนื้อไฟล์จริง (finfo อ่าน byte ต้นไฟล์) นามสกุลหรือชนิดที่ browser ส่งมา
+            // ผู้ใช้ปลอมได้ตามใจ เช่นสคริปต์อันตรายเปลี่ยนชื่อเป็น .jpg; ชนิดที่ไม่อยู่ใน whitelist ปฏิเสธหมด
             $mime = (string) $finfo->file((string) $file['tmp_name']);
             if (!isset(self::MIME_EXTENSIONS[$mime])) {
                 throw new DomainException('รองรับไฟล์แนบ: รูปภาพ (JPEG/PNG/WebP) และเอกสาร (PDF/Word/Excel/Text)');
@@ -78,8 +78,8 @@ class AttachmentService
 
         try {
             foreach ($files as $file) {
-                // ชื่อไฟล์บนดิสก์สุ่มใหม่ทั้งหมด + นามสกุลเอาจาก whitelist (ตาม MIME ที่ตรวจจากเนื้อไฟล์) เท่านั้น —
-                // ชื่อไฟล์ที่ผู้ใช้ตั้งไม่ถูกใช้บนดิสก์เลย (กัน path traversal เช่น ../, ชื่อชนกัน, นามสกุลอันตราย)
+                // ชื่อไฟล์บนดิสก์สุ่มใหม่ทั้งหมด นามสกุลเอาจาก whitelist ตาม MIME ที่ตรวจจากเนื้อไฟล์เท่านั้น
+                // ชื่อที่ผู้ใช้ตั้งไม่ได้ใช้บนดิสก์เลย กัน path traversal เช่น ../, ชื่อชนกัน, นามสกุลอันตราย
                 $storedName = bin2hex(random_bytes(20)) . '.' . (string) $file['extension'];
                 $relativePath = $relativeDirectory . '/' . $storedName;
                 if (!move_uploaded_file((string) $file['tmp_name'], BASE_PATH . '/' . $relativePath)) {
@@ -101,8 +101,8 @@ class AttachmentService
                 ]);
             }
         } catch (Throwable $exception) {
-            // ย้อน (roll back) ไฟล์ที่ย้ายไปแล้วสำหรับการอัปโหลด (ที่ล้มเหลว) นี้; log ไฟล์ที่ลบไม่ได้ เพื่อไม่ให้
-            // การอัปโหลดที่เขียนค้างครึ่งทางทิ้งไฟล์กำพร้า (orphan) ไว้แบบเงียบ ๆ.
+            // ลบไฟล์ที่ย้ายไปแล้วของการอัปโหลดที่ล้มเหลวนี้ทิ้ง; log ไฟล์ที่ลบไม่ได้ไว้ การอัปโหลดที่ค้างครึ่งทาง
+            // จะได้ไม่ทิ้งไฟล์กำพร้า (orphan) ไว้แบบเงียบ ๆ.
             $this->purgeStoredFiles($storedPaths, 'attachment.store.cleanup', ['ticket' => $ticketId]);
             throw $exception;
         }
@@ -121,8 +121,8 @@ class AttachmentService
     }
 
     /**
-     * attachment ที่ map แล้วสำหรับชุด comment id ที่ระบุ (สำหรับ feed แบบ live-poll). ใช้ตัวกรองว่าไฟล์มีอยู่บนดิสก์จริง
-     * และการ map ชุดเดียวกับ getTicketAttachments แต่จำกัดขอบเขตเฉพาะ comment ที่กำลัง render.
+     * attachment ที่ map แล้วของชุด comment id ที่ระบุ (สำหรับ feed แบบ live-poll). ใช้ตัวกรองไฟล์มีอยู่บนดิสก์จริง
+     * และการ map ชุดเดียวกับ getTicketAttachments แต่จำกัดเฉพาะ comment ที่กำลัง render.
      *
      * @param int[] $commentIds
      * @return array<int, array<string, mixed>>
@@ -138,8 +138,8 @@ class AttachmentService
     }
 
     /**
-     * ลบไฟล์ที่เก็บไว้ แล้วคืน path ที่ unlink (ลบ) ไม่สำเร็จ เพื่อให้ผู้เรียก log ไฟล์กำพร้าได้ แทนที่จะ
-     * ปล่อยทิ้งไว้บนดิสก์แบบเงียบ ๆ — ค่า boolean ของ @unlink เดิมถูกทิ้งไป.
+     * ลบไฟล์ที่เก็บไว้ แล้วคืน path ที่ unlink ไม่สำเร็จ ผู้เรียกจะได้เอาไป log ไฟล์กำพร้าได้ ไม่ปล่อยทิ้ง
+     * ไว้บนดิสก์แบบเงียบ ๆ — ค่า boolean ของ @unlink เดิมถูกทิ้งไป.
      *
      * @param string[] $paths
      * @return string[] path ที่มีอยู่จริงแต่ลบไม่ได้
@@ -163,9 +163,9 @@ class AttachmentService
     }
 
     /**
-     * ลบไฟล์ที่เก็บไว้ และบันทึกไฟล์ที่ลบไม่ได้ผ่าน logger ตัวกลาง เพื่อให้ไฟล์กำพร้า
-     * ทิ้งร่องรอยไว้ให้ทีม support แทนที่จะถูกทิ้งแบบเงียบ ๆ. ทุก path ของ rollback/cleanup ควรเรียก
-     * ตัวนี้ ไม่ใช่เรียก deleteStoredFiles() ตรง ๆ (ซึ่งค่า boolean ที่คืนมาถูกลืมทิ้งได้ง่าย).
+     * ลบไฟล์ที่เก็บไว้ แล้ว log ไฟล์ที่ลบไม่ได้ผ่าน logger ตัวกลาง ไฟล์กำพร้าจะได้ทิ้งร่องรอยไว้ให้ทีม
+     * support ไม่ถูกทิ้งแบบเงียบ ๆ. ทุก path ของ rollback/cleanup ควรเรียกตัวนี้ ไม่ใช่เรียก
+     * deleteStoredFiles() ตรง ๆ (ซึ่งค่า boolean ที่คืนมาถูกลืมทิ้งได้ง่าย).
      *
      * @param string[] $paths
      * @param array<string, mixed> $context
@@ -185,8 +185,8 @@ class AttachmentService
     public function getVisibleAttachment(int $attachmentId, array $viewer): array
     {
         $attachment = $this->attachments->findById($attachmentId);
-        // กัน IDOR (ไล่เดา id เพื่อเปิดไฟล์ของคนอื่น): การดาวน์โหลดทุกครั้งต้องพิสูจน์ซ้ำว่า viewer มองเห็น
-        // ticket ต้นทางของไฟล์นี้ได้จริงตามขอบเขตสิทธิ์ ไม่ใช่แค่เช็คว่าไฟล์มีอยู่
+        // กัน IDOR คือไล่เดา id เพื่อเปิดไฟล์ของคนอื่น: ทุกครั้งที่ดาวน์โหลดต้องพิสูจน์ซ้ำว่า viewer มองเห็น
+        // ticket ต้นทางของไฟล์นี้ได้จริงตามสิทธิ์ ไม่ใช่แค่เช็คว่าไฟล์มีอยู่
         if ($attachment === null || $this->reads->findVisibleTicketById((int) $attachment['ticket_id'], $viewer) === null) {
             throw new DomainException('ไม่พบไฟล์แนบ');
         }
@@ -200,7 +200,7 @@ class AttachmentService
         }
 
         // การอ่านไฟล์ล้มเหลว (permission, disk error, หรือ race หลังเช็ค is_file) ต้องไม่ถูกแปลงเป็น '' แล้ว
-        // ส่งออกไปเป็นดาวน์โหลดเปล่า ๆ ด้วยสถานะ 200 — ให้โยนเป็น error ที่ controller จะ log.
+        // ส่งออกไปเป็นดาวน์โหลดเปล่า ๆ พร้อมสถานะ 200 — ให้ throw เป็น error ที่ controller จะ log แทน.
         $content = @file_get_contents($path); // '@' — ความล้มเหลวถูกแจ้งผ่านการ throw + controller log ไม่ใช่ผ่าน warning ดิบ ๆ ของ PHP
         if ($content === false) {
             throw new RuntimeException('ไม่สามารถอ่านไฟล์แนบจากพื้นที่จัดเก็บ');

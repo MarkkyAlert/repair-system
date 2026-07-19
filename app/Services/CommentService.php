@@ -41,7 +41,7 @@ class CommentService
         $created = false;
 
         try {
-            // RISK MAP: การ insert comment + row/ไฟล์ของ attachment ต้องเป็น atomic (สำเร็จพร้อมกัน); การ cleanup storedPaths ต้องอยู่คู่กับทุก rollback.
+            // RISK MAP: การ insert comment + row และไฟล์ attachment ต้องสำเร็จพร้อมกัน (atomic); การ cleanup storedPaths ต้องอยู่คู่กับทุก rollback.
             $this->db->beginTransaction();
             $result = $this->comments->createComment(
                 $ticketId,
@@ -63,7 +63,7 @@ class CommentService
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
             }
-            // ย้อน (roll back) ไฟล์ที่เก็บไว้สำหรับ comment ที่ล้มเหลวนี้; log ไฟล์ที่ลบไม่ได้
+            // ลบไฟล์ที่เก็บไว้ของ comment ที่ล้มเหลวนี้ทิ้ง; log ไฟล์ที่ลบไม่ได้
             $this->attachments->purgeStoredFiles($storedPaths, 'comment.create.cleanup', ['ticket' => $ticketId]);
             throw $exception;
         }
@@ -96,8 +96,8 @@ class CommentService
         }
 
         $this->comments->updateComment($commentId, $body, $isInternal, $originalVersion);
-        // แจ้งเตือนแบบ best-effort (ให้เหมือน createComment/deleteComment): การแก้ไขถูกบันทึกไปแล้ว ดังนั้น
-        // การแจ้งเตือนล้มเหลวต้องไม่โผล่มาเป็น error ให้ user ที่บันทึก comment สำเร็จเห็น.
+        // แจ้งเตือนแบบ best-effort (ให้เหมือน createComment/deleteComment): การแก้ไขถูกบันทึกไปแล้ว
+        // การแจ้งเตือนล้มเหลวจะได้ไม่โผล่มาเป็น error ให้ user ที่บันทึก comment สำเร็จเห็น.
         try {
             $this->notifications->notifyCommentEvent($ticketId, $commentId, (int) ($viewer['id'] ?? 0), $isInternal, $body, 'updated');
         } catch (\Throwable $exception) {
@@ -131,7 +131,7 @@ class CommentService
             throw $exception;
         }
 
-        // ไฟล์ที่ unlink (ลบ) ไม่ได้จะถูก log ไว้ (ไม่ทิ้งแบบเงียบ ๆ) โดยไม่ทำให้การลบที่ commit ไปแล้ว
+        // ไฟล์ที่ลบไม่ได้จะถูก log ไว้ ไม่ทิ้งแบบเงียบ ๆ และไม่ทำให้การลบที่ commit ไปแล้ว
         // ล้มเหลว — helper purge ตัวกลางจะบันทึกไฟล์กำพร้าไว้.
         $this->attachments->purgeStoredFiles($paths, 'comment.delete.cleanup', ['comment' => $commentId]);
 

@@ -2,9 +2,9 @@
 declare(strict_types=1);
 
 /**
- * CSP nonce ต่อหนึ่ง request สร้างครั้งเดียวแล้ว cache ไว้ตลอดอายุของ request เพื่อให้ค่าที่ส่งออกใน
- * header Content-Security-Policy เป็นค่าเดียวกับที่ประทับบน <script> แบบ inline (theme-init) การเรียก HTTP
- * แต่ละครั้งเป็น PHP process ใหม่ ดังนั้น static cache จึงเป็นแบบต่อ request โดยธรรมชาติ
+ * CSP nonce ต่อหนึ่ง request สร้างครั้งเดียวแล้ว cache ไว้ตลอดอายุ request เพื่อให้ค่าที่ส่งออกใน
+ * header Content-Security-Policy เป็นค่าเดียวกับที่ประทับบน <script> แบบ inline (theme-init) แต่ละ HTTP request
+ * เป็น PHP process ใหม่ static cache เลยเป็นแบบต่อ request อยู่แล้วโดยธรรมชาติ
  */
 function csp_nonce(): string
 {
@@ -19,10 +19,10 @@ function csp_nonce(): string
 /**
  * Content-Security-Policy สำหรับ response ที่เป็น HTML
  *
- * script-src พก nonce ต่อ request (สำหรับ inline script theme-init ตัวเดียว) รวมทั้ง CDN ของ Chart.js และ
- * จงใจไม่ใส่ 'unsafe-inline' — ซึ่งเป็นหัวใจของเรื่องนี้: <script> ที่ถูกแทรกเข้ามาโดยไม่มี nonce จะรันไม่ได้
- * ส่วน style-src ยังคง 'unsafe-inline' ไว้เพราะ attribute style="" แบบ inline มีอยู่ทั่วไปใน view และ
- * ใส่ nonce ไม่ได้ (การแทรก style เสี่ยงต่ำกว่าการรัน script มาก) รวมทั้ง stylesheet ของ Google Fonts ด้วย
+ * script-src พก nonce ต่อ request (สำหรับ inline script theme-init ตัวเดียว) บวก CDN ของ Chart.js และ
+ * จงใจไม่ใส่ 'unsafe-inline' ตรงนี้แหละคือหัวใจ: <script> ที่โดนแทรกเข้ามาโดยไม่มี nonce จะรันไม่ได้
+ * ส่วน style-src ยังเก็บ 'unsafe-inline' ไว้เพราะ attribute style="" แบบ inline มีอยู่ทั่ว view และ
+ * ใส่ nonce ไม่ได้ (แทรก style เสี่ยงต่ำกว่าการรัน script เยอะ) รวมถึง stylesheet ของ Google Fonts ด้วย
  */
 function content_security_policy(string $nonce): string
 {
@@ -41,10 +41,10 @@ function content_security_policy(string $nonce): string
 }
 
 /**
- * security response header แบบคงที่ (ไม่ใช่ CSP) ชุดนี้สะท้อนบรรทัด `Header always set` ใน public/.htaccess
- * แต่การที่มันอยู่ในโค้ดแอปหมายความว่าผู้ซื้อที่ deploy หลัง nginx หรือบน Apache ที่ตั้ง AllowOverride None
- * ก็ยังได้รับมันอยู่ — สำเนาใน .htaccess เป็นแค่การกันเหนียวสองชั้นสำหรับ Apache ไม่ใช่แหล่งเดียว ส่วน CSP ถูกส่งออก
- * แยกต่างหาก (View::render) เพราะมันพก nonce ต่อ request ส่วนสามตัวนี้เป็นค่าคงที่จึงอยู่ที่นี่
+ * security response header แบบคงที่ (ไม่ใช่ CSP) ชุดนี้ตรงกับบรรทัด `Header always set` ใน public/.htaccess
+ * แต่พอมันอยู่ในโค้ดแอป ผู้ซื้อที่ deploy หลัง nginx หรือบน Apache ที่ตั้ง AllowOverride None
+ * ก็ยังได้รับมันอยู่ สำเนาใน .htaccess เป็นแค่กันเหนียวชั้นสองสำหรับ Apache ไม่ใช่แหล่งเดียว ส่วน CSP ส่งออก
+ * แยกต่างหาก (View::render) เพราะมันพก nonce ต่อ request ส่วนสามตัวนี้เป็นค่าคงที่เลยอยู่ที่นี่
  *
  * @return array<string, string>
  */
@@ -61,9 +61,9 @@ function security_headers(): array
 }
 
 /**
- * ส่ง security_headers() ออกไปกับ response ปัจจุบัน เรียกครั้งเดียวต่อ request (public/index.php) เพื่อให้ response
- * ทุกชนิด — HTML, JSON, การดาวน์โหลดไฟล์, redirect — ได้รับ header เหล่านี้ ไม่ว่าจะใช้ web server ตัวใด จะไม่ทำอะไร
- * เมื่อเริ่มส่ง output ไปแล้ว (CLI/tests) เข้าชุดกับการป้องกัน CSP ใน View::render
+ * ส่ง security_headers() ออกไปกับ response ปัจจุบัน เรียกครั้งเดียวต่อ request (public/index.php) ให้ response
+ * ทุกชนิด ทั้ง HTML, JSON, ดาวน์โหลดไฟล์, redirect ได้ header พวกนี้ ไม่ว่าจะใช้ web server ตัวไหน จะไม่ทำอะไร
+ * ถ้าเริ่มส่ง output ไปแล้ว (CLI/tests) เข้าชุดกับการป้องกัน CSP ใน View::render
  */
 function emit_security_headers(): void
 {

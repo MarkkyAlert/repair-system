@@ -33,15 +33,15 @@ class CommentsController
         );
     }
 
-    // ไม่ใช้ handleUpdate(): ตอบได้สองแบบ (dual-mode) — คืน JSON ให้ตัวแก้ไขแบบ AJAX ในหน้า
+    // ไม่ใช้ handleUpdate(): ตอบได้สองแบบ — คืน JSON ให้ตัวแก้ไขแบบ AJAX ในหน้า
     // (X-Requested-With) หรือถอยไปใช้ flash+redirect เมื่อเป็นการ POST ฟอร์มธรรมดา.
     public function update(string $ticketId, string $commentId): void
     {
         AuthMiddleware::handle();
 
         $viewer = auth()->user() ?? [];
-        // ใช้ helper กลางสำหรับ content-negotiation (ตัวเลือกว่าจะตอบ format ไหน — ตัวเดียวกับที่ entry point + AuthMiddleware ใช้) แทนที่จะ
-        // มาไล่เช็ก Accept / X-Requested-With ใหม่ตรงนี้ เพื่อไม่ให้การตัดสินใจว่าจะตอบ JSON หรือไม่คลาดเคลื่อนไปคนละทาง.
+        // ใช้ helper กลางตัวเดียวกับที่ entry point + AuthMiddleware ใช้ตัดสินว่าจะตอบ format ไหน แทนที่จะ
+        // มาไล่เช็ก Accept / X-Requested-With เองตรงนี้ กันไม่ให้การตัดสินใจว่าจะตอบ JSON ไหมเพี้ยนไปคนละทาง.
         $expectsJson = request_wants_json(request()?->server);
 
         try {
@@ -55,7 +55,7 @@ class CommentsController
 
             flash('success', 'อัปเดต comment เรียบร้อยแล้ว');
         } catch (\PDOException $__infra) {
-            throw $__infra; // error ระดับ infra (โครงสร้างพื้นฐาน) → ตัวจัดการ error ส่วนกลางจะ log แล้วส่ง 500 แบบทั่วไป ไม่หลุด SQL ออกไป
+            throw $__infra; // error ระดับ infra ปล่อยให้ตัวจัดการ error ส่วนกลาง log แล้วส่ง 500 กลาง ๆ ไม่ให้ SQL หลุดออกไป
         } catch (DomainException|RuntimeException $exception) {
             if ($expectsJson) {
                 Response::jsonError($exception->getMessage());

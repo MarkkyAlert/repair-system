@@ -82,19 +82,19 @@ function e(mixed $value): string
 }
 
 /**
- * ทำให้เซลล์ที่เสี่ยงถูกโจมตีแบบ formula-injection ใน CSV/spreadsheet ปลอดภัย: เติม single quote ไว้ข้างหน้าเมื่อ
- * ตัวอักษรแรกที่ไม่ใช่ช่องว่างเป็น = + - หรือ @ เพื่อให้ spreadsheet แสดงค่าเป็นข้อความ แทนที่จะรันเป็นสูตร
- * ใช้ร่วมกันในทุกเส้นทางการ export (AssetService, ReportService) — เป็นแหล่งอ้างอิงเดียวของการป้องกันนี้
+ * กันเซลล์ที่เสี่ยงโดน formula-injection ใน CSV/spreadsheet: เติม single quote ไว้ข้างหน้าเมื่อตัวอักษรแรก
+ * ที่ไม่ใช่ช่องว่างเป็น = + - หรือ @ spreadsheet จะได้แสดงค่าเป็นข้อความ ไม่เอาไปรันเป็นสูตร
+ * ใช้ร่วมกันทุกเส้นทางการ export (AssetService, ReportService) เป็นที่เดียวที่คุมการป้องกันนี้
  */
 function sanitize_export_cell(mixed $value): string
 {
     $cell = (string) $value;
     $trimmed = ltrim($cell);
 
-    // ตัวเลขล้วนที่ติดลบ ("-1", "-1.5", "-1,234.0") เป็นค่าที่พิมพ์มาอย่างถูกต้องซึ่ง spreadsheet แสดงเป็น
-    // ตัวเลข ไม่ใช่สูตร — จึงต้องคงเป็นตัวเลขและตรงกับที่เห็นบนจอทุก byte (เผื่อ Excel sum/pivot) มีแค่เครื่องหมาย
-    // "-" นำหน้าตามด้วยอย่างอื่น (เช่น "-2+3") ที่เสี่ยงเป็น formula-injection ส่วน "+ = @" นำหน้าเป็นตัวเปิดสูตร
-    // ใน spreadsheet เสมอ (แม้แต่ "+1234" ก็เป็นสูตร) จึงคงการทำให้ปลอดภัยไว้ (audit F2: negative net.)
+    // ตัวเลขติดลบล้วน ("-1", "-1.5", "-1,234.0") เป็นค่าที่พิมพ์มาถูกต้องและ spreadsheet แสดงเป็นตัวเลข
+    // ไม่ใช่สูตร เลยต้องคงเป็นตัวเลขและตรงกับที่เห็นบนจอทุก byte (เผื่อ Excel sum/pivot) ส่วนที่มีแค่
+    // "-" นำหน้าแล้วตามด้วยอย่างอื่น (เช่น "-2+3") เสี่ยงเป็น formula-injection ส่วน "+ = @" นำหน้าเป็นตัวเปิดสูตร
+    // ใน spreadsheet เสมอ (แม้แต่ "+1234" ก็เป็นสูตร) เลยคงการกันไว้ (audit F2: negative net.)
     $isNegativeNumber = preg_match('/^-(\d+|\d{1,3}(,\d{3})+)(\.\d+)?$/', $trimmed) === 1;
 
     if (!$isNegativeNumber && $trimmed !== '' && in_array($trimmed[0], ['=', '+', '-', '@'], true)) {
@@ -105,8 +105,8 @@ function sanitize_export_cell(mixed $value): string
 }
 
 /**
- * คืน true เมื่อ exception เกิดจากการละเมิด unique-constraint / duplicate-key (MySQL 23000 / 1062)
- * ใช้ร่วมกันในบริการนำเข้า CSV เพื่อรายงานแถวที่ซ้ำอย่างสอดคล้องกัน
+ * คืน true เมื่อ exception เกิดจากการชน unique-constraint / duplicate-key (MySQL 23000 / 1062)
+ * ใช้ร่วมกันในบริการนำเข้า CSV เพื่อรายงานแถวที่ซ้ำให้สอดคล้องกัน
  */
 function is_duplicate_key_error(\Throwable $exception): bool
 {
@@ -120,9 +120,9 @@ function is_duplicate_key_error(\Throwable $exception): bool
 }
 
 /**
- * คืน true เมื่อ error คือ "table doesn't exist" (MySQL 1146 / SQLSTATE 42S02) — เป็น DB error เดียวที่ bootstrap
- * ถือว่าเป็นกรณีปกติของการรันครั้งแรก (ยังไม่ได้โหลด schema) DB error อื่น ๆ ทุกตัวต้องถูกเขียน log ไม่ใช่
- * ถูกกลืนเงียบ ๆ แล้วเข้าใจผิดว่าเป็น "ยังไม่ได้ติดตั้ง"
+ * คืน true เมื่อ error คือ "table doesn't exist" (MySQL 1146 / SQLSTATE 42S02) เป็น DB error ตัวเดียวที่ bootstrap
+ * ถือว่าเป็นเรื่องปกติของการรันครั้งแรก (ยังไม่ได้โหลด schema) DB error ตัวอื่นทุกตัวต้องเขียน log ไว้ ไม่ใช่
+ * กลืนเงียบ ๆ แล้วเข้าใจผิดว่าเป็น "ยังไม่ได้ติดตั้ง"
  */
 function is_missing_table_error(\Throwable $exception): bool
 {
@@ -136,10 +136,10 @@ function is_missing_table_error(\Throwable $exception): bool
 }
 
 /**
- * เขียน log ของ exception ที่หลุดรอด try/catch ทุกชั้นในระดับ controller แล้วมาถึงตัวจัดการที่จุดเข้าโปรแกรม
- * ทั้งชื่อ class, ข้อความ, file:line และ stack trace เต็ม ๆ จะถูกส่งไปที่ server error log (ปลายทางกำหนดใน php.ini —
- * Apache error log / stderr ตอน production) เพื่อให้ debug 500 ที่ไม่คาดคิดได้ ข้อมูลนี้ไม่เคยถูกเขียนลง
- * response ของ HTTP — response ยังเป็น 500 ทั่วไปผ่าน Response::abort — จึงไม่มีข้อมูลอ่อนไหวรั่วไปถึง client
+ * เขียน log ของ exception ที่หลุด try/catch ทุกชั้นระดับ controller มาจนถึงตัวจัดการที่จุดเข้าโปรแกรม
+ * ทั้งชื่อ class, ข้อความ, file:line และ stack trace เต็ม ๆ จะถูกส่งไป server error log (ปลายทางตั้งใน php.ini
+ * เช่น Apache error log / stderr ตอน production) ไว้ debug 500 ที่ไม่คาดคิด ข้อมูลพวกนี้ไม่เคยถูกเขียนลง
+ * response ของ HTTP เพราะ response ยังเป็น 500 ทั่วไปผ่าน Response::abort เลยไม่มีข้อมูลอ่อนไหวรั่วไปถึง client
  */
 function log_uncaught_exception(\Throwable $exception): void
 {
@@ -147,24 +147,24 @@ function log_uncaught_exception(\Throwable $exception): void
 }
 
 /**
- * รหัสอ้างอิง (correlation id) สั้น ๆ ต่อหนึ่ง request — สร้างครั้งเดียวแล้วใช้ซ้ำตลอดทั้ง request ถูกส่งออกเป็น
- * response header ชื่อ X-Request-Id, แสดงบนหน้า 500 ทั่วไป และเติมนำหน้าทุกบรรทัดใน server log เพื่อให้คำพูดของ
- * ผู้ใช้ "เจอ error เลข reference ABC12345" โยงตรงไปยังบรรทัด log ที่ตรงกันได้ทันที
+ * รหัสอ้างอิง (correlation id) สั้น ๆ ต่อหนึ่ง request สร้างครั้งเดียวแล้วใช้ซ้ำตลอดทั้ง request ถูกส่งออกเป็น
+ * response header ชื่อ X-Request-Id, โชว์บนหน้า 500 ทั่วไป และเติมนำหน้าทุกบรรทัดใน server log เพื่อให้คำพูด
+ * ผู้ใช้ "เจอ error เลข reference ABC12345" โยงตรงไปบรรทัด log ที่ตรงกันได้ทันที
  */
 function request_id(): string
 {
     static $id = null;
     if ($id === null) {
-        $id = bin2hex(random_bytes(4)); // 8 ตัวอักษร hex: พอสำหรับใช้โยงหากันได้ และไม่มีข้อมูลส่วนบุคคล (PII)
+        $id = bin2hex(random_bytes(4)); // hex 8 ตัว: พอให้ใช้โยงหากันได้ และไม่มีข้อมูลส่วนบุคคล (PII)
     }
 
     return $id;
 }
 
 /**
- * บอกว่าผู้เรียกคาดหวัง response แบบ JSON หรือไม่ (การเรียกแบบ AJAX/fetch) แทนที่จะเป็นหน้า HTML — ใช้เพื่อให้
- * ตัวจัดการ 500 ที่จุดเข้าโปรแกรมคืน error แบบ JSON (พร้อม reference) แทนหน้า HTML ที่จะทำให้
- * response.json() ฝั่ง client พัง
+ * บอกว่าผู้เรียกอยากได้ response เป็น JSON ไหม (พวก AJAX/fetch) แทนหน้า HTML ใช้ให้ตัวจัดการ 500
+ * ที่จุดเข้าโปรแกรมคืน error เป็น JSON พร้อม reference แทนหน้า HTML ที่จะทำให้ response.json()
+ * ฝั่ง client พัง
  *
  * @param array<string, mixed>|null $server ค่าเริ่มต้นคือ $_SERVER
  */
@@ -178,9 +178,9 @@ function request_wants_json(?array $server = null): bool
 }
 
 /**
- * คืน true เมื่อแอปถูกตั้งค่าจนอาจปล่อย stack trace รั่วไปถึง client: เปิด debug mode อยู่ภายใต้ environment แบบ
- * production (ตัวจัดการที่จุดเข้าโปรแกรมจะโยน exception ซ้ำตอน debug ทำให้ error ตอน production เผยให้เห็น trace)
- * ตัว web entry point จะปฏิเสธไม่ให้บริการในสถานะนี้ ส่วนเครื่อง dev (APP_ENV=local) ไม่ได้รับผลกระทบ
+ * คืน true เมื่อแอปตั้งค่าไว้แบบที่อาจปล่อย stack trace รั่วไปถึง client: เปิด debug mode ทั้งที่ environment เป็น
+ * production (ตัวจัดการที่จุดเข้าโปรแกรมจะโยน exception ซ้ำตอน debug ทำให้ error ตอน production โชว์ trace ออกมา)
+ * web entry point เลยปฏิเสธไม่ให้บริการในสถานะนี้ ส่วนเครื่อง dev (APP_ENV=local) ไม่โดนผลกระทบ
  */
 function is_unsafe_production_debug(string $appEnv, bool $appDebug): bool
 {
@@ -188,9 +188,9 @@ function is_unsafe_production_debug(string $appEnv, bool $appDebug): bool
 }
 
 /**
- * เขียน log ของ exception ที่ดักได้ในเส้นทางผลข้างเคียงแบบ best-effort (การแจ้งเตือน, การล้างข้อมูล, audit) ซึ่ง
- * ตั้งใจกลืนไว้เพื่อไม่ให้ทำให้งานหลักล้มเหลว บันทึกทั้ง marker, context ที่ผู้เรียกส่งมา
- * และ CLASS + ข้อความ + file:line ของ exception — พอสำหรับ debug โดยไม่ต้องมี stack trace เต็มที่รกไป
+ * เขียน log ของ exception ที่ดักได้ในงานเสริมแบบ best-effort (แจ้งเตือน, ล้างข้อมูล, audit) พวกที่
+ * ตั้งใจกลืนไว้ไม่ให้ไปทำงานหลักล้ม บันทึกทั้ง marker, context ที่ผู้เรียกส่งมา
+ * และ class + ข้อความ + file:line ของ exception พอ debug ได้โดยไม่ต้องมี stack trace เต็มที่รกไป
  *
  * @param array<string, mixed> $context
  */
@@ -203,7 +203,7 @@ function log_caught_exception(string $marker, \Throwable $exception, array $cont
     $suffix = $parts === [] ? '' : ' ' . implode(' ', $parts);
 
     // ไล่ลงไปหาต้นเหตุที่ถูกห่อไว้ลึกสุด: service ห่อความล้มเหลวของ disk/DB/library ไว้ใน RuntimeException ที่อ่านง่าย
-    // ("สร้างไฟล์ไม่ได้") ตัวห่อเพียงอย่างเดียวจึงบังเหตุผลจริงไว้ ต่อท้ายด้วย class/ข้อความ/file:line ของต้นเหตุ
+    // ("สร้างไฟล์ไม่ได้") ตัวห่อชั้นนอกเลยบังเหตุผลจริงไว้ เลยต่อท้ายด้วย class/ข้อความ/file:line ของต้นเหตุ
     $root = $exception;
     while ($root->getPrevious() !== null) {
         $root = $root->getPrevious();
@@ -228,17 +228,17 @@ function log_caught_exception(string $marker, \Throwable $exception, array $cont
 /** ตัวตรวจสอบเฉพาะรูปแบบ (ผู้เรียกยังต้องดูแลการเช็ค required/ค่าว่าง และข้อความ error ของตัวเองอยู่) */
 function is_valid_email(string $email): bool
 {
-    // จำกัดความยาวให้พอดีกับคอลัมน์ users.email / *_email (VARCHAR(190)) เพื่อให้อีเมลที่รูปแบบถูกต้องแต่
-    // ยาวเกินไป ถูกปฏิเสธด้วยข้อความที่อ่านง่าย แทนที่จะเป็น DB error ดิบ ๆ (strict mode)
+    // จำกัดความยาวให้พอดีกับคอลัมน์ users.email / *_email (VARCHAR(190)) เพื่อให้อีเมลที่รูปแบบถูกแต่
+    // ยาวเกินไป โดนปฏิเสธด้วยข้อความที่อ่านง่าย ไม่ใช่ DB error ดิบ ๆ ตอน strict mode
     return (function_exists('mb_strlen') ? mb_strlen($email) : strlen($email)) <= 190
         && filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
 }
 
 /**
- * คืนแถวข้อมูลที่ preview ไว้เฉพาะเมื่อ one-time token ที่ส่งมาตรงกับ batch ที่เก็บไว้ใน
- * session เท่านั้น — เพื่อไม่ให้การเปิด preview อันที่สองในอีกแท็บ (ซึ่งจะไปแทนที่ batch + token ใน session) ทำให้
- * การกดยืนยันในแท็บแรกนำเข้าแถวของแท็บที่สอง ฟังก์ชันนี้บริสุทธิ์ (ไม่แตะ session/HTTP) จึงทดสอบได้ตรง ๆ
- * โดยที่ controller เป็นผู้ดูแล Session::get/forget เอง โยน DomainException เมื่อ token ไม่ตรงหรือ batch ว่างเปล่า
+ * คืนแถวที่ preview ไว้ เฉพาะตอน one-time token ที่ส่งมาตรงกับ batch ที่เก็บไว้ใน session เท่านั้น
+ * กันไว้ไม่ให้การเปิด preview อันที่สองในอีกแท็บ (ซึ่งไปทับ batch + token ใน session) ทำให้
+ * การกดยืนยันในแท็บแรกนำเข้าแถวของแท็บที่สอง ฟังก์ชันนี้บริสุทธิ์ ไม่แตะ session/HTTP เลยเทสต์ได้ตรง ๆ
+ * โดยให้ controller ดูแล Session::get/forget เอง โยน DomainException เมื่อ token ไม่ตรงหรือ batch ว่าง
  *
  *
  * @param mixed $batch batch ใน session: ['token' => string, 'rows' => array<int, mixed>]
@@ -260,8 +260,8 @@ function verified_import_rows(mixed $batch, string $submittedToken): array
 }
 
 /**
- * ปฏิเสธค่าที่ยาวเกินคอลัมน์ใน DB เพื่อให้ผู้ใช้เห็นข้อความที่ชัดเจน ไม่ใช่ error ดิบ ๆ
- * "Data too long" ภายใต้ MySQL strict mode ไม่ทำอะไรกับค่าที่อยู่ในขอบเขตที่กำหนด
+ * ปฏิเสธค่าที่ยาวเกินคอลัมน์ใน DB ให้ผู้ใช้เห็นข้อความชัดเจน ไม่ใช่ error ดิบ ๆ
+ * อย่าง "Data too long" ตอน MySQL strict mode ค่าที่อยู่ในขอบเขตจะไม่ถูกแตะ
  */
 function require_max_length(string $value, int $max, string $label): void
 {
@@ -307,10 +307,10 @@ function paginate(int $page, int $perPage, int $total): array
 }
 
 /**
- * ปรับค่าตัวกรองช่วงวันที่ from/to ให้เป็นมาตรฐาน ตรวจสอบแต่ละด้าน (YYYY-MM-DD → '' ถ้าไม่ถูกต้อง)
- * สลับกันเมื่อกลับด้าน เพื่อให้ `from` มาก่อน `to` เสมอ แล้วแปลงเป็น datetime ที่ครอบคลุมทั้งวัน
- * (from = 00:00:00, to = 23:59:59) เป็นแหล่งอ้างอิงเดียวที่ตัวกรองของ
- * dashboard และรายงานใช้ร่วมกัน เพื่อไม่ให้ทั้งสองเพี้ยนไปคนละทาง
+ * ปรับตัวกรองช่วงวันที่ from/to ให้เป็นมาตรฐาน เช็คทีละด้าน (YYYY-MM-DD → '' ถ้าไม่ถูกต้อง)
+ * ถ้ากลับด้านก็สลับให้ `from` มาก่อน `to` เสมอ แล้วแปลงเป็น datetime ที่ครอบคลุมทั้งวัน
+ * (from = 00:00:00, to = 23:59:59) เป็นที่เดียวที่ตัวกรองของ
+ * dashboard กับรายงานใช้ร่วมกัน จะได้ไม่เพี้ยนไปคนละทาง
  *
  * @return array{from_date:string,to_date:string,from_datetime:string,to_datetime:string}
  */
@@ -322,8 +322,8 @@ function normalize_date_range(string $fromRaw, string $toRaw): array
             return '';
         }
         $timestamp = strtotime($value);
-        // strtotime จะเลื่อนวันที่ที่รูปแบบถูกแต่ไม่มีจริง (2026-02-30 → 2026-03-02, 2025-02-29 → 2025-03-01)
-        // ปฏิเสธเมื่อค่าแปลงไป-กลับแล้ววันเปลี่ยน เพื่อให้วันที่ผิดกลายเป็นค่าว่าง ไม่ใช่ข้อมูลของอีกวันหนึ่ง
+        // strtotime จะเลื่อนวันที่ที่รูปแบบถูกแต่ไม่มีอยู่จริง (2026-02-30 → 2026-03-02, 2025-02-29 → 2025-03-01)
+        // เลยปฏิเสธเมื่อแปลงไป-กลับแล้ววันเปลี่ยน ให้วันที่ผิดกลายเป็นค่าว่าง ไม่ใช่ข้อมูลของอีกวันหนึ่ง
         if ($timestamp === false || date('Y-m-d', $timestamp) !== $value) {
             return '';
         }
@@ -361,8 +361,8 @@ function auth(): AuthManager
 
 /**
  * ตีความ field ในฟอร์มที่ต้องเป็นจำนวนเต็ม ค่าว่าง/ไม่มี → $default; string ที่ไม่ใช่จำนวนเต็มอย่าง
- * "12junk" จะโยน exception (การ cast แบบ (int) ของ PHP จะเก็บส่วน "12" ไว้เงียบ ๆ) service เป็นเจ้าของการตรวจสอบ input
- * ฟังก์ชันนี้จึงโยน DomainException ให้ผู้เรียกนำไปแสดงเป็นข้อความที่อ่านง่าย (รับ input ตัวเลขแบบเข้มงวด)
+ * "12junk" จะโยน exception (การ cast (int) ของ PHP จะเก็บ "12" ไว้เงียบ ๆ) service เป็นเจ้าของการตรวจ input
+ * ฟังก์ชันนี้เลยโยน DomainException ให้ผู้เรียกเอาไปแสดงเป็นข้อความที่อ่านง่าย
  */
 function strict_int(mixed $raw, string $label, int $default = 0): int
 {
