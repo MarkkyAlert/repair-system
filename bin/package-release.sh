@@ -26,8 +26,9 @@ git -C "$ROOT" archive HEAD | tar -x -C "$STAGING"
 # 2) production dependencies only (drops phpstan / php-cs-fixer / pdfparser dev tools).
 ( cd "$STAGING" && composer install --no-dev --optimize-autoloader --no-interaction --quiet )
 
-# 3) strip dev-only / internal files a buyer never needs.
-( cd "$STAGING" && rm -rf .github .githooks tools e2e \
+# 3) strip dev-only / internal files a buyer never needs. Includes the test suite (tests/): it needs a test
+#    DB + dev tooling to run, carries internal review references, and is not part of the shipped product.
+( cd "$STAGING" && rm -rf .github .githooks tools e2e tests \
     phpstan.neon phpstan-baseline.neon phpstan-bootstrap.php \
     .php-cs-fixer.dist.php .php-cs-fixer.cache handoff.md prompt.md )
 

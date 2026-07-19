@@ -124,6 +124,8 @@ php -S 127.0.0.1:8000 -t public public/index.php
 
 ## 9. การทดสอบ (Testing)
 
+> ℹ️ ชุดทดสอบอยู่ใน **ซอร์สโค้ดต้นทาง (dev repo)** — ไม่รวมในแพ็กที่แจกให้ผู้ซื้อ (ต้องใช้ฐานข้อมูลทดสอบ + เครื่องมือ dev)
+
 ```bash
 php tests/run.php                 # ชุดทดสอบหลัก (หลายร้อยเคส)
 vendor/bin/phpstan analyse --memory-limit=1G   # ตรวจชนิดข้อมูล (dev)

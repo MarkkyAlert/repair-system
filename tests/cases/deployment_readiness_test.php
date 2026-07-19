@@ -103,6 +103,8 @@ test('deploy(D1,D6): the release-packaging script bundles vendor and excludes se
     foreach (['e2e', '.github', 'handoff'] as $devJunk) {
         assert_true(str_contains($s, $devJunk), "must strip dev-only {$devJunk} from the package");
     }
+    // The test suite must NOT ship (it needs a test DB, and its comments/names carry internal review refs).
+    assert_true((bool) preg_match('/rm -rf[^\n]*\btests\b/', $s), 'must strip the test suite (tests/) from the release');
     assert_true((bool) preg_match('/zip /', $s), 'must produce a .zip artifact');
 });
 
