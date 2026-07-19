@@ -90,6 +90,9 @@ class AuthService
         }
 
         $this->rateLimiter->clear($limiterKey);
+        // หมุน session id ใหม่ ณ จุดยกระดับสิทธิ์ — กัน session fixation (ผู้โจมตีหลอกฝัง session id ที่ตัวเองรู้ค่า
+        // ไว้ก่อน แล้วรอสวมรอยหลังเหยื่อ login ทับ id เดิม); จุดคู่กันคือ RememberMeService::attemptRestore
+        // และถูก lock ไว้ด้วย session_fixation_test
         Session::regenerate();
         $this->auth->login($user);
 
@@ -132,6 +135,8 @@ class AuthService
     {
         $this->rememberMe->clearCurrent();
         $this->auth->logout();
+        // ของที่ผูกกับตัวตนเดิมต้องใช้ต่อไม่ได้ทั้งหมด: ทิ้ง CSRF token เก่า + หมุน session id ใหม่ —
+        // ไม่ให้ id/token ของ session ที่เคย login แล้วถูกหยิบไปใช้ซ้ำหลัง logout
         Session::forget('_csrf_token');
         Session::regenerate();
     }

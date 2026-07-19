@@ -56,6 +56,8 @@ class TicketWorkflowService
         if ($ticketIds === []) {
             throw new DomainException('กรุณาเลือกอย่างน้อย 1 รายการ');
         }
+        // เพดานต่อครั้ง: แต่ละรายการเปิด transaction + row lock + ส่งแจ้งเตือนของตัวเอง — จำกัดไว้ไม่ให้
+        // คำขอเดียวถือ lock ยาว/ยิงแจ้งเตือนไม่อั้นจนกระทบผู้ใช้คนอื่น
         if (count($ticketIds) > 50) {
             throw new DomainException('Approve ได้สูงสุด 50 รายการต่อครั้ง');
         }
@@ -70,6 +72,8 @@ class TicketWorkflowService
         $approved = 0;
         $failed = [];
 
+        // อนุมัติแบบรายตัว: รายการที่ติดปัญหา (สถานะถูกเปลี่ยนไปแล้ว/หมดสิทธิ์) ถูกเก็บลง failed ไปรายงานผล
+        // โดยไม่ทำให้รายการอื่นในชุดล้มไปด้วย
         foreach ($ticketIds as $ticketId) {
             try {
                 $ticket = $byId[$ticketId] ?? null;
@@ -335,6 +339,12 @@ class TicketWorkflowService
         return $ticket;
     }
 
+    /**
+     * กำหนดเวลา SLA ของรอบใหม่หลัง reopen = คงระยะเวลาที่เคยให้ไว้เดิม (นาทีจากวันแจ้งถึงกำหนดเดิม)
+     * แล้วเริ่มนับใหม่จากเวลาที่ reopen — งานที่ถูกส่งกลับมาแก้จึงได้เวลาเท่ารอบแรก ไม่ใช่กำหนดเดิมที่ผ่านไปแล้ว.
+     * ถ้าข้อมูลเดิมเพี้ยน (อ่านวันที่ไม่ได้ / กำหนดอยู่ก่อนวันแจ้ง) จะใช้เวลา reopen เป็นกำหนดทันทีแบบระวังไว้ก่อน
+     * แทนการเดาระยะเวลาใหม่.
+     */
     private function calculateReopenDueAt(array $ticket, string $dueField, string $reopenedAt): string
     {
         $requestedAt = strtotime((string) ($ticket['requested_at'] ?? ''));

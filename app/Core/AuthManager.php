@@ -46,6 +46,8 @@ class AuthManager
     public function login(array $user): void
     {
         $passwordStamp = (string) ($user['password_changed_at'] ?? '');
+        // เก็บลง session เฉพาะข้อมูลที่ไม่ลับ — password hash / remember token คงอยู่ใน DB ที่เดียว
+        // ไม่ติดไปกับ session (ที่ถูกเขียนลงไฟล์ฝั่ง server และโผล่ตาม debug/dump ได้ง่ายกว่า)
         unset($user['password_hash'], $user['remember_token']);
         Session::put(self::SESSION_KEY, $user);
         Session::put(self::PASSWORD_STAMP_KEY, $passwordStamp);

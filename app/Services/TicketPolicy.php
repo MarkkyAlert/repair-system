@@ -22,6 +22,8 @@ class TicketPolicy
             return true;
         }
 
+        // งานที่ยังไม่มี manager เจ้าของ (id=0) เปิดให้ manager ทุกคนหยิบจัดการได้; งานที่มีเจ้าของแล้ว
+        // จำกัดเฉพาะ manager คนนั้น — manager คนอื่นเข้ามาจัดการงานข้ามมือกันไม่ได้ (admin ผ่านเงื่อนไขข้างบนเสมอ)
         return $role === Role::MANAGER && $viewerId > 0 && ($managerId === 0 || $managerId === $viewerId);
     }
 

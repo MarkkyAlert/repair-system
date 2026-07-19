@@ -43,13 +43,19 @@ class TicketRepository
         $responseDueAt = (string) ($payload['response_due_at'] ?? '');
         $resolutionDueAt = (string) ($payload['resolution_due_at'] ?? '');
         $submissionToken = (string) ($payload['submission_token'] ?? '');
+        // idempotency (ทำซ้ำแล้วผลเท่าเดิม): token ที่เคยสร้าง ticket ไปแล้ว → คืนใบเดิม ไม่สร้างใบซ้ำ
+        // (กันกดส่งซ้ำ/กด refresh หลัง submit); UNIQUE(submission_token) ใน DB เป็นด่านสุดท้ายกัน race — ดู catch ด้านล่าง
         $existingTicketId = $this->findTicketIdBySubmissionToken($submissionToken);
         if ($existingTicketId !== null) {
             return ['id' => $existingTicketId, 'created' => false];
         }
 
         $approverId = $this->findDefaultApproverId();
+        // named lock (GET_LOCK) ต่อวัน: เลข ticket มาจาก "อ่านเลขล่าสุดแล้ว +1" — ถ้าไม่ล็อกคร่อมไว้
+        // สองคำขอที่สร้างพร้อมกันจะอ่านเลขเดียวกันแล้วได้เลข ticket ซ้ำกัน
         $numberLock = 'ticket-number-' . date('Ymd', strtotime($requestedAt) ?: time());
+        // เปิด/ปิด transaction เองเฉพาะเมื่อยังไม่มีใครครอบอยู่ — ผู้เรียก (TicketService) อาจครอบ transaction
+        // ใหญ่ของตัวเองมาแล้ว การ commit/rollback ตรงนี้ต้องไม่ไปตัดจบ transaction ของเขากลางคัน
         $startedTransaction = !$this->db->inTransaction();
 
         if ($approverId === null) {
@@ -143,6 +149,8 @@ class TicketRepository
                     $this->db->rollBack();
                 }
 
+                // ชน UNIQUE ของ submission_token = แพ้ race ให้คำขอซ้ำที่ commit ก่อนหน้าเราพอดี —
+                // มีใบอยู่ในระบบแล้ว จึงคืนใบนั้นแทนการโยน error ใส่ผู้ใช้ (ผลลัพธ์เดียวกับด่านตรวจต้นฟังก์ชัน)
                 if ($this->isSubmissionTokenConflict($exception, $submissionToken)) {
                     $existingTicketId = $this->findTicketIdBySubmissionToken($submissionToken);
                     if ($existingTicketId !== null) {
@@ -481,6 +489,8 @@ class TicketRepository
             $this->db->beginTransaction();
             $this->lockTicketForTransition($ticketId, ['assigned'], 'approved', 'assigned_technician_id', $actorId);
 
+            // COALESCE(first_response_at, …) = บันทึกเวลาตอบสนอง "ครั้งแรก" ครั้งเดียวแล้วไม่เขียนทับอีก —
+            // ค่านี้คือตัววัด SLA การตอบสนอง ถ้าถูกทับด้วยเวลาหลัง ๆ ตัวเลขรายงานจะดีเกินจริง/แย่เกินจริงทันที
             $ticketStmt = $this->db->prepare(
                 'UPDATE tickets
                  SET status = :status,
@@ -536,6 +546,8 @@ class TicketRepository
             // accept ที่เกิดพร้อมกันระหว่างที่ service อ่านค่ากับ lock นี้ ไม่บันทึก from_status ผิด
             $lockedStatus = $this->lockTicketForTransition($ticketId, ['assigned', 'accepted'], 'approved', 'assigned_technician_id', $actorId);
 
+            // เริ่มงานข้ามขั้น "รับงาน" ได้ (lock ยอมทั้ง assigned/accepted) — จึงใช้ COALESCE backfill
+            // เวลารับงาน/เวลาตอบสนองที่ยังว่างให้ด้วย โดยไม่ทับของเดิมถ้าช่างกดรับมาก่อนแล้ว
             $ticketStmt = $this->db->prepare(
                 'UPDATE tickets
                  SET status = :status,
@@ -814,6 +826,8 @@ class TicketRepository
             ]);
 
             if ($currentStatus === 'pending_approval') {
+                // ยกเลิกตั้งแต่ยังรออนุมัติ → ลบคำขออนุมัติที่ค้างอยู่ทิ้ง ไม่ให้เหลือเป็นรายการค้าง
+                // ในคิวอนุมัติของ manager ทั้งที่ ticket ถูกยกเลิกไปแล้ว
                 $approvalStmt = $this->db->prepare(
                     "DELETE FROM ticket_approvals
                      WHERE ticket_id = :ticket_id AND action = 'pending'"
@@ -950,6 +964,7 @@ class TicketRepository
         ]);
     }
 
+    /** เลข ticket รันถัดไปของวัน (อ่านเลขล่าสุด +1) — ปลอดเลขซ้ำเฉพาะเมื่อเรียกใต้ named lock ต่อวันใน createTicket. */
     private function generateNextTicketNumber(string $requestedAt): string
     {
         $datePart = date('Ymd', strtotime($requestedAt) ?: time());
@@ -977,6 +992,7 @@ class TicketRepository
         return $prefix . str_pad((string) $nextSequence, 4, '0', STR_PAD_LEFT);
     }
 
+    /** เลข work order รันถัดไปของวัน — แบบแผนเดียวกับเลข ticket: ต้องเรียกใต้ named lock ของมันเอง (ดู assignTechnician). */
     private function generateNextWorkOrderNumber(string $assignedAt): string
     {
         $datePart = date('Ymd', strtotime($assignedAt) ?: time());

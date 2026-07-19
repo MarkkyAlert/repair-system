@@ -40,12 +40,16 @@ class AttachmentService
         $maxBytes = (int) config('uploads.attachment_max_bytes', 5242880);
         $finfo = new \finfo(FILEINFO_MIME_TYPE);
         foreach ($normalized as &$file) {
+            // is_uploaded_file: ต้องเป็นไฟล์ที่แนบมากับ HTTP request นี้จริง ๆ เท่านั้น — กันการปลอมค่า tmp_name
+            // ให้ชี้ไปไฟล์อื่นบนเซิร์ฟเวอร์ (เช่นไฟล์ config) แล้วหลอกให้ระบบอ่าน/ย้ายมันมาเป็นไฟล์แนบ
             if ((int) $file['error'] !== UPLOAD_ERR_OK || !is_uploaded_file((string) $file['tmp_name'])) {
                 throw new DomainException('ไม่สามารถอ่านไฟล์แนบได้ กรุณาลองใหม่');
             }
             if ((int) $file['size'] > $maxBytes) {
                 throw new DomainException('รูปแนบแต่ละไฟล์ต้องมีขนาดไม่เกิน ' . (int) ($maxBytes / 1048576) . 'MB');
             }
+            // ตัดสินชนิดไฟล์จาก "เนื้อไฟล์จริง" (finfo อ่าน byte ต้นไฟล์) — นามสกุล/ชนิดที่ browser ส่งมา
+            // ผู้ใช้ปลอมได้อิสระ (เช่นสคริปต์อันตรายเปลี่ยนชื่อเป็น .jpg); ชนิดนอก whitelist ปฏิเสธทั้งหมด
             $mime = (string) $finfo->file((string) $file['tmp_name']);
             if (!isset(self::MIME_EXTENSIONS[$mime])) {
                 throw new DomainException('รองรับไฟล์แนบ: รูปภาพ (JPEG/PNG/WebP) และเอกสาร (PDF/Word/Excel/Text)');
@@ -74,6 +78,8 @@ class AttachmentService
 
         try {
             foreach ($files as $file) {
+                // ชื่อไฟล์บนดิสก์สุ่มใหม่ทั้งหมด + นามสกุลเอาจาก whitelist (ตาม MIME ที่ตรวจจากเนื้อไฟล์) เท่านั้น —
+                // ชื่อไฟล์ที่ผู้ใช้ตั้งไม่ถูกใช้บนดิสก์เลย (กัน path traversal เช่น ../, ชื่อชนกัน, นามสกุลอันตราย)
                 $storedName = bin2hex(random_bytes(20)) . '.' . (string) $file['extension'];
                 $relativePath = $relativeDirectory . '/' . $storedName;
                 if (!move_uploaded_file((string) $file['tmp_name'], BASE_PATH . '/' . $relativePath)) {
@@ -179,9 +185,12 @@ class AttachmentService
     public function getVisibleAttachment(int $attachmentId, array $viewer): array
     {
         $attachment = $this->attachments->findById($attachmentId);
+        // กัน IDOR (ไล่เดา id เพื่อเปิดไฟล์ของคนอื่น): การดาวน์โหลดทุกครั้งต้องพิสูจน์ซ้ำว่า viewer มองเห็น
+        // ticket ต้นทางของไฟล์นี้ได้จริงตามขอบเขตสิทธิ์ ไม่ใช่แค่เช็คว่าไฟล์มีอยู่
         if ($attachment === null || $this->reads->findVisibleTicketById((int) $attachment['ticket_id'], $viewer) === null) {
             throw new DomainException('ไม่พบไฟล์แนบ');
         }
+        // ไฟล์ที่แนบใน comment ภายใน (ทีมงานคุยกันเอง) ต้องไม่หลุดถึงผู้แจ้ง แม้จะรู้ id ไฟล์ตรง ๆ ก็ตาม
         if (!empty($attachment['is_internal']) && (string) ($viewer['role'] ?? 'guest') === 'requester') {
             throw new DomainException('ไม่มีสิทธิ์เปิดไฟล์แนบนี้');
         }
