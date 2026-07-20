@@ -1298,7 +1298,9 @@ class ReportService
             $from = match ($granularity) {
                 'day' => date('Y-m-d', strtotime('-29 days', strtotime($to))),
                 'week' => date('Y-m-d', strtotime('-11 weeks', strtotime($to))),
-                default => date('Y-m-01', strtotime('-11 months', strtotime($to))),
+                // ยึดวันที่ 1 ของเดือนก่อนค่อยถอย 11 เดือน — ถ้าถอยจากวันสิ้นเดือน (31) ตรง ๆ PHP จะล้นไปต้นเดือนถัดไป
+                // (31 มี.ค. −11 เดือน = 31 เม.ย. → 1 พ.ค.) ทำให้ default window เหลือ 11 เดือน เดือนเก่าสุดหายจากกราฟ
+                default => date('Y-m-01', strtotime('-11 months', strtotime(date('Y-m-01', strtotime($to))))),
             };
         }
         $normalized['from_date'] = $from;

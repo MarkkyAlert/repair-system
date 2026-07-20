@@ -478,3 +478,17 @@ test('ticket trend: export xlsx (1 sheet + header) / pdf %PDF- / csv header', fu
         ttr_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
     }
 });
+
+// bug-hunt LOW#8: the default 12-month window did date('Y-m-01', strtotime('-11 months', $to)). Subtracting 11
+// months from a month-END date (e.g. 31 Mar) overflows in PHP (31 Apr → 1 May), so the oldest month silently
+// dropped and the "12 งวดล่าสุด" window showed only 11. Anchoring to the 1st of the month first fixes it.
+test('trend (LOW#8): the default monthly window is a full 12 buckets even when "to" is a month-end', function (): void {
+    $admin = ['id' => 4, 'role' => 'admin'];
+    // 31 Mar 2026 is the trigger: -11 months overflows to 1 May 2025 without the anchor
+    $page = ttr_service()->getTicketTrendReportPage($admin, ['granularity' => 'month', 'from_date' => '', 'to_date' => '2026-03-31']);
+    $periods = $page['periods'];
+
+    assert_same(12, count($periods), 'the default monthly window spans a full 12 buckets, not 11');
+    assert_same('2025-04', (string) ($periods[0]['key'] ?? ''), 'the oldest bucket is Apr 2025, not May 2025 (no month-end overflow)');
+    assert_same('2026-03', (string) ($periods[count($periods) - 1]['key'] ?? ''), 'the newest bucket is Mar 2026');
+});
