@@ -62,10 +62,12 @@ class AssetImportService
             if ($assetCode === '' || $name === '') {
                 $errors[] = 'asset_code และ name จำเป็นต้องมี';
             }
-            if (strlen($assetCode) > 60) {
+            // นับเป็น "ตัวอักษร" (mb_strlen) ให้ตรงกับข้อความ + column VARCHAR ที่นับตัวอักษร ไม่ใช่ไบต์ — ไม่งั้นชื่อ/
+            // รหัสภาษาไทย (1 ตัว = 3 ไบต์) จะถูกปฏิเสธทั้งที่ยังไม่ถึงลิมิตจริง (เหมือน serial/brand/model ด้านล่าง)
+            if (mb_strlen($assetCode) > 60) {
                 $errors[] = 'asset_code ยาวเกิน 60 ตัวอักษร';
             }
-            if (strlen($name) > 200) {
+            if (mb_strlen($name) > 200) {
                 $errors[] = 'name ยาวเกิน 200 ตัวอักษร';
             }
             // ฟิลด์ข้อความที่ไม่บังคับ จำกัดความยาวให้ตรงกับ column (serial/brand/model VARCHAR(100), vendor VARCHAR(150))

@@ -338,3 +338,15 @@ test('assetImport.validateRows (LOW#11): an INACTIVE user cannot be assigned as 
         ai_pdo()->prepare('DELETE FROM users WHERE username = ?')->execute([$uname]);
     }
 });
+
+// bug-hunt LOW#12: asset_code/name length was checked with strlen (BYTES) while the message says "ตัวอักษร"
+// (characters) and the other text fields use mb_strlen. A Thai character is 3 bytes in UTF-8, so a Thai name
+// well within 200 characters (but over 200 bytes) was wrongly rejected as too long. Now uses mb_strlen.
+test('assetImport.validateRows (LOW#12): a Thai asset name within the 200-char limit is accepted (bytes != chars)', function (): void {
+    $ref = ai_ref();
+    $thaiName = str_repeat('ก', 100); // 100 characters = 300 bytes: valid by chars, over-limit by bytes
+    assert_true(mb_strlen($thaiName) <= 200 && strlen($thaiName) > 200, 'the probe name is >200 bytes but <=200 characters');
+
+    $result = ai_service()->validateRows([ai_raw($ref, ['_line' => 2, 'name' => $thaiName])]);
+    assert_true(ai_invalid_for($result, 2) === null, 'a 100-character Thai name is within the 200-char limit — the row is valid, not rejected as too long');
+});
