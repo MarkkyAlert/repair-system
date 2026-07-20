@@ -162,6 +162,40 @@ test('workflow: full happy path approve → assign → accept → start → reso
     }
 });
 
+// bug-hunt MED#5: assigned_manager_id was only ever written as NULL at create and never populated, so the
+// manager-notification recipients (ticket.started/resolved/completed/reopened) always resolved to 0 → managers
+// never got notified, and the manager "งานของฉัน" dashboard (t.assigned_manager_id = viewer) was always empty.
+// The approving manager now becomes the owning manager (matches TicketPolicy::canManageWorkflow's id=0 = unowned).
+test('workflow (MED#5): approval records the approver as the owning manager, so the manager gets notified on start', function (): void {
+    $id = wf_insert_ticket([
+        'status' => 'pending_approval', 'approval_status' => 'pending', 'requester_id' => 1,
+        'response_due_at' => date('Y-m-d H:i:s', time() + 3600),
+        'resolution_due_at' => date('Y-m-d H:i:s', time() + 7200),
+    ]);
+    try {
+        $manager = ['id' => 2, 'role' => 'manager']; // an unowned ticket (assigned_manager_id=0) — any manager may pick it up
+        $tech = ['id' => 3, 'role' => 'technician'];
+
+        wf_service()->approveTicket($id, $manager, ['note' => '']);
+        $ownerId = (int) wf_pdo()->query("SELECT assigned_manager_id FROM tickets WHERE id = $id")->fetchColumn();
+        assert_same(2, $ownerId, 'the approving manager is recorded as assigned_manager_id (was NULL → managers never notified / dashboard empty)');
+
+        // drive to "in_progress" and prove the owning manager actually receives the ticket.started notification
+        wf_service()->assignTechnician($id, $manager, ['technician_id' => 3, 'instructions' => '']);
+        wf_service()->acceptAssignedWork($id, $tech, ['accept_note' => '']);
+        wf_service()->startAssignedWork($id, $tech, ['start_note' => '']);
+
+        $managerNotified = (int) wf_pdo()->query(
+            "SELECT COUNT(*) FROM notification_recipients nr
+             JOIN notifications n ON n.id = nr.notification_id
+             WHERE n.related_type = 'ticket' AND n.related_id = $id AND nr.user_id = 2"
+        )->fetchColumn();
+        assert_true($managerNotified > 0, 'the owning manager received at least one ticket notification');
+    } finally {
+        wf_cleanup($id);
+    }
+});
+
 test('workflow: cancelTicket by requester (pending_approval → cancelled)', function (): void {
     // Cancel is a requester action (requireRequesterTicket) with a required cancel_note.
     $id = wf_insert_ticket(['status' => 'pending_approval', 'approval_status' => 'pending', 'requester_id' => 1]);

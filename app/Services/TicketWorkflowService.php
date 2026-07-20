@@ -55,7 +55,10 @@ class TicketWorkflowService
         }
 
         $note = trim((string) ($input['note'] ?? ''));
-        $this->tickets->approveTicket($ticketId, (int) ($viewer['id'] ?? 0), $note, (string) ($ticket['status'] ?? 'pending_approval'));
+        // หัวหน้างานที่อนุมัติกลายเป็นเจ้าของงาน (รับแจ้งเตือน + เห็นในหน้า "งานของฉัน"); admin อนุมัติเป็น fallback
+        // จึงปล่อยงานไว้ไม่มีเจ้าของ ให้หัวหน้างานคนไหนก็ยังหยิบไปจัดการต่อได้
+        $managerId = (string) ($viewer['role'] ?? '') === 'manager' ? (int) ($viewer['id'] ?? 0) : null;
+        $this->tickets->approveTicket($ticketId, (int) ($viewer['id'] ?? 0), $note, (string) ($ticket['status'] ?? 'pending_approval'), $managerId);
         $this->notifications->notifyTicketEvent($ticketId, 'ticket.approved', (int) ($viewer['id'] ?? 0));
     }
 

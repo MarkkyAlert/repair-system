@@ -262,7 +262,10 @@ class TicketRepository
      * @throws DomainException เมื่อสถานะถูกเปลี่ยนไปแล้ว (re-check ใต้ lock ไม่ผ่าน)
      * @throws Throwable เมื่อ write ใด ๆ ล้มเหลว (rollback tx ก่อน rethrow)
      */
-    public function approveTicket(int $ticketId, int $actorId, string $note, string $currentStatus): void
+    /**
+     * @param int|null $managerId หัวหน้างานเจ้าของงานนับจากนี้ (= ผู้อนุมัติถ้าเป็น manager, NULL ถ้า admin อนุมัติ)
+     */
+    public function approveTicket(int $ticketId, int $actorId, string $note, string $currentStatus, ?int $managerId = null): void
     {
         $actedAt = date('Y-m-d H:i:s');
 
@@ -270,10 +273,15 @@ class TicketRepository
             $this->db->beginTransaction();
             $this->lockTicketForTransition($ticketId, ['pending_approval'], 'pending');
 
+            // บันทึกหัวหน้างานเจ้าของงานตอนอนุมัติ ไม่งั้น assigned_manager_id เป็น NULL ตลอด → แจ้งเตือนหัวหน้างาน
+            // (ticket.started/resolved/completed/reopened) ไม่เคยยิง และหน้า "งานของฉัน" ฝั่งหัวหน้างานว่างเปล่า.
+            // admin อนุมัติ (fallback SoD) จะปล่อยเป็น NULL ไว้ให้หัวหน้างานคนไหนก็ยังหยิบไปจัดการได้ — ตรงกับ
+            // TicketPolicy::canManageWorkflow ที่ถือ id=0 ว่ายังไม่มีเจ้าของ (หัวหน้างานทุกคนจัดการได้) พอมีเจ้าของจึงล็อก
             $ticketStmt = $this->db->prepare(
                 'UPDATE tickets
                  SET approval_status = :approval_status,
                      status = :status,
+                     assigned_manager_id = :manager_id,
                      approved_at = :approved_at,
                      updated_at = :updated_at
                  WHERE id = :ticket_id'
@@ -281,6 +289,7 @@ class TicketRepository
             $ticketStmt->execute([
                 'approval_status' => 'approved',
                 'status' => 'approved',
+                'manager_id' => $managerId,
                 'approved_at' => $actedAt,
                 'updated_at' => $actedAt,
                 'ticket_id' => $ticketId,
