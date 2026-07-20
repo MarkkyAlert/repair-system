@@ -46,6 +46,12 @@ trait ParsesCsvUpload
                 throw new DomainException('ไฟล์ CSV ว่างเปล่า');
             }
 
+            // ตัด UTF-8 BOM (\xEF\xBB\xBF) ออกจาก header ตัวแรกก่อน normalize — Excel/โปรแกรมตารางใส่ BOM ต้นไฟล์
+            // เสมอ (รวมทั้ง template ที่แอปแจกเอง + ไฟล์ export) BOM ไม่ใช่ whitespace จึงรอด trim() ทำให้ column
+            // แรกไม่ match ทั้งที่ไฟล์ถูก → import ปฏิเสธไฟล์ที่ผู้ใช้สร้างจริง
+            if (isset($header[0])) {
+                $header[0] = preg_replace('/^\xEF\xBB\xBF/', '', (string) $header[0]);
+            }
             $header = array_map(static fn ($h): string => strtolower(trim((string) $h)), $header);
             $missing = array_diff($columns, $header);
             if ($missing !== []) {

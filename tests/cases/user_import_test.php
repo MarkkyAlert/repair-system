@@ -333,6 +333,22 @@ namespace {
         }
     });
 
+    test('userImport.parseUploadedFile: strips a UTF-8 BOM so Excel-saved files import (feature-gap FG1)', function (): void {
+        // Excel + the app's own downloadable template both prepend a UTF-8 BOM (\xEF\xBB\xBF). BOM is not
+        // whitespace, so without the strip the first header ("username") no longer matches and the whole file
+        // is rejected as "missing column" — breaking the download-template → fill-in-Excel → upload flow.
+        $csv = "\xEF\xBB\xBF" . "username,email,full_name,role,department_code,phone,password\n"
+            . "bomuser,bomuser@x.test,BOM ผู้ใช้,requester,,,\n";
+        $file = ui_file($csv);
+        try {
+            $rows = ui_service()->parseUploadedFile($file);
+            assert_same(1, count($rows), 'the BOM-prefixed file parses instead of being rejected as missing-column');
+            assert_same('bomuser', $rows[0]['username'], 'the first column is keyed correctly despite the leading BOM');
+        } finally {
+            @unlink($file['tmp_name']);
+        }
+    });
+
     test('userImport.parseUploadedFile: enforces the synchronous row cap — default lowered to 50 (perf-review F1)', function (): void {
         // Each imported user is bcrypt-hashed in-request (deliberately slow), so the row cap bounds how long
         // the admin waits and the risk of a web-server timeout mid-import. The default is 50; a 51-row file is
