@@ -33,6 +33,33 @@ class TicketReadRepository
         return "$a.cycle = (SELECT MAX(rtc.cycle) FROM ticket_ratings rtc WHERE rtc.ticket_id = $a.ticket_id)";
     }
 
+    /**
+     * ระยะเวลา SLA (นาที) ของรอบแรกสุด อ่านจาก sla track cycle แรก (target_at − created_at ตอนสร้างงาน).
+     * ใช้ตอน reopen เพื่อคง "ระยะเวลาที่ให้ไว้ตอนแรก" ให้เท่าเดิมทุกครั้งโดยไม่เพี้ยน — due_at ในตาราง tickets
+     * ถูกเขียนทับทุกครั้งที่ reopen ถ้าเอา due_at ปัจจุบันลบวันแจ้งเดิม ระยะเวลาจะพองขึ้นเรื่อย ๆ ทุกครั้งที่เปิดซ้ำ.
+     * รอบแรก created_at = requested_at และ target_at คิดรวม category SLA override แล้ว จึงเป็นค่าตั้งต้นที่ถูกต้อง.
+     * @param string $metricType 'response' | 'resolution'
+     * @return int|null นาที (>= 0) หรือ null ถ้าไม่มี track / ข้อมูลติดลบ (ให้ผู้เรียก fallback)
+     */
+    public function firstSlaWindowMinutes(int $ticketId, string $metricType): ?int
+    {
+        $stmt = $this->db->prepare(
+            'SELECT TIMESTAMPDIFF(MINUTE, created_at, target_at)
+             FROM ticket_sla_tracks
+             WHERE ticket_id = :ticket_id AND metric_type = :metric_type
+             ORDER BY cycle ASC, id ASC
+             LIMIT 1'
+        );
+        $stmt->execute(['ticket_id' => $ticketId, 'metric_type' => $metricType]);
+        $value = $stmt->fetchColumn();
+        if ($value === false || $value === null) {
+            return null;
+        }
+        $minutes = (int) $value;
+
+        return $minutes >= 0 ? $minutes : null;
+    }
+
     // ── การอ่านข้อมูล Dashboard — metrics, recent, trends, breakdowns, CSAT ──
     public function getDashboardMetrics(array $viewer, array $filters = []): array
     {

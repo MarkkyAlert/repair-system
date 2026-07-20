@@ -393,22 +393,33 @@ class TicketWorkflowService
     }
 
     /**
-     * กำหนดเวลา SLA ของรอบใหม่หลัง reopen = คงระยะเวลาที่เคยให้ไว้เดิม (นาทีจากวันแจ้งถึงกำหนดเดิม)
-     * แล้วเริ่มนับใหม่จากเวลาที่ reopen — งานที่ส่งกลับมาแก้จะได้เวลาเท่ารอบแรก ไม่ใช่กำหนดเดิมที่ผ่านไปแล้ว.
-     * ถ้าข้อมูลเดิมเพี้ยน (อ่านวันที่ไม่ได้ หรือกำหนดอยู่ก่อนวันแจ้ง) จะใช้เวลา reopen เป็นกำหนดทันทีไว้ก่อน
-     * ดีกว่าเดาระยะเวลาใหม่.
+     * กำหนดเวลา SLA ของรอบใหม่หลัง reopen = คงระยะเวลาที่ให้ไว้ตอนแรกจริง ๆ แล้วเริ่มนับใหม่จากเวลาที่ reopen —
+     * งานที่ส่งกลับมาแก้จะได้เวลาเท่ารอบแรก ไม่ใช่กำหนดเดิมที่ผ่านไปแล้ว.
+     *
+     * ระยะเวลาอ่านจาก sla track รอบแรก (firstSlaWindowMinutes) ไม่ใช่ due_at ปัจจุบันลบวันแจ้ง เพราะ due_at
+     * ในตาราง tickets ถูกเขียนทับทุกครั้งที่ reopen — ถ้าเอา due_at ที่ถูกเลื่อนแล้วมาลบวันแจ้งเดิม ระยะเวลาจะ
+     * พองขึ้นทุกครั้งที่เปิดซ้ำรอบสองเป็นต้นไป. track รอบแรกไม่ถูกแตะจึงเป็นค่าตั้งต้นที่ไม่เพี้ยน.
+     * ถ้าไม่มี track (ข้อมูลเก่า) จะ fallback ไปคิดจาก due เดิมเทียบวันแจ้ง; เพี้ยนหนักจริง ๆ ใช้เวลา reopen ทันที.
      */
     private function calculateReopenDueAt(array $ticket, string $dueField, string $reopenedAt): string
     {
-        $requestedAt = strtotime((string) ($ticket['requested_at'] ?? ''));
-        $currentDueAt = strtotime((string) ($ticket[$dueField] ?? ''));
         $reopenedTimestamp = strtotime($reopenedAt) ?: time();
+        $metricType = $dueField === 'response_due_at' ? 'response' : 'resolution';
+        $ticketId = (int) ($ticket['id'] ?? 0);
 
-        if ($requestedAt === false || $currentDueAt === false || $currentDueAt < $requestedAt) {
-            return date('Y-m-d H:i:s', $reopenedTimestamp);
+        $minutes = $ticketId > 0 ? $this->reads->firstSlaWindowMinutes($ticketId, $metricType) : null;
+
+        if ($minutes === null) {
+            // ไม่มี track ให้ยึด (ข้อมูลเก่า) → ถอยไปคิดจากกำหนดเดิมเทียบวันแจ้ง
+            $requestedAt = strtotime((string) ($ticket['requested_at'] ?? ''));
+            $currentDueAt = strtotime((string) ($ticket[$dueField] ?? ''));
+            if ($requestedAt === false || $currentDueAt === false || $currentDueAt < $requestedAt) {
+                return date('Y-m-d H:i:s', $reopenedTimestamp);
+            }
+            $minutes = (int) ceil(($currentDueAt - $requestedAt) / 60);
         }
 
-        $minutes = max(0, (int) ceil(($currentDueAt - $requestedAt) / 60));
+        $minutes = max(0, $minutes);
 
         return date('Y-m-d H:i:s', strtotime('+' . $minutes . ' minutes', $reopenedTimestamp) ?: $reopenedTimestamp);
     }
