@@ -650,3 +650,44 @@ test('updateProfile(R8-F1): version CAS rejects a stale profile save + a stale a
         auth_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$userId]);
     }
 });
+
+// bug-hunt LOW#10: POST /reset-password ran password_hash (bcrypt, ~100ms CPU) on EVERY submission — before it
+// even checks the token — with no rate limit, an unauthenticated CPU-amplification DoS vector. The forgot side
+// (createPasswordReset) is rate-limited; the submit side now is too (per-IP, before the bcrypt).
+test('auth(reset): POST /reset-password is rate-limited per IP before the bcrypt (bug-hunt LOW#10)', function (): void {
+    $ip = '198.51.100.' . random_int(2, 250);
+    $originalIp = $_SERVER['REMOTE_ADDR'] ?? null;
+    $_SERVER['REMOTE_ADDR'] = $ip;
+    $ipKey = 'pwreset-submit-ip:' . sha1($ip);
+    $svc = auth_service();
+
+    try {
+        // 10 submissions from this IP (each fails the token check, but each still counts toward the cap)
+        for ($i = 0; $i < 10; $i++) {
+            try {
+                $svc->resetPassword('nobody@example.com', str_repeat('a', 64), 'password123', 'password123');
+            } catch (DomainException) {
+                // expected: invalid token
+            }
+        }
+
+        // the 11th must be rejected by the RATE LIMITER (distinct message), not reach the token check / bcrypt
+        $threw = false;
+        $message = '';
+        try {
+            $svc->resetPassword('nobody@example.com', str_repeat('a', 64), 'password123', 'password123');
+        } catch (DomainException $e) {
+            $threw = true;
+            $message = $e->getMessage();
+        }
+        assert_true($threw, 'an over-cap reset submission is rejected');
+        assert_contains_str('บ่อยเกินไป', $message, 'it is the rate limiter rejecting (not the token check) — bcrypt is never reached');
+    } finally {
+        auth_rate_limiter()->clear($ipKey);
+        if ($originalIp === null) {
+            unset($_SERVER['REMOTE_ADDR']);
+        } else {
+            $_SERVER['REMOTE_ADDR'] = $originalIp;
+        }
+    }
+});

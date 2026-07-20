@@ -17,6 +17,8 @@ class AuthService
     // การยิงกระจายแบบนี้ที่เพดานต่อบัญชีจับไม่ได้.
     private const IP_ATTEMPT_CAP = 20;
     private const ATTEMPT_DECAY_SECONDS = 900;
+    private const RESET_SUBMIT_IP_CAP = 10;      // ตั้งรหัสใหม่ (POST /reset-password): 10 ครั้ง/15 นาที ต่อ IP
+    private const RESET_SUBMIT_DECAY = 900;
 
     public function __construct(
         private UserRepository $users,
@@ -193,6 +195,16 @@ class AuthService
     {
         $email = trim(strtolower($email));
         $token = trim($token);
+
+        // จำกัดอัตราต่อ IP ก่อนงานหนัก: endpoint นี้รัน bcrypt (password_hash) ทุกครั้งแม้ token จะมั่ว (คิดก่อนเช็ค
+        // token ด้วยซ้ำ) — ถ้าปล่อยให้ยิงรัวจะกลายเป็นช่องขยาย CPU DoS จากคนนอกระบบ. token สุ่ม 256 บิตเดาไม่ได้อยู่แล้ว
+        // เพดานนี้จึงเน้นกันภาระเครื่อง ไม่ใช่กันเดา token. (ฝั่งขอลิงก์ createPasswordReset ก็จำกัดอัตราแบบเดียวกัน)
+        $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+        $ipKey = 'pwreset-submit-ip:' . sha1($ip !== '' ? $ip : 'unknown');
+        if ($this->rateLimiter->tooManyAttempts($ipKey, self::RESET_SUBMIT_IP_CAP, self::RESET_SUBMIT_DECAY)) {
+            throw new DomainException('คุณลองตั้งรหัสผ่านใหม่บ่อยเกินไป กรุณาลองใหม่ในภายหลัง');
+        }
+        $this->rateLimiter->hit($ipKey, self::RESET_SUBMIT_DECAY);
 
         if ($email === '' || $token === '') {
             throw new DomainException('ลิงก์รีเซ็ตรหัสผ่านไม่ถูกต้อง');
