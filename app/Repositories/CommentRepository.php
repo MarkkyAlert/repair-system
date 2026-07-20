@@ -151,6 +151,7 @@ class CommentRepository
      */
     public function updateComment(int $commentId, string $body, bool $isInternal, int $originalVersion): void
     {
+        // ⚠️ guard สำคัญ (ห้ามเอา WHERE version ออก): optimistic lock กัน lost update — ถอดออก = การแก้พร้อมกันเขียนทับกันเงียบ ๆ
         // optimistic lock ใช้ version ที่เป็น integer ไม่ใช่ updated_at: updated_at เป็น DATETIME ละเอียดแค่วินาที ถ้าเอามาเป็น token
         // การแก้สองครั้งในวินาทีเดียวกัน (โดยแถวเพิ่งถูกแตะครั้งสุดท้ายในวินาทีนั้น) อาจ match ทั้งคู่ แล้วครั้งหลังเขียนทับครั้งแรกแบบเงียบ ๆ
         // version เพิ่มขึ้นทุกครั้งที่เขียน ฟอร์มแก้ไขที่ถือ version เก่าไว้จึงไม่มีวัน match

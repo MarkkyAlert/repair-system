@@ -318,6 +318,7 @@ class AssetRepository
 
     public function updateAsset(int $assetId, array $payload): void
     {
+        // ⚠️ guard สำคัญ (ห้ามเอา WHERE version ออก): optimistic lock กัน lost update — ถอดออก = การแก้พร้อมกันเขียนทับกันเงียบ ๆ
         // optimistic lock ใช้ version ที่เป็น integer ไม่ใช่ updated_at: updated_at เป็น DATETIME ละเอียดแค่วินาที การแก้
         // สองครั้งในวินาทีเดียวกันจึงอาจ match ทั้งคู่ แล้วครั้งหลังเขียนทับครั้งแรกแบบเงียบ ๆ version จะเพิ่มขึ้น
         // ทุกครั้งที่เขียน ฟอร์มแก้ไขที่ถือ version เก่าไว้จึงไม่มีวัน match

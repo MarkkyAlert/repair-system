@@ -40,6 +40,7 @@ class AttachmentService
         $maxBytes = (int) config('uploads.attachment_max_bytes', 5242880);
         $finfo = new \finfo(FILEINFO_MIME_TYPE);
         foreach ($normalized as &$file) {
+            // ⚠️ guard สำคัญ (ห้ามเอาออก): is_uploaded_file + ตรวจ MIME จากเนื้อไฟล์จริง (ด้านล่าง) กันอัปโหลดไฟล์อันตราย/หลอกให้อ่านไฟล์ระบบ
             // เช็ค is_uploaded_file ก่อนเสมอ ยืนยันว่าเป็นไฟล์ที่อัปโหลดมากับ request นี้จริง ไม่ใช่ path
             // ที่ถูกยัดค่ามาให้ชี้ไปไฟล์อื่นในเครื่อง (เช่น config) แล้วดูดออกไปเป็นไฟล์แนบ
             if ((int) $file['error'] !== UPLOAD_ERR_OK || !is_uploaded_file((string) $file['tmp_name'])) {

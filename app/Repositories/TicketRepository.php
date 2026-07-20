@@ -1255,6 +1255,7 @@ class TicketRepository
             $columns .= ', ' . $ownerColumn;
         }
 
+        // ⚠️ guard สำคัญ (ห้ามเอาออก): FOR UPDATE ล็อกแถว + re-check สถานะใต้ lock กันกดพร้อมกัน — ถอด lock/re-check = อนุมัติ/รับงาน/ปิดงานซ้อนกันได้
         $stmt = $this->db->prepare(
             "SELECT $columns
              FROM tickets

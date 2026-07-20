@@ -31,6 +31,7 @@ trait HandlesFormSubmission
         }
 
         try {
+            // ⚠️ guard สำคัญ (ห้ามเอาออก): csrf_validate() กัน CSRF ให้ทุกฟอร์ม POST ที่ใช้ trait นี้ — ถอดออก = ปลอมฟอร์มยิงแทนผู้ใช้ได้ทั้งระบบ
             csrf_validate();
             if ($oldInputOnError !== null) {
                 clear_old_input();
