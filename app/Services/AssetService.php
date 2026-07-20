@@ -8,6 +8,8 @@ use DomainException;
 use Endroid\QrCode\Builder\Builder;
 use Endroid\QrCode\Encoding\Encoding;
 use Endroid\QrCode\Writer\PngWriter;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use RuntimeException;
@@ -241,7 +243,14 @@ class AssetService
 
             $rowNumber = 2;
             foreach ($rows as $row) {
-                $sheet->fromArray($this->sanitizeExportRow($row), null, 'A' . $rowNumber);
+                // เขียนทุกช่องเป็นข้อความชัด ๆ ไม่ให้ PhpSpreadsheet เดาชนิดเอง (fromArray เดาให้) ไม่งั้นรหัสทรัพย์สิน/
+                // ซีเรียล/รหัสหน่วยงานที่เป็นตัวเลขล้วน มี 0 นำหน้า หรือรูปแบบ 1E5 จะถูกแปลงเป็นตัวเลข ทำให้ export
+                // แล้ว import กลับเข้าไม่ตรงของเดิม (ไฟล์นี้ตั้งใจให้ round-trip กับ import ตาม CSV_COLUMNS)
+                $columnIndex = 1;
+                foreach ($this->sanitizeExportRow($row) as $value) {
+                    $sheet->setCellValueExplicit(Coordinate::stringFromColumnIndex($columnIndex) . $rowNumber, $value, DataType::TYPE_STRING);
+                    $columnIndex++;
+                }
                 $rowNumber++;
             }
 
