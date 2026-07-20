@@ -155,7 +155,8 @@ test('auth(reset): a token works once — after a successful reset the same toke
             auth_service()->resetPassword($u['email'], $raw, 'AnotherPass456', 'AnotherPass456');
         } catch (DomainException $e) {
             $threw = true;
-            assert_same('ไม่พบคำขอรีเซ็ตรหัสผ่าน', $e->getMessage());
+            // ข้อความรวม (anti-enumeration): reused token → row ถูกลบ → 'missing' ภายใน แต่ผู้ใช้เห็นข้อความเดียวกับ invalid/expired
+            assert_same('ลิงก์รีเซ็ตรหัสผ่านไม่ถูกต้องหรือหมดอายุแล้ว กรุณาขอลิงก์ใหม่อีกครั้ง', $e->getMessage());
         }
         assert_true($threw, 'the token cannot be reused (single-use)');
         assert_true(password_verify('BrandNewPass123', auth_password_hash($u['id'])), 'the rejected replay did NOT change the password again');
@@ -176,7 +177,7 @@ test('auth(reset): an expired token is rejected and the password is unchanged', 
             auth_service()->resetPassword($u['email'], $raw, 'BrandNewPass123', 'BrandNewPass123');
         } catch (DomainException $e) {
             $threw = true;
-            assert_same('ลิงก์รีเซ็ตรหัสผ่านหมดอายุแล้ว', $e->getMessage());
+            assert_same('ลิงก์รีเซ็ตรหัสผ่านไม่ถูกต้องหรือหมดอายุแล้ว กรุณาขอลิงก์ใหม่อีกครั้ง', $e->getMessage());
         }
         assert_true($threw, 'an expired token must throw');
         assert_same($originalHash, auth_password_hash($u['id']), 'the password_hash was NOT changed by an expired-token attempt');
@@ -196,10 +197,37 @@ test('auth(reset): a wrong token is rejected and the password is unchanged', fun
             auth_service()->resetPassword($u['email'], 'the-wrong-raw-token', 'BrandNewPass123', 'BrandNewPass123');
         } catch (DomainException $e) {
             $threw = true;
-            assert_same('โทเค็นรีเซ็ตรหัสผ่านไม่ถูกต้อง', $e->getMessage());
+            assert_same('ลิงก์รีเซ็ตรหัสผ่านไม่ถูกต้องหรือหมดอายุแล้ว กรุณาขอลิงก์ใหม่อีกครั้ง', $e->getMessage());
         }
         assert_true($threw, 'a non-matching token must throw');
         assert_same($originalHash, auth_password_hash($u['id']), 'the password_hash was NOT changed by a wrong-token attempt');
+    } finally {
+        auth_delete_resets($u['email']);
+        auth_cleanup($u['id']);
+    }
+});
+
+test('auth(reset): the reject message hides whether the account exists (feature-gap FG2 — enumeration oracle closed)', function (): void {
+    // If "no reset request" (missing) and "wrong token, request exists" (invalid) gave different messages, an
+    // attacker could POST /forgot-password then POST /reset-password with a junk token to learn whether the email
+    // is an active account — bypassing the anti-enumeration forgot-password implements. Both must be identical.
+    $u = auth_seed_user();
+    auth_seed_reset($u['email'], bin2hex(random_bytes(16)), date('Y-m-d H:i:s', time() + 3600)); // request exists → the 'invalid' path
+    $withRequest = null;
+    $noRequest = null;
+    try {
+        try {
+            auth_service()->resetPassword($u['email'], 'junk-token', 'BrandNewPass123', 'BrandNewPass123');
+        } catch (DomainException $e) {
+            $withRequest = $e->getMessage();
+        }
+        try {
+            auth_service()->resetPassword('nobody-' . bin2hex(random_bytes(4)) . '@x.test', 'junk-token', 'BrandNewPass123', 'BrandNewPass123');
+        } catch (DomainException $e) {
+            $noRequest = $e->getMessage();
+        }
+        assert_true($withRequest !== null && $noRequest !== null, 'both attempts are rejected');
+        assert_same($withRequest, $noRequest, 'account-exists and no-account must return the identical message (no enumeration signal)');
     } finally {
         auth_delete_resets($u['email']);
         auth_cleanup($u['id']);

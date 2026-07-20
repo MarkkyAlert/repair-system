@@ -216,16 +216,12 @@ class AuthService
             password_hash($password, PASSWORD_BCRYPT)
         );
 
-        if ($result === 'missing') {
-            throw new DomainException('ไม่พบคำขอรีเซ็ตรหัสผ่าน');
-        }
-
-        if ($result === 'expired') {
-            throw new DomainException('ลิงก์รีเซ็ตรหัสผ่านหมดอายุแล้ว');
-        }
-
-        if ($result === 'invalid') {
-            throw new DomainException('โทเค็นรีเซ็ตรหัสผ่านไม่ถูกต้อง');
+        // ข้อความรวมข้อเดียวสำหรับทุกกรณีที่ token ใช้ไม่ได้ (ไม่พบ / หมดอายุ / token ผิด) — ห้ามแยกข้อความ:
+        // ถ้าแยก ผู้โจมตีจะใช้เป็น oracle ไล่เดาบัญชี (POST /forgot-password แล้ว POST /reset-password ด้วย token มั่ว →
+        // "ไม่พบคำขอ" = ไม่มีบัญชี, "token ผิด" = มีบัญชี active) ซึ่งล้ม anti-enumeration ที่ createPasswordReset
+        // ตั้งใจทำ (สร้าง reset row เฉพาะบัญชี active). ผู้ใช้จริงแค่ขอลิงก์ใหม่ก็พอ
+        if ($result !== 'success') {
+            throw new DomainException('ลิงก์รีเซ็ตรหัสผ่านไม่ถูกต้องหรือหมดอายุแล้ว กรุณาขอลิงก์ใหม่อีกครั้ง');
         }
     }
 
