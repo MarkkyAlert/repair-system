@@ -43,8 +43,9 @@ class AssetImportService
         $locationsByCode = $this->indexByCode($reference['locations'] ?? []);
         $departmentsByCode = $this->indexByCode($reference['departments'] ?? []);
 
-        // ค้นหา id ของ custodian username แบบ batch ทีเดียว (แทน findByLogin ต่อแถว)
-        $custodianIds = $this->users->findIdsByLogins(
+        // ค้นหา id ของ custodian username แบบ batch ทีเดียว (แทน findByLogin ต่อแถว) — เฉพาะบัญชีที่ยัง active
+        // เท่านั้น กันมอบหมายทรัพย์สินให้บัญชีที่ถูกปิดใช้งาน/ลาออกไปแล้ว
+        $custodianIds = $this->users->findActiveIdsByLogins(
             array_map(static fn (array $r): string => strtolower(trim((string) ($r['custodian_username'] ?? ''))), $rows)
         );
 
@@ -103,7 +104,7 @@ class AssetImportService
                 $errors[] = 'department_code "' . $departmentCode . '" ไม่พบในระบบ';
             }
             if ($custodianUsername !== '' && $custodianUserId === null) {
-                $errors[] = 'custodian_username "' . $custodianUsername . '" ไม่พบในระบบ';
+                $errors[] = 'custodian_username "' . $custodianUsername . '" ไม่พบในระบบ หรือถูกปิดใช้งาน';
             }
 
             $purchaseDate = trim((string) ($row['purchase_date'] ?? ''));

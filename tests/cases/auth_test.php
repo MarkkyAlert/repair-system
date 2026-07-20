@@ -113,9 +113,22 @@ function auth_queued_email_count(string $email): int
     return (int) $stmt->fetchColumn();
 }
 
+/**
+ * Clear the per-IP reset-submit rate-limit bucket for the current request IP. resetPassword now rate-limits per
+ * IP (LOW#10), and the limiter is file-backed and PERSISTS across tests + runs — several reset tests share the
+ * default 'unknown' IP bucket, so without this they accumulate and trip the cap (flaky red). Call at the start
+ * of every test that invokes resetPassword.
+ */
+function auth_clear_reset_submit_limit(): void
+{
+    $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+    auth_rate_limiter()->clear('pwreset-submit-ip:' . sha1($ip !== '' ? $ip : 'unknown'));
+}
+
 // ── password reset: pure validation (throws before touching the repo — no seed needed) ──
 
 test('auth: resetPassword throws when new password != confirmation', function (): void {
+    auth_clear_reset_submit_limit();
     $threw = false;
     try {
         auth_service()->resetPassword('user@example.com', 'sometoken', 'NewPass123', 'Different123');
@@ -127,6 +140,7 @@ test('auth: resetPassword throws when new password != confirmation', function ()
 });
 
 test('auth: resetPassword throws when new password is shorter than 8 chars', function (): void {
+    auth_clear_reset_submit_limit();
     // password === confirmation so we pass the mismatch check and reach the length check
     $threw = false;
     try {
@@ -141,6 +155,7 @@ test('auth: resetPassword throws when new password is shorter than 8 chars', fun
 // ── password reset: token CONSUMPTION (single-use / expiry / wrong token) — drives resetPasswordUsingToken ──
 
 test('auth(reset): a token works once — after a successful reset the same token is rejected (single-use)', function (): void {
+    auth_clear_reset_submit_limit();
     $u = auth_seed_user();
     $raw = bin2hex(random_bytes(16));
     auth_seed_reset($u['email'], $raw, date('Y-m-d H:i:s', time() + 3600));
@@ -167,6 +182,7 @@ test('auth(reset): a token works once — after a successful reset the same toke
 });
 
 test('auth(reset): an expired token is rejected and the password is unchanged', function (): void {
+    auth_clear_reset_submit_limit();
     $u = auth_seed_user();
     $raw = bin2hex(random_bytes(16));
     $originalHash = auth_password_hash($u['id']);
@@ -188,6 +204,7 @@ test('auth(reset): an expired token is rejected and the password is unchanged', 
 });
 
 test('auth(reset): a wrong token is rejected and the password is unchanged', function (): void {
+    auth_clear_reset_submit_limit();
     $u = auth_seed_user();
     $originalHash = auth_password_hash($u['id']);
     auth_seed_reset($u['email'], bin2hex(random_bytes(16)), date('Y-m-d H:i:s', time() + 3600)); // valid row, different token
@@ -208,6 +225,7 @@ test('auth(reset): a wrong token is rejected and the password is unchanged', fun
 });
 
 test('auth(reset): the reject message hides whether the account exists (feature-gap FG2 — enumeration oracle closed)', function (): void {
+    auth_clear_reset_submit_limit();
     // If "no reset request" (missing) and "wrong token, request exists" (invalid) gave different messages, an
     // attacker could POST /forgot-password then POST /reset-password with a junk token to learn whether the email
     // is an active account — bypassing the anti-enumeration forgot-password implements. Both must be identical.

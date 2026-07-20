@@ -100,7 +100,9 @@ class UserRepository
      * @param string[] $logins
      * @return array<string, int> login(lowercase) => user id
      */
-    public function findIdsByLogins(array $logins): array
+    // เฉพาะบัญชีที่ยัง active — ใช้ตอน import แปลง username/email เป็นผู้ดูแลทรัพย์สิน จะได้ไม่มอบหมายงานให้บัญชี
+    // ที่ถูกปิดใช้งาน/ลาออกไปแล้ว (asset ค้างอยู่บนบัญชีที่ไม่มีตัวตนในองค์กร)
+    public function findActiveIdsByLogins(array $logins): array
     {
         $logins = array_values(array_unique(array_filter(
             array_map(static fn ($x): string => strtolower(trim((string) $x)), $logins),
@@ -115,7 +117,7 @@ class UserRepository
         $stmt = $this->db->prepare(
             "SELECT id, username, email
              FROM users
-             WHERE username IN ($placeholders) OR email IN ($placeholders)"
+             WHERE (username IN ($placeholders) OR email IN ($placeholders)) AND is_active = 1"
         );
         $stmt->execute(array_merge($logins, $logins));
 

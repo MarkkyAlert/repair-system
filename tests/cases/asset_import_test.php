@@ -319,3 +319,22 @@ test('assetImport.parseUploadedFile: parses a valid CSV (header/escaping/_line/b
         @unlink($missing['tmp_name']);
     }
 });
+
+// bug-hunt LOW#11: custodian resolution used findIdsByLogins with no is_active filter, so an import row naming a
+// DISABLED / departed employee resolved to their id and the asset was assigned to a person no longer in the org.
+// Custodian resolution now only matches active accounts (findActiveIdsByLogins).
+test('assetImport.validateRows (LOW#11): an INACTIVE user cannot be assigned as a custodian', function (): void {
+    $ref = ai_ref();
+    $uname = 'inactive_cust_' . bin2hex(random_bytes(3));
+    ai_pdo()->prepare("INSERT INTO users (username, email, password_hash, full_name, role, is_active) VALUES (?, ?, 'x', 'Departed Staff', 'requester', 0)")
+        ->execute([$uname, $uname . '@example.com']);
+
+    try {
+        $result = ai_service()->validateRows([ai_raw($ref, ['_line' => 2, 'custodian_username' => $uname])]);
+        $entry = ai_invalid_for($result, 2);
+        assert_true($entry !== null, 'a row naming an inactive custodian is rejected, not silently imported onto a disabled account');
+        assert_true(ai_has_error($entry, 'custodian_username'), 'the error names the custodian field (inactive account is not assignable)');
+    } finally {
+        ai_pdo()->prepare('DELETE FROM users WHERE username = ?')->execute([$uname]);
+    }
+});
