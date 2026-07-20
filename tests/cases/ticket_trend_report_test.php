@@ -492,3 +492,17 @@ test('trend (LOW#8): the default monthly window is a full 12 buckets even when "
     assert_same('2025-04', (string) ($periods[0]['key'] ?? ''), 'the oldest bucket is Apr 2025, not May 2025 (no month-end overflow)');
     assert_same('2026-03', (string) ($periods[count($periods) - 1]['key'] ?? ''), 'the newest bucket is Mar 2026');
 });
+
+// bug-hunt LOW#9: day/week trend labels were 'd/m' with no year, so a window crossing a year boundary showed
+// ambiguous labels (29/12 and 05/01 give no hint of which year, and two same-day-month points across years
+// looked identical on the axis/export). Labels now carry the Buddhist 2-digit year, like the monthly label.
+test('trend (LOW#9): day labels carry the year so a cross-year window is unambiguous', function (): void {
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $page = ttr_service()->getTicketTrendReportPage($admin, ['granularity' => 'day', 'from_date' => '2025-12-30', 'to_date' => '2026-01-02']);
+
+    $dec31 = ttr_period($page, '2025-12-31');
+    $jan01 = ttr_period($page, '2026-01-01');
+    assert_true($dec31 !== null && $jan01 !== null, 'both cross-year buckets are present');
+    assert_same('31/12/68', (string) ($dec31['label'] ?? ''), 'the Dec 2025 label carries its Buddhist year (68)');
+    assert_same('01/01/69', (string) ($jan01['label'] ?? ''), 'the Jan 2026 label carries its Buddhist year (69) — not ambiguous with 2025');
+});

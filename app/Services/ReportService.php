@@ -1375,15 +1375,18 @@ class ReportService
     /** @return array{0: string, 1: string} [bucketKey, thaiLabel] */
     private function trendBucketKeyLabel(string $granularity, \DateTimeInterface $d): array
     {
+        // ติดปีพุทธสองหลักท้ายทุก label กันซ้ำ/กำกวมเวลาช่วงคร่อมปี (เช่น 29/12 กับ 05/01 คนละปีจะดูเหมือนกัน)
+        // ให้รูปแบบเดียวกับ label รายเดือนที่โชว์ปีอยู่แล้ว
+        $yy = substr((string) ((int) $d->format('Y') + 543), -2);
         if ($granularity === 'day') {
-            return [$d->format('Y-m-d'), $d->format('d/m')];
+            return [$d->format('Y-m-d'), $d->format('d/m/') . $yy];
         }
         if ($granularity === 'week') {
-            return [$d->format('o-W'), $d->format('d/m')];
+            return [$d->format('o-W'), $d->format('d/m/') . $yy];
         }
 
         $key = $d->format('Y-m');
-        $label = self::TREND_MONTHS_TH[(int) $d->format('n') - 1] . ' ' . substr((string) ((int) $d->format('Y') + 543), -2);
+        $label = self::TREND_MONTHS_TH[(int) $d->format('n') - 1] . ' ' . $yy;
 
         return [$key, $label];
     }
