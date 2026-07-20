@@ -16,6 +16,7 @@ class GuestTicketService
     private const RATE_LIMIT_DECAY = 600; // 10 นาที
     private const LOOKUP_RATE_LIMIT_MAX = 10;   // เช็คสถานะ: 10 ครั้ง/10 นาที ต่อ IP (กัน brute-force second factor)
     private const LOOKUP_RATE_LIMIT_DECAY = 600;
+    private const REQUEST_NO_MAX_ATTEMPTS = 5;  // สุ่ม request_no ใหม่ได้กี่ครั้งถ้าบังเอิญชนเลขซ้ำ ก่อนยอมแพ้
 
     public function __construct(
         private GuestTicketRequestRepository $requests,
@@ -71,28 +72,44 @@ class GuestTicketService
 
         $this->rateLimiter->hit($rateKey, self::RATE_LIMIT_DECAY);
 
-        $requestNo = $this->generateRequestNo();
-        try {
-            $id = $this->requests->create([
-                'request_no' => $requestNo,
-                // submission_token (คอลัมน์ UNIQUE) — idempotency ระดับ DB กัน double-submit/replay
-                // ที่หลุด session check มาได้ เป็นชั้นกันซ้อนคู่กับ one-time form token
-                'submission_token' => (string) ($input['form_token'] ?? ''),
-                'asset_id' => (int) ($asset['id'] ?? 0) > 0 ? (int) $asset['id'] : null,
-                'location_id' => (int) ($asset['location_id'] ?? 0) > 0 ? (int) $asset['location_id'] : null,
-                'guest_name' => $name,
-                'guest_email' => $email,
-                'guest_phone' => $phone,
-                'title' => $title,
-                'description' => $description,
-                'submitted_ip' => $ipAddress,
-            ]);
-        } catch (\PDOException $exception) {
-            // 23000 = integrity constraint violation (ซ้ำ submission_token) → double-submit
-            if ($exception->getCode() === '23000') {
-                throw new DomainException('คำขอนี้ถูกส่งไปแล้ว');
+        // request_no กับ submission_token ต่างก็เป็นคอลัมน์ UNIQUE ทั้งคู่ ถ้าจับ 23000 รวมแล้วเหมาว่าเป็น
+        // "คำขอซ้ำ" เสมอจะผิด: เลข request_no สุ่มมี 24 บิต บังเอิญชนกันได้จริงตอนคนสแกนพร้อมกันเยอะ ๆ แล้วคำขอ
+        // ใหม่จริง ๆ จะถูกทิ้งเงียบ ๆ ว่า "ส่งไปแล้ว". จึงแยก: ชน submission_token = double-submit จริง (แจ้งผู้ใช้),
+        // ชน request_no = เลขสุ่มบังเอิญซ้ำ (สุ่มใหม่แล้วลองอีกครั้ง).
+        $id = null;
+        for ($attempt = 1; $attempt <= self::REQUEST_NO_MAX_ATTEMPTS; $attempt++) {
+            $requestNo = $this->generateRequestNo();
+            try {
+                $id = $this->requests->create([
+                    'request_no' => $requestNo,
+                    // submission_token (คอลัมน์ UNIQUE) — idempotency ระดับ DB กัน double-submit/replay
+                    // ที่หลุด session check มาได้ เป็นชั้นกันซ้อนคู่กับ one-time form token
+                    'submission_token' => (string) ($input['form_token'] ?? ''),
+                    'asset_id' => (int) ($asset['id'] ?? 0) > 0 ? (int) $asset['id'] : null,
+                    'location_id' => (int) ($asset['location_id'] ?? 0) > 0 ? (int) $asset['location_id'] : null,
+                    'guest_name' => $name,
+                    'guest_email' => $email,
+                    'guest_phone' => $phone,
+                    'title' => $title,
+                    'description' => $description,
+                    'submitted_ip' => $ipAddress,
+                ]);
+                break;
+            } catch (\PDOException $exception) {
+                if ($exception->getCode() !== '23000') {
+                    throw $exception;
+                }
+                $detail = (string) ($exception->errorInfo[2] ?? $exception->getMessage());
+                // ชน submission_token → คำขอนี้ถูกส่งไปแล้วจริง (กดซ้ำ/replay)
+                if (str_contains($detail, 'submission_token')) {
+                    throw new DomainException('คำขอนี้ถูกส่งไปแล้ว');
+                }
+                // ชน request_no (หรือ 23000 อื่นที่ระบุไม่ได้) แต่ยังลองได้อีก → สุ่มเลขใหม่วนต่อ
+                if (str_contains($detail, 'request_no') && $attempt < self::REQUEST_NO_MAX_ATTEMPTS) {
+                    continue;
+                }
+                throw $exception;
             }
-            throw $exception;
         }
 
         // แจ้ง manager/admin ทันที (in-app bell) ว่ามีคำขอ guest ใหม่ — best-effort:
@@ -302,7 +319,8 @@ class GuestTicketService
         ];
     }
 
-    private function generateRequestNo(): string
+    // protected เป็น seam ให้เทสต์ override บังคับเลขชนกันได้ (พิสูจน์ว่า collision → สุ่มใหม่ ไม่ใช่ทิ้งเป็นคำขอซ้ำ)
+    protected function generateRequestNo(): string
     {
         return 'GR-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(3)));
     }
