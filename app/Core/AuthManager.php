@@ -51,12 +51,16 @@ class AuthManager
         unset($user['password_hash'], $user['remember_token']);
         Session::put(self::SESSION_KEY, $user);
         Session::put(self::PASSWORD_STAMP_KEY, $passwordStamp);
+        // ประทับเวลาใช้งานใหม่ทุกครั้งที่ล็อกอิน — ไม่งั้น _last_activity เก่าจาก session ก่อนหน้า (ในเบราว์เซอร์เดียวกัน/
+        // เครื่องใช้ร่วม) จะทำให้ idle-timeout เด้งออกทันทีหลัง login แล้ววนไม่จบ (idle check ใน AuthMiddleware รันก่อน touchActivity)
+        Session::touchActivity();
     }
 
     public function logout(): void
     {
         Session::forget(self::SESSION_KEY);
         Session::forget(self::PASSWORD_STAMP_KEY);
+        Session::forget('_last_activity');
     }
 
     public function guest(): bool

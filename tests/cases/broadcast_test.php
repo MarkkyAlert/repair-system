@@ -124,6 +124,44 @@ test('broadcast (F1): a SWALLOWED in-app write failure is reported (in_app_faile
     // (no notification row was written, so nothing to clean up)
 });
 
+// bug-hunt HIGH#2: the in-app notification carries UNIQUE(submission_token); the email queue does not. Two
+// concurrent broadcasts of the same token both pass the pre-check, then the loser's in-app INSERT fails the
+// UNIQUE — but email had no such guard, so the whole org got a duplicate blast. Email must be gated on the
+// in-app write winning the token claim.
+test('broadcast (HIGH#2): email is NOT queued when the in-app token-claim is lost (no duplicate org-wide emails)', function (): void {
+    $token = bin2hex(random_bytes(32));
+    $c = tvm_container();
+
+    $inAppLostRace = new class ($c->get(PDO::class)) extends \App\Repositories\NotificationRepository {
+        public function createNotification(array $payload, array $recipientIds): int
+        {
+            throw new \RuntimeException('lost the UNIQUE(submission_token) race'); // the concurrent loser
+        }
+    };
+    $emailSpy = new class () extends \App\Services\EmailQueueService {
+        public int $calls = 0;
+        public function __construct()
+        {
+        }
+        public function queueSystemAnnouncementEmails(array $recipientIds, string $title, string $message): void
+        {
+            $this->calls++;
+        }
+    };
+    $service = new \App\Services\NotificationService(
+        $inAppLostRace,
+        $c->get(\App\Repositories\TicketReadRepository::class),
+        $emailSpy,
+        $c->get(\App\Repositories\NotificationPreferenceRepository::class),
+        $c->get(\App\Repositories\UserRepository::class),
+    );
+
+    $result = $service->notifySystemAnnouncement('Maintenance', 'msg', 4, null, $token);
+
+    assert_same(0, $emailSpy->calls, 'email must NOT be queued when the in-app token-claim is lost, else duplicate org-wide emails');
+    assert_true(($result['email_failed'] ?? false) === true, 'the skipped email is reported as not-sent');
+});
+
 // error-review-3 O4: the audit trail recorded 'broadcast.sent' unconditionally — even when a channel failed —
 // contradicting what the admin is shown. The action must reflect the real outcome + carry the failure flags.
 test('broadcast (O4): the audit action reflects the real outcome (partial on an email-only failure)', function (): void {

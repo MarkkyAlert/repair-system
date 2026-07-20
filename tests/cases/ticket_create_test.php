@@ -238,3 +238,48 @@ test('ticketCreate: happy path stores the ticket (pending_approval) + creates SL
         tc_cleanup($ticketId);
     }
 });
+
+// bug-hunt HIGH#3: createTicket generates the running ticket_no under a GET_LOCK, but released it in a finally that
+// ran even when the repo was NESTED inside a caller's transaction (the normal path — TicketService opens the tx —
+// and guest-convert). The lock then freed BEFORE the caller committed, so a concurrent submit read the same MAX()
+// number → duplicate ticket_no crash. The fix releases only when the repo itself started the transaction; nested,
+// the lock is held to request-end (auto-release), i.e. past the caller's commit. Proof: with an outer tx still
+// open, the lock must still be held (IS_USED_LOCK on this connection returns our own id, not NULL).
+test('ticketCreate (HIGH#3): the ticket-number lock is held through a caller\'s outer transaction (no duplicate ticket_no race)', function (): void {
+    $repo = tvm_container()->get(App\Repositories\TicketRepository::class);
+    $pdo = tc_pdo();
+    $ref = tc_ref();
+    $now = date('Y-m-d H:i:s');
+    $lockName = 'ticket-number-' . date('Ymd', strtotime($now) ?: time());
+    $payload = [
+        'requested_at' => $now,
+        'response_due_at' => date('Y-m-d H:i:s', time() + 3600),
+        'resolution_due_at' => date('Y-m-d H:i:s', time() + 8 * 3600),
+        'submission_token' => bin2hex(random_bytes(32)),
+        'title' => 'lock-probe ' . bin2hex(random_bytes(3)),
+        'description' => 'probe',
+        'requester_id' => 1,
+        'requester_department_id' => null,
+        'location_id' => (int) $ref['locations'][0]['id'],
+        'asset_id' => null,
+        'ticket_category_id' => (int) $ref['categories'][0]['id'],
+        'priority_id' => (int) $ref['priorities'][0]['id'],
+        'impact_level' => 'medium',
+        'urgency_level' => 'medium',
+        'channel' => 'web',
+    ];
+
+    $pdo->beginTransaction(); // stand in for the guest-convert / service outer tx → the repo runs NESTED
+    try {
+        $repo->createTicket($payload);
+
+        // the number was just claimed inside this still-open tx; the lock must NOT have been released yet
+        $holder = $pdo->query('SELECT IS_USED_LOCK(' . $pdo->quote($lockName) . ')')->fetchColumn();
+        assert_true($holder !== null && $holder !== false, 'the ticket-number lock is still held while the caller tx is open (released too early → concurrent submits collide on the same ticket_no)');
+    } finally {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack(); // discard the probe ticket + its children (never committed)
+        }
+        $pdo->query('SELECT RELEASE_LOCK(' . $pdo->quote($lockName) . ')'); // free the held lock for later tests on this shared connection
+    }
+});

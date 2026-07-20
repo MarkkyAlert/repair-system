@@ -234,6 +234,26 @@ test('auth(reset): the reject message hides whether the account exists (feature-
     }
 });
 
+test('auth(idle): login refreshes _last_activity so a stale timestamp cannot instantly expire the session (bug-hunt HIGH#1)', function (): void {
+    // Lockout-loop repro: after an idle logout, or on a shared browser, _last_activity holds an OLD timestamp.
+    // On re-login the idle check in AuthMiddleware runs BEFORE touchActivity(), so without a reset at login the
+    // fresh session is seen as already-expired → logout → /login → loop. login() must stamp the current time.
+    $auth = tvm_container()->get(App\Core\AuthManager::class);
+    $saved = $_SESSION['_last_activity'] ?? null;
+    $_SESSION['_last_activity'] = time() - 7200; // 2h stale, well past a 60-min idle window
+    try {
+        $auth->login(['id' => 999999, 'username' => 'idle_probe', 'password_changed_at' => null]);
+        assert_false(App\Core\Session::isIdleExpired(60), 'login must refresh _last_activity so the fresh session is not instantly idle-expired');
+    } finally {
+        $auth->logout();
+        if ($saved === null) {
+            unset($_SESSION['_last_activity']);
+        } else {
+            $_SESSION['_last_activity'] = $saved;
+        }
+    }
+});
+
 // ── change password: needs a real user + correct current password to reach the new-password checks ──
 
 test('auth: changePassword throws when current password is wrong', function (): void {

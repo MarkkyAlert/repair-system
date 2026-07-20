@@ -325,14 +325,19 @@ class NotificationService
             'submission_token' => $submissionToken,
         ], $inAppRecipients);
 
-        // รายงานผล email ที่เกิดขึ้นจริง ไม่ใช่จำนวนผู้รับที่ตั้งใจจะส่ง: ถ้าเข้าคิวล้มเหลว ผู้เรียก
-        // (flash ของ admin) ต้องไม่ขึ้นว่า "email: N sent" ทั้งที่เข้าคิวไปศูนย์ราย.
-        $emailQueued = true;
-        try {
-            $this->emails->queueSystemAnnouncementEmails($emailRecipients, $title, $message);
-        } catch (Throwable $exception) {
-            log_caught_exception('notify.email.broadcast', $exception);
-            $emailQueued = false;
+        // ผูกอีเมลเข้ากับ idempotency ตัวเดียวกับ in-app: คิวอีเมลเฉพาะเมื่อการเขียน in-app "ชนะ" การ claim token
+        // (UNIQUE(submission_token) ของตาราง notifications กันซ้ำ). เคสสองคนกด broadcast token เดียวกันพร้อมกัน
+        // ทั้งคู่ผ่าน pre-check ด้านบน (ยังไม่มีใคร commit token) — ตัวที่แพ้จะโดน UNIQUE ปฏิเสธ in-app (inAppWritten=false)
+        // ต้องข้ามอีเมลด้วย ไม่งั้นฝั่งอีเมล (ไม่มี UNIQUE กันซ้ำ) จะส่งอีเมลซ้ำทั้งองค์กร.
+        // รายงานผลตามจริง: เข้าคิวล้มเหลว/ถูกข้าม → ผู้เรียกต้องไม่ขึ้นว่า "email: N sent".
+        $emailQueued = false;
+        if ($inAppWritten) {
+            try {
+                $this->emails->queueSystemAnnouncementEmails($emailRecipients, $title, $message);
+                $emailQueued = true;
+            } catch (Throwable $exception) {
+                log_caught_exception('notify.email.broadcast', $exception);
+            }
         }
 
         return [

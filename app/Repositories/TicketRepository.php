@@ -243,7 +243,13 @@ class TicketRepository
 
             throw $exception;
         } finally {
-            $this->releaseNamedLock($numberLock);
+            // ปล่อย named lock เฉพาะเมื่อเราเป็นเจ้าของ transaction (commit เองแล้ว). ถ้าเป็น nested — ผู้เรียกครอบ
+            // transaction ใหญ่ไว้ (เช่น guest-convert สร้าง ticket + claim ในทรานแซกชันเดียว) — ห้ามปล่อยตรงนี้:
+            // ปล่อยก่อน tx ครอบนอก commit = คำขอที่แจ้งพร้อมกันจะอ่านเลขล่าสุดเดิม (INSERT เรายังไม่ commit) แล้วได้
+            // เลข ticket ซ้ำ → crash. ปล่อยให้ lock ค้างบน connection จน request จบ (auto-release) เพื่อกันช่วงชิงนี้
+            if ($startedTransaction) {
+                $this->releaseNamedLock($numberLock);
+            }
         }
     }
 
