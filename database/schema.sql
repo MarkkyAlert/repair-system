@@ -99,6 +99,7 @@ CREATE TABLE ticket_categories (
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uq_ticket_categories_code (code),
+    UNIQUE KEY uq_ticket_categories_name (name),
     KEY idx_ticket_categories_parent (parent_id),
     CONSTRAINT fk_ticket_categories_parent FOREIGN KEY (parent_id) REFERENCES ticket_categories (id) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -115,6 +116,7 @@ CREATE TABLE asset_categories (
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uq_asset_categories_code (code),
+    UNIQUE KEY uq_asset_categories_name (name),
     KEY idx_asset_categories_parent (parent_id),
     CONSTRAINT fk_asset_categories_parent FOREIGN KEY (parent_id) REFERENCES asset_categories (id) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -378,3 +378,36 @@ test('reference data: cannot delete a ticket category that a ticket uses (guard 
         }
     }
 });
+
+// bug-hunt LOW#13/#14: category NAME uniqueness rested only on the app-level masterValueExists pre-check before
+// INSERT/UPDATE — a TOCTOU. Two admins creating the same category name concurrently both pass the check (no row
+// yet) then both INSERT, since only `code` had a DB UNIQUE. Names now carry a DB UNIQUE (schema.sql +
+// database/upgrades/migrate_category_name_unique.sql), the definitive guard the code already expected (its
+// throwFriendlyUniqueViolation has a name-branch). Proof: an insert that bypasses the pre-check (the race window)
+// is rejected by the DB on both category tables.
+test('reference data (LOW#13/#14): ticket & asset category name is UNIQUE at the DB level (closes the create/update TOCTOU)', function (): void {
+    foreach (['ticket_categories', 'asset_categories'] as $table) {
+        $name = 'DupProbe ' . bin2hex(random_bytes(4));
+        $ids = [];
+        $stmt = rd_pdo()->prepare("INSERT INTO {$table} (code, name, sort_order, is_active, created_at, updated_at) VALUES (?, ?, 1, 1, NOW(), NOW())");
+        try {
+            $stmt->execute(['C1-' . bin2hex(random_bytes(3)), $name]);
+            $ids[] = (int) rd_pdo()->lastInsertId();
+
+            // same name, different code — the state two concurrent creates both reach after the pre-check said "free"
+            $threw = false;
+            try {
+                $stmt->execute(['C2-' . bin2hex(random_bytes(3)), $name]);
+                $ids[] = (int) rd_pdo()->lastInsertId();
+            } catch (PDOException $e) {
+                $threw = true;
+                assert_true(is_duplicate_key_error($e), "a same-name {$table} insert is rejected as a duplicate key");
+            }
+            assert_true($threw, "a second {$table} row with the same name must be rejected by the DB UNIQUE(name) — not silently duplicated");
+        } finally {
+            foreach ($ids as $id) {
+                rd_pdo()->prepare("DELETE FROM {$table} WHERE id = ?")->execute([$id]);
+            }
+        }
+    }
+});
