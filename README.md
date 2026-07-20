@@ -24,7 +24,7 @@
 - **SLA อัตโนมัติ** — คำนวณกำหนดเวลาตาม priority/หมวดหมู่ แจ้งเตือนเมื่อใกล้/เกินกำหนด (ต้องตั้ง cron)
 - **ทรัพย์สิน + QR Code** — ทะเบียนทรัพย์สิน สร้าง QR ต่อเครื่อง สแกนแล้วแจ้งซ่อมได้ทันที (รวมโหมด guest)
 - **อีเมลแจ้งเตือน** — คิวอีเมล + เทมเพลตที่แก้ข้อความเองได้ในหน้า admin
-- **รายงาน 10 แบบ** — ภาพรวมผู้บริหาร, SLA, ผลงานช่าง, จุดเสียบ่อย, แนวโน้ม, งานค้าง, เปิดซ้ำ, CSAT, ความน่าเชื่อถือทรัพย์สิน — ส่งออก CSV / Excel / PDF (รองรับภาษาไทย)
+- **รายงาน 9 แบบ** — ภาพรวมผู้บริหาร, SLA, ผลงานช่าง, จุดเสียบ่อย, แนวโน้ม, งานค้าง, เปิดซ้ำ, CSAT, ความน่าเชื่อถือทรัพย์สิน — ส่งออก CSV / Excel / PDF (รองรับภาษาไทย)
 - **สำรอง & กู้คืนข้อมูล** — สำรองอัตโนมัติ (cron) + ปุ่ม "สำรอง & ดาวน์โหลด" ในหน้า admin (ใช้ได้แม้โฮสต์ปิดสิทธิ์ shell)
 - **ปรับแบรนด์เอง** — ตั้งชื่อระบบ/สโลแกน/โลโก้/เขตเวลา/เวลาทำการ ผ่านหน้า admin; เปลี่ยนสีธีมผ่านไฟล์เดียว (ไม่ต้อง build)
 - **ความปลอดภัย** — เข้ารหัสรหัสผ่าน (bcrypt), ป้องกัน CSRF, จำกัดการล็อกอินถี่ (rate limit), security headers, session timeout
@@ -43,7 +43,7 @@
 
 ## 4. ความต้องการของระบบ (Prerequisites)
 
-- **PHP 8.1 ขึ้นไป** พร้อมส่วนขยาย: `pdo_mysql, mbstring, gd, zip, zlib, dom, xml, simplexml, xmlreader, xmlwriter, libxml, fileinfo, iconv, ctype, filter, hash, openssl, json`
+- **PHP 8.1 ขึ้นไป** พร้อมส่วนขยาย: `pdo, pdo_mysql, mbstring, gd, zip, zlib, dom, xml, simplexml, xmlreader, xmlwriter, libxml, fileinfo, iconv, ctype, filter, hash, openssl, json`
 - **MySQL 5.7+ / MariaDB 10.3+** (charset `utf8mb4`)
 - **เว็บเซิร์ฟเวอร์** ที่เปิด `mod_rewrite` และอ่าน `.htaccess` (Apache — มาตรฐาน cPanel)
 - ตั้ง **cron ได้** (สำหรับ SLA + อีเมลอัตโนมัติ)
@@ -81,7 +81,7 @@ php -S 127.0.0.1:8000 -t public public/index.php
 | `bin/package-release.sh` | แพ็กไฟล์เป็น zip พร้อมขาย (รวม vendor/ ตัดข้อมูล/ประวัติ dev ออก) |
 | `php bin/run-maintenance-cron.php` | งานเบื้องหลัง: คิด SLA + ส่งอีเมลในคิว (ตั้งเป็น cron) |
 | `php bin/backup-database.php` | สำรองฐานข้อมูล (ตั้งเป็น cron รายวัน) |
-| `vendor/bin/phpstan analyse` | ตรวจชนิดข้อมูลแบบ static (dev) |
+| `vendor/bin/phpstan analyse --memory-limit=1G` | ตรวจชนิดข้อมูลแบบ static (dev) |
 
 ## 7. โครงสร้างโฟลเดอร์
 

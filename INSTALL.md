@@ -129,6 +129,10 @@
    ```
    php /home/cpaneluser/public_html/bin/backup-database.php
    ```
+5. (ทางเลือก) เก็บกวาดไฟล์แนบกำพร้ารายสัปดาห์ — เลือก "Once Per Week" แล้วใส่:
+   ```
+   php /home/cpaneluser/public_html/bin/cleanup-orphan-attachments.php
+   ```
 
 ---
 

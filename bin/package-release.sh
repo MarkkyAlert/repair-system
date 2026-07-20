@@ -28,13 +28,19 @@ git -C "$ROOT" archive HEAD | tar -x -C "$STAGING"
 
 # 3) strip dev-only / internal files a buyer never needs. Includes the test suite (tests/): it needs a test
 #    DB + dev tooling to run, carries internal review references, and is not part of the shipped product.
-( cd "$STAGING" && rm -rf .github .githooks tools e2e tests \
+( cd "$STAGING" && rm -rf .github .githooks tools e2e tests docs \
     phpstan.neon phpstan-baseline.neon phpstan-bootstrap.php \
     .php-cs-fixer.dist.php .php-cs-fixer.cache handoff.md prompt.md )
 
 # 4) belt-and-suspenders: never ship secrets or real data even if a stray copy slipped in.
 ( cd "$STAGING" && rm -f .env && rm -rf .git \
     && rm -f storage/backups/*.gz storage/logs/*.log storage/mail-logs/*.json storage/uploads/tickets/* )
+
+# 4b) warn (do not block) if LICENSE.md still has unfilled placeholders — the buyer must not
+#     receive a licence with no licensor named. Fill name/year/contact before shipping.
+if grep -qE '\[ชื่อผู้ขาย|© \[ปี\]|\[อีเมล' "$STAGING/LICENSE.md" 2>/dev/null; then
+    echo "  ⚠️  WARNING: LICENSE.md still has unfilled placeholders ([ชื่อผู้ขาย]/© [ปี]/[อีเมล]) — fill them before selling."
+fi
 
 # 5) zip it up (keep the release artifacts out of git via a self-ignoring dist/ dir).
 OUT="$ROOT/dist"
