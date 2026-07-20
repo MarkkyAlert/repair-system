@@ -21,7 +21,10 @@
                 <p class="body-text"><strong>หมายเลขเครื่อง / Serial:</strong> <?= e($asset['serial_number']) ?></p>
                 <p class="body-text"><strong>สถานที่:</strong> <?= e($asset['location_label']) ?></p>
                 <p class="body-text"><strong>สแกนล่าสุด:</strong> <?= e($asset['last_scanned_at']) ?></p>
-                <p class="body-text"><strong>หมายเหตุ:</strong> <?= e($asset['notes'] !== '' ? $asset['notes'] : '-') ?></p>
+                <?php if (!empty($isAuthenticated)): ?>
+                    <?php // หมายเหตุเป็น free-text ภายในของแอดมิน — แสดงเฉพาะเจ้าหน้าที่ที่ล็อกอิน ไม่โชว์บนหน้า scan สาธารณะ (guest) ?>
+                    <p class="body-text"><strong>หมายเหตุ:</strong> <?= e($asset['notes'] !== '' ? $asset['notes'] : '-') ?></p>
+                <?php endif; ?>
             </div>
         </section>
 

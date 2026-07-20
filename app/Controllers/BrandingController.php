@@ -37,7 +37,9 @@ class BrandingController
             if ($absoluteReal === false || $root === false || !is_file($absoluteReal)) {
                 continue;
             }
-            if (!str_starts_with($absoluteReal, $root)) {
+            // path containment ต้องเทียบขอบโฟลเดอร์จริง: prefix เปล่า ๆ จะให้ dir พี่น้องที่ชื่อขึ้นต้นเหมือนกัน
+            // (เช่น branding-backup/) ผ่านได้ — ต้องเป็น root เป๊ะ หรือ root + ตัวคั่น path เท่านั้น
+            if ($absoluteReal !== $root && !str_starts_with($absoluteReal, $root . DIRECTORY_SEPARATOR)) {
                 continue;
             }
             $resolvedPath = $absoluteReal;

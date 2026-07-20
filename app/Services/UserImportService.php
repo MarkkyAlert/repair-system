@@ -130,7 +130,8 @@ class UserImportService
                 'role' => $role,
                 'department_id' => $departmentId,
                 'phone' => $phone,
-                'password' => $password,
+                // hash รหัสตั้งแต่ตอน validate — ไม่เก็บรหัสดิบไว้ใน session ระหว่าง preview→execute (session เขียนลงไฟล์ฝั่ง server)
+                'password_hash' => $password !== '' ? password_hash($password, PASSWORD_BCRYPT) : null,
                 'auto_password' => $password === '',
             ];
         }
@@ -151,9 +152,15 @@ class UserImportService
 
         foreach ($validRows as $row) {
             try {
-                $password = (string) ($row['password'] ?? '');
-                if ($password === '') {
-                    $password = bin2hex(random_bytes(8));
+                // ใช้ hash ที่ทำไว้ตั้งแต่ตอน validate (null = แถว auto-password → สุ่มรหัสใหม่ที่นี่ ผู้ใช้ตั้งเองผ่าน reset email).
+                // fallback อ่าน 'password' ดิบไว้เผื่อ row ที่ประกอบเองโดยไม่ผ่าน validateRows (เช่นในเทสต์)
+                $passwordHash = $row['password_hash'] ?? null;
+                if ($passwordHash === null) {
+                    $raw = (string) ($row['password'] ?? '');
+                    if ($raw === '') {
+                        $raw = bin2hex(random_bytes(8));
+                    }
+                    $passwordHash = password_hash($raw, PASSWORD_BCRYPT);
                 }
 
                 $payload = [
@@ -163,7 +170,7 @@ class UserImportService
                     'phone' => (string) ($row['phone'] ?? ''),
                     'role' => (string) $row['role'],
                     'department_id' => $row['department_id'] ?? null,
-                    'password_hash' => password_hash($password, PASSWORD_BCRYPT),
+                    'password_hash' => $passwordHash,
                     'is_active' => true,
                 ];
                 $this->admin->createUser($payload);
