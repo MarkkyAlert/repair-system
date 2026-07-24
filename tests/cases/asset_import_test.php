@@ -375,3 +375,41 @@ test('assetImport.executeImport A3: a row whose asset_code already exists is ski
         ai_delete_assets([$existing['asset_code']]);
     }
 });
+
+// bug-hunt B5 (2nd pass): sanitize_export_cell prepends a formula-guard apostrophe before a leading = + @ (or a
+// non-numeric -) on export, but the import parser never stripped it — so a value like "- ไม่มีข้อมูล" came back as
+// "'- ไม่มีข้อมูล" when an app-exported file was re-imported (silent one-way corruption). unsanitize_import_cell
+// reverses the guard, applied in ParsesCsvUpload for every imported cell.
+test('CSV round-trip B5: sanitize_export_cell then unsanitize_import_cell restores the original (and leaves genuine values alone)', function (): void {
+    foreach (['- ไม่มีข้อมูล', '+66 81 234 5678', '@Home', '=SUM(A1)', '-2+3'] as $original) {
+        $guarded = sanitize_export_cell($original);
+        assert_true($guarded !== $original, "the guard apostrophe is applied on export for '{$original}'");
+        assert_same($original, unsanitize_import_cell($guarded), "round-trip restores '{$original}' exactly");
+    }
+    // no over-stripping: a plain negative number is never guarded; a genuine leading apostrophe / mid-dash is kept
+    assert_same('-15', unsanitize_import_cell('-15'), 'a plain negative number is unchanged');
+    assert_same('-1,234.50', unsanitize_import_cell('-1,234.50'), 'a plain negative thousands number is unchanged');
+    assert_same("'hello", unsanitize_import_cell("'hello"), 'a genuine leading apostrophe (not shielding a formula) is preserved');
+    assert_same('ห้อง A-12', unsanitize_import_cell('ห้อง A-12'), 'a mid-string dash is unaffected');
+});
+
+test('assetImport.parseUploadedFile B5: a formula-guarded cell in an app-exported CSV is stripped back on import', function (): void {
+    $original = '- ไม่มีข้อมูล';
+    $guarded = sanitize_export_cell($original); // what the CSV/XLSX exporter writes
+    $ref = ai_ref();
+    $cells = [
+        'RT-' . strtoupper(bin2hex(random_bytes(3))), 'RT Asset', '', $ref['cat_code'], $ref['loc_code'],
+        '', '', '', '', '', '', '', 'active', $guarded,
+    ];
+    $rowLine = implode(',', array_map(static fn (string $c): string => '"' . str_replace('"', '""', $c) . '"', $cells));
+    $csv = "\xEF\xBB\xBF" . implode(',', AssetImportService::CSV_COLUMNS) . "\n" . $rowLine . "\n";
+
+    $file = ai_file($csv);
+    try {
+        $rows = ai_service()->parseUploadedFile($file);
+        assert_same(1, count($rows), 'one row parsed');
+        assert_same($original, (string) ($rows[0]['notes'] ?? ''), 'the formula-guard apostrophe is stripped on import → matches the original exported value');
+    } finally {
+        @unlink($file['tmp_name']);
+    }
+});

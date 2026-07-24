@@ -105,6 +105,36 @@ function sanitize_export_cell(mixed $value): string
 }
 
 /**
+ * ถอด "เครื่องหมายกันสูตร" (leading apostrophe) ที่ sanitize_export_cell เติมไว้ตอน export ออกตอน import — เพื่อให้
+ * ไฟล์ที่ export จากระบบเอง แล้ว import กลับ ได้ค่าตรงเดิมทุก byte. ถอด ' นำหน้าเฉพาะเมื่อสิ่งที่มันกันคือตัวเปิดสูตร
+ * (= + @ หรือ - ที่ไม่ใช่ตัวเลขติดลบล้วน) — ให้ตรงกับกฎที่ sanitize_export_cell ใช้เติม. ค่าที่ขึ้นต้นด้วย ' จริง ๆ
+ * (เช่น "'hello") ไม่ถูกแตะ.
+ */
+function unsanitize_import_cell(string $value): string
+{
+    if ($value === '' || $value[0] !== "'") {
+        return $value;
+    }
+
+    $rest = substr($value, 1);
+    $trimmed = ltrim($rest);
+    if ($trimmed === '') {
+        return $value;
+    }
+
+    $opener = $trimmed[0];
+    if (in_array($opener, ['=', '+', '@'], true)) {
+        return $rest;
+    }
+    // '-' ถูกกันไว้เฉพาะตอนที่ "ไม่ใช่" ตัวเลขติดลบล้วน (mirror sanitize_export_cell) จึงถอดเฉพาะกรณีนั้น
+    if ($opener === '-' && preg_match('/^-(\d+|\d{1,3}(,\d{3})+)(\.\d+)?$/', $trimmed) !== 1) {
+        return $rest;
+    }
+
+    return $value;
+}
+
+/**
  * คืน true เมื่อ exception เกิดจากการชน unique-constraint / duplicate-key (MySQL 23000 / 1062)
  * ใช้ร่วมกันในบริการนำเข้า CSV เพื่อรายงานแถวที่ซ้ำให้สอดคล้องกัน
  */

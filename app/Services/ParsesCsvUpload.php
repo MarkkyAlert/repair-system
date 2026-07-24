@@ -68,7 +68,9 @@ trait ParsesCsvUpload
                 $assoc = ['_line' => $lineNo];
                 foreach ($header as $idx => $colName) {
                     if (in_array($colName, $columns, true)) {
-                        $assoc[$colName] = isset($row[$idx]) ? trim((string) $row[$idx]) : '';
+                        // ถอดเครื่องหมายกันสูตรที่ export เติมไว้ (unsanitize_import_cell) เพื่อให้ไฟล์ที่ export
+                        // จากระบบเอง import กลับได้ค่าตรงเดิม (round-trip) ไม่เพี้ยนที่ตัวขึ้นต้น - + @ =
+                        $assoc[$colName] = isset($row[$idx]) ? unsanitize_import_cell(trim((string) $row[$idx])) : '';
                     }
                 }
                 $rows[] = $assoc;
