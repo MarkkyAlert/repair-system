@@ -350,3 +350,28 @@ test('assetImport.validateRows (LOW#12): a Thai asset name within the 200-char l
     $result = ai_service()->validateRows([ai_raw($ref, ['_line' => 2, 'name' => $thaiName])]);
     assert_true(ai_invalid_for($result, 2) === null, 'a 100-character Thai name is within the 200-char limit — the row is valid, not rejected as too long');
 });
+
+// bug-hunt A3 (2nd pass): executeImport's skip-reason classifier keyed only on is_duplicate_key_error(), which
+// matches raw PDOExceptions — but createAsset converts a duplicate asset_code/serial into a DomainException
+// first, so every "code already in the DB" import row was mislabeled with the generic "เกิดข้อผิดพลาดในการบันทึก"
+// instead of a duplicate reason. The classifier now recognizes the DomainException and surfaces its message.
+test('assetImport.executeImport A3: a row whose asset_code already exists is skipped with a DUPLICATE reason, not a generic error', function (): void {
+    $ref = ai_ref();
+    $existing = ai_exec_row($ref);
+    try {
+        $r1 = ai_service()->executeImport([$existing], ai_admin());
+        assert_same(1, (int) $r1['imported'], 'the first import inserts the asset');
+
+        // re-import the SAME asset_code → createAsset hits UNIQUE(asset_code) and converts it to a DomainException
+        $dupRow = ai_exec_row($ref, ['asset_code' => $existing['asset_code'], 'line' => 21]);
+        $r2 = ai_service()->executeImport([$dupRow], ai_admin());
+        assert_same(0, (int) $r2['imported'], 'the duplicate row is not imported');
+        assert_same(1, count($r2['skipped']), 'the duplicate row is skipped');
+
+        $reason = (string) ($r2['skipped'][0]['reason'] ?? '');
+        assert_true(str_contains($reason, 'ซ้ำ') || str_contains($reason, 'มีอยู่ในระบบ'), "the skip reason states the code is a duplicate (got: {$reason})");
+        assert_true(!str_contains($reason, 'เกิดข้อผิดพลาดในการบันทึก'), 'the reason is NOT the generic save error');
+    } finally {
+        ai_delete_assets([$existing['asset_code']]);
+    }
+});

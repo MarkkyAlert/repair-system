@@ -187,9 +187,14 @@ class AssetImportService
                 $skipped[] = [
                     'line' => (int) ($row['line'] ?? 0),
                     'asset_code' => (string) ($row['asset_code'] ?? ''),
-                    'reason' => is_duplicate_key_error($exception)
-                        ? 'asset_code หรือ serial_number ซ้ำกับข้อมูลที่มีอยู่'
-                        : 'เกิดข้อผิดพลาดในการบันทึก',
+                    // createAsset แปลงข้อมูลซ้ำเป็น DomainException (ข้อความเจาะจงว่ารหัสหรือ serial ซ้ำ) มาถึงตรงนี้แล้ว
+                    // — is_duplicate_key_error รับเฉพาะ PDOException ดิบ ถ้าเช็คตัวเดียวแถวที่ซ้ำจะขึ้นเหตุผลกลาง ๆ
+                    // "เกิดข้อผิดพลาด" แทนที่จะบอกว่าซ้ำ; ใช้ข้อความของ DomainException ที่เจาะจงกว่าโดยตรง
+                    'reason' => $exception instanceof DomainException
+                        ? $exception->getMessage()
+                        : (is_duplicate_key_error($exception)
+                            ? 'asset_code หรือ serial_number ซ้ำกับข้อมูลที่มีอยู่'
+                            : 'เกิดข้อผิดพลาดในการบันทึก'),
                 ];
             }
         }
