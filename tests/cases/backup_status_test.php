@@ -153,3 +153,22 @@ test('backup status: a gzip truncated mid-body (valid header + fake ISIZE) is NO
         @unlink($corruptPath);
     }
 });
+
+test('backup status: a valid gzip followed by trailing garbage is NOT restorable', function (): void {
+    $svc = tvm_container()->get(BackupService::class);
+    $check = new ReflectionMethod(BackupService::class, 'isRestorableBackup');
+    $check->setAccessible(true);
+    $path = tempnam(sys_get_temp_dir(), 'bkptrailing_');
+
+    try {
+        $gzip = (string) gzencode("INSERT INTO tickets VALUES (1, 'valid');\n", 6);
+        file_put_contents($path, $gzip . "JUNK");
+
+        assert_false(
+            (bool) $check->invoke($svc, $path),
+            'zlib reaching the first stream end is insufficient when unread trailing bytes remain'
+        );
+    } finally {
+        @unlink($path);
+    }
+});

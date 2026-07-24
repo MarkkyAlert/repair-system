@@ -86,8 +86,8 @@ class BackupService
     /**
      * คืน true เฉพาะไฟล์ที่คลาย gzip ได้จนจบจริง ๆ และมีเนื้อข้อมูล — เป็นด่านคัดไฟล์ db-*.sql.gz ที่ว่าง/ขาดครึ่ง/
      * เสียกลางไฟล์ ออกจากจำนวน "backup ที่ใช้ได้". เดิมดูแค่ magic bytes + ISIZE ใน trailer ซึ่งไฟล์ที่ header/ท้าย
-     * ยังอ่านได้แต่เนื้อในเสีย (เช่น backup ที่ตายคาตอนเขียนเพราะดิสก์เต็ม) หลุดผ่านได้. ตอนนี้ไล่ inflate ทั้ง stream
-     * แล้วเช็คว่า zlib ปิดที่ ZLIB_STREAM_END (zlib ตรวจ CRC32 + ISIZE ให้เองตอนถึงท้าย) — ไฟล์ที่ขาดครึ่งจะไม่ถึงจุดนั้น.
+     * ยังอ่านได้แต่เนื้อในเสีย (เช่น backup ที่ตายคาตอนเขียนเพราะดิสก์เต็ม) หลุดผ่านได้. ตอนนี้ไล่ inflate ทั้ง stream,
+     * เช็คว่า zlib ปิดที่ ZLIB_STREAM_END และกิน compressed input ครบทุก byte — ไฟล์ขาดครึ่งหรือมีขยะต่อท้ายจึงไม่ผ่าน.
      */
     private function isRestorableBackup(string $path): bool
     {
@@ -106,6 +106,7 @@ class BackupService
 
         // คลายทีละก้อน ทิ้งผลลัพธ์ไปเรื่อย ๆ (ไม่ต้องเก็บทั้งไฟล์ในหน่วยความจำ) แค่ยืนยันว่าเนื้อในถูกต้องและครบ
         $producedBytes = false;
+        $compressedBytes = 0;
         try {
             while (!feof($handle)) {
                 $chunk = fread($handle, 1 << 16);
@@ -115,6 +116,7 @@ class BackupService
                 if ($chunk === '') {
                     continue;
                 }
+                $compressedBytes += strlen($chunk);
                 $decoded = @inflate_add($context, $chunk, ZLIB_NO_FLUSH);
                 if ($decoded === false) {
                     return false; // เนื้อ gzip เสีย/ไม่ใช่ gzip — คลายไม่ออก
@@ -127,8 +129,10 @@ class BackupService
             fclose($handle);
         }
 
-        // ต้องคลายได้เนื้อจริง (gzip ของ input ว่าง → ไม่มีเนื้อ → กู้คืนไม่ได้) และ stream ต้องปิดสมบูรณ์
-        return $producedBytes && inflate_get_status($context) === ZLIB_STREAM_END;
+        // ต้องมีเนื้อจริง, stream ปิดสมบูรณ์ และ zlib ต้องกินไฟล์ครบ (ไม่หยุดก่อน trailing garbage).
+        return $producedBytes
+            && inflate_get_status($context) === ZLIB_STREAM_END
+            && inflate_get_read_len($context) === $compressedBytes;
     }
 
     /** bytes → ข้อความอ่านง่าย (B/KB/MB/GB/TB). */
