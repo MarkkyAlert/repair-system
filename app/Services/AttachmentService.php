@@ -344,8 +344,23 @@ class AttachmentService
             'comment_id' => (int) ($row['comment_id'] ?? 0),
             'name' => (string) $row['original_name'],
             'mime_type' => (string) $row['mime_type'],
-            'size_label' => number_format(((int) $row['file_size']) / 1024, 0) . ' KB',
+            'size_label' => $this->formatSize((int) $row['file_size']),
             'url' => '/attachments/' . (int) $row['id'],
         ];
+    }
+
+    /**
+     * bytes → ป้ายอ่านง่าย ปรับหน่วยตามขนาด (B/KB/MB/GB). เดิมหาร 1024 ปัดเศษเป็น KB เสมอ ทำให้ไฟล์จริงที่เล็กกว่า
+     * ~512 ไบต์ (เช่นโน้ต .txt สั้น ๆ ที่อนุญาต) โชว์ "0 KB" เหมือนไฟล์ว่าง และไฟล์หลาย MB ก็ค้างเป็น "x,xxx KB".
+     */
+    private function formatSize(int $bytes): string
+    {
+        if ($bytes <= 0) {
+            return '0 B';
+        }
+        $units = ['B', 'KB', 'MB', 'GB'];
+        $power = min((int) floor(log($bytes, 1024)), count($units) - 1);
+
+        return ($power === 0 ? (string) $bytes : number_format($bytes / (1024 ** $power), 1)) . ' ' . $units[$power];
     }
 }

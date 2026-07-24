@@ -365,4 +365,23 @@ namespace {
             assert_true(!str_contains($src, '->deleteStoredFiles('), "$file routes cleanup through purgeStoredFiles, not the raw deleteStoredFiles");
         }
     });
+
+    // bug-hunt R4-E: the attachment size label divided by 1024 and rounded to whole KB, so a real (whitelisted)
+    // sub-512-byte file showed "0 KB" — indistinguishable from an empty/broken file — and multi-MB files stayed
+    // as "x,xxx KB". The label now scales the unit (B/KB/MB/GB) and never collapses a non-empty file to "0".
+    test('attachment: the size label scales units and never shows a non-empty file as 0 (R4-E)', function (): void {
+        $map = new ReflectionMethod(AttachmentService::class, 'mapAttachment');
+        $map->setAccessible(true);
+        $label = static function (int $bytes) use ($map): string {
+            return (string) $map->invoke(att_service(), [
+                'id' => 1, 'comment_id' => 0, 'original_name' => 'n', 'mime_type' => 'text/plain', 'file_size' => $bytes,
+            ])['size_label'];
+        };
+
+        assert_same('300 B', $label(300), 'a 300-byte file shows bytes, not "0 KB"');
+        assert_same('1.0 KB', $label(1024), 'exactly 1 KB');
+        assert_same('1.5 KB', $label(1536), 'fractional KB is kept');
+        assert_same('5.0 MB', $label(5 * 1024 * 1024), 'multi-MB scales to MB, not thousands of KB');
+        assert_true(str_ends_with($label(1), 'B') && $label(1) !== '0 B', 'a 1-byte file is not rounded to zero');
+    });
 }
