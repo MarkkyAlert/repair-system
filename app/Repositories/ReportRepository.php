@@ -219,6 +219,9 @@ class ReportRepository
         $params = [];
         $conditions = [$this->visibilityClause($viewer, $params)];
         $this->applyReportFilters($conditions, $filters, $params);
+        // requested_at ที่เป็นอนาคต (clock skew / import ผิด) ไม่ใช่ความเสียหายจริง — ตัดออกให้ตรงกับรายงานเต็ม
+        // (getAssetReliabilityReport) ไม่งั้นแผงสรุปบน /reports จะนับ failure สูงกว่าหน้ารายงานเต็มของ asset เดียวกัน
+        $conditions[] = 't.requested_at <= NOW()';
         $whereClause = implode(' AND ', $conditions);
         $limit = max(1, min($limit, 200));
 

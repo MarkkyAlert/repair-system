@@ -528,3 +528,42 @@ test('asset reliability export: a decimal-looking asset code stays text and matc
         }
     }
 });
+
+// bug-hunt A5 (2nd pass): the /reports asset-reliability PANEL (getAssetReliabilityRows) lacked the
+// 't.requested_at <= NOW()' clamp that the full report (getAssetReliabilityReport) got in R8-F3, so a
+// future-dated ticket (clock skew / bad import) inflated the panel's failure_count above the full report's
+// for the same asset. The panel now applies the same clamp.
+test('asset reliability panel A5: the /reports panel excludes future-dated tickets, matching the full report', function (): void {
+    $repo = tvm_container()->get(App\Repositories\ReportRepository::class);
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $rid = bin2hex(random_bytes(3));
+    arr_pdo()->prepare('INSERT INTO locations (code, name) VALUES (?, ?)')->execute(["A5L-$rid", "A5 Loc $rid"]);
+    $locId = (int) arr_pdo()->lastInsertId();
+    arr_pdo()->prepare("INSERT INTO assets (asset_code, name, asset_category_id, location_id, status, created_at, updated_at) VALUES (?, 'A5 Asset', 1, ?, 'active', NOW(), NOW())")->execute(["A5A-$rid", $locId]);
+    $assetId = (int) arr_pdo()->lastInsertId();
+    $tids = [];
+    try {
+        // one real (past) failure + one future-dated ticket (clock skew / bad import)
+        arr_pdo()->prepare("INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, asset_id, status, requested_at) VALUES (?, 'x','x',1,?,1,1,?, 'submitted', DATE_SUB(NOW(), INTERVAL 1 DAY))")->execute(["A5T1-$rid", $locId, $assetId]);
+        $tids[] = (int) arr_pdo()->lastInsertId();
+        arr_pdo()->prepare("INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, asset_id, status, requested_at) VALUES (?, 'x','x',1,?,1,1,?, 'submitted', DATE_ADD(NOW(), INTERVAL 10 DAY))")->execute(["A5T2-$rid", $locId, $assetId]);
+        $tids[] = (int) arr_pdo()->lastInsertId();
+
+        $rows = $repo->getAssetReliabilityRows($admin, ['location_id' => $locId]);
+        $row = null;
+        foreach ($rows as $r) {
+            if ((int) ($r['id'] ?? 0) === $assetId) {
+                $row = $r;
+                break;
+            }
+        }
+        assert_true($row !== null, 'the asset appears in the reliability panel');
+        assert_same(1, (int) $row['failure_count'], 'the panel counts only the past failure, not the future-dated ticket (matches the full report)');
+    } finally {
+        foreach ($tids as $id) {
+            arr_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
+        }
+        arr_pdo()->prepare('DELETE FROM assets WHERE id = ?')->execute([$assetId]);
+        arr_pdo()->prepare('DELETE FROM locations WHERE id = ?')->execute([$locId]);
+    }
+});
