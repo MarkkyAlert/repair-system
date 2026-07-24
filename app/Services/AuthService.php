@@ -221,6 +221,9 @@ class AuthService
         if (!password_has_minimum_length($password)) {
             throw new DomainException('รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร');
         }
+        if (!password_fits_bcrypt_limit($password)) {
+            throw new DomainException('รหัสผ่านยาวเกินกำหนด (ไม่เกิน 72 ไบต์)');
+        }
 
         $result = $this->passwordResets->resetPasswordUsingToken(
             $email,
@@ -259,6 +262,9 @@ class AuthService
 
         if (!password_has_minimum_length($password)) {
             throw new DomainException('รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัวอักษร');
+        }
+        if (!password_fits_bcrypt_limit($password)) {
+            throw new DomainException('รหัสผ่านใหม่ยาวเกินกำหนด (ไม่เกิน 72 ไบต์)');
         }
 
         if (password_verify($password, (string) ($user['password_hash'] ?? ''))) {

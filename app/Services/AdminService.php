@@ -162,6 +162,9 @@ class AdminService
         if (!password_has_minimum_length($password)) {
             throw new DomainException('รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร');
         }
+        if (!password_fits_bcrypt_limit($password)) {
+            throw new DomainException('รหัสผ่านยาวเกินกำหนด (ไม่เกิน 72 ไบต์)');
+        }
 
         if ($departmentId > 0 && !$this->admin->departmentExists($departmentId)) {
             throw new DomainException('Department ที่เลือกไม่ถูกต้อง');

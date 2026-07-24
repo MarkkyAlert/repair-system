@@ -140,6 +140,9 @@ class SetupController
             if (!password_has_minimum_length($password)) {
                 throw new DomainException('รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร');
             }
+            if (!password_fits_bcrypt_limit($password)) {
+                throw new DomainException('รหัสผ่านยาวเกินกำหนด (ไม่เกิน 72 ไบต์)');
+            }
 
             try {
                 // เขียนข้อมูลตั้งค่าครั้งแรกแบบทำทั้งหมดหรือไม่ทำเลย (ยกเว้นให้ช่วง bootstrap ของกฎ "transaction ต้องอยู่ใน service")

@@ -85,6 +85,8 @@ class UserImportService
             }
             if ($password !== '' && !password_has_minimum_length($password)) {
                 $errors[] = 'password ต้องมีอย่างน้อย 8 ตัวอักษร (เว้นว่างเพื่อ auto-generate)';
+            } elseif ($password !== '' && !password_fits_bcrypt_limit($password)) {
+                $errors[] = 'password ยาวเกินกำหนด (ไม่เกิน 72 ไบต์)';
             }
             if ($username !== '' && isset($seenUsernames[$username])) {
                 $errors[] = 'username ซ้ำกับแถวอื่นในไฟล์';
@@ -161,6 +163,8 @@ class UserImportService
                         $raw = bin2hex(random_bytes(8));
                     } elseif (!password_has_minimum_length($raw)) {
                         throw new DomainException('password ต้องมีอย่างน้อย 8 ตัวอักษร');
+                    } elseif (!password_fits_bcrypt_limit($raw)) {
+                        throw new DomainException('password ยาวเกินกำหนด (ไม่เกิน 72 ไบต์)');
                     }
                     $passwordHash = password_hash($raw, PASSWORD_BCRYPT);
                 }

@@ -114,6 +114,19 @@ test('password policy: the 8-character minimum counts Unicode characters, not UT
     assert_true(password_has_minimum_length('password'), 'eight ASCII characters still meet the minimum');
 });
 
+test('password policy: reject inputs beyond bcrypt’s 72-byte boundary before hashing', function (): void {
+    $prefix = str_repeat('a', 72);
+    $first = $prefix . 'X';
+    $second = $prefix . 'Y';
+    $hash = password_hash($first, PASSWORD_BCRYPT);
+
+    assert_true(password_verify($second, $hash), 'bcrypt ignores the differing byte after its 72-byte boundary');
+    assert_true(password_fits_bcrypt_limit($prefix), 'exactly 72 bytes remain valid');
+    assert_false(password_fits_bcrypt_limit($first), '73 bytes must be rejected before bcrypt truncates them');
+    assert_true(password_fits_bcrypt_limit(str_repeat('ก', 24)), '24 Thai characters occupy exactly 72 UTF-8 bytes');
+    assert_false(password_fits_bcrypt_limit(str_repeat('ก', 25)), '25 Thai characters occupy 75 UTF-8 bytes');
+});
+
 // ── assert_admin: the shared admin-only guard (service/controller counterpart to require_role) ──
 test('assert_admin: lets admins through, throws the standard message for everyone else', function (): void {
     assert_admin(['role' => 'admin']); // must NOT throw (reaching the next line proves it)

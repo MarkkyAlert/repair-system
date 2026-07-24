@@ -307,6 +307,12 @@ function password_has_minimum_length(string $password): bool
     return (function_exists('mb_strlen') ? mb_strlen($password) : strlen($password)) >= 8;
 }
 
+/** bcrypt ใช้อินพุตเพียง 72 ไบต์แรก จึงต้องปฏิเสธค่าที่ยาวกว่านั้นก่อนสร้าง hash */
+function password_fits_bcrypt_limit(string $password): bool
+{
+    return strlen($password) <= 72;
+}
+
 /** รูปแบบ username: 3–50 ตัวอักษรจาก a-z, 0-9, จุด, ขีดกลาง, ขีดล่าง ใช้ร่วมกันตอน admin สร้างผู้ใช้ + นำเข้า CSV */
 function is_valid_username(string $username): bool
 {
