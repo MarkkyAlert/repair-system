@@ -135,12 +135,9 @@ class GuestTicketService
     public function getModerationData(string $status, int $page, int $perPage = 20): array
     {
         $perPage = max(5, min($perPage, 100));
-        $page = max(1, $page);
-        $offset = ($page - 1) * $perPage;
-
         $totals = $this->requests->countByStatus();
         $matched = $this->requests->countMatching($status);
-        $totalPages = $matched > 0 ? (int) ceil($matched / $perPage) : 1;
+        ['page' => $page, 'offset' => $offset, 'totalPages' => $totalPages] = paginate($page, $perPage, $matched);
 
         return [
             'requests' => $this->requests->listByStatus($status, $perPage, $offset),

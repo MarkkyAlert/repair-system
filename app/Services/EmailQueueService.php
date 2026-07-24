@@ -154,12 +154,9 @@ class EmailQueueService
     public function listJobsPaginated(string $status, int $page, int $perPage = 25): array
     {
         $perPage = max(5, min($perPage, 100));
-        $page = max(1, $page);
-        $offset = ($page - 1) * $perPage;
-
         $totals = $this->queue->countByStatus();
         $matched = $this->queue->countJobs($status);
-        $totalPages = $matched > 0 ? (int) ceil($matched / $perPage) : 1;
+        ['page' => $page, 'offset' => $offset, 'totalPages' => $totalPages] = paginate($page, $perPage, $matched);
 
         return [
             'jobs' => $this->queue->listJobs($status, $perPage, $offset),
