@@ -561,8 +561,10 @@ class TicketService
         $categorySla = setting('category_sla_' . $categoryId, []);
         $responseMinutes = max(0, (int) ($categorySla['response_minutes'] ?? (int) ($priority['response_time_minutes'] ?? 0)));
         $resolutionMinutes = max(0, (int) ($categorySla['resolution_minutes'] ?? (int) ($priority['resolution_time_minutes'] ?? 0)));
-        $responseDueAt = date('Y-m-d H:i:s', strtotime($requestedAt . ' +' . $responseMinutes . ' minutes'));
-        $resolutionDueAt = date('Y-m-d H:i:s', strtotime($requestedAt . ' +' . $resolutionMinutes . ' minutes'));
+        // 0 นาที = "ปิด SLA" ของ metric นั้น ไม่ใช่ "ครบกำหนดทันที": ไม่มีกำหนดเวลา (due = null) จึงไม่ขึ้นเกินกำหนด
+        // และไม่สร้าง SLA track (repo ข้ามให้). แอดมินที่ตั้งค่าหมวดเป็น 0 ตั้งใจปิด SLA ไม่ใช่อยากให้ทุกใบเกินกำหนดทันที
+        $responseDueAt = $responseMinutes > 0 ? date('Y-m-d H:i:s', strtotime($requestedAt . ' +' . $responseMinutes . ' minutes')) : null;
+        $resolutionDueAt = $resolutionMinutes > 0 ? date('Y-m-d H:i:s', strtotime($requestedAt . ' +' . $resolutionMinutes . ' minutes')) : null;
 
         $storedPaths = [];
         $ticketId = 0;

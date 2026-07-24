@@ -283,3 +283,35 @@ test('ticketCreate (HIGH#3): the ticket-number lock is held through a caller\'s 
         $pdo->query('SELECT RELEASE_LOCK(' . $pdo->quote($lockName) . ')'); // free the held lock for later tests on this shared connection
     }
 });
+
+// bug-hunt B4 (2nd pass): a category SLA of 0 minutes made response_due_at/resolution_due_at = requested_at, so
+// every new ticket in that category was instantly response- AND resolution-overdue. An admin who sets 0 means
+// "disable SLA for this category", not "due immediately". 0 minutes now = no SLA: the due date is NULL (never
+// overdue) and no SLA track is created. Owner decision (B4): 0 = no SLA.
+test('ticketCreate B4: a category SLA of 0 minutes = no SLA (NULL due, no track), not instantly overdue', function (): void {
+    $ref = tc_ref();
+    $pdo = tc_pdo();
+    $rid = bin2hex(random_bytes(3));
+    // a FRESH category so setting()'s per-key static cache has never seen its category_sla_* key
+    $pdo->prepare("INSERT INTO ticket_categories (code, name, sort_order, is_active, created_at, updated_at) VALUES (?, ?, 1, 1, NOW(), NOW())")
+        ->execute(["B4C-$rid", "B4 Cat $rid"]);
+    $catId = (int) $pdo->lastInsertId();
+    $settings = tvm_container()->get(App\Repositories\SettingsRepository::class);
+    $key = 'category_sla_' . $catId;
+    $settings->upsert($key, (string) json_encode(['response_minutes' => 0, 'resolution_minutes' => 0]), 'json', false, 0);
+
+    $ticketId = 0;
+    try {
+        $ticketId = tc_service()->createTicket(tc_requester(), tc_valid_input($ref, ['ticket_category_id' => $catId]), []);
+        $row = $pdo->query("SELECT response_due_at, resolution_due_at FROM tickets WHERE id = {$ticketId}")->fetch(PDO::FETCH_ASSOC);
+        assert_true($row['response_due_at'] === null, 'response due is NULL (SLA disabled), not requested_at (instant overdue)');
+        assert_true($row['resolution_due_at'] === null, 'resolution due is NULL (SLA disabled)');
+        assert_same(0, (int) $pdo->query("SELECT COUNT(*) FROM ticket_sla_tracks WHERE ticket_id = {$ticketId}")->fetchColumn(), 'no SLA track is created for a 0-minute (disabled) category');
+    } finally {
+        if ($ticketId > 0) {
+            tc_cleanup($ticketId);
+        }
+        $pdo->prepare('DELETE FROM system_settings WHERE setting_key = ?')->execute([$key]);
+        $pdo->prepare('DELETE FROM ticket_categories WHERE id = ?')->execute([$catId]);
+    }
+});

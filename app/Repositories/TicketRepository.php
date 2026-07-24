@@ -58,8 +58,12 @@ class TicketRepository
     public function createTicket(array $payload): array
     {
         $requestedAt = (string) ($payload['requested_at'] ?? date('Y-m-d H:i:s'));
-        $responseDueAt = (string) ($payload['response_due_at'] ?? '');
-        $resolutionDueAt = (string) ($payload['resolution_due_at'] ?? '');
+        // due ว่าง/null = ปิด SLA ของ metric นั้น (หมวดตั้ง 0 นาที) → เก็บเป็น null: bind ลง tickets เป็น NULL และ
+        // ข้ามการสร้าง SLA track (target_at เป็น NOT NULL อยู่แล้ว) จะได้ไม่ถูกนับว่าเกินกำหนด
+        $responseDueRaw = trim((string) ($payload['response_due_at'] ?? ''));
+        $responseDueAt = $responseDueRaw !== '' ? $responseDueRaw : null;
+        $resolutionDueRaw = trim((string) ($payload['resolution_due_at'] ?? ''));
+        $resolutionDueAt = $resolutionDueRaw !== '' ? $resolutionDueRaw : null;
         $submissionToken = (string) ($payload['submission_token'] ?? '');
         // idempotency: token ที่เคยสร้าง ticket ไปแล้วให้คืนใบเดิม ไม่สร้างซ้ำ — กันกดส่งซ้ำหรือกด refresh หลัง submit
         // UNIQUE(submission_token) ใน DB เป็นด่านสุดท้ายกัน race ดู catch ด้านล่าง
@@ -198,24 +202,21 @@ class TicketRepository
                 'INSERT INTO ticket_sla_tracks (ticket_id, metric_type, target_at, achieved_at, breached_at, status, created_at)
                  VALUES (:ticket_id, :metric_type, :target_at, :achieved_at, :breached_at, :status, :created_at)'
             );
-            $slaStmt->execute([
-                'ticket_id' => $ticketId,
-                'metric_type' => 'response',
-                'target_at' => $responseDueAt,
-                'achieved_at' => null,
-                'breached_at' => null,
-                'status' => 'pending',
-                'created_at' => $requestedAt,
-            ]);
-            $slaStmt->execute([
-                'ticket_id' => $ticketId,
-                'metric_type' => 'resolution',
-                'target_at' => $resolutionDueAt,
-                'achieved_at' => null,
-                'breached_at' => null,
-                'status' => 'pending',
-                'created_at' => $requestedAt,
-            ]);
+            // metric ที่ปิด SLA (due = null) ข้ามการสร้าง track — ไม่มี target_at ให้เกินกำหนด (target_at เป็น NOT NULL)
+            foreach (['response' => $responseDueAt, 'resolution' => $resolutionDueAt] as $metricType => $dueAt) {
+                if ($dueAt === null) {
+                    continue;
+                }
+                $slaStmt->execute([
+                    'ticket_id' => $ticketId,
+                    'metric_type' => $metricType,
+                    'target_at' => $dueAt,
+                    'achieved_at' => null,
+                    'breached_at' => null,
+                    'status' => 'pending',
+                    'created_at' => $requestedAt,
+                ]);
+            }
 
             $activityStmt = $this->db->prepare(
                 'INSERT INTO ticket_activity_logs (ticket_id, actor_id, action, from_status, to_status, details, created_at)
