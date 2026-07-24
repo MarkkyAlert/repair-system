@@ -188,11 +188,15 @@ class AttachmentService
         $attachment = $this->attachments->findById($attachmentId);
         // กัน IDOR คือไล่เดา id เพื่อเปิดไฟล์ของคนอื่น: ทุกครั้งที่ดาวน์โหลดต้องพิสูจน์ซ้ำว่า viewer มองเห็น
         // ticket ต้นทางของไฟล์นี้ได้จริงตามสิทธิ์ ไม่ใช่แค่เช็คว่าไฟล์มีอยู่
-        if ($attachment === null || $this->reads->findVisibleTicketById((int) $attachment['ticket_id'], $viewer) === null) {
+        $ticket = $attachment !== null ? $this->reads->findVisibleTicketById((int) $attachment['ticket_id'], $viewer) : null;
+        if ($attachment === null || $ticket === null) {
             throw new DomainException('ไม่พบไฟล์แนบ');
         }
-        // ไฟล์ที่แนบใน comment ภายใน (ทีมงานคุยกันเอง) ต้องไม่หลุดถึงผู้แจ้ง แม้จะรู้ id ไฟล์ตรง ๆ ก็ตาม
-        if (!empty($attachment['is_internal']) && (string) ($viewer['role'] ?? 'guest') === 'requester') {
+        // ไฟล์ที่แนบใน comment ภายใน (ทีมงานคุยกันเอง) ต้องไม่หลุดถึงผู้แจ้ง แม้จะรู้ id ไฟล์ตรง ๆ ก็ตาม — รวมถึง staff
+        // ที่บังเอิญเป็นผู้แจ้งใบนั้นเอง (เช่นช่างแจ้งซ่อมของตัวเอง) ไม่ใช่แค่ role requester
+        $isRequesterOfThisTicket = (int) ($viewer['id'] ?? 0) === (int) ($ticket['requester_id'] ?? 0);
+        if (!empty($attachment['is_internal'])
+            && ((string) ($viewer['role'] ?? 'guest') === 'requester' || $isRequesterOfThisTicket)) {
             throw new DomainException('ไม่มีสิทธิ์เปิดไฟล์แนบนี้');
         }
         $path = BASE_PATH . '/' . ltrim((string) $attachment['disk_path'], '/');

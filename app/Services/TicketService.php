@@ -654,6 +654,22 @@ class TicketService
     }
 
     /**
+     * ผู้ดูรายนี้เห็น comment/ไฟล์แนบ "ภายใน" ของ ticket นี้ได้ไหม. โน้ตภายในเป็นของทีมงาน ซ่อนจาก "ผู้แจ้ง" ของใบนั้น
+     * เสมอ ไม่ว่าตำแหน่งอะไร — staff ที่บังเอิญเป็นผู้แจ้งใบตัวเอง (เช่นช่างแจ้งซ่อมอุปกรณ์ของตัวเอง) ก็ไม่ควรเห็นโน้ต
+     * ภายในของใบนั้น. เดิมเช็คแค่ role != requester เลยรั่วให้ technician/manager ที่เป็นผู้แจ้งใบเองเห็นโน้ตภายในได้.
+     * @param array<string, mixed> $viewer ต้องมี 'id'/'role'
+     * @param array<string, mixed> $ticket ต้องมี 'requester_id'
+     */
+    private function viewerSeesInternal(array $viewer, array $ticket): bool
+    {
+        if ((string) ($viewer['role'] ?? 'guest') === 'requester') {
+            return false;
+        }
+
+        return (int) ($viewer['id'] ?? 0) !== (int) ($ticket['requester_id'] ?? 0);
+    }
+
+    /**
      * ข้อมูลสถานะแบบเบา ๆ สำหรับ live poll ในหน้า ticket detail — status กับจำนวน comment ที่ผู้ดูเห็น.
      * คืน null ถ้าไม่มีสิทธิ์เห็น ticket (ใช้ visibility เดียวกับ getTicketDetailData).
      *
@@ -666,7 +682,7 @@ class TicketService
             return null;
         }
 
-        $includeInternal = (string) ($viewer['role'] ?? 'guest') !== 'requester';
+        $includeInternal = $this->viewerSeesInternal($viewer, $ticket);
 
         return [
             'status' => (string) ($ticket['status'] ?? ''),
@@ -687,7 +703,7 @@ class TicketService
             return null;
         }
 
-        $includeInternal = (string) ($viewer['role'] ?? 'guest') !== 'requester';
+        $includeInternal = $this->viewerSeesInternal($viewer, $ticket);
 
         // ดึงเฉพาะ comment ที่ใหม่กว่า $afterId ไม่ได้ดึงทั้ง thread มากรองใน PHP. ตอน poll แล้วไม่มีอะไรเปลี่ยน
         // (ไม่มี comment ใหม่ — เจอบ่อยเพราะ poll ทุก 20 วินาที) จะ return ออกก่อนโดยไม่แตะไฟล์แนบ
@@ -727,7 +743,7 @@ class TicketService
             return null;
         }
 
-        $includeInternal = (string) ($viewer['role'] ?? 'guest') !== 'requester';
+        $includeInternal = $this->viewerSeesInternal($viewer, $ticket);
 
         $allAttachments = $this->attachments->getTicketAttachments($ticketId, $includeInternal);
         $commentAttachments = [];
