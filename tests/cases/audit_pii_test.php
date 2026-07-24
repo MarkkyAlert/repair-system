@@ -12,6 +12,7 @@ use App\Services\BroadcastService;
 use App\Services\EmailTemplateService;
 use App\Services\MailerService;
 use App\Services\NotificationService;
+use App\Core\Request;
 
 // error-review-4 F5: the user-management and test-email audit records stored the acted-upon user's RAW email +
 // phone. Those are persistent records — in production they must not retain raw contact PII (the entry already
@@ -133,5 +134,54 @@ test('audit(F5): the test-email audit masks the recipient address in production'
         );
     } finally {
         $c->instance('config', $config);
+    }
+});
+
+test('audit: a Unicode User-Agent cut at the column limit still writes a valid audit row', function (): void {
+    $container = tvm_container();
+    $pdo = $container->get(\PDO::class);
+    $instancesProperty = new ReflectionProperty($container, 'instances');
+    $instancesProperty->setAccessible(true);
+    $instancesBefore = $instancesProperty->getValue($container);
+    $hadRequest = array_key_exists(Request::class, $instancesBefore);
+    $originalRequest = $instancesBefore[Request::class] ?? null;
+    $auditFloor = (int) $pdo->query('SELECT COALESCE(MAX(id), 0) FROM audit_logs')->fetchColumn();
+    $userAgent = str_repeat('A', 254) . 'ก';
+
+    try {
+        $container->instance(Request::class, new Request(
+            'POST',
+            '/admin/users',
+            [],
+            [],
+            ['HTTP_USER_AGENT' => $userAgent, 'REMOTE_ADDR' => '127.0.0.1']
+        ));
+
+        $container->get(AuditLogger::class)->record(
+            ['id' => 4, 'role' => 'admin'],
+            'qa.audit.unicode',
+            'user',
+            4
+        );
+
+        $stmt = $pdo->prepare(
+            'SELECT user_agent FROM audit_logs
+             WHERE id > :floor AND action = :action
+             ORDER BY id DESC LIMIT 1'
+        );
+        $stmt->execute(['floor' => $auditFloor, 'action' => 'qa.audit.unicode']);
+        $stored = $stmt->fetchColumn();
+
+        assert_true(is_string($stored), 'the audit row is not silently lost to an invalid UTF-8 insert');
+        assert_same($userAgent, $stored, 'all 255 Unicode characters are stored intact');
+    } finally {
+        $pdo->prepare('DELETE FROM audit_logs WHERE id > ?')->execute([$auditFloor]);
+        if ($hadRequest && $originalRequest instanceof Request) {
+            $container->instance(Request::class, $originalRequest);
+        } else {
+            $instances = $instancesProperty->getValue($container);
+            unset($instances[Request::class]);
+            $instancesProperty->setValue($container, $instances);
+        }
     }
 });

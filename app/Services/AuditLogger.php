@@ -20,7 +20,7 @@ class AuditLogger
     {
         $request = request();
         $server = $request?->server ?? $_SERVER;
-        $userAgent = substr((string) ($server['HTTP_USER_AGENT'] ?? ''), 0, 255);
+        $userAgent = mb_substr((string) ($server['HTTP_USER_AGENT'] ?? ''), 0, 255);
 
         // best-effort: ทุกผู้เรียกจะบันทึก audit หลังการแก้ไขหลัก commit ไปแล้ว (หรือ side-effect
         // เช่น broadcast ถูกส่งออกไปแล้ว) การ insert audit ที่ล้มเหลวจึงต้องไม่โผล่มาเป็น error ให้ user
