@@ -15,6 +15,13 @@ class AuthMiddleware
 
         $timeoutMinutes = (int) config('session.idle_timeout_minutes', 60);
         if ($timeoutMinutes > 0 && $auth->check() && Session::isIdleExpired($timeoutMinutes)) {
+            // เพิกถอน remember-me ด้วย ไม่ใช่แค่ล้าง session: ถ้าปล่อย cookie "จำ 30 วัน" ไว้ คำขอถัดไปจะวิ่งเข้า
+            // attemptRestore ด้านล่างแล้วล็อกอินกลับให้เองโดยไม่ถามรหัส → idle timeout ไร้ผลกับคนที่ติ๊กจำ (ภัย
+            // เครื่องถูกทิ้งไว้). ต้องล้าง token ทั้งฝั่ง cookie และ DB ให้ตรงกับ logout ปกติ (AuthService::logout)
+            $rememberMe = app(RememberMeService::class);
+            if ($rememberMe instanceof RememberMeService) {
+                $rememberMe->clearCurrent();
+            }
             $auth->logout();
             Session::regenerate();
             $target = $returnTo ?? request_path();

@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+use App\Middleware\AuthMiddleware;
 use App\Services\AuthService;
 use App\Services\RememberMeService;
 
@@ -54,5 +55,19 @@ test('auth(anti-fixation): a remember-me restore regenerates the session id befo
         'Session::regenerate(',
         af_method_source('attemptRestore', RememberMeService::class),
         'RememberMeService::attemptRestore must regenerate the session before auth->login(), like attemptLogin does'
+    );
+});
+
+// bug-hunt B1 (2nd pass): the idle-timeout branch logged out the SESSION but not the remember-me token, so the
+// very next request ran attemptRestore() and silently logged the user back in from the still-valid "remember 30
+// days" cookie — the idle timeout did nothing for any remember-me user (unattended-machine threat). It must also
+// revoke remember-me. Source-locked like the guards above: AuthMiddleware::handle cannot be driven end-to-end
+// (Session::regenerate needs a live session + the branch redirect-exits), so pin the revocation at the source —
+// remove the clear and only this reddens. (handle() otherwise references only attemptRestore, never clearCurrent.)
+test('auth(idle): the idle-timeout branch revokes the remember-me token, not just the session (B1)', function (): void {
+    assert_contains_str(
+        'clearCurrent(',
+        af_method_source('handle', AuthMiddleware::class),
+        'AuthMiddleware::handle must clear the remember-me token on idle expiry — otherwise attemptRestore re-authenticates the user next request and the idle timeout is a no-op for remember-me users'
     );
 });
