@@ -349,6 +349,24 @@ namespace {
         }
     });
 
+    test('userImport.parseUploadedFile: rejects a duplicate required header instead of silently taking the last value', function (): void {
+        $csv = "username,email,full_name,role,department_code,phone,password, Username \n"
+            . "first_user,duplicate-header@x.test,Duplicate Header,requester,,,password123,second_user\n";
+        $file = ui_file($csv);
+        try {
+            $threw = false;
+            try {
+                ui_service()->parseUploadedFile($file);
+            } catch (DomainException $exception) {
+                $threw = true;
+                assert_contains_str('column ซ้ำ: username', $exception->getMessage(), 'the error identifies the normalized duplicate header');
+            }
+            assert_true($threw, 'a duplicate username header is rejected, not overwritten by second_user');
+        } finally {
+            @unlink($file['tmp_name']);
+        }
+    });
+
     test('userImport.parseUploadedFile: enforces the synchronous row cap — default lowered to 50 (perf-review F1)', function (): void {
         // Each imported user is bcrypt-hashed in-request (deliberately slow), so the row cap bounds how long
         // the admin waits and the risk of a web-server timeout mid-import. The default is 50; a 51-row file is

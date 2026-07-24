@@ -53,6 +53,11 @@ trait ParsesCsvUpload
                 $header[0] = preg_replace('/^\xEF\xBB\xBF/', '', (string) $header[0]);
             }
             $header = array_map(static fn ($h): string => strtolower(trim((string) $h)), $header);
+            $requiredCounts = array_count_values(array_values(array_intersect($header, $columns)));
+            $duplicates = array_keys(array_filter($requiredCounts, static fn (int $count): bool => $count > 1));
+            if ($duplicates !== []) {
+                throw new DomainException('ไฟล์ CSV มี column ซ้ำ: ' . implode(', ', $duplicates));
+            }
             $missing = array_diff($columns, $header);
             if ($missing !== []) {
                 throw new DomainException('ไฟล์ CSV ไม่ครบ column: ' . implode(', ', $missing));
