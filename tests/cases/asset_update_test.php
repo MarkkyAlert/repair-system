@@ -180,3 +180,28 @@ test('assetUpdate(optimistic-lock): a fresh update succeeds; a stale one is reje
         aupd_pdo()->prepare('DELETE FROM assets WHERE id = ?')->execute([$id]);
     }
 });
+
+// bug-hunt A2 (2nd pass): AssetService::validateAssetInput checked asset_code/name length with strlen (BYTES),
+// while the column is VARCHAR (characters) and the IMPORT path already uses mb_strlen (LOW#12). A Thai character
+// is 3 bytes, so a Thai name well within 200 characters was wrongly rejected on the create/edit FORM. Now mb_strlen.
+test('asset(validation) A2: a long Thai name within the 200-char limit is accepted on the create form (bytes != chars)', function (): void {
+    [$id, $base] = aupd_seed();
+    $admin = ['id' => 1, 'role' => 'admin'];
+    $thaiName = str_repeat('ก', 100); // 100 characters = 300 bytes: valid by chars, over-limit by bytes
+    assert_true(mb_strlen($thaiName) <= 200 && strlen($thaiName) > 200, 'probe name is >200 bytes but <=200 characters');
+
+    $newId = 0;
+    try {
+        $newId = aupd_service()->createAsset($admin, array_merge($base, [
+            'asset_code' => 'AUPDT-' . strtoupper(bin2hex(random_bytes(3))),
+            'name' => $thaiName,
+        ]));
+        assert_true($newId > 0, 'a 100-character Thai name is within the 200-char limit — the asset is created, not rejected as too long');
+        assert_same($thaiName, (string) aupd_pdo()->query("SELECT name FROM assets WHERE id = $newId")->fetchColumn(), 'the full Thai name is stored');
+    } finally {
+        if ($newId > 0) {
+            aupd_pdo()->prepare('DELETE FROM assets WHERE id = ?')->execute([$newId]); // cascades qr tokens
+        }
+        aupd_pdo()->prepare('DELETE FROM assets WHERE id = ?')->execute([$id]);
+    }
+});

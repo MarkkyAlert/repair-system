@@ -447,7 +447,9 @@ class AssetService
             throw new DomainException('กรุณากรอกรหัส Asset และชื่อ Asset ให้ครบถ้วน');
         }
 
-        if (strlen($assetCode) > 60 || strlen($name) > 200) {
+        // นับเป็น "ตัวอักษร" (mb_strlen) ให้ตรงกับ column VARCHAR ที่นับตัวอักษร + กับฝั่งนำเข้า (AssetImportService)
+        // ไม่ใช่ไบต์ — ไม่งั้นชื่อ/รหัสภาษาไทย (1 ตัว = 3 ไบต์) จะถูกปฏิเสธทั้งที่ยังไม่ถึงลิมิตจริง
+        if (mb_strlen($assetCode) > 60 || mb_strlen($name) > 200) {
             throw new DomainException('รหัสหรือชื่อ Asset ยาวเกินกว่าที่ระบบรองรับ');
         }
 
