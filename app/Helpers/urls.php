@@ -145,6 +145,11 @@ function intended_path(): string
 
 function sanitize_return_path(string $path): string
 {
+    // Control bytes make PHP reject the Location header entirely, leaving successful actions without a redirect.
+    if (preg_match('/[\x00-\x1F\x7F]/', $path) === 1) {
+        return '/dashboard';
+    }
+
     $path = trim($path);
 
     // กันเหนียว: บาง browser normalize "\" เป็น "/" ตอนตีความ URL เลยแปลงก่อน

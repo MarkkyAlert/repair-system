@@ -42,6 +42,12 @@ test('return-path(deny): an absolute http(s) URL is refused → falls back to /d
     assert_same('/dashboard', sanitize_return_path(''), 'an empty path falls back to /dashboard');
 });
 
+test('return-path(deny): control bytes cannot invalidate the Location response header', function (): void {
+    assert_same('/dashboard', sanitize_return_path("/tickets/5\r\nX-Test: injected"), 'CRLF header injection falls back safely');
+    assert_same('/dashboard', sanitize_return_path("/tickets/\0hidden"), 'an embedded NUL byte is rejected');
+    assert_same('/dashboard', sanitize_return_path("/tickets/\t5"), 'an embedded tab is rejected');
+});
+
 test('return-path(deny): protocol-relative and backslash tricks collapse to a same-origin path', function (): void {
     // "//evil.com" would be a protocol-relative open redirect if it survived — it must collapse to one slash
     assert_same('/evil.com', sanitize_return_path('//evil.com'), 'protocol-relative // is collapsed to same-origin');
