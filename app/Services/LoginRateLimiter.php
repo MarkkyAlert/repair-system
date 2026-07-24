@@ -17,6 +17,12 @@ class LoginRateLimiter
         $this->filePath = $filePath ?? storage_path('logs/login_rate_limits.json');
     }
 
+    // tooManyAttempts (อ่านใต้ LOCK_SH) กับ hit (เขียนใต้ LOCK_EX) เป็นการล็อกไฟล์คนละครั้ง — ผู้เรียกทำ
+    // check แล้วค่อย increment เป็นสองจังหวะ ไม่ได้อยู่ในล็อกเดียวกัน. ถ้ามีหลาย request ยิงพร้อมกันจริง ๆ ต่างก็
+    // อ่านเห็นจำนวนเท่ากันแล้วต่างก็ hit เพิ่ม เลยเผลอปล่อยเกินเพดานได้นิดหน่อยตามจำนวน request ที่ชนกัน (เช่น
+    // 6 ครั้งแทน 5). ตรงนี้จงใจไม่ทำเป็น atomic check-and-increment ใต้ล็อกเดียว: throttle นี้ไว้กันยิงรัว/กันภาระ
+    // ไม่ใช่เส้นแบ่งความปลอดภัยที่ต้องเป๊ะ (login ยังผ่าน bcrypt ต่อครั้งอยู่แล้ว) และการพลาดไปทาง "ปล่อยเกินนิดหน่อย"
+    // ปลอดภัยกว่าการล็อกผู้ใช้จริงออก — เป็นทิศเดียวกับ fail-open ที่ read()/mutate() ยึดไว้ทั้งไฟล์.
     public function tooManyAttempts(string $key, int $maxAttempts = 5, int $decaySeconds = 900): bool
     {
         $attempts = $this->prune($this->read()[$key] ?? [], $decaySeconds);

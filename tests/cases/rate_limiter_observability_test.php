@@ -73,3 +73,20 @@ test('rate-limiter(F1): every storage-failure branch emits a diagnostic (source-
     // every diagnostic goes through one channel that prefixes the request id for correlation
     assert_contains_str("error_log('[ratelimit][req:' . \$reference", $src, 'diagnostics carry [req:<id>] via the shared logDiag channel (error-review-6 F1)');
 });
+
+// Phase-3 #8 (accepted — no behavior change): tooManyAttempts reads under LOCK_SH and hit writes under LOCK_EX, so
+// callers do check-then-increment across TWO lock acquisitions. Under true concurrency a race can let a small,
+// bounded over-count through (e.g. 6 attempts instead of 5). The owner accepted this as fail-safe: the limiter is a
+// coarse abuse throttle, not an exact security boundary (login still runs bcrypt per attempt), and erring toward
+// "let a couple extra through" is safer than locking real users out — the same direction as the file's fail-open
+// stance. This locks the trade-off in place so it stays a documented decision, not silently "tightened" into a
+// stricter, lock-everyone-out check-and-increment later. Removing the rationale comment turns this red.
+test('rate-limiter(#8): the accepted check-then-hit over-count race stays documented, not silently changed', function (): void {
+    $src = (string) file_get_contents(dirname(__DIR__, 2) . '/app/Services/LoginRateLimiter.php');
+
+    assert_contains_str('atomic check-and-increment', $src, 'the two-lock check-then-increment trade-off is documented at the limiter');
+    assert_true(
+        preg_match('/tooManyAttempts.*LOCK_SH.*hit.*LOCK_EX/su', $src) === 1,
+        'the comment names the two separate lock acquisitions that make the over-count possible',
+    );
+});
