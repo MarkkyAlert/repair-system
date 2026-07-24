@@ -94,6 +94,21 @@ test('paginate clamps page into range + computes offset', function (): void {
     assert_same(['page' => 1, 'offset' => 0, 'totalPages' => 1], paginate(0, 20, 0));
 });
 
+// ── setting(): the per-process cache must not memoize a caller's default for an absent key (bug-hunt R4-B) ──
+// setting() cached by key only and stored the passed $default for a missing key, so the SECOND call site reading
+// the same absent key with a DIFFERENT default got the first caller's default (e.g. app_tagline, absent on a
+// fresh install, is read with 'Maintenance Operations' in the app shell but '' in the PDF/email brand).
+test('setting(): an absent key returns each caller its own default, never the first-seen one (R4-B)', function (): void {
+    $absent = 'r4b_absent_' . bin2hex(random_bytes(8)); // guaranteed not in system_settings
+
+    $first = setting($absent, 'ALPHA');
+    $second = setting($absent, 'BETA');   // same absent key, different default
+
+    assert_same('ALPHA', $first, 'first read returns its own default');
+    assert_same('BETA', $second, 'second read returns ITS OWN default — not the first caller\'s cached default');
+    assert_true(setting($absent, null) === null, 'a null default is returned as-is (still not cached from a prior default)');
+});
+
 // ── is_valid_username: shared by admin create + CSV import (a-z 0-9 . - _, 3–50 chars) ──
 test('is_valid_username: accepts valid, rejects bad case/chars/length', function (): void {
     assert_true(is_valid_username('somchai.01'), 'lowercase + digits + dot');

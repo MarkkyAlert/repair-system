@@ -36,35 +36,49 @@ function config(string $key, mixed $default = null): mixed
 function setting(string $key, mixed $default = null): mixed
 {
     static $cache = [];
+    // sentinel = "key นี้ไม่มีค่าในฐานข้อมูล (ไม่มี row หรือค่าว่าง)" — จำไว้ไม่ต้อง query ซ้ำ แต่ยัง "ไม่" ผูก default
+    // ของผู้เรียกไว้ เพราะ default เป็นของแต่ละจุดที่เรียก (คนละที่ส่งต่างกันได้) เราจึงคืน $default ต่อจุดเรียกเสมอ.
+    static $missing = null;
+    if ($missing === null) {
+        $missing = new stdClass();
+    }
 
     if ($key === '') {
         return $default;
     }
 
     if (array_key_exists($key, $cache)) {
-        return $cache[$key];
+        $cached = $cache[$key];
+        return $cached === $missing ? $default : $cached;
     }
 
     $repository = app(\App\Repositories\SettingsRepository::class);
     if (!$repository instanceof \App\Repositories\SettingsRepository) {
-        return $default;
+        return $default; // อาจยัง bind ไม่เสร็จ — อย่า cache ไว้ ให้ลองใหม่รอบหน้า
     }
 
     $row = $repository->getByKey($key);
     if (!is_array($row)) {
-        $cache[$key] = $default;
+        $cache[$key] = $missing; // ไม่มี key นี้ → จำ miss ไว้ (กัน query ซ้ำ) แล้วคืน default ของผู้เรียก
         return $default;
     }
 
     $value = $row['setting_value'] ?? null;
     $type = (string) ($row['value_type'] ?? 'string');
 
+    // ค่าที่ resolve ได้จากฐานข้อมูลจริง (null = ค่าว่าง/decode JSON ไม่ได้ → ตกไปใช้ default ของผู้เรียก)
     $resolved = match ($type) {
         'int' => (int) ($value ?? 0),
         'bool' => truthy_input($value ?? '0'),
-        'json' => json_decode((string) ($value ?? ''), true) ?? $default,
-        default => $value ?? $default,
+        'json' => $value !== null ? json_decode((string) $value, true) : null,
+        default => $value,
     };
+
+    if ($resolved === null) {
+        // ค่าว่าง/decode ไม่ได้ → จำ miss ไว้ (กัน query ซ้ำ) แต่คืน default ต่อจุดเรียก ไม่ผูก default ของคนแรก
+        $cache[$key] = $missing;
+        return $default;
+    }
 
     $cache[$key] = $resolved;
 
