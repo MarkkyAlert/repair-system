@@ -422,6 +422,32 @@ class NotificationService
     }
 
     /**
+     * แจ้งผู้อนุมัติ (manager/admin) ว่าทรัพย์สินที่แขกสแกนแล้วแปลงเป็น ticket มีสถานะไม่ตรงปัจจุบัน (ถูกย้าย/
+     * ปลดระวาง/สถานที่ถูกปิด หลังจากแขกแจ้ง) — ticket ถูกสร้างและคงลิงก์ทรัพย์สินไว้แล้ว flag นี้ให้ไปตรวจสอบ
+     * สถานะทรัพย์สินจริง เพราะการที่มีคนสแกนเจอแปลว่าข้อมูลทรัพย์สินอาจไม่ตรง. best-effort.
+     */
+    public function notifyGuestConvertAssetReview(int $ticketId, string $assetCode): void
+    {
+        $recipientIds = $this->reads->findActiveApproverIds();
+        if ($recipientIds === []) {
+            return;
+        }
+
+        $label = $assetCode !== '' ? $assetCode : '-';
+        $this->dispatchNotification([
+            'type' => 'asset.needs_review',
+            'title' => 'ตรวจสอบสถานะทรัพย์สินที่แขกสแกน',
+            'message' => 'ทรัพย์สิน ' . $label . ' ที่แขกสแกนแจ้งซ่อมมีสถานะไม่ตรงปัจจุบัน (อาจถูกย้าย/ปลดระวาง หรือสถานที่ถูกปิด) — Ticket ถูกสร้างแล้ว กรุณาตรวจสอบข้อมูลทรัพย์สิน',
+            'payload' => json_encode([
+                'ticket_id' => $ticketId,
+                'asset_code' => $assetCode,
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            'related_type' => 'ticket',
+            'related_id' => $ticketId,
+        ], $recipientIds);
+    }
+
+    /**
      * เขียน notification แบบ in-app ให้ผู้รับ. คืนค่าว่าสำเร็จหรือไม่ — ยังเป็น best-effort อยู่ (ถ้า
      * ล้มเหลวก็แค่ log ไว้ ไม่เคย re-throw จนไปยกเลิกงานที่ผู้เรียก commit ไปแล้ว) แต่ค่า boolean นี้ช่วยให้ผู้เรียก
      * ที่ต้องรายงานจำนวนที่ส่ง (SLA cron, broadcast) แยกออกว่าส่งสำเร็จ หรือเป็นความล้มเหลวที่ถูกกลืนไว้ ไม่ใช่

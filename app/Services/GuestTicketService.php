@@ -211,13 +211,21 @@ class GuestTicketService
             $converterWithoutDepartment = $viewer;
             unset($converterWithoutDepartment['department_id']);
 
+            // ตรวจว่าทรัพย์สินที่แขกสแกน "ดริฟต์" ไปจาก snapshot ตอนแจ้งไหม (ถูกย้าย/ปลดระวาง หรือสถานที่ถูกปิด) —
+            // เก็บผลไว้ flag ให้ผู้อนุมัติหลังสร้าง ticket เสร็จ (การที่มีคนสแกนเจอ = ข้อมูลทรัพย์สินอาจต้องตรวจสอบ)
+            [$assetNeedsReview, $assetCodeForReview] = $this->detectConvertAssetDrift(
+                (int) ($request['asset_id'] ?? 0),
+                (int) ($request['location_id'] ?? 0)
+            );
+
             // Atomic: create ticket + claim/link ในทรานแซกชันเดียว. createTicket ตรวจ inTransaction() แล้ว
             // participate (ไม่ commit/notify เอง) → ถ้า claimAndLink ล้มหรือคืน false ให้ rollback ทั้งคู่
             // จึง "ได้ทั้งคู่ หรือไม่ได้เลย" ไม่มี ticket กำพร้า (สร้างแล้วแต่ request ยังไม่ถูก mark converted).
             $this->db->beginTransaction();
             try {
-                // channel='qr' เป็น argument ที่เชื่อถือได้ — ต้นทางคือการสแกน QR
-                $ticketId = $tickets->createTicket($converterWithoutDepartment, $ticketInput, [], 'qr');
+                // channel='qr' + trustAssetLocation=true: asset/location มาจาก snapshot ตอนแขกสแกน QR เชื่อถือได้
+                // แปลงได้แม้ทรัพย์สินถูกย้าย/ปลดระวางหลังแจ้ง (คงลิงก์ทรัพย์สินไว้ + flag ให้ admin ตรวจด้านล่าง)
+                $ticketId = $tickets->createTicket($converterWithoutDepartment, $ticketInput, [], 'qr', true);
                 if (!$this->requests->claimAndLink($requestId, $ticketId, (int) ($viewer['id'] ?? 0))) {
                     throw new RuntimeException('เชื่อมโยง Ticket กับ guest request ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
                 }
@@ -232,6 +240,15 @@ class GuestTicketService
             // ticket + link durable แล้ว จึงแจ้งผู้อนุมัติ — วางหลัง commit (createNotification เปิด
             // transaction ของตัวเอง จึงต้องไม่อยู่ในทรานแซกชันด้านบน) และเป็น best-effort.
             $this->notifications->notifyTicketEvent($ticketId, 'ticket.created', (int) ($viewer['id'] ?? 0));
+
+            // flag ให้ผู้อนุมัติไปตรวจสอบสถานะทรัพย์สิน ถ้าทรัพย์สินที่แขกสแกนไม่ตรงปัจจุบันแล้ว — best-effort
+            if ($assetNeedsReview) {
+                try {
+                    $this->notifications->notifyGuestConvertAssetReview($ticketId, $assetCodeForReview);
+                } catch (Throwable $exception) {
+                    log_caught_exception('guest.convert.asset_review', $exception, ['ticket_id' => $ticketId]);
+                }
+            }
 
             return $ticketId;
         } finally {
@@ -317,6 +334,35 @@ class GuestTicketService
             'ticket_status_tone' => $ticketStatus !== '' ? ticket_status_tone($ticketStatus) : null,
             'review_note' => $status === 'rejected' ? (string) ($row['review_note'] ?? '') : null,
         ];
+    }
+
+    /**
+     * ทรัพย์สินที่แขกสแกน (asset_id ตอนแจ้ง) ตอนนี้ยังตรงกับ snapshot ไหม — ดริฟต์ = ถูกย้ายไป location อื่น, ปลดระวาง
+     * (status ไม่ใช่ active/maintenance ตามที่ getCreateFormReferenceData ถือว่าใช้งานได้), หรือสถานที่เดิมถูกปิด.
+     * @return array{0: bool, 1: string} [ต้องให้ admin ตรวจสอบไหม, asset_code]
+     */
+    private function detectConvertAssetDrift(int $assetId, int $snapshotLocationId): array
+    {
+        if ($assetId <= 0) {
+            return [false, ''];
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT a.asset_code, a.status, a.location_id AS current_location_id,
+                    (SELECT is_active FROM locations WHERE id = :loc) AS snapshot_location_active
+             FROM assets a WHERE a.id = :id LIMIT 1'
+        );
+        $stmt->execute(['id' => $assetId, 'loc' => $snapshotLocationId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row === false) {
+            return [true, '']; // ทรัพย์สินถูกลบไปแล้ว
+        }
+
+        $drift = !in_array((string) $row['status'], ['active', 'maintenance'], true)
+            || (int) $row['current_location_id'] !== $snapshotLocationId
+            || (int) ($row['snapshot_location_active'] ?? 0) !== 1;
+
+        return [$drift, (string) ($row['asset_code'] ?? '')];
     }
 
     // protected เป็น seam ให้เทสต์ override บังคับเลขชนกันได้ (พิสูจน์ว่า collision → สุ่มใหม่ ไม่ใช่ทิ้งเป็นคำขอซ้ำ)

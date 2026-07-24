@@ -500,7 +500,7 @@ class TicketService
      * @throws DomainException เมื่อ title/description ว่าง, ไม่มี viewer id, title เกิน 200, impact/urgency ผิด,
      *   priority/category/location/asset ไม่ถูกต้องหรือ asset ไม่อยู่ใน location, หรือ submission_token หมดอายุ
      */
-    public function createTicket(array $viewer, array $input, array $files = [], string $channel = 'web'): int
+    public function createTicket(array $viewer, array $input, array $files = [], string $channel = 'web', bool $trustAssetLocation = false): int
     {
         $validatedFiles = $this->attachments->validateUploads($files);
         $reference = $this->reads->getCreateFormReferenceData();
@@ -539,7 +539,12 @@ class TicketService
 
         $priority = $this->findReferenceById($reference['priorities'] ?? [], $priorityId);
         $category = $this->findReferenceById($reference['categories'] ?? [], $categoryId);
-        $location = $this->findReferenceById($reference['locations'] ?? [], $locationId);
+        // guest-convert (trustAssetLocation): location/asset มาจาก snapshot ตอนแขกสแกน QR จึงเชื่อถือได้ ไม่ต้อง
+        // re-validate active/location-match — ทรัพย์สินอาจถูกย้าย/ปลดระวาง หรือสถานที่ถูกปิดหลังแขกแจ้ง แต่คำแจ้ง
+        // ยัง legit ต้องแปลงเป็น ticket ได้ + คงลิงก์ทรัพย์สินไว้ (FK ยังบังคับว่ามีจริง). ฝั่ง guest จะ flag ให้ admin ตรวจเอง
+        $location = $trustAssetLocation
+            ? ($locationId > 0 ? ['id' => $locationId] : null)
+            : $this->findReferenceById($reference['locations'] ?? [], $locationId);
 
         if ($priority === null || $category === null || $location === null) {
             throw new DomainException('กรุณาเลือก Priority, Category และ Location ให้ถูกต้อง');
@@ -547,13 +552,17 @@ class TicketService
 
         $asset = null;
         if ($assetId > 0) {
-            $asset = $this->findReferenceById($reference['assets'] ?? [], $assetId);
-            if ($asset === null) {
-                throw new DomainException('Asset ที่เลือกไม่ถูกต้อง');
-            }
+            if ($trustAssetLocation) {
+                $asset = ['id' => $assetId, 'location_id' => $locationId];
+            } else {
+                $asset = $this->findReferenceById($reference['assets'] ?? [], $assetId);
+                if ($asset === null) {
+                    throw new DomainException('Asset ที่เลือกไม่ถูกต้อง');
+                }
 
-            if ((int) ($asset['location_id'] ?? 0) !== $locationId) {
-                throw new DomainException('Asset ที่เลือกไม่ได้อยู่ใน Location ที่ระบุ');
+                if ((int) ($asset['location_id'] ?? 0) !== $locationId) {
+                    throw new DomainException('Asset ที่เลือกไม่ได้อยู่ใน Location ที่ระบุ');
+                }
             }
         }
 

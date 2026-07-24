@@ -296,3 +296,41 @@ test('guest convert: missing priority/category is rejected in the service before
         gc_cleanup($reqId, []);
     }
 });
+
+// bug-hunt B3 (2nd pass): a guest request stores an asset/location snapshot at scan time. If the asset was moved
+// or retired (or its location deactivated) before a manager converted the request, createTicket re-validated
+// against LIVE reference data and threw ("Asset ที่เลือกไม่ได้อยู่ใน Location ที่ระบุ"), leaving the request stuck
+// and un-convertible. Owner decision (B3): the convert must SUCCEED keeping the asset link (trusted scan
+// snapshot), and raise an admin flag to review the asset status. createTicket now trusts the guest snapshot,
+// and convertToTicket notifies approvers on drift.
+test('guest convert B3: a moved scanned asset still converts, keeps the asset link, and flags admin for review', function (): void {
+    $rid = bin2hex(random_bytes(3));
+    $pdo = gc_pdo();
+    $pdo->prepare("INSERT INTO assets (asset_code, name, asset_category_id, location_id, status, created_at, updated_at) VALUES (?, 'B3 Asset', 1, 1, 'active', NOW(), NOW())")->execute(["B3A-$rid"]);
+    $assetId = (int) $pdo->lastInsertId();
+    $pdo->prepare('INSERT INTO locations (code, name, is_active) VALUES (?, ?, 1)')->execute(["B3L-$rid", "B3 Loc $rid"]);
+    $loc2 = (int) $pdo->lastInsertId();
+    // guest scanned the asset while it was at location 1
+    $reqId = gc_insert_request(['asset_id' => $assetId, 'location_id' => 1]);
+    // AFTER the scan, the asset is moved to location 2 — the old code would reject the convert here
+    $pdo->prepare('UPDATE assets SET location_id = ? WHERE id = ?')->execute([$loc2, $assetId]);
+
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $ticketId = 0;
+    try {
+        $convertError = null;
+        try {
+            $ticketId = gc_service()->convertToTicket($reqId, $admin, 1, 1, gc_tickets());
+        } catch (Throwable $e) {
+            $convertError = $e->getMessage();
+        }
+        assert_true($ticketId > 0, 'the convert SUCCEEDS despite the asset having moved after the scan (error: ' . (string) $convertError . ')');
+        assert_same($assetId, (int) $pdo->query("SELECT asset_id FROM tickets WHERE id = {$ticketId}")->fetchColumn(), 'the ticket keeps the scanned asset link');
+        $flagged = (int) $pdo->query("SELECT COUNT(*) FROM notifications WHERE type = 'asset.needs_review' AND related_type = 'ticket' AND related_id = {$ticketId}")->fetchColumn();
+        assert_true($flagged > 0, 'an admin-review flag is raised for the drifted asset');
+    } finally {
+        gc_cleanup($reqId, $ticketId > 0 ? [$ticketId] : []);
+        $pdo->prepare('DELETE FROM assets WHERE id = ?')->execute([$assetId]);
+        $pdo->prepare('DELETE FROM locations WHERE id = ?')->execute([$loc2]);
+    }
+});
