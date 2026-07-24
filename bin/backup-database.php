@@ -64,6 +64,22 @@ if (!is_dir($backupDir) && !mkdir($backupDir, 0775, true) && !is_dir($backupDir)
     exit(1);
 }
 
+$timeoutSeconds = max(1, (int) env('BACKUP_TIMEOUT_SECONDS', 900));
+if (!$dryRun) {
+    // "e" sets close-on-exec: mysqldump and any descendants cannot inherit this lock if the worker kills them.
+    // Keep the handle alive through dump + rotation + heartbeat so two live workers never write the same filename.
+    $lockHandle = @fopen($backupDir . '/.backup.lock', 'ce');
+    if (!is_resource($lockHandle)) {
+        fwrite(STDERR, 'Cannot open the backup process lock.' . PHP_EOL);
+        exit(1);
+    }
+    if (!flock($lockHandle, LOCK_EX | LOCK_NB)) {
+        fclose($lockHandle);
+        fwrite(STDERR, 'Another backup process is already running; this run did not start.' . PHP_EOL);
+        exit(2);
+    }
+}
+
 $timestamp = date('Y-m-d_His');
 $filename = sprintf('db-%s.sql.gz', $timestamp);
 $absolutePath = $backupDir . '/' . $filename;
@@ -94,7 +110,6 @@ if (!$dryRun) {
     ];
 
     // เส้นตาย (deadline) กันไม่ให้ dump ที่ค้าง (DB endpoint ค้าง) ทำ cron ค้างตลอดกาลโดยไม่มี heartbeat.
-    $timeoutSeconds = max(1, (int) env('BACKUP_TIMEOUT_SECONDS', 900));
     $exitCode = 0;
     $stderr = '';
     $timedOut = false;

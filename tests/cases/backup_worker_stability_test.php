@@ -166,3 +166,84 @@ test('backup-worker(#4): the compressed-write path checks gzwrite/gzclose and dr
         'on a write error the partial backup is unlinked and the worker exits non-zero'
     );
 });
+
+test('backup-worker(concurrency): a second live worker is rejected before it can write the same backup', function (): void {
+    $fakeDump = tempnam(sys_get_temp_dir(), 'slowdump_');
+    $startedMarker = tempnam(sys_get_temp_dir(), 'slowdump_started_');
+    @unlink($startedMarker);
+    file_put_contents(
+        $fakeDump,
+        "#!/bin/sh\n"
+        . 'touch ' . escapeshellarg($startedMarker) . "\n"
+        . "sleep 3\n"
+        . "echo '-- concurrent backup probe'\n"
+    );
+    chmod($fakeDump, 0755);
+
+    $settings = tvm_container()->get(\App\Repositories\SettingsRepository::class);
+    $pdo = tvm_container()->get(PDO::class);
+    $settingKeys = ['cron_backup_last_run_at', 'cron_backup_last_failed'];
+    $originalSettings = [];
+    foreach ($settingKeys as $key) {
+        $originalSettings[$key] = $settings->getByKey($key);
+    }
+
+    $backupDir = BASE_PATH . '/storage/backups';
+    $before = glob($backupDir . '/db-*.sql.gz') ?: [];
+    $script = BASE_PATH . '/bin/backup-database.php';
+    $cmd = 'DB_NAME=repair_system_test'
+        . ' MYSQLDUMP_BIN=' . escapeshellarg($fakeDump)
+        . ' BACKUP_TIMEOUT_SECONDS=10'
+        . ' ' . escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($script) . ' --keep=1000';
+    $firstPipes = [];
+    $first = proc_open($cmd, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $firstPipes);
+
+    try {
+        assert_true(is_resource($first), 'the first backup worker starts');
+
+        $markerDeadline = microtime(true) + 5.0;
+        while (!is_file($startedMarker) && microtime(true) < $markerDeadline) {
+            usleep(50000);
+        }
+        assert_true(is_file($startedMarker), 'the first worker reached mysqldump and still holds the process lock');
+
+        $secondOutput = [];
+        $secondExit = 0;
+        $secondStartedAt = microtime(true);
+        exec($cmd . ' 2>&1', $secondOutput, $secondExit);
+        $secondElapsed = microtime(true) - $secondStartedAt;
+
+        assert_same(2, $secondExit, 'the overlapping worker exits 2 instead of writing another backup');
+        assert_contains_str('already running', implode("\n", $secondOutput), 'the operator sees why the run was skipped');
+        assert_true($secondElapsed < 2.0, 'the duplicate is rejected immediately, not after running mysqldump');
+    } finally {
+        if (is_resource($first)) {
+            foreach ($firstPipes as $pipe) {
+                if (is_resource($pipe)) {
+                    stream_get_contents($pipe);
+                    fclose($pipe);
+                }
+            }
+            proc_close($first);
+        }
+
+        @unlink($fakeDump);
+        @unlink($startedMarker);
+        foreach (array_diff(glob($backupDir . '/db-*.sql.gz') ?: [], $before) as $leftover) {
+            @unlink($leftover);
+        }
+        foreach ($originalSettings as $key => $row) {
+            if ($row === null) {
+                $pdo->prepare('DELETE FROM system_settings WHERE setting_key = ?')->execute([$key]);
+                continue;
+            }
+            $settings->upsert(
+                $key,
+                $row['setting_value'] ?? null,
+                (string) ($row['value_type'] ?? 'string'),
+                (bool) ($row['is_public'] ?? false),
+                (int) ($row['updated_by'] ?? 0)
+            );
+        }
+    }
+});
