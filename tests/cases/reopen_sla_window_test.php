@@ -30,6 +30,15 @@ function rsw_resolution_window(int $ticketId, string $order): int
     return (int) $stmt->fetchColumn();
 }
 
+/** how many SLA track rows exist for a metric on a ticket */
+function rsw_track_count(int $ticketId, string $metric): int
+{
+    $stmt = rsw_pdo()->prepare('SELECT COUNT(*) FROM ticket_sla_tracks WHERE ticket_id = ? AND metric_type = ?');
+    $stmt->execute([$ticketId, $metric]);
+
+    return (int) $stmt->fetchColumn();
+}
+
 test('reopen SLA window: the resolution deadline window stays constant across repeated reopens (does NOT balloon) — bug-hunt MED#4', function (): void {
     $admin = ['id' => 4, 'role' => 'admin'];
     $tech = ['id' => 3, 'role' => 'technician'];
@@ -78,5 +87,57 @@ test('reopen SLA window: the resolution deadline window stays constant across re
     } finally {
         rsw_pdo()->prepare("DELETE FROM notifications WHERE related_type = 'ticket' AND related_id = ?")->execute([$ticketId]);
         rsw_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]); // cascades work_orders / sla_tracks / logs
+    }
+});
+
+// bug-hunt R4-A: a category with an SLA metric set to 0 min = "SLA disabled" — createTicket honors this (no track,
+// due=null; see the 0=disable comment in TicketService). But reopen recomputed the due for EVERY metric and
+// appended a track unconditionally: a disabled metric fell back to "due = reopen time", so reopen fabricated a
+// fresh SLA track that the very next cron run flags as breached — a phantom "SLA เกินกำหนด" for a metric the admin
+// turned off. A disabled metric must stay disabled (no track, null due) across reopen, mirroring create.
+test('reopen SLA: a disabled (0-min / no-track) metric is NOT resurrected as an instant breach on reopen — R4-A', function (): void {
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $tech = ['id' => 3, 'role' => 'technician'];
+    $requester = ['id' => 1, 'role' => 'requester'];
+    $tickets = tvm_container()->get(TicketService::class);
+    $wf = tvm_container()->get(TicketWorkflowService::class);
+    $ref = tvm_container()->get(TicketReadRepository::class)->getCreateFormReferenceData();
+
+    $ticketId = $tickets->createTicket($requester, [
+        'submission_token' => bin2hex(random_bytes(32)),
+        'title' => 'reopen-sla-disabled ' . bin2hex(random_bytes(3)),
+        'description' => 'R4-A probe',
+        'priority_id' => (int) $ref['priorities'][0]['id'],
+        'ticket_category_id' => (int) $ref['categories'][0]['id'],
+        'location_id' => (int) $ref['locations'][0]['id'],
+        'impact_level' => 'medium',
+        'urgency_level' => 'medium',
+    ], []);
+
+    try {
+        $wf->approveTicket($ticketId, $admin, ['note' => '']);
+        $wf->assignTechnician($ticketId, $admin, ['technician_id' => 3, 'instructions' => '']);
+        $wf->acceptAssignedWork($ticketId, $tech, ['accept_note' => '']);
+        $wf->startAssignedWork($ticketId, $tech, ['start_note' => '']);
+        $wf->resolveAssignedWork($ticketId, $tech, ['diagnosis_summary' => 'd', 'resolution_summary' => 'r', 'labor_minutes' => '10']);
+
+        // Put the ticket into the exact state a 0-min RESPONSE category yields: no response track + response_due_at NULL.
+        // (createTicket's 0=disable skip is covered elsewhere; here we isolate the reopen behavior.) Resolution stays enabled.
+        rsw_pdo()->prepare("DELETE FROM ticket_sla_tracks WHERE ticket_id = ? AND metric_type = 'response'")->execute([$ticketId]);
+        rsw_pdo()->prepare('UPDATE tickets SET response_due_at = NULL WHERE id = ?')->execute([$ticketId]);
+        assert_same(0, rsw_track_count($ticketId, 'response'), 'precondition: response SLA is disabled (no track)');
+
+        $wf->reopenTicket($ticketId, $requester, ['reopen_note' => 'ยังไม่หาย ขอตรวจซ้ำ']);
+
+        // the disabled response metric must NOT be resurrected: still zero tracks, still no due
+        assert_same(0, rsw_track_count($ticketId, 'response'), 'reopen must NOT fabricate a response SLA track for a disabled metric (would be an instant phantom breach)');
+        $responseDue = rsw_pdo()->query("SELECT response_due_at FROM tickets WHERE id = $ticketId")->fetchColumn();
+        assert_true($responseDue === null, 'response_due_at stays NULL after reopen for a disabled metric (not set to the reopen time)');
+
+        // sanity: the still-ENABLED resolution metric DOES get a fresh reopen cycle — reopen keeps tracking real SLAs
+        assert_true(rsw_track_count($ticketId, 'resolution') >= 2, 'the enabled resolution metric still gets a new SLA cycle on reopen');
+    } finally {
+        rsw_pdo()->prepare("DELETE FROM notifications WHERE related_type = 'ticket' AND related_id = ?")->execute([$ticketId]);
+        rsw_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
     }
 });

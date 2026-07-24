@@ -411,8 +411,10 @@ class TicketWorkflowService
      * ในตาราง tickets ถูกเขียนทับทุกครั้งที่ reopen — ถ้าเอา due_at ที่ถูกเลื่อนแล้วมาลบวันแจ้งเดิม ระยะเวลาจะ
      * พองขึ้นทุกครั้งที่เปิดซ้ำรอบสองเป็นต้นไป. track รอบแรกไม่ถูกแตะจึงเป็นค่าตั้งต้นที่ไม่เพี้ยน.
      * ถ้าไม่มี track (ข้อมูลเก่า) จะ fallback ไปคิดจาก due เดิมเทียบวันแจ้ง; เพี้ยนหนักจริง ๆ ใช้เวลา reopen ทันที.
+     * คืน null เมื่อ metric นั้น "ปิด SLA ไว้" (หมวดตั้ง 0 นาที → ไม่เคยมี track และ due เดิมเป็น null) — ต้องคง
+     * ไม่มีกำหนดต่อไป ไม่ใช่เสก deadline = เวลา reopen แล้วเกินกำหนดทันที (สอดคล้องกับ createTicket ที่ข้าม track ให้).
      */
-    private function calculateReopenDueAt(array $ticket, string $dueField, string $reopenedAt): string
+    private function calculateReopenDueAt(array $ticket, string $dueField, string $reopenedAt): ?string
     {
         $reopenedTimestamp = strtotime($reopenedAt) ?: time();
         $metricType = $dueField === 'response_due_at' ? 'response' : 'resolution';
@@ -424,7 +426,13 @@ class TicketWorkflowService
             // ไม่มี track ให้ยึด (ข้อมูลเก่า) → ถอยไปคิดจากกำหนดเดิมเทียบวันแจ้ง
             $requestedAt = strtotime((string) ($ticket['requested_at'] ?? ''));
             $currentDueAt = strtotime((string) ($ticket[$dueField] ?? ''));
-            if ($requestedAt === false || $currentDueAt === false || $currentDueAt < $requestedAt) {
+            if ($currentDueAt === false) {
+                // due เดิมเป็น null = metric นี้ถูกปิด SLA ไว้ตั้งแต่สร้าง (หมวด 0 นาที) → คงไม่มีกำหนดต่อ ไม่งั้น
+                // reopen จะสร้าง track ใหม่ที่ target = เวลา reopen แล้วโดน cron ตีว่าเกินกำหนดทันที ทั้งที่ไม่เคยมี SLA
+                return null;
+            }
+            if ($requestedAt === false || $currentDueAt < $requestedAt) {
+                // ข้อมูลกำหนดเดิมเสีย/ย้อนหลัง → ถอยไปใช้เวลา reopen (คงพฤติกรรมกันเวลาย้อนหลังเดิมไว้)
                 return date('Y-m-d H:i:s', $reopenedTimestamp);
             }
             $minutes = (int) ceil(($currentDueAt - $requestedAt) / 60);

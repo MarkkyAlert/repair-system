@@ -841,7 +841,7 @@ class TicketRepository
      * @throws RuntimeException เมื่อไม่พบ work order ของ ticket นี้
      * @throws Throwable เมื่อ write ใด ๆ ล้มเหลว (rollback tx ก่อน rethrow)
      */
-    public function reopenTicket(int $ticketId, int $actorId, string $note, string $currentStatus, string $responseDueAt, string $resolutionDueAt): void
+    public function reopenTicket(int $ticketId, int $actorId, string $note, string $currentStatus, ?string $responseDueAt, ?string $resolutionDueAt): void
     {
         $reopenedAt = date('Y-m-d H:i:s');
 
@@ -902,9 +902,15 @@ class TicketRepository
             // As-reported: rating ของ cycle ก่อนยังอยู่ (re-rate จะ append cycle ใหม่) และ
             // แถว SLA ของ cycle ก่อนยังถูก freeze ไว้ — reopen จะ append cycle pending อันใหม่แทนการ
             // reset ผลตัดสิน SLA / CSAT ของงวดในอดีตจึงไม่เปลี่ยน
+            // metric ที่ปิด SLA (due = null) ข้ามการ append track — ไม่มี target_at ให้ cron ตีว่าเกินกำหนด
+            // (เหมือน createTicket ที่ข้าม track ให้ metric ที่ปิด). ไม่งั้น reopen จะเสก SLA ที่ไม่เคยมีขึ้นมาแล้วเกินทันที
             $nextCycle = $this->currentTicketCycle($ticketId) + 1;
-            $this->appendSlaCycle($ticketId, 'response', $responseDueAt, $nextCycle);
-            $this->appendSlaCycle($ticketId, 'resolution', $resolutionDueAt, $nextCycle);
+            if ($responseDueAt !== null) {
+                $this->appendSlaCycle($ticketId, 'response', $responseDueAt, $nextCycle);
+            }
+            if ($resolutionDueAt !== null) {
+                $this->appendSlaCycle($ticketId, 'resolution', $resolutionDueAt, $nextCycle);
+            }
             $this->insertActivityLog($ticketId, $actorId, 'ticket_reopened', $currentStatus, 'assigned', $note);
 
             $this->db->commit();
