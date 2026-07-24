@@ -83,7 +83,7 @@ class UserImportService
             if ($phone !== '' && !valid_phone_format($phone)) {
                 $errors[] = 'phone format ไม่ถูกต้อง';
             }
-            if ($password !== '' && strlen($password) < 8) {
+            if ($password !== '' && !password_has_minimum_length($password)) {
                 $errors[] = 'password ต้องมีอย่างน้อย 8 ตัวอักษร (เว้นว่างเพื่อ auto-generate)';
             }
             if ($username !== '' && isset($seenUsernames[$username])) {
@@ -159,6 +159,8 @@ class UserImportService
                     $raw = (string) ($row['password'] ?? '');
                     if ($raw === '') {
                         $raw = bin2hex(random_bytes(8));
+                    } elseif (!password_has_minimum_length($raw)) {
+                        throw new DomainException('password ต้องมีอย่างน้อย 8 ตัวอักษร');
                     }
                     $passwordHash = password_hash($raw, PASSWORD_BCRYPT);
                 }

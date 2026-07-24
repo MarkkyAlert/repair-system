@@ -137,7 +137,7 @@ class SetupController
             if (!is_valid_email($email)) {
                 throw new DomainException('รูปแบบอีเมลผู้ดูแลระบบไม่ถูกต้อง');
             }
-            if (strlen($password) < 8) {
+            if (!password_has_minimum_length($password)) {
                 throw new DomainException('รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร');
             }
 

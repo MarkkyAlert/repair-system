@@ -301,6 +301,12 @@ function require_max_length(string $value, int $max, string $label): void
     }
 }
 
+/** รหัสผ่านขั้นต่ำ 8 ตัวอักษร โดยนับอักขระ Unicode ไม่ใช่จำนวนไบต์ UTF-8 */
+function password_has_minimum_length(string $password): bool
+{
+    return (function_exists('mb_strlen') ? mb_strlen($password) : strlen($password)) >= 8;
+}
+
 /** รูปแบบ username: 3–50 ตัวอักษรจาก a-z, 0-9, จุด, ขีดกลาง, ขีดล่าง ใช้ร่วมกันตอน admin สร้างผู้ใช้ + นำเข้า CSV */
 function is_valid_username(string $username): bool
 {

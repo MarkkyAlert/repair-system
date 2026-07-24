@@ -105,6 +105,15 @@ test('is_valid_username: accepts valid, rejects bad case/chars/length', function
     assert_false(is_valid_username('bad@name'), '@ not allowed');
 });
 
+test('password policy: the 8-character minimum counts Unicode characters, not UTF-8 bytes', function (): void {
+    assert_false(
+        password_has_minimum_length('กขค'),
+        'three Thai characters occupy nine bytes but must not pass an eight-character rule'
+    );
+    assert_true(password_has_minimum_length('กขคงจฉชซ'), 'eight Thai characters meet the stated minimum');
+    assert_true(password_has_minimum_length('password'), 'eight ASCII characters still meet the minimum');
+});
+
 // ── assert_admin: the shared admin-only guard (service/controller counterpart to require_role) ──
 test('assert_admin: lets admins through, throws the standard message for everyone else', function (): void {
     assert_admin(['role' => 'admin']); // must NOT throw (reaching the next line proves it)

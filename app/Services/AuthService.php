@@ -218,7 +218,7 @@ class AuthService
             throw new DomainException('ยืนยันรหัสผ่านไม่ตรงกัน');
         }
 
-        if (strlen($password) < 8) {
+        if (!password_has_minimum_length($password)) {
             throw new DomainException('รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร');
         }
 
@@ -257,7 +257,7 @@ class AuthService
             throw new DomainException('ยืนยันรหัสผ่านใหม่ไม่ตรงกัน');
         }
 
-        if (strlen($password) < 8) {
+        if (!password_has_minimum_length($password)) {
             throw new DomainException('รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัวอักษร');
         }
 
