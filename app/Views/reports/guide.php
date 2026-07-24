@@ -139,12 +139,15 @@ $glossary = [
                 <h2 class="panel-title">ดูตัวอย่างผลลัพธ์จริง</h2>
                 <p class="field-hint">รวม PDF + Excel ของ 4 รายงานเด่น (สรุปผู้บริหาร · SLA · ความพึงพอใจ · แนวโน้ม) พร้อมพรีเซนต์</p>
             </div>
-            <?= render_partial('partials/components/button', [
-                'label' => 'ดาวน์โหลดชุดตัวอย่าง (PDF+Excel)',
-                'href' => '/reports/sample-pack',
-                'variant' => 'primary',
-                'icon' => 'download',
-            ]) ?>
+            <form method="post" action="<?= e(url('/reports/sample-pack')) ?>" data-loading-submit>
+                <?= csrf_field() ?>
+                <?= render_partial('partials/components/button', [
+                    'label' => 'ดาวน์โหลดชุดตัวอย่าง (PDF+Excel)',
+                    'type' => 'submit',
+                    'variant' => 'primary',
+                    'icon' => 'download',
+                ]) ?>
+            </form>
         </div>
     </section>
 

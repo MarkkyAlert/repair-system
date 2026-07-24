@@ -87,7 +87,7 @@ return static function (Router $router): void {
     $router->post('/admin/demo-data/load', [AdminController::class, 'loadDemoData']);
     $router->get('/reports', [ReportsController::class, 'index']);
     $router->get('/reports/guide', [ReportsController::class, 'guide']);
-    $router->get('/reports/sample-pack', [ReportsController::class, 'samplePack']);
+    $router->post('/reports/sample-pack', [ReportsController::class, 'samplePack']);
     $router->post('/reports/export/excel', [ReportsController::class, 'exportExcel']);
     $router->post('/reports/export/pdf', [ReportsController::class, 'exportPdf']);
     $router->post('/reports/export/csv', [ReportsController::class, 'exportCsv']);

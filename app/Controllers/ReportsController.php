@@ -5,12 +5,16 @@ namespace App\Controllers;
 
 use App\Core\Response;
 use App\Middleware\AuthMiddleware;
+use App\Services\LoginRateLimiter;
 use App\Services\ReportService;
 use DomainException;
 use RuntimeException;
 
 class ReportsController
 {
+    private const SAMPLE_PACK_CAP = 5;      // สร้างชุดตัวอย่างได้ 5 ครั้ง/10 นาที ต่อผู้ใช้
+    private const SAMPLE_PACK_DECAY = 600;
+
     public function __construct(private ReportService $reports)
     {
     }
@@ -76,6 +80,20 @@ class ReportsController
         if (!is_manager_or_admin((string) ($viewer['role'] ?? 'guest'))) {
             flash('error', 'หน้านี้สงวนสำหรับผู้จัดการและผู้ดูแลระบบเท่านั้น');
             Response::redirect('/dashboard');
+        }
+
+        // POST + CSRF: กันการยิงจากลิงก์/หน้าอื่น (CSRF) และการ prefetch ของเบราว์เซอร์ที่จะสั่งสร้างไฟล์เอง
+        csrf_validate();
+
+        // ชุดตัวอย่าง = สร้าง PDF+Excel หลายไฟล์รวดเดียว (งานหนัก) — จำกัดต่อผู้ใช้ กันกดรัว ๆ ถ่วงเครื่อง
+        $limiter = app(LoginRateLimiter::class);
+        if ($limiter instanceof LoginRateLimiter) {
+            $rateKey = 'sample-pack:' . (int) ($viewer['id'] ?? 0);
+            if ($limiter->tooManyAttempts($rateKey, self::SAMPLE_PACK_CAP, self::SAMPLE_PACK_DECAY)) {
+                flash('error', 'สร้างชุดตัวอย่างบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่');
+                Response::redirect('/reports/guide');
+            }
+            $limiter->hit($rateKey, self::SAMPLE_PACK_DECAY);
         }
 
         try {
