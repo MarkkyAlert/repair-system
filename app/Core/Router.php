@@ -69,12 +69,24 @@ class Router
     {
         // placeholder ที่เป็น id ({ticketId}, {userId}, {commentId}, …) จะ match เฉพาะตัวเลขเท่านั้น
         // path ผิดรูปอย่าง "/tickets/12junk/approve" เลยได้ 404 ไม่ใช่ส่ง "12junk" ให้ controller ไป (int)-cast เป็น ticket 12
-        // ส่วน placeholder ที่ไม่ใช่ id ({token}, {templateKey}) ยังใช้ [^/]+ ตามเดิม
-        $pattern = preg_replace_callback('#\{([a-zA-Z_][a-zA-Z0-9_-]*)\}#', static function (array $m): string {
-            $charClass = str_ends_with($m[1], 'Id') ? '\d+' : '[^/]+';
-
-            return '(?P<' . $m[1] . '>' . $charClass . ')';
-        }, $routePath);
+        // ส่วน placeholder ที่ไม่ใช่ id ({token}, {templateKey}) ยังใช้ [^/]+ ตามเดิม ขณะที่ส่วน path ปกติ
+        // ต้อง quote เป็น literal ไม่ให้ "." ใน template.csv/qr.png กลายเป็น regex wildcard
+        $parts = preg_split(
+            '#(\{[a-zA-Z_][a-zA-Z0-9_-]*\})#',
+            $routePath,
+            -1,
+            PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY
+        ) ?: [$routePath];
+        $pattern = '';
+        foreach ($parts as $part) {
+            if (preg_match('#^\{([a-zA-Z_][a-zA-Z0-9_-]*)\}$#', $part, $placeholder) === 1) {
+                $name = $placeholder[1];
+                $charClass = str_ends_with($name, 'Id') ? '\d+' : '[^/]+';
+                $pattern .= '(?P<' . $name . '>' . $charClass . ')';
+                continue;
+            }
+            $pattern .= preg_quote($part, '#');
+        }
         $pattern = '#^' . $pattern . '$#';
         $requestPath = $this->normalizePath($requestPath);
 

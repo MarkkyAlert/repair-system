@@ -20,3 +20,20 @@ test('router: a numeric-id placeholder matches digits only — a malformed "/tic
     assert_same(['token' => 'abc-XYZ_9'], rni_match('/scan/{token}', '/scan/abc-XYZ_9'), 'a {token} placeholder keeps [^/]+');
     assert_same(['templateKey' => 'ticket.assigned'], rni_match('/admin/email-templates/{templateKey}', '/admin/email-templates/ticket.assigned'), 'a {templateKey} placeholder keeps [^/]+');
 });
+
+test('router: punctuation in a declared route is literal, not a regex wildcard', function (): void {
+    assert_same([], rni_match('/files/template.csv', '/files/template.csv'), 'the declared CSV path matches itself');
+    assert_true(
+        rni_match('/files/template.csv', '/files/templateXcsv') === null,
+        'an arbitrary character cannot stand in for the literal dot'
+    );
+    assert_same(
+        ['ticketId' => '12'],
+        rni_match('/tickets/{ticketId}/print/qr.png', '/tickets/12/print/qr.png'),
+        'literal punctuation and a numeric placeholder work together'
+    );
+    assert_true(
+        rni_match('/tickets/{ticketId}/print/qr.png', '/tickets/12/print/qrXpng') === null,
+        'the real QR route does not accept a misspelled extension'
+    );
+});
