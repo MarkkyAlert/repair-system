@@ -406,3 +406,31 @@ test('sla(fixture): restore seed SLA tracks + purge notifications created during
 
     assert_same(count($ids), sla_count_pending_overdue(), 'seed overdue tracks are restored and no test tracks leaked');
 });
+
+// bug-hunt A4 (2nd pass): the dashboard "SLA-notify failed" flag (cron_sla_notify_last_failed) was upserted
+// unconditionally every cron run with THAT run's count. A failed SLA-breach notification is never retried
+// (the breach is already marked, so it is no longer 'pending'), so the very next clean run overwrote the flag
+// with 0 and the "a breach was never alerted to anyone" signal vanished — usually within one cron interval.
+// recordNotifyFailureFlag now persists (accumulates) the count and never lets a clean run erase it.
+test('SlaService A4: a failed SLA-notify count persists across a subsequent clean cron run (not erased)', function (): void {
+    $sla = sla_service();
+    $settings = tvm_container()->get(App\Repositories\SettingsRepository::class);
+    $key = 'cron_sla_notify_last_failed';
+    $origRow = $settings->getByKey($key);
+    $origVal = is_array($origRow) ? (string) ($origRow['setting_value'] ?? '0') : '0';
+
+    try {
+        $settings->upsert($key, '0', 'string', false, 0); // clean baseline
+
+        $sla->recordNotifyFailureFlag($settings, 1); // a run where 1 breach notification failed
+        assert_same(1, (int) ($settings->getByKey($key)['setting_value'] ?? -1), 'the failure is recorded on the dashboard flag');
+
+        $sla->recordNotifyFailureFlag($settings, 0); // the NEXT clean run must NOT erase the signal
+        assert_same(1, (int) ($settings->getByKey($key)['setting_value'] ?? -1), 'a clean run does not erase the prior un-notified-breach signal');
+
+        $sla->recordNotifyFailureFlag($settings, 2); // another failing run accumulates
+        assert_same(3, (int) ($settings->getByKey($key)['setting_value'] ?? -1), 'further failures accumulate (total breaches never alerted)');
+    } finally {
+        $settings->upsert($key, $origVal, 'string', false, 0); // restore the real flag
+    }
+});

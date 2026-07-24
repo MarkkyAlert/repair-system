@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Repositories\SettingsRepository;
 use App\Repositories\TicketReadRepository;
 use App\Repositories\TicketRepository;
 use Throwable;
@@ -71,5 +72,23 @@ class SlaService
             'notify_failed' => $notifyFailed,
             'items' => $notifiedTickets,
         ];
+    }
+
+    /**
+     * บันทึกจำนวนการแจ้งเตือน SLA ที่ส่งไม่สำเร็จลง flag ที่ dashboard ใช้เตือน — แบบ "ค้างสะสม" ไม่ใช่ heartbeat
+     * รอบล่าสุด. ต่างจาก cron งานอื่น (คิวอีเมล/สำรอง/ล้างไฟล์) ที่ "ทำซ้ำทุกรอบ" — flag ของมันจึงกลับเป็น 0 เองเมื่อ
+     * ปัญหาหาย. แต่การแจ้งเตือน SLA ที่ล้มเหลว "ไม่ถูก retry" (breach ถูก mark ไปแล้ว รอบถัดไปไม่ใช่ pending) ถ้าเขียน
+     * ทับด้วยค่ารอบล่าสุด (0) รอบสะอาดถัดไปจะลบสัญญาณทิ้ง แอดมินไม่มีวันเห็นว่ามี breach ที่ไม่เคยแจ้งใครเลย. จึงเขียน
+     * เฉพาะตอนมีความล้มเหลวใหม่ โดยบวกสะสมกับค่าเดิม (คงค้างจนแอดมินไปเคลียร์เอง).
+     */
+    public function recordNotifyFailureFlag(SettingsRepository $settings, int $notifyFailed, string $key = 'cron_sla_notify_last_failed'): void
+    {
+        if ($notifyFailed <= 0) {
+            return; // รอบสะอาด: ห้ามลบสัญญาณเดิมทิ้ง
+        }
+
+        $existingRow = $settings->getByKey($key);
+        $existing = is_array($existingRow) ? (int) ($existingRow['setting_value'] ?? 0) : 0;
+        $settings->upsert($key, (string) (max(0, $existing) + $notifyFailed), 'string', false, 0);
     }
 }

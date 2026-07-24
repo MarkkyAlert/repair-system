@@ -32,8 +32,10 @@ try {
         $settings->upsert('cron_email_queue_last_run_at', $now, 'string', false, 0);
         $settings->upsert('cron_maintenance_last_run_at', $now, 'string', false, 0);
         // จำนวน terminal-failure (ล้มเหลวถาวร) เพื่อให้ dashboard เตือนเรื่องความล้มเหลว ไม่ใช่แค่ความเก่า (staleness)
+        // คิวอีเมลทำซ้ำทุกรอบ flag จึงกลับเป็น 0 เองได้ — เขียนทับตามปกติ
         $settings->upsert('cron_email_queue_last_failed', (string) $mailFailed, 'string', false, 0);
-        $settings->upsert('cron_sla_notify_last_failed', (string) $slaNotifyFailed, 'string', false, 0);
+        // การแจ้งเตือน SLA ที่ล้มไม่ถูก retry จึงต้องค้างสะสม ไม่ให้รอบสะอาดถัดไปลบสัญญาณทิ้ง
+        $slaService->recordNotifyFailureFlag($settings, $slaNotifyFailed);
     }
 
     echo 'SLA processed: ' . (int) ($slaResult['processed'] ?? 0) . PHP_EOL;

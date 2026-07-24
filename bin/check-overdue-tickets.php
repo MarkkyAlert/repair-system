@@ -19,7 +19,8 @@ try {
     if ($settings instanceof SettingsRepository) {
         $settings->upsert('cron_overdue_check_last_run_at', date('Y-m-d H:i:s'), 'string', false, 0);
         // บันทึกความล้มเหลวของการแจ้งเตือน (notify) เพื่อให้ dashboard เตือน + exit code เป็นค่าที่ไม่ใช่ศูนย์
-        $settings->upsert('cron_sla_notify_last_failed', (string) $notifyFailed, 'string', false, 0);
+        // ค้างสะสม ไม่เขียนทับด้วย 0 รอบสะอาด (การแจ้งเตือน SLA ที่ล้มไม่ถูก retry จึงต้องไม่ให้สัญญาณหาย)
+        $service->recordNotifyFailureFlag($settings, $notifyFailed);
     }
 
     echo 'Processed overdue SLA breaches: ' . (int) ($result['processed'] ?? 0) . PHP_EOL;
