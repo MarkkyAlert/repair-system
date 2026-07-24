@@ -241,9 +241,17 @@ class NotificationService
             return;
         }
 
-        $recipients = $isInternal
-            ? [(int) ($context['assigned_manager_id'] ?? 0), (int) ($context['assigned_technician_id'] ?? 0)]
-            : [(int) ($context['requester_id'] ?? 0), (int) ($context['assigned_manager_id'] ?? 0), (int) ($context['assigned_technician_id'] ?? 0)];
+        if ($isInternal) {
+            // internal note แจ้งเฉพาะทีมงาน (manager/tech ที่ถูก assign) ไม่แจ้งผู้แจ้ง. ต่อยอด B2: ถ้าผู้แจ้งเป็น
+            // คนเดียวกับ manager/tech ที่ถูก assign (staff แจ้งใบตัวเอง) ก็ต้องไม่ได้รับแจ้ง internal note ของใบตัวเอง
+            $requesterId = (int) ($context['requester_id'] ?? 0);
+            $recipients = array_values(array_filter(
+                [(int) ($context['assigned_manager_id'] ?? 0), (int) ($context['assigned_technician_id'] ?? 0)],
+                static fn (int $id): bool => $id !== $requesterId
+            ));
+        } else {
+            $recipients = [(int) ($context['requester_id'] ?? 0), (int) ($context['assigned_manager_id'] ?? 0), (int) ($context['assigned_technician_id'] ?? 0)];
+        }
 
         $preview = trim($body);
         if ($preview !== '') {

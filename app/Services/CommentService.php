@@ -81,8 +81,8 @@ class CommentService
 
     public function updateComment(int $ticketId, int $commentId, array $viewer, array $input): array
     {
-        $this->requireVisibleTicket($ticketId, $viewer);
-        $comment = $this->requireEditableComment($ticketId, $commentId, $viewer);
+        $ticket = $this->requireVisibleTicket($ticketId, $viewer);
+        $comment = $this->requireEditableComment($ticketId, $commentId, $viewer, $ticket);
         $body = trim((string) ($input['body'] ?? ''));
         $isInternal = $this->parseInternalFlag($viewer, $input, (bool) ($comment['is_internal'] ?? false));
         $originalVersion = (int) ($input['original_version'] ?? 0);
@@ -115,8 +115,8 @@ class CommentService
 
     public function deleteComment(int $ticketId, int $commentId, array $viewer): void
     {
-        $this->requireVisibleTicket($ticketId, $viewer);
-        $comment = $this->requireEditableComment($ticketId, $commentId, $viewer);
+        $ticket = $this->requireVisibleTicket($ticketId, $viewer);
+        $comment = $this->requireEditableComment($ticketId, $commentId, $viewer, $ticket);
 
         $paths = $this->attachments->getCommentFilePaths($commentId);
 
@@ -164,11 +164,17 @@ class CommentService
         return $ticket;
     }
 
-    private function requireEditableComment(int $ticketId, int $commentId, array $viewer): array
+    private function requireEditableComment(int $ticketId, int $commentId, array $viewer, array $ticket): array
     {
         $comment = $this->comments->findCommentById($commentId);
         if ($comment === null || (int) ($comment['ticket_id'] ?? 0) !== $ticketId) {
             throw new DomainException('ไม่พบ comment ที่ต้องการแก้ไข');
+        }
+
+        // ต่อยอด B2: internal note ถูกซ่อนจาก "ผู้แจ้ง" ของใบนี้ (แม้เป็น manager/admin) — จึงห้ามผู้แจ้งแก้/ลบ
+        // internal note ของใบตัวเองด้วย ไม่งั้นจะเดา id มาแก้/ลบทั้งที่มองไม่เห็น (integrity leak คู่กับ read ที่ปิดแล้ว)
+        if ((bool) ($comment['is_internal'] ?? false) && (int) ($viewer['id'] ?? 0) === (int) ($ticket['requester_id'] ?? 0)) {
+            throw new DomainException('คุณไม่มีสิทธิ์แก้ไข comment นี้');
         }
 
         $viewerId = (int) ($viewer['id'] ?? 0);

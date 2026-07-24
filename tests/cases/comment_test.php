@@ -434,3 +434,81 @@ test('comment(resilience+log): deleteComment persists AND records the swallowed 
         cm_cleanup($ticketId);
     }
 });
+
+/** Seed a ticket with a chosen requester + assignees; returns the ticket id. */
+function cm_seed_ticket_as(int $requesterId, int $assignedTechId = 0, int $assignedManagerId = 0): int
+{
+    $pdo = cm_pdo();
+    $loc = (int) $pdo->query('SELECT COALESCE((SELECT id FROM locations LIMIT 1), 1)')->fetchColumn();
+    $cat = (int) $pdo->query('SELECT COALESCE((SELECT id FROM ticket_categories LIMIT 1), 1)')->fetchColumn();
+    $pri = (int) $pdo->query('SELECT COALESCE((SELECT id FROM priorities LIMIT 1), 1)')->fetchColumn();
+    $pdo->prepare(
+        'INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, assigned_manager_id, assigned_technician_id, status, approval_status, requested_at)
+         VALUES (?, "CM", "x", ?, ?, ?, ?, ?, ?, "in_progress", "approved", NOW())'
+    )->execute(['CMB3-' . bin2hex(random_bytes(4)), $requesterId, $loc, $cat, $pri, $assignedManagerId ?: null, $assignedTechId ?: null]);
+    return (int) $pdo->lastInsertId();
+}
+
+// bug-hunt batch3 #2 (completes B2): B2 hid internal notes from a ticket's requester on READ, but a requester who
+// is a manager/admin could still edit or DELETE an internal note by id (blind mutate), and one who is a technician
+// could see it via notifications (#1). The requester of a ticket now cannot edit/delete its internal notes at all.
+test('comment (batch3 #2): a ticket requester cannot edit/delete an internal note on their own ticket, even as manager', function (): void {
+    $pdo = cm_pdo();
+    $ticketId = cm_seed_ticket_as(2, 3, 2); // requested BY manager id 2
+    // an INTERNAL comment authored by the admin (id 4)
+    $pdo->prepare('INSERT INTO ticket_comments (ticket_id, user_id, body, is_internal, created_at, updated_at) VALUES (?, 4, "secret internal", 1, NOW(), NOW())')->execute([$ticketId]);
+    $commentId = (int) $pdo->lastInsertId();
+    $version = (int) $pdo->query("SELECT version FROM ticket_comments WHERE id = $commentId")->fetchColumn();
+    $mgrRequester = ['id' => 2, 'role' => 'manager'];
+
+    try {
+        $threw = false;
+        try {
+            cm_service()->updateComment($ticketId, $commentId, $mgrRequester, ['body' => 'HACKED', 'original_version' => $version]);
+        } catch (DomainException) {
+            $threw = true;
+        }
+        assert_true($threw, 'the ticket requester (even a manager) cannot EDIT an internal note on their own ticket');
+        assert_same('secret internal', cm_body($commentId), 'the internal note body is unchanged');
+
+        $threwDel = false;
+        try {
+            cm_service()->deleteComment($ticketId, $commentId, $mgrRequester);
+        } catch (DomainException) {
+            $threwDel = true;
+        }
+        assert_true($threwDel, 'the ticket requester cannot DELETE the internal note either');
+        assert_true(cm_body($commentId) !== null, 'the internal note still exists after the blocked delete');
+
+        // not over-broad: a staff member who is NOT this ticket's requester can still edit it
+        cm_service()->updateComment($ticketId, $commentId, cm_admin(), ['body' => 'staff edit', 'original_version' => $version]);
+        assert_same('staff edit', cm_body($commentId), 'a non-requester staff member can still manage the internal note');
+    } finally {
+        cm_cleanup($ticketId);
+    }
+});
+
+// bug-hunt batch3 #1 (completes B2): the internal-note notification excluded requester_id, but if the requester is
+// ALSO the assigned manager/technician (a technician who filed + is assigned their own ticket), they still got it
+// via the assigned_* field. The requester is now excluded from internal-note notifications regardless.
+test('comment (batch3 #1): an internal-note notification skips the requester even when they are the assigned tech', function (): void {
+    $pdo = cm_pdo();
+    $ticketId = cm_seed_ticket_as(3, 3, 2); // requester AND assigned technician are the same person (id 3); manager id 2
+    $pdo->prepare('INSERT INTO ticket_comments (ticket_id, user_id, body, is_internal, created_at, updated_at) VALUES (?, 4, "internal", 1, NOW(), NOW())')->execute([$ticketId]);
+    $commentId = (int) $pdo->lastInsertId();
+    $notif = tvm_container()->get(App\Services\NotificationService::class);
+
+    try {
+        $notif->notifyCommentEvent($ticketId, $commentId, 4, true, 'internal body', 'added'); // actor = admin id 4
+
+        $recips = static fn (int $userId): int => (int) $pdo->query(
+            "SELECT COUNT(*) FROM notification_recipients nr JOIN notifications n ON n.id = nr.notification_id
+             WHERE n.related_type = 'ticket' AND n.related_id = {$ticketId} AND nr.user_id = {$userId}"
+        )->fetchColumn();
+
+        assert_same(0, $recips(3), 'the requester (even as assigned tech) is NOT notified about an internal note on their own ticket');
+        assert_true($recips(2) > 0, 'a non-requester staff member (the manager) still gets the internal-note notification');
+    } finally {
+        cm_cleanup($ticketId);
+    }
+});
