@@ -1096,11 +1096,12 @@ class TicketRepository
         $datePart = date('Ymd', strtotime($requestedAt) ?: time());
         $prefix = setting('ticket_prefix', 'MT') . '-' . $datePart . '-';
 
+        // เรียงตามความยาวก่อน แล้วค่อยตามตัวอักษร — กันเคสเลขลำดับเกิน 9999 (10000) ที่ string sort จะจัดผิด
         $stmt = $this->db->prepare(
             'SELECT ticket_no
              FROM tickets
              WHERE ticket_no LIKE :ticket_prefix
-             ORDER BY ticket_no DESC
+             ORDER BY LENGTH(ticket_no) DESC, ticket_no DESC
              LIMIT 1'
         );
         $stmt->execute(['ticket_prefix' => $prefix . '%']);
@@ -1109,7 +1110,8 @@ class TicketRepository
         $nextSequence = 1;
 
         if ($latestTicketNo !== '') {
-            $suffix = substr($latestTicketNo, -4);
+            // เลขลำดับ = ทุกตัวหลัง prefix (รองรับหลักที่เกิน 4) ไม่ใช่ 4 ตัวท้าย
+            $suffix = substr($latestTicketNo, strlen($prefix));
             if (ctype_digit($suffix)) {
                 $nextSequence = ((int) $suffix) + 1;
             }
@@ -1124,11 +1126,13 @@ class TicketRepository
         $datePart = date('Ymd', strtotime($assignedAt) ?: time());
         $prefix = 'WO-' . $datePart . '-';
 
+        // เรียงตามความยาวก่อน แล้วค่อยตามตัวอักษร — เลขลำดับหลัง 9999 จะยาวขึ้น (10000) ถ้าเรียงแบบ string ล้วน
+        // "9999" จะมากกว่า "10000" (เทียบ '9' > '1') ทำให้หยิบ 9999 มา +1 ได้ 10000 ซ้ำ. เรียงความยาวก่อนจึงถูกต้อง
         $stmt = $this->db->prepare(
             'SELECT work_order_no
              FROM work_orders
              WHERE work_order_no LIKE :work_order_prefix
-             ORDER BY work_order_no DESC
+             ORDER BY LENGTH(work_order_no) DESC, work_order_no DESC
              LIMIT 1'
         );
         $stmt->execute(['work_order_prefix' => $prefix . '%']);
@@ -1137,7 +1141,8 @@ class TicketRepository
         $nextSequence = 1;
 
         if ($latestWorkOrderNo !== '') {
-            $suffix = substr($latestWorkOrderNo, -4);
+            // เลขลำดับ = ทุกตัวหลัง prefix ไม่ใช่ 4 ตัวท้าย — ไม่งั้น "...-10000" จะอ่านเป็น "0000" แล้ว +1 = 0001 ซ้ำ
+            $suffix = substr($latestWorkOrderNo, strlen($prefix));
             if (ctype_digit($suffix)) {
                 $nextSequence = ((int) $suffix) + 1;
             }

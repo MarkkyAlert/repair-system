@@ -315,3 +315,28 @@ test('ticketCreate B4: a category SLA of 0 minutes = no SLA (NULL due, no track)
         $pdo->prepare('DELETE FROM ticket_categories WHERE id = ?')->execute([$catId]);
     }
 });
+
+// bug-hunt item5 (batch 3): running-number generation ordered by string ('ORDER BY no DESC') and read the last 4
+// chars. Past 9999 both break: "9999" > "10000" lexicographically (so 9999 is picked → +1 = 10000, a duplicate),
+// and substr(-4) of "...-10000" is "0000" (→ +1 = 0001). Now orders by LENGTH first and reads the full suffix.
+test('ticket numbering: past 9999 the next number is 10001, not a duplicate (string-sort + substr(-4) bug)', function (): void {
+    $repo = tvm_container()->get(App\Repositories\TicketRepository::class);
+    $pdo = tc_pdo();
+    $prefix = setting('ticket_prefix', 'MT') . '-20991231-'; // far-future date → no collision with real/seed data
+    $ids = [];
+    try {
+        foreach (['9999', '10000'] as $seq) {
+            $pdo->prepare("INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, approval_status) VALUES (?, 'numbering probe', 'x', 1, 1, 1, 1, 'submitted', 'pending')")
+                ->execute([$prefix . $seq]);
+            $ids[] = (int) $pdo->lastInsertId();
+        }
+        $m = new ReflectionMethod($repo, 'generateNextTicketNumber');
+        $m->setAccessible(true);
+        $next = (string) $m->invoke($repo, '2099-12-31 12:00:00');
+        assert_same($prefix . '10001', $next, 'the next number after 10000 is 10001 — not 10000 (string sort) or 0001 (substr -4)');
+    } finally {
+        foreach ($ids as $id) {
+            $pdo->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
+        }
+    }
+});
