@@ -480,3 +480,29 @@ test('technician performance: export xlsx (1 sheet + header) / pdf %PDF- / csv h
         tpr_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
     }
 });
+
+// bug-hunt B6 (2nd pass): the technician live-workload query applied NO filters, while the resolved/SLA/CSAT
+// columns honor department_id/category_id. So on a category- or dept-filtered report, "งานค้างตอนนี้" showed the
+// technician's whole-org open load while the other half of the row was filtered — two different populations in one
+// row. getTechnicianLiveWorkload now applies the same dept/category filter (in the JOIN ON, so a technician with
+// no matching open work still appears with open_now = 0).
+test('technician performance B6: current-workload (open_now) honors the category filter, matching the resolved columns', function (): void {
+    $rid = bin2hex(random_bytes(4));
+    [$techId, $fullName] = tpr_tech($rid);
+    try {
+        // two non-terminal tickets assigned to this tech, in two different categories
+        $ins = tpr_pdo()->prepare("INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, assigned_technician_id, status, requested_at) VALUES (?, 'x','x',1,1,?,1,?, 'in_progress', NOW())");
+        $ins->execute(["B6A-$rid", 1, $techId]);
+        $ins->execute(["B6B-$rid", 2, $techId]);
+
+        $unfiltered = tpr_row($fullName, []);
+        assert_true($unfiltered !== null, 'the technician appears in the unfiltered report');
+        assert_same(2, (int) ($unfiltered['open_now'] ?? -1), 'unfiltered: both open tickets count');
+
+        $filtered = tpr_row($fullName, ['category_id' => 1]);
+        assert_true($filtered !== null, 'the technician still appears when filtered (open work in the category)');
+        assert_same(1, (int) ($filtered['open_now'] ?? -1), 'category-filtered: only the category-1 open ticket counts, not the whole-org load');
+    } finally {
+        tpr_cleanup($techId);
+    }
+});

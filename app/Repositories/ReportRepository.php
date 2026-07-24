@@ -601,11 +601,23 @@ class ReportRepository
      * date filter (= backlog จริงตอนนี้) base = ช่าง active ทุกคน (LEFT JOIN → idle ก็ได้แถว open_now=0)
      * เพื่อให้เห็นทั้งทีมสำหรับเกลี่ยงาน terminal ไม่นับ (ticket_terminal_statuses_sql)
      */
-    public function getTechnicianLiveWorkload(array $viewer): array
+    public function getTechnicianLiveWorkload(array $viewer, array $filters = []): array
     {
         $terminal = ticket_terminal_statuses_sql();
 
-        $stmt = $this->db->query(
+        // dept/category กรอง "งานที่กำลังค้าง" ให้ตรงกับครึ่งผลงาน (getTechnicianResolverStats) — ไม่งั้นแถวเดียวกัน
+        // ครึ่งซ้ายเป็นโหลดทั้งองค์กร ครึ่งขวาเป็นเฉพาะแผนกที่กรอง. วางเงื่อนไขใน ON ของ LEFT JOIN ไม่ใช่ WHERE เพื่อให้
+        // ช่างที่ไม่มีงานค้างในกลุ่มที่กรองยังโชว์อยู่ (open_now = 0) ไม่ถูกตัดทั้งแถว. ไม่มี date/status (โหลด = สถานะปัจจุบัน)
+        $joinConditions = [];
+        $params = [];
+        $dateless = $filters;
+        $dateless['from_datetime'] = '';
+        $dateless['to_datetime'] = '';
+        $dateless['status'] = '';
+        $this->applyReportFilters($joinConditions, $dateless, $params);
+        $joinFilterSql = $joinConditions === [] ? '' : ' AND ' . implode(' AND ', $joinConditions);
+
+        $stmt = $this->db->prepare(
             "SELECT
                 u.id,
                 u.full_name,
@@ -615,10 +627,12 @@ class ReportRepository
              LEFT JOIN tickets t
                 ON t.assigned_technician_id = u.id
                AND t.status NOT IN ($terminal)
+               {$joinFilterSql}
              WHERE u.role = 'technician' AND u.is_active = 1
              GROUP BY u.id, u.full_name
              ORDER BY u.full_name ASC, u.id ASC"
         );
+        $stmt->execute($params);
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }

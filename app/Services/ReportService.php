@@ -652,7 +652,7 @@ class ReportService
 
         $live = [];
         $totalOpenNow = 0;
-        foreach ($this->reports->getTechnicianLiveWorkload($viewer) as $row) {
+        foreach ($this->reports->getTechnicianLiveWorkload($viewer, $normalizedFilters) as $row) {
             $live[(int) $row['id']] = $row;
             $totalOpenNow += (int) ($row['open_now'] ?? 0);
         }
