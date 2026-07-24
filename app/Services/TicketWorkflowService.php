@@ -15,6 +15,10 @@ use DomainException;
  */
 class TicketWorkflowService
 {
+    // เพดานเวลาแรงงานต่อการบันทึกหนึ่งครั้ง = 24 ชม. (1,440 นาที) กันพิมพ์ผิดเป็นค่ามหาศาลจนล้นคอลัมน์ INT UNSIGNED
+    // (สูงสุด ~4.29 พันล้าน); ยอดสะสมข้ามรอบ reopen ยังบวกต่อได้ตามปกติ แค่ต่อครั้งห้ามเกินหนึ่งวันทำงาน
+    private const MAX_LABOR_MINUTES_PER_RESOLVE = 1440;
+
     public function __construct(
         private TicketRepository $tickets,
         private TicketReadRepository $reads,
@@ -243,6 +247,10 @@ class TicketWorkflowService
 
         if ($laborMinutes < 0) {
             throw new DomainException('จำนวนเวลาที่ใช้ต้องเป็นตัวเลขศูนย์หรือมากกว่า');
+        }
+
+        if ($laborMinutes > self::MAX_LABOR_MINUTES_PER_RESOLVE) {
+            throw new DomainException('จำนวนเวลาที่ใช้ต่อการบันทึกหนึ่งครั้งต้องไม่เกิน 1,440 นาที (24 ชั่วโมง)');
         }
 
         $this->tickets->resolveAssignedWork(

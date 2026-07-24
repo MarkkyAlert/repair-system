@@ -707,3 +707,38 @@ test('workflow (A1): the work-order-number lock is acquired BEFORE the transacti
         wf_cleanup($id); // cascades work_orders / sla / logs
     }
 });
+
+// decision (labor cap): labor_minutes has no upper bound, so a fat-fingered value like 5,000,000,000 overflows the
+// INT UNSIGNED column (max ~4.29B). Owner decision: cap at 1,440 minutes (24h) PER resolve entry (cross-reopen
+// accumulation still adds up). Over-cap is rejected; exactly 1440 is accepted.
+test('workflow (labor cap): resolveAssignedWork rejects over-1440 labor per entry, accepts the 1440 boundary', function (): void {
+    $id = wf_insert_ticket([
+        'status' => 'pending_approval', 'approval_status' => 'pending', 'requester_id' => 1,
+        'response_due_at' => date('Y-m-d H:i:s', time() + 3600),
+        'resolution_due_at' => date('Y-m-d H:i:s', time() + 7200),
+    ]);
+    try {
+        $admin = ['id' => 4, 'role' => 'admin'];
+        $tech = ['id' => 3, 'role' => 'technician'];
+        wf_service()->approveTicket($id, $admin, ['note' => '']);
+        wf_service()->assignTechnician($id, $admin, ['technician_id' => 3, 'instructions' => '']);
+        wf_service()->acceptAssignedWork($id, $tech, ['accept_note' => '']);
+        wf_service()->startAssignedWork($id, $tech, ['start_note' => '']);
+
+        // over the per-entry cap → rejected with a clear cap message; the ticket must stay in_progress
+        $err = null;
+        try {
+            wf_service()->resolveAssignedWork($id, $tech, ['diagnosis_summary' => 'd', 'resolution_summary' => 'r', 'labor_minutes' => '1441']);
+        } catch (Throwable $e) {
+            $err = $e;
+        }
+        assert_true($err instanceof DomainException && str_contains($err->getMessage(), '1,440'), 'over-1440 labor is rejected with the per-entry cap message');
+        assert_same('in_progress', wf_state($id)['status'], 'the ticket is NOT resolved after the rejected labor value');
+
+        // exactly the cap (1440) is accepted → resolves normally
+        wf_service()->resolveAssignedWork($id, $tech, ['diagnosis_summary' => 'd', 'resolution_summary' => 'r', 'labor_minutes' => '1440']);
+        assert_same('resolved', wf_state($id)['status'], '1440 minutes (the cap) is accepted and the ticket resolves');
+    } finally {
+        wf_cleanup($id);
+    }
+});
