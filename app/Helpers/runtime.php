@@ -81,15 +81,13 @@ function e(mixed $value): string
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
 }
 
-/**
- * กันเซลล์ที่เสี่ยงโดน formula-injection ใน CSV/spreadsheet: เติม single quote ไว้ข้างหน้าเมื่อตัวอักษรแรก
- * ที่ไม่ใช่ช่องว่างเป็น = + - หรือ @ spreadsheet จะได้แสดงค่าเป็นข้อความ ไม่เอาไปรันเป็นสูตร
- * ใช้ร่วมกันทุกเส้นทางการ export (AssetService, ReportService) เป็นที่เดียวที่คุมการป้องกันนี้
- */
-function sanitize_export_cell(mixed $value): string
+/** คืน true เมื่อค่าหลัง whitespace/apostrophe นำหน้าเป็นตัวเปิดสูตรของ spreadsheet */
+function is_spreadsheet_formula_cell(string $value): bool
 {
-    $cell = (string) $value;
-    $trimmed = ltrim($cell);
+    $trimmed = ltrim($value);
+    while ($trimmed !== '' && $trimmed[0] === "'") {
+        $trimmed = ltrim(substr($trimmed, 1));
+    }
 
     // ตัวเลขติดลบล้วน ("-1", "-1.5", "-1,234.0") เป็นค่าที่พิมพ์มาถูกต้องและ spreadsheet แสดงเป็นตัวเลข
     // ไม่ใช่สูตร เลยต้องคงเป็นตัวเลขและตรงกับที่เห็นบนจอทุก byte (เผื่อ Excel sum/pivot) ส่วนที่มีแค่
@@ -97,7 +95,20 @@ function sanitize_export_cell(mixed $value): string
     // ใน spreadsheet เสมอ (แม้แต่ "+1234" ก็เป็นสูตร) เลยคงการกันไว้
     $isNegativeNumber = preg_match('/^-(\d+|\d{1,3}(,\d{3})+)(\.\d+)?$/', $trimmed) === 1;
 
-    if (!$isNegativeNumber && $trimmed !== '' && in_array($trimmed[0], ['=', '+', '-', '@'], true)) {
+    return !$isNegativeNumber
+        && $trimmed !== ''
+        && in_array($trimmed[0], ['=', '+', '-', '@'], true);
+}
+
+/**
+ * กันเซลล์ที่เสี่ยงโดน formula-injection ใน CSV/spreadsheet: เติม single quote ไว้ข้างหน้าเมื่อตัวอักษรแรก
+ * ที่ไม่ใช่ช่องว่าง/apostrophe เป็น = + - หรือ @ รวมถึง escape apostrophe จริงเพิ่มอีกชั้น เพื่อให้ export
+ * แล้ว import กลับแยกค่าจริง "'=..." ออกจาก guard ของระบบ "'=..." ได้
+ */
+function sanitize_export_cell(mixed $value): string
+{
+    $cell = (string) $value;
+    if (is_spreadsheet_formula_cell($cell)) {
         return "'" . $cell;
     }
 
@@ -117,21 +128,8 @@ function unsanitize_import_cell(string $value): string
     }
 
     $rest = substr($value, 1);
-    $trimmed = ltrim($rest);
-    if ($trimmed === '') {
-        return $value;
-    }
 
-    $opener = $trimmed[0];
-    if (in_array($opener, ['=', '+', '@'], true)) {
-        return $rest;
-    }
-    // '-' ถูกกันไว้เฉพาะตอนที่ "ไม่ใช่" ตัวเลขติดลบล้วน (mirror sanitize_export_cell) จึงถอดเฉพาะกรณีนั้น
-    if ($opener === '-' && preg_match('/^-(\d+|\d{1,3}(,\d{3})+)(\.\d+)?$/', $trimmed) !== 1) {
-        return $rest;
-    }
-
-    return $value;
+    return is_spreadsheet_formula_cell($rest) ? $rest : $value;
 }
 
 /**
