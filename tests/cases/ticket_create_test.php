@@ -171,6 +171,56 @@ test('ticketCreate(idempotency): the same submission_token returns the same tick
     }
 });
 
+test('ticketCreate(concurrency): an inactive requester cannot gain a new open ticket after the auth precheck', function (): void {
+    $pdo = tc_pdo();
+    $repo = tvm_container()->get(App\Repositories\TicketRepository::class);
+    $ref = tc_ref();
+    $suffix = bin2hex(random_bytes(4));
+    $token = tc_token();
+    $ticketId = 0;
+    $userId = 0;
+
+    $pdo->prepare(
+        'INSERT INTO users (username, email, password_hash, full_name, role, is_active, created_at, updated_at)
+         VALUES (?, ?, "x", "Inactive race requester", "requester", 0, NOW(), NOW())'
+    )->execute(["tc_race_$suffix", "tc_race_$suffix@example.test"]);
+    $userId = (int) $pdo->lastInsertId();
+
+    try {
+        $threw = false;
+        try {
+            $result = $repo->createTicket([
+                'submission_token' => $token,
+                'title' => 'Inactive requester race probe',
+                'description' => 'The admin committed deactivation after the HTTP auth check.',
+                'requester_id' => $userId,
+                'requester_department_id' => null,
+                'location_id' => (int) $ref['locations'][0]['id'],
+                'asset_id' => null,
+                'ticket_category_id' => (int) $ref['categories'][0]['id'],
+                'priority_id' => (int) $ref['priorities'][0]['id'],
+                'impact_level' => 'medium',
+                'urgency_level' => 'medium',
+                'channel' => 'web',
+            ]);
+            $ticketId = (int) ($result['id'] ?? 0);
+        } catch (DomainException $exception) {
+            $threw = true;
+            assert_contains_str('บัญชีผู้แจ้งไม่พร้อมใช้งาน', $exception->getMessage());
+        }
+
+        assert_true($threw, 'the repository rechecks requester activity under the same transaction as the INSERT');
+        $count = $pdo->prepare('SELECT COUNT(*) FROM tickets WHERE submission_token = ?');
+        $count->execute([$token]);
+        assert_same(0, (int) $count->fetchColumn(), 'no open ticket is inserted for the inactive requester');
+    } finally {
+        tc_cleanup($ticketId);
+        if ($userId > 0) {
+            $pdo->prepare('DELETE FROM users WHERE id = ?')->execute([$userId]);
+        }
+    }
+});
+
 // ── ⭐ atomicity (G1): a failing child insert rolls back the whole ticket — no orphan / partial write ──
 // Uses the shared FailingPdo fault injector (tests/failing_pdo.php): createTicket inserts tickets →
 // ticket_approvals → ticket_sla_tracks → ticket_activity_logs in one transaction; forcing the SLA-track insert

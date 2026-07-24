@@ -53,6 +53,7 @@ class TicketRepository
      *        ไม่บังคับ 'requested_at','response_due_at','resolution_due_at','submission_token','channel'
      * @return array{id: int, created: bool} created=false เมื่อชน submission_token เดิม (คืน ticket ที่มีอยู่ ไม่สร้างซ้ำ)
      * @throws RuntimeException เมื่อไม่พบผู้อนุมัติเริ่มต้น (ไม่มี user role manager/admin ที่ active)
+     * @throws DomainException เมื่อบัญชีผู้แจ้งถูกปิดระหว่างเปิดฟอร์มกับบันทึก ticket
      * @throws Throwable เมื่อ write ใด ๆ ล้มเหลว (rollback tx ที่เปิดเองก่อน rethrow); การชน submission_token ถูกจับแล้วคืนใบเดิมแทน
      */
     public function createTicket(array $payload): array
@@ -89,6 +90,22 @@ class TicketRepository
             if ($startedTransaction) {
                 $this->db->beginTransaction();
             }
+
+            // Serialize with AdminRepository::updateUser(): without this under-lock recheck, an admin could
+            // deactivate a requester after the form passed auth but before this INSERT, leaving a new open
+            // ticket owned by an inactive account.
+            $requesterStmt = $this->db->prepare(
+                'SELECT is_active
+                 FROM users
+                 WHERE id = :requester_id
+                 LIMIT 1
+                 FOR UPDATE'
+            );
+            $requesterStmt->execute(['requester_id' => (int) $payload['requester_id']]);
+            if ((int) $requesterStmt->fetchColumn() !== 1) {
+                throw new DomainException('บัญชีผู้แจ้งไม่พร้อมใช้งาน กรุณาเข้าสู่ระบบใหม่');
+            }
+
             $ticketNo = $this->generateNextTicketNumber($requestedAt);
 
             $ticketStmt = $this->db->prepare(
