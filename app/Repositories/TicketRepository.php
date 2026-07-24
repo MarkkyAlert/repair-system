@@ -365,9 +365,15 @@ class TicketRepository
     public function assignTechnician(int $ticketId, int $actorId, int $technicianId, string $technicianName, string $instructions, string $currentStatus): void
     {
         $assignedAt = date('Y-m-d H:i:s');
-        $workOrderNumberLock = null;
+        // กันเลข work order ซ้ำ: จับ named lock "ก่อน" เปิด transaction (แนวเดียวกับ createTicket) — ถ้าจับหลังเปิด tx
+        // แล้วอ่านตาราง work_orders ครั้งแรกไปแล้ว snapshot ของ REPEATABLE READ จะถูกตรึงไว้ก่อน แล้ว
+        // generateNextWorkOrderNumber จะอ่านเลขล่าสุดจาก snapshot เก่า มองไม่เห็นใบที่ transaction อื่นเพิ่ง commit
+        // → ออกเลขซ้ำ → INSERT ชน UNIQUE(work_order_no) → assign ล้มทั้งรายการ. จับ lock ก่อนเปิด tx ให้ snapshot
+        // เกิดหลังถือ lock อยู่แล้ว การอ่านเลขจึงเห็นค่าล่าสุดเสมอ. (assignTechnician เปิด tx เองเสมอ ไม่เคยถูกครอบ)
+        $workOrderNumberLock = 'work-order-number-' . date('Ymd', strtotime($assignedAt) ?: time());
 
         try {
+            $this->acquireNamedLock($workOrderNumberLock);
             $this->db->beginTransaction();
             // accepted/in_progress: การ reassign กลางงานตอนช่างทำต่อไม่ได้
             // ให้ตัดสินจากสถานะที่ล็อกไว้ ไม่ใช่ค่าเก่าที่ caller อ่านมาก่อนล็อก — ถ้ามีการ accept/start
@@ -458,8 +464,7 @@ class TicketRepository
                     'ticket_id' => $ticketId,
                 ]);
             } else {
-                $workOrderNumberLock = 'work-order-number-' . date('Ymd', strtotime($assignedAt) ?: time());
-                $this->acquireNamedLock($workOrderNumberLock);
+                // named lock ถูกจับไว้ก่อนเปิด transaction แล้ว (ด้านบน) generateNextWorkOrderNumber จึงอ่านเลขล่าสุดแบบสด
                 $workOrderStmt = $this->db->prepare(
                     'INSERT INTO work_orders (
                         work_order_no,
@@ -535,9 +540,8 @@ class TicketRepository
 
             throw $exception;
         } finally {
-            if ($workOrderNumberLock !== null) {
-                $this->releaseNamedLock($workOrderNumberLock);
-            }
+            // ปล่อย named lock เสมอ (จับก่อนเปิด tx ทุกครั้งแล้ว) — RELEASE_LOCK บน lock ที่ไม่ได้ถือไม่โยน error
+            $this->releaseNamedLock($workOrderNumberLock);
         }
     }
 

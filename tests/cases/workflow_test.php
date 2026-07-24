@@ -650,3 +650,60 @@ test('workflow(atomicity): a failing step in approveTicket rolls back the status
         wf_cleanup($id);
     }
 });
+
+// bug-hunt A1 (2nd pass): assignTechnician generated the running work_order_no under a per-day GET_LOCK, but on a
+// FIRST assignment it acquired that lock AFTER beginTransaction + the first consistent read of work_orders had
+// already pinned the REPEATABLE-READ snapshot. Under contention, generateNextWorkOrderNumber then read a stale
+// snapshot (missing a work order another transaction just committed) and produced a duplicate number → INSERT hit
+// UNIQUE(work_order_no) → the whole assignment rolled back and failed. createTicket avoids this by locking BEFORE
+// the transaction; assignTechnician now mirrors that. True concurrency can't run in a single-process test, so this
+// locks the ORDERING guarantee the fix provides: the GET_LOCK is issued before the transaction opens.
+test('workflow (A1): the work-order-number lock is acquired BEFORE the transaction opens (fresh number read, no stale-snapshot duplicate)', function (): void {
+    $container = tvm_container();
+    $db = $container->get('config')['db'];
+    $dsn = sprintf('mysql:host=%s;port=%s;dbname=%s;charset=%s', $db['host'], $db['port'], $db['name'], $db['charset']);
+    $seqPdo = new class ($dsn, $db['username'], $db['password'], [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES => false,
+    ]) extends PDO {
+        /** @var list<string> */
+        public array $seq = [];
+        public function beginTransaction(): bool
+        {
+            $this->seq[] = 'begin';
+            return parent::beginTransaction();
+        }
+        public function prepare(string $query, array $options = []): PDOStatement|false
+        {
+            if (str_contains($query, 'GET_LOCK')) {
+                $this->seq[] = 'get_lock';
+            }
+            return parent::prepare($query, $options);
+        }
+    };
+
+    // seed an APPROVED ticket via the normal connection (committed → visible to the separate $seqPdo connection)
+    $id = wf_insert_ticket([
+        'status' => 'approved', 'approval_status' => 'approved', 'requester_id' => 1,
+        'response_due_at' => date('Y-m-d H:i:s', time() + 3600),
+        'resolution_due_at' => date('Y-m-d H:i:s', time() + 7200),
+    ]);
+
+    $repo = new App\Repositories\TicketRepository($seqPdo);
+    try {
+        // first assignment (no existing work order) → generates a work_order_no under the named lock
+        $repo->assignTechnician($id, 4, 3, 'Tech', '', 'approved');
+
+        $firstLock = array_search('get_lock', $seqPdo->seq, true);
+        $firstBegin = array_search('begin', $seqPdo->seq, true);
+        assert_true($firstLock !== false, 'the work-order-number GET_LOCK was issued');
+        assert_true($firstBegin !== false, 'a transaction was opened');
+        assert_true(
+            $firstLock !== false && $firstBegin !== false && $firstLock < $firstBegin,
+            'GET_LOCK must run BEFORE beginTransaction so the number is read fresh, not from a pre-lock snapshot (seq: ' . implode(',', $seqPdo->seq) . ')'
+        );
+    } finally {
+        wf_cleanup($id); // cascades work_orders / sla / logs
+    }
+});
