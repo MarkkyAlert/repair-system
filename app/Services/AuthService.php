@@ -168,14 +168,38 @@ class AuthService
         $this->rateLimiter->hit($ipKey, 900);
         $this->rateLimiter->hit($emailKey, 3600);
 
+        return $this->issuePasswordReset($email);
+    }
+
+    /**
+     * ออก token รีเซ็ต + คิวอีเมล ให้ผู้ใช้ที่ "นำเข้าโดยแอดมิน" โดยข้ามการจำกัดอัตราแบบสาธารณะอย่างตั้งใจ: การนำเข้า
+     * หนึ่งครั้งอาจสร้างผู้ใช้หลายสิบคนจาก IP เดียวของแอดมิน ถ้านับรวมเพดานของ createPasswordReset (10 ครั้ง/IP/15 นาที)
+     * คนท้าย ๆ จะโดนบล็อกและไม่ได้อีเมลตั้งรหัสเลย. path นี้เรียกได้เฉพาะหลังผ่านสิทธิ์แอดมิน (UserImportService) —
+     * ไม่ผูกกับ endpoint สาธารณะใด ๆ — และยังคงเงื่อนไข active-only เดิม (บัญชีที่ถูกปิดจะไม่ถูกส่งอีเมล).
+     */
+    public function createPasswordResetForImportedUser(string $email): ?string
+    {
+        $email = trim(strtolower($email));
+        if ($email === '') {
+            throw new DomainException('กรุณากรอกอีเมล');
+        }
+
+        return $this->issuePasswordReset($email);
+    }
+
+    /**
+     * แกนกลางของการรีเซ็ต (หลังผ่านด่านจำกัดอัตราของผู้เรียกแล้ว): หา user, active เท่านั้นถึงจะออก token+อีเมล.
+     */
+    private function issuePasswordReset(string $email): ?string
+    {
         $user = $this->users->findByEmail($email);
         if (!$user || !(bool) $user['is_active']) {
             // กันการไล่เดาบัญชี: อีเมลที่ไม่รู้จักหรือถูกปิดใช้งานจะไม่สร้าง token และไม่ส่งอีเมล — การมีอยู่ของบัญชี
             // จึงไม่รั่วผ่านแถว reset, อีเมลที่ส่ง หรือผลข้างเคียงในคิว. ข้อความที่ตอบกลับเป็นข้อความกลาง ๆ
-            // เหมือนกันทั้งสองทาง (AuthController) และ rate-limiter ข้างบนก็นับแบบไม่มีเงื่อนไข. ส่วนต่างของเวลา
-            // ที่ยังเหลือ (บัญชีที่ active เขียน DB เพิ่มอีก ~2 ครั้ง) เป็นค่าตกค้างที่ยอมรับได้และถูกจำกัดอัตราแล้ว —
-            // สัญญาณจากการเขียน DB นั้นเล็กและมีสัญญาณรบกวน ต่างจาก bcrypt ของ login. ความเท่ากันของผลข้างเคียง
-            // ถูกล็อกไว้ด้วย auth_test 'password reset creates a token+email ONLY for active'.
+            // เหมือนกันทั้งสองทาง (AuthController) และ rate-limiter ของ createPasswordReset ก็นับแบบไม่มีเงื่อนไข.
+            // ส่วนต่างของเวลาที่ยังเหลือ (บัญชีที่ active เขียน DB เพิ่มอีก ~2 ครั้ง) เป็นค่าตกค้างที่ยอมรับได้และถูก
+            // จำกัดอัตราแล้ว — สัญญาณจากการเขียน DB นั้นเล็กและมีสัญญาณรบกวน ต่างจาก bcrypt ของ login. ความเท่ากัน
+            // ของผลข้างเคียงถูกล็อกไว้ด้วย auth_test 'password reset creates a token+email ONLY for active'.
             return null;
         }
 

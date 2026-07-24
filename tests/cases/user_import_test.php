@@ -286,6 +286,38 @@ namespace {
         }
     });
 
+    // Phase-3 #7: a bulk import of auto-password users all originates from the admin's single IP. The old code sent
+    // each set-password email through the PUBLIC forgot-password path (createPasswordReset), whose per-IP cap is
+    // 10/15min — so from the 11th user on, the request was rate-limited and that user NEVER got an email. Import now
+    // uses a trusted path (createPasswordResetForImportedUser) that skips the public limiter, so EVERY imported user
+    // is emailed. Importing more than the cap and asserting all are queued fails if the public limiter is reinstated.
+    test('userImport.executeImport(auto_password): bulk import from one IP emails EVERY user, not just the first 10', function (): void {
+        $rl = tvm_container()->get(\App\Services\LoginRateLimiter::class);
+        $ipKey = 'pwreset-ip:' . sha1('unknown'); // REMOTE_ADDR is unset under CLI → the limiter's 'unknown' bucket
+        $rl->clear($ipKey);                        // start clean so the revert (public path) blocks at exactly the 11th
+
+        $count = 12; // > the public 10-per-IP cap
+        $rows = [];
+        for ($i = 0; $i < $count; $i++) {
+            $rows[] = ui_exec_row(['password' => '', 'auto_password' => true, 'line' => 100 + $i]);
+        }
+
+        try {
+            $result = ui_service()->executeImport($rows);
+
+            assert_same($count, (int) $result['imported'], 'every row created a user');
+            assert_same($count, (int) $result['reset_emails_queued'], 'every imported user got a set-password email — none blocked by the public per-IP cap');
+            assert_same(0, count($result['reset_failures']), 'no reset-email failures for a bulk import');
+        } finally {
+            $rl->clear($ipKey);
+            foreach ($rows as $row) {
+                ui_pdo()->prepare('DELETE FROM email_queue WHERE to_email = ?')->execute([$row['email']]);
+                ui_pdo()->prepare('DELETE FROM password_resets WHERE email = ?')->execute([$row['email']]);
+            }
+            ui_delete_users(array_map(static fn (array $r): string => (string) $r['username'], $rows));
+        }
+    });
+
     test('userImport.executeImport(resilience): a row colliding at insert is skipped; the rest still import', function (): void {
         $s = bin2hex(random_bytes(4));
         $existing = "clash_$s";

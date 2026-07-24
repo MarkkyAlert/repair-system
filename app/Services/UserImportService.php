@@ -184,7 +184,9 @@ class UserImportService
 
                 if (!empty($row['auto_password'])) {
                     try {
-                        $this->auth->createPasswordReset((string) $row['email']);
+                        // ใช้ path นำเข้าที่ข้ามเพดาน rate-limit สาธารณะ — ไม่งั้นนำเข้าหลายสิบคนจาก IP เดียวของแอดมิน
+                        // แล้วคนท้าย ๆ จะโดนบล็อกจนไม่ได้อีเมลตั้งรหัส (ดู AuthService::createPasswordResetForImportedUser)
+                        $this->auth->createPasswordResetForImportedUser((string) $row['email']);
                         $sentResetEmails++;
                     } catch (Throwable $exception) {
                         // user ถูกสร้างในสถานะ active พร้อมรหัสผ่านสุ่มแล้ว; ส่ง reset-email ล้มเหลวต้องไม่
