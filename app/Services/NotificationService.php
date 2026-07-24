@@ -89,25 +89,45 @@ class NotificationService
     public function getNotificationPageData(array $viewer, array $filters = []): array
     {
         $userId = $this->requireViewerId($viewer);
-        $result = $this->notifications->getUserNotificationsPage($userId, max(1, (int) ($filters['page'] ?? 1)), 25);
-        $eventItems = $this->mapNotifications($result['items'], $viewer);
-        $items = $this->aggregateNotifications($eventItems);
+        $perPage = 25;
+
+        // aggregate → filter → แบ่งหน้า ต้องทำ "ตามลำดับนี้" บนชุดข้อมูลทั้งหมด ไม่ใช่แบ่งหน้าที่ระดับ SQL ก่อน เพราะ
+        // 1) การรวม event เป็น thread ต่อ ticket ต้องเห็นทุก event ของ ticket นั้น 2) หมวด (action/sla/comment)
+        // คำนวณจาก type+SLA ใน PHP ไม่ใช่คอลัมน์ DB — ถ้ากรองหลังแบ่งหน้า หน้าแรกจะว่างทั้งที่มีรายการตรงเงื่อนไขในหน้าถัดไป.
+        // $items เรียงใหม่→เก่าอยู่แล้ว (ตามลำดับ event ล่าสุดของแต่ละ thread) จึง slice แบ่งหน้าได้ตรง ๆ.
+        $items = $this->aggregateNotifications(
+            $this->mapNotifications($this->notifications->getAllUserNotifications($userId), $viewer)
+        );
         $selectedFilter = $this->normalizeFilter((string) ($filters['filter'] ?? 'all'));
         $filteredItems = array_values(array_filter(
             $items,
             fn (array $item): bool => $this->matchesFilter($item, $selectedFilter)
         ));
 
+        // แบ่งหน้าจาก "รายการที่กรองแล้ว" — total/totalPages จึงสะท้อนตัวกรองที่เลือกจริง ไม่ใช่จำนวนแถวดิบทั้งหมด
+        $total = count($filteredItems);
+        ['page' => $page, 'offset' => $offset, 'totalPages' => $totalPages] = paginate(
+            max(1, (int) ($filters['page'] ?? 1)),
+            $perPage,
+            $total
+        );
+        $pageItems = array_slice($filteredItems, $offset, $perPage);
+
         return [
             'unreadCount' => $this->notifications->countUnreadNotifications($userId),
             'unreadThreadCount' => count(array_filter($items, static fn (array $item): bool => empty($item['is_read']))),
             'actionCount' => $this->countActionItems($items),
             'threadCount' => count($items),
-            'notifications' => $filteredItems,
-            'groups' => $this->groupNotifications($filteredItems),
+            'notifications' => $pageItems,
+            'groups' => $this->groupNotifications($pageItems),
             'selectedFilter' => $selectedFilter,
             'filterOptions' => $this->buildFilterOptions($items, $selectedFilter),
-            'pagination' => $result,
+            'pagination' => [
+                'total' => $total,
+                'page' => $page,
+                'perPage' => $perPage,
+                'totalPages' => $totalPages,
+            ],
         ];
     }
 

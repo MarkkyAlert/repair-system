@@ -109,6 +109,57 @@ test('notify(IDOR): a user cannot mark ANOTHER user\'s notification as read', fu
     }
 });
 
+// Phase-3 #6: the notification page applied the category filter AFTER slicing to a 25-row DB page. A user whose
+// first page is all workflow notifications, with a single 'comment' notification further back, saw an EMPTY list
+// under the "comment" filter — matching items on later pages were hidden by a page-1 miss. getNotificationPageData
+// now aggregates + filters the FULL set first, then paginates the filtered result.
+test('notify(page filter): a matching notification beyond raw page 1 still appears under its filter', function (): void {
+    $uid = nt_seed_user('requester');
+    $viewer = ['id' => $uid, 'role' => 'requester'];
+    $insNotif = nt_pdo()->prepare(
+        "INSERT INTO notifications (type, title, message, related_type, related_id, created_at) VALUES (?, ?, 'x', 'system', 0, ?)"
+    );
+    $insRecip = nt_pdo()->prepare(
+        'INSERT INTO notification_recipients (notification_id, user_id, is_read, read_at, created_at) VALUES (?, ?, 0, NULL, NOW())'
+    );
+    $notifIds = [];
+
+    try {
+        // 30 newest notifications are all 'workflow' (type has neither .comment. nor .sla_breached.); each has a
+        // distinct related_id-less identity so they stay separate threads (30 > the 25-row first page).
+        for ($i = 0; $i < 30; $i++) {
+            $insNotif->execute(['test.workflow.filler', 'filler ' . $i, sprintf('2099-01-01 00:%02d:00', $i)]);
+            $id = (int) nt_pdo()->lastInsertId();
+            $insRecip->execute([$id, $uid]);
+            $notifIds[] = $id;
+        }
+        // the single 'comment' notification is the OLDEST → it lands on raw "page 2", never in the first 25 rows
+        $insNotif->execute(['test.comment.new', 'a comment', '2000-01-01 00:00:00']);
+        $commentId = (int) nt_pdo()->lastInsertId();
+        $insRecip->execute([$commentId, $uid]);
+        $notifIds[] = $commentId;
+
+        $data = nt_service()->getNotificationPageData($viewer, ['filter' => 'comment', 'page' => 1]);
+        $shownIds = array_map(static fn (array $n): int => (int) ($n['id'] ?? 0), $data['notifications']);
+
+        assert_true(in_array($commentId, $shownIds, true), 'the comment notification appears under the comment filter even though it is beyond raw page 1');
+        assert_same(1, (int) $data['pagination']['total'], 'filtered pagination total counts only the comment thread, not all 31 rows');
+        assert_same('comment', $data['selectedFilter'], 'the selected filter is echoed back');
+
+        // sanity: the unfiltered view still paginates the full aggregated set (31 threads → 25 on page 1)
+        $all = nt_service()->getNotificationPageData($viewer, ['filter' => 'all', 'page' => 1]);
+        assert_same(31, (int) $all['pagination']['total'], 'unfiltered total is every thread');
+        assert_same(2, (int) $all['pagination']['totalPages'], '31 threads at 25/page → 2 pages');
+        assert_same(25, count($all['notifications']), 'page 1 of the unfiltered view holds a full page');
+    } finally {
+        foreach ($notifIds as $id) {
+            nt_pdo()->prepare('DELETE FROM notification_recipients WHERE notification_id = ?')->execute([$id]);
+            nt_pdo()->prepare('DELETE FROM notifications WHERE id = ?')->execute([$id]);
+        }
+        nt_cleanup([], [$uid]);
+    }
+});
+
 test('notify(filterRecipientIds): the actor is never notified of their own action', function (): void {
     $requester = nt_seed_user('requester');
     $manager = nt_seed_user('manager');

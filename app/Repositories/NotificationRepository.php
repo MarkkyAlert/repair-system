@@ -129,32 +129,24 @@ class NotificationRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    public function getUserNotificationsPage(int $userId, int $page, int $perPage): array
+    /**
+     * ทุกการแจ้งเตือนของผู้ใช้ (ไม่จำกัดจำนวน) เรียงใหม่→เก่า. ตัว service ต้องเห็นครบทั้งชุดก่อน เพราะการรวมเป็น
+     * thread ต่อ ticket กับการกรองตามหมวด (คำนวณใน PHP) ต้องทำ "ก่อน" แบ่งหน้า — ถ้าดึงมาแค่หน้าละ 25 แถวแล้ว
+     * ค่อยกรอง หน้าแรกจะว่างทั้งที่มีรายการตรงเงื่อนไขอยู่หน้าถัด ๆ ไป.
+     */
+    public function getAllUserNotifications(int $userId): array
     {
-        $perPage = max(1, min($perPage, 50));
-        $countStmt = $this->db->prepare('SELECT COUNT(*) FROM notification_recipients WHERE user_id = :user_id');
-        $countStmt->execute(['user_id' => $userId]);
-        $total = (int) ($countStmt->fetchColumn() ?: 0);
-        ['page' => $page, 'offset' => $offset, 'totalPages' => $totalPages] = paginate($page, $perPage, $total);
-
         $stmt = $this->db->prepare(
-            "SELECT nr.id AS recipient_id, nr.is_read, nr.read_at,
+            'SELECT nr.id AS recipient_id, nr.is_read, nr.read_at,
                 n.id, n.type, n.title, n.message, n.payload, n.related_type, n.related_id, n.created_at
              FROM notification_recipients nr
              INNER JOIN notifications n ON n.id = nr.notification_id
              WHERE nr.user_id = :user_id
-             ORDER BY n.created_at DESC, n.id DESC
-             LIMIT $perPage OFFSET $offset"
+             ORDER BY n.created_at DESC, n.id DESC'
         );
         $stmt->execute(['user_id' => $userId]);
 
-        return [
-            'items' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
-            'total' => $total,
-            'page' => $page,
-            'perPage' => $perPage,
-            'totalPages' => $totalPages,
-        ];
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
     public function countUnreadNotifications(int $userId): int
