@@ -112,3 +112,44 @@ test('backup status: a non-gzip / empty-gzip file is not counted as a restorable
         }
     }
 });
+
+// Phase-3 #3: a gzip whose HEADER and TRAILER still look valid but whose BODY was cut off mid-write (the shape a
+// disk-full/interrupted backup leaves) must NOT be counted as restorable. The old check only read the magic bytes
+// + the last-4-byte ISIZE, so a truncated body with a plausible trailing ISIZE slipped through. isRestorableBackup
+// now streams the whole gzip through zlib and requires a clean ZLIB_STREAM_END (CRC32 + ISIZE verified by zlib).
+test('backup status: a gzip truncated mid-body (valid header + fake ISIZE) is NOT restorable', function (): void {
+    $svc = tvm_container()->get(BackupService::class);
+    $check = new ReflectionMethod(BackupService::class, 'isRestorableBackup');
+    $check->setAccessible(true);
+    $isRestorable = static fn (string $p): bool => (bool) $check->invoke($svc, $p);
+
+    $good = (string) gzencode(str_repeat("INSERT INTO tickets VALUES (1,'x');\n", 400), 6);
+    $len = strlen($good);
+
+    // truncated: keep the header + first half of the compressed body, drop the rest, append a plausible non-zero
+    // ISIZE. Old predicate: magic 1f8b ✓, last-4 ISIZE = 4096 > 0 ✓, size >= 18 ✓ → wrongly "restorable".
+    $truncated = substr($good, 0, max(14, intdiv($len, 2))) . pack('V', 4096);
+    // corrupt-in-the-middle: header + trailer intact, body bytes flipped → zlib data error before STREAM_END
+    $corruptBody = $good;
+    for ($i = intdiv($len, 2); $i < intdiv($len, 2) + 12 && $i < $len - 8; $i++) {
+        $corruptBody[$i] = chr(ord($corruptBody[$i]) ^ 0xFF);
+    }
+
+    $goodPath = tempnam(sys_get_temp_dir(), 'bkpgood_');
+    $truncPath = tempnam(sys_get_temp_dir(), 'bkptrunc_');
+    $corruptPath = tempnam(sys_get_temp_dir(), 'bkpcorrupt_');
+
+    try {
+        file_put_contents($goodPath, $good);
+        file_put_contents($truncPath, $truncated);
+        file_put_contents($corruptPath, $corruptBody);
+
+        assert_true($isRestorable($goodPath), 'a fully valid gzip backup is restorable');
+        assert_true($isRestorable($truncPath) === false, 'a body-truncated gzip (fake ISIZE) is NOT restorable');
+        assert_true($isRestorable($corruptPath) === false, 'a gzip with a corrupt body is NOT restorable');
+    } finally {
+        @unlink($goodPath);
+        @unlink($truncPath);
+        @unlink($corruptPath);
+    }
+});

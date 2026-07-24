@@ -84,10 +84,10 @@ class BackupService
     }
 
     /**
-     * คืน true เฉพาะไฟล์ที่เป็น gzip จริงและไม่ว่าง — เป็นการเช็คว่ากู้คืนได้แบบถูก ๆ ไม่ต้องคลายไฟล์จริง เอาไว้กัน
-     * ไฟล์ db-*.sql.gz ที่ว่าง/ขาดครึ่ง/เสีย ออกจากจำนวน "backup ที่ใช้ได้". ดูจาก magic bytes ของ gzip แล้วเช็คว่า
-     * ISIZE ใน trailer (ขนาดก่อนบีบอัด, mod 2^32) > 0. ถ้าเป็น gzip ของ input ที่ว่าง (ISIZE 0) จะโดนปฏิเสธ.
-     *
+     * คืน true เฉพาะไฟล์ที่คลาย gzip ได้จนจบจริง ๆ และมีเนื้อข้อมูล — เป็นด่านคัดไฟล์ db-*.sql.gz ที่ว่าง/ขาดครึ่ง/
+     * เสียกลางไฟล์ ออกจากจำนวน "backup ที่ใช้ได้". เดิมดูแค่ magic bytes + ISIZE ใน trailer ซึ่งไฟล์ที่ header/ท้าย
+     * ยังอ่านได้แต่เนื้อในเสีย (เช่น backup ที่ตายคาตอนเขียนเพราะดิสก์เต็ม) หลุดผ่านได้. ตอนนี้ไล่ inflate ทั้ง stream
+     * แล้วเช็คว่า zlib ปิดที่ ZLIB_STREAM_END (zlib ตรวจ CRC32 + ISIZE ให้เองตอนถึงท้าย) — ไฟล์ที่ขาดครึ่งจะไม่ถึงจุดนั้น.
      */
     private function isRestorableBackup(string $path): bool
     {
@@ -95,26 +95,40 @@ class BackupService
         if ($size < 18) { // เล็กกว่า gzip header ขั้นต่ำ (10) + trailer (8)
             return false;
         }
+        $context = inflate_init(ZLIB_ENCODING_GZIP);
+        if ($context === false) {
+            return false;
+        }
         $handle = @fopen($path, 'rb');
         if ($handle === false) {
             return false;
         }
+
+        // คลายทีละก้อน ทิ้งผลลัพธ์ไปเรื่อย ๆ (ไม่ต้องเก็บทั้งไฟล์ในหน่วยความจำ) แค่ยืนยันว่าเนื้อในถูกต้องและครบ
+        $producedBytes = false;
         try {
-            $magic = (string) fread($handle, 2);
-            if (fseek($handle, -4, SEEK_END) !== 0) {
-                return false;
+            while (!feof($handle)) {
+                $chunk = fread($handle, 1 << 16);
+                if ($chunk === false) {
+                    return false;
+                }
+                if ($chunk === '') {
+                    continue;
+                }
+                $decoded = @inflate_add($context, $chunk, ZLIB_NO_FLUSH);
+                if ($decoded === false) {
+                    return false; // เนื้อ gzip เสีย/ไม่ใช่ gzip — คลายไม่ออก
+                }
+                if ($decoded !== '') {
+                    $producedBytes = true;
+                }
             }
-            $isizeBytes = (string) fread($handle, 4);
         } finally {
             fclose($handle);
         }
 
-        if (strlen($magic) < 2 || $magic[0] !== "\x1f" || $magic[1] !== "\x8b" || strlen($isizeBytes) < 4) {
-            return false; // ไม่ใช่ไฟล์ gzip
-        }
-        $unpacked = unpack('V', $isizeBytes);
-
-        return $unpacked !== false && $unpacked[1] > 0; // ISIZE 0 → gzip ของ input ที่ว่าง → กู้คืนไม่ได้
+        // ต้องคลายได้เนื้อจริง (gzip ของ input ว่าง → ไม่มีเนื้อ → กู้คืนไม่ได้) และ stream ต้องปิดสมบูรณ์
+        return $producedBytes && inflate_get_status($context) === ZLIB_STREAM_END;
     }
 
     /** bytes → ข้อความอ่านง่าย (B/KB/MB/GB/TB). */
