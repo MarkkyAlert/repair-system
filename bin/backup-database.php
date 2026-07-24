@@ -123,12 +123,27 @@ if (!$dryRun) {
     stream_set_blocking($pipes[1], false);
     stream_set_blocking($pipes[2], false);
 
+    $writeError = false;
+    // เขียนก้อนข้อมูลลง gzip พร้อม "ยืนยันว่าเขียนครบ" — gzwrite คืนจำนวน byte ที่เขียนได้จริง เขียนได้น้อยกว่าที่ส่ง
+    // (หรือ false) แปลว่าเขียนไฟล์ไม่สำเร็จ (ดิสก์เต็ม/โควตาเต็ม) เดิมทิ้งค่าคืนนี้ เลยเขียนไฟล์ขาดครึ่งแล้วยังรายงานสำเร็จ
+    $writeChunk = static function (string $data) use ($gz, &$writeError, &$sqlBytes): bool {
+        if ($data === '') {
+            return true;
+        }
+        $written = gzwrite($gz, $data);
+        if ($written === false || $written < strlen($data)) {
+            $writeError = true;
+            return false;
+        }
+        $sqlBytes += strlen($data);
+        return true;
+    };
+
     $deadline = microtime(true) + $timeoutSeconds;
     while (true) {
         $chunk = fread($pipes[1], 65536);
-        if (is_string($chunk) && $chunk !== '') {
-            gzwrite($gz, $chunk);
-            $sqlBytes += strlen($chunk);
+        if (is_string($chunk) && $chunk !== '' && !$writeChunk($chunk)) {
+            break; // เขียนไฟล์ล้มเหลว — หยุดทันที (จัดการเป็น write error หลังลูป)
         }
         $stderr .= (string) stream_get_contents($pipes[2]);
 
@@ -136,8 +151,9 @@ if (!$dryRun) {
         if (!$status['running']) {
             // ระบายข้อมูลที่ค้างใน buffer หลัง process จบไปแล้ว
             while (is_string($rest = fread($pipes[1], 65536)) && $rest !== '') {
-                gzwrite($gz, $rest);
-                $sqlBytes += strlen($rest);
+                if (!$writeChunk($rest)) {
+                    break;
+                }
             }
             $stderr .= (string) stream_get_contents($pipes[2]);
             $exitCode = (int) $status['exitcode'];
@@ -157,11 +173,29 @@ if (!$dryRun) {
         }
     }
 
-    gzclose($gz);
+    // ปิด gzip stream — flush ก้อนสุดท้ายลงดิสก์เกิดตรงนี้ ดิสก์เต็มมักโผล่ตอน gzclose ไม่ใช่ตอน gzwrite เลยต้องเช็คด้วย
+    if (gzclose($gz) === false) {
+        $writeError = true;
+    }
     fclose($pipes[1]);
     fclose($pipes[2]);
+    // ถ้าเลิกลูปเพราะเขียนไฟล์ล้มเหลว process อาจยังรันอยู่ (เรายังอ่าน stdout ไม่หมด) — ต้องฆ่าทิ้ง ไม่งั้นค้าง
+    if (proc_get_status($proc)['running']) {
+        proc_terminate($proc, 15);
+        usleep(200000);
+        if (proc_get_status($proc)['running']) {
+            proc_terminate($proc, 9);
+        }
+    }
     proc_close($proc);
     putenv('MYSQL_PWD'); // เคลียร์ env var ที่อ่อนไหวโดยเร็วที่สุด
+
+    if ($writeError) {
+        // เขียน .sql.gz ไม่ครบ (ดิสก์เต็ม?) — ไฟล์ที่ได้ขาดครึ่ง ห้ามนับเป็น backup สำเร็จ ลบทิ้งแล้ว exit ไม่ใช่ศูนย์
+        fwrite(STDERR, 'Writing the compressed backup failed (disk full?) — partial backup removed.' . PHP_EOL);
+        @unlink($absolutePath);
+        exit(1);
+    }
 
     if ($timedOut) {
         fwrite(STDERR, 'mysqldump exceeded the ' . $timeoutSeconds . 's deadline — terminated; partial backup removed.' . PHP_EOL);

@@ -128,3 +128,41 @@ test('backup-worker(F1): a FAILED mysqldump exits non-zero, leaves no artifact, 
         }
     }
 });
+
+// Phase-3 #4: mysqldump can succeed (exit 0, real SQL on stdout) while the *write* of the compressed file fails
+// partway — a full disk / exhausted quota. gzwrite then reports a short count and, more reliably, gzclose fails
+// to flush the final block. The old worker ignored BOTH return values: it counted bytes read from the pipe
+// (sqlBytes), saw sqlBytes > 0 + exit 0, printed "wrote", and recorded a fresh heartbeat for a truncated file.
+// A real disk-full cannot be induced deterministically/portably (RLIMIT raises SIGXFSZ which kills the process
+// before its cleanup runs; darwin has no /dev/full; the output path isn't redirectable) — so, per this repo's
+// convention for un-driveable CLI/exit paths (see docs/security-guards.md source-locks), this pins the worker
+// source: gzwrite's result MUST be captured (no bare `gzwrite($gz, …);`), gzclose's result MUST be checked
+// (no bare `gzclose($gz);`), and a write-error branch MUST remove the partial file and exit non-zero.
+test('backup-worker(#4): the compressed-write path checks gzwrite/gzclose and drops a partial file on write failure', function (): void {
+    $src = (string) file_get_contents(BASE_PATH . '/bin/backup-database.php');
+
+    // no bare, result-ignoring gzwrite/gzclose statements (the exact shape of the old bug)
+    assert_true(
+        preg_match('/^\s*gzwrite\(\$gz\s*,[^;]*\);\s*$/m', $src) === 0,
+        'gzwrite result must not be ignored — no bare "gzwrite($gz, …);" statement'
+    );
+    assert_true(
+        preg_match('/^\s*gzclose\(\$gz\)\s*;\s*$/m', $src) === 0,
+        'gzclose result must not be ignored — no bare "gzclose($gz);" statement'
+    );
+
+    // the write result is actually inspected: captured into a var and compared against the input length
+    assert_contains_str('$written = gzwrite($gz, $data)', $src);
+    assert_true(
+        preg_match('/\$written\s*===\s*false\s*\|\|\s*\$written\s*<\s*strlen\(\$data\)/', $src) === 1,
+        'a short/false gzwrite is treated as a write error'
+    );
+    // the final flush (gzclose) is checked too — disk-full usually surfaces here, not on gzwrite
+    assert_contains_str('gzclose($gz) === false', $src);
+
+    // and a write error removes the partial artifact + exits non-zero (never a false success/heartbeat)
+    assert_true(
+        preg_match('/if\s*\(\$writeError\)\s*\{.*?@unlink\(\$absolutePath\).*?exit\(1\)/s', $src) === 1,
+        'on a write error the partial backup is unlinked and the worker exits non-zero'
+    );
+});
