@@ -422,6 +422,19 @@ class TicketRepository
 
             $isReassign = in_array($lockedStatus, ['assigned', 'accepted', 'in_progress'], true);
 
+            if ($isReassign) {
+                // การเลือกช่างคนเดิมซ้ำไม่ใช่การ reassign: ถ้าปล่อยผ่าน งาน accepted/in_progress จะถูก
+                // ถอยกลับเป็น assigned พร้อมล้างเวลา/ยิงแจ้งเตือนซ้ำ ทั้งที่ผู้รับผิดชอบไม่เปลี่ยน.
+                // ตรวจหลัง lock แถว ticket เพื่อให้คำขอ assign ที่มาพร้อมกันเห็นผู้รับผิดชอบล่าสุดจริง.
+                $currentTechStmt = $this->db->prepare(
+                    'SELECT assigned_technician_id FROM tickets WHERE id = :ticket_id LIMIT 1'
+                );
+                $currentTechStmt->execute(['ticket_id' => $ticketId]);
+                if ((int) ($currentTechStmt->fetchColumn() ?: 0) === $technicianId) {
+                    throw new DomainException('งานนี้มอบหมายให้ช่างคนนี้อยู่แล้ว กรุณาเลือกช่างคนอื่นเมื่อต้องการย้ายงาน');
+                }
+            }
+
             // ตรวจกฎ "ต้องมีเหตุผลตอน reassign กลางงาน" ซ้ำอีกรอบใต้ lock ให้เป็นตัวตัดสินจริง — service ตรวจกฎนี้
             // ไปแล้วก่อนล็อก แต่การ accept/start ที่เข้ามาพร้อมกันอาจเพิ่งย้าย ticket เข้าสถานะกลางงานหลัง
             // จากตรวจรอบนั้น จึงบังคับกฎซ้ำตรงนี้บนสถานะที่ล็อกไว้ กัน race แอบข้ามการใส่เหตุผล

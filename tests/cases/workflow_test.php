@@ -408,6 +408,81 @@ test('workflow: manager reassigns an in_progress ticket to another technician wi
     }
 });
 
+test('workflow(idempotency): assigning an in_progress ticket to the SAME technician is rejected without side effects', function (): void {
+    $id = wf_insert_ticket([
+        'status' => 'pending_approval',
+        'approval_status' => 'pending',
+        'requester_id' => 1,
+        'response_due_at' => date('Y-m-d H:i:s', time() + 3600),
+        'resolution_due_at' => date('Y-m-d H:i:s', time() + 7200),
+    ]);
+
+    try {
+        $admin = ['id' => 4, 'role' => 'admin'];
+        $tech = ['id' => 3, 'role' => 'technician'];
+        wf_service()->approveTicket($id, $admin, ['note' => '']);
+        wf_service()->assignTechnician($id, $admin, ['technician_id' => 3, 'instructions' => '']);
+        wf_service()->acceptAssignedWork($id, $tech, ['accept_note' => '']);
+        wf_service()->startAssignedWork($id, $tech, ['start_note' => '']);
+
+        $ticketBefore = wf_pdo()->query(
+            "SELECT status, approval_status, assigned_technician_id, assigned_at,
+                    first_response_at, started_at, updated_at
+             FROM tickets WHERE id = $id"
+        )->fetch(PDO::FETCH_ASSOC);
+        $workOrderBefore = wf_pdo()->query(
+            "SELECT technician_id, status, instructions, assigned_at, accepted_at,
+                    started_at, completed_at, updated_at
+             FROM work_orders WHERE ticket_id = $id"
+        )->fetch(PDO::FETCH_ASSOC);
+        $slaBefore = wf_pdo()->query(
+            "SELECT metric_type, cycle, status, target_at, achieved_at, breached_at
+             FROM ticket_sla_tracks WHERE ticket_id = $id ORDER BY id"
+        )->fetchAll(PDO::FETCH_ASSOC);
+        $activityBefore = (int) wf_pdo()->query(
+            "SELECT COUNT(*) FROM ticket_activity_logs WHERE ticket_id = $id"
+        )->fetchColumn();
+        $notificationBefore = (int) wf_pdo()->query(
+            "SELECT COUNT(*) FROM notifications WHERE related_type = 'ticket' AND related_id = $id"
+        )->fetchColumn();
+
+        $threw = false;
+        try {
+            wf_service()->assignTechnician(
+                $id,
+                $admin,
+                ['technician_id' => 3, 'instructions' => 'ทดสอบมอบหมายคนเดิมซ้ำ']
+            );
+        } catch (DomainException) {
+            $threw = true;
+        }
+
+        assert_true($threw, 'assigning the same technician must be rejected instead of resetting live work');
+        assert_same($ticketBefore, wf_pdo()->query(
+            "SELECT status, approval_status, assigned_technician_id, assigned_at,
+                    first_response_at, started_at, updated_at
+             FROM tickets WHERE id = $id"
+        )->fetch(PDO::FETCH_ASSOC), 'ticket state/timestamps stay unchanged');
+        assert_same($workOrderBefore, wf_pdo()->query(
+            "SELECT technician_id, status, instructions, assigned_at, accepted_at,
+                    started_at, completed_at, updated_at
+             FROM work_orders WHERE ticket_id = $id"
+        )->fetch(PDO::FETCH_ASSOC), 'work-order state/timestamps stay unchanged');
+        assert_same($slaBefore, wf_pdo()->query(
+            "SELECT metric_type, cycle, status, target_at, achieved_at, breached_at
+             FROM ticket_sla_tracks WHERE ticket_id = $id ORDER BY id"
+        )->fetchAll(PDO::FETCH_ASSOC), 'SLA state stays unchanged');
+        assert_same($activityBefore, (int) wf_pdo()->query(
+            "SELECT COUNT(*) FROM ticket_activity_logs WHERE ticket_id = $id"
+        )->fetchColumn(), 'no duplicate activity is written');
+        assert_same($notificationBefore, (int) wf_pdo()->query(
+            "SELECT COUNT(*) FROM notifications WHERE related_type = 'ticket' AND related_id = $id"
+        )->fetchColumn(), 'no duplicate assignment notification is sent');
+    } finally {
+        wf_cleanup($id);
+    }
+});
+
 test('workflow(neg): mid-work reassign without a reason is rejected — accepted and in_progress (F2)', function (): void {
     foreach (['accepted', 'in_progress'] as $status) {
         $id = wf_insert_ticket(['status' => $status, 'approval_status' => 'approved', 'requester_id' => 1, 'assigned_technician_id' => 3]);
