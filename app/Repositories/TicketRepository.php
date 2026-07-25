@@ -1046,11 +1046,13 @@ class TicketRepository
             'INSERT IGNORE INTO tickets (
                 ticket_no, title, description, requester_id, requester_department_id, location_id, asset_id, ticket_category_id, priority_id,
                 assigned_manager_id, assigned_technician_id, approval_status, status, channel, impact_level, urgency_level,
-                requested_at, response_due_at, resolution_due_at, approved_at, resolved_at, completed_at, created_at, updated_at
+                requested_at, response_due_at, resolution_due_at, approved_at, assigned_at, first_response_at, started_at,
+                resolved_at, completed_at, cancelled_at, closed_at, created_at, updated_at
              ) VALUES (
                 :ticket_no, :title, :description, :requester_id, :requester_department_id, :location_id, :asset_id, :ticket_category_id, :priority_id,
                 :manager_id, :technician_id, :approval_status, :status, "web", "medium", "medium",
-                :requested_at, :response_due_at, :resolution_due_at, :approved_at, :resolved_at, :completed_at, :created_at, NOW()
+                :requested_at, :response_due_at, :resolution_due_at, :approved_at, :assigned_at, :first_response_at, :started_at,
+                :resolved_at, :completed_at, :cancelled_at, :closed_at, :created_at, NOW()
              )'
         );
         $stmt->execute([
@@ -1072,19 +1074,39 @@ class TicketRepository
             'response_due_at' => (string) ($payload['response_due_at'] ?? date('Y-m-d H:i:s', $reqTs + 3600)),
             'resolution_due_at' => (string) ($payload['resolution_due_at'] ?? date('Y-m-d H:i:s', $reqTs + 8 * 3600)),
             'approved_at' => $payload['approved_at'] ?? null,
+            'assigned_at' => $payload['assigned_at'] ?? null,
+            'first_response_at' => $payload['first_response_at'] ?? null,
+            'started_at' => $payload['started_at'] ?? null,
             'resolved_at' => $payload['resolved_at'] ?? null,
             'completed_at' => $payload['completed_at'] ?? null,
+            'cancelled_at' => $payload['cancelled_at'] ?? null,
+            'closed_at' => $payload['closed_at'] ?? null,
         ]);
 
         return (int) $this->db->lastInsertId();
     }
 
     /** สร้าง work order เริ่มต้นสำหรับ seed (มี labor) — idempotent ผ่าน UNIQUE(ticket_id)/UNIQUE(work_order_no). ใช้ตอนโหลด demo data. */
-    public function createSeedWorkOrder(int $ticketId, int $technicianId, int $assignedBy, string $status, int $laborMinutes, string $assignedAt, ?string $completedAt): void
+    public function createSeedWorkOrder(
+        int $ticketId,
+        int $technicianId,
+        int $assignedBy,
+        string $status,
+        int $laborMinutes,
+        string $assignedAt,
+        ?string $completedAt,
+        ?string $acceptedAt = null,
+        ?string $startedAt = null,
+    ): void
     {
         $stmt = $this->db->prepare(
-            'INSERT IGNORE INTO work_orders (work_order_no, ticket_id, technician_id, assigned_by, status, labor_minutes, assigned_at, completed_at, created_at, updated_at)
-             VALUES (:wo, :ticket_id, :tech, :by, :status, :labor, :assigned_at, :completed_at, :created_at, NOW())'
+            'INSERT IGNORE INTO work_orders (
+                work_order_no, ticket_id, technician_id, assigned_by, status, labor_minutes,
+                assigned_at, accepted_at, started_at, completed_at, created_at, updated_at
+             ) VALUES (
+                :wo, :ticket_id, :tech, :by, :status, :labor,
+                :assigned_at, :accepted_at, :started_at, :completed_at, :created_at, NOW()
+             )'
         );
         $stmt->execute([
             'wo' => 'WO-DEMO-' . $ticketId,
@@ -1094,26 +1116,53 @@ class TicketRepository
             'status' => $status,
             'labor' => max(0, $laborMinutes),
             'assigned_at' => $assignedAt,
+            'accepted_at' => $acceptedAt,
+            'started_at' => $startedAt,
             'completed_at' => $completedAt,
             'created_at' => $assignedAt,
         ]);
     }
 
-    /** สร้าง SLA track เริ่มต้นสำหรับ seed (response/resolution) — idempotent ผ่าน UNIQUE(ticket_id, metric_type). ใช้ตอนโหลด demo data. */
-    public function createSeedSlaTrack(int $ticketId, string $metricType, string $targetAt, ?string $achievedAt, ?string $breachedAt, string $status): void
+    /** สร้าง SLA track สำหรับ seed แยกรอบ lifecycle — idempotent ผ่าน UNIQUE(ticket_id, metric_type, cycle). */
+    public function createSeedSlaTrack(
+        int $ticketId,
+        string $metricType,
+        string $targetAt,
+        ?string $achievedAt,
+        ?string $breachedAt,
+        string $status,
+        int $cycle = 1,
+    ): void
     {
         $stmt = $this->db->prepare(
-            'INSERT IGNORE INTO ticket_sla_tracks (ticket_id, metric_type, target_at, achieved_at, breached_at, status, created_at)
-             VALUES (:ticket_id, :metric, :target, :achieved, :breached, :status, :created)'
+            'INSERT IGNORE INTO ticket_sla_tracks (ticket_id, metric_type, cycle, target_at, achieved_at, breached_at, status, created_at)
+             VALUES (:ticket_id, :metric, :cycle, :target, :achieved, :breached, :status, :created)'
         );
         $stmt->execute([
             'ticket_id' => $ticketId,
             'metric' => $metricType,
+            'cycle' => max(1, $cycle),
             'target' => $targetAt,
             'achieved' => $achievedAt,
             'breached' => $breachedAt,
             'status' => $status,
             'created' => $targetAt,
+        ]);
+    }
+
+    /** สร้างหลักฐานอนุมัติสำหรับ seed ให้ approval_status บน ticket มีแถวต้นทางที่สอดคล้องกัน. */
+    public function createSeedApproval(int $ticketId, int $approverId, string $action, ?string $actedAt): void
+    {
+        $stmt = $this->db->prepare(
+            'INSERT IGNORE INTO ticket_approvals (ticket_id, approver_id, action, acted_at, created_at)
+             VALUES (:ticket_id, :approver_id, :action, :acted_at, :created_at)'
+        );
+        $stmt->execute([
+            'ticket_id' => $ticketId,
+            'approver_id' => $approverId,
+            'action' => $action,
+            'acted_at' => $actedAt,
+            'created_at' => $actedAt ?? date('Y-m-d H:i:s'),
         ]);
     }
 
@@ -1135,18 +1184,30 @@ class TicketRepository
     }
 
     /** สร้าง rating สำหรับ demo (INSERT IGNORE — idempotent, ชน UNIQUE เดิมจะข้าม); score ถูก clamp เป็น 1–5. ใช้ตอนโหลด demo data. */
-    public function createSeedRating(int $ticketId, int $requesterId, ?int $technicianId, int $score, string $feedback): void
+    public function createSeedRating(
+        int $ticketId,
+        int $requesterId,
+        ?int $technicianId,
+        int $score,
+        string $feedback,
+        int $cycle = 1,
+        ?string $createdAt = null,
+    ): void
     {
+        $createdAt ??= date('Y-m-d H:i:s');
         $stmt = $this->db->prepare(
-            'INSERT IGNORE INTO ticket_ratings (ticket_id, requester_id, technician_id, score, feedback, created_at, updated_at)
-             VALUES (:ticket_id, :requester_id, :technician_id, :score, :feedback, NOW(), NOW())'
+            'INSERT IGNORE INTO ticket_ratings (ticket_id, requester_id, technician_id, cycle, score, feedback, created_at, updated_at)
+             VALUES (:ticket_id, :requester_id, :technician_id, :cycle, :score, :feedback, :created_at, :updated_at)'
         );
         $stmt->execute([
             'ticket_id' => $ticketId,
             'requester_id' => $requesterId,
             'technician_id' => $technicianId,
+            'cycle' => max(1, $cycle),
             'score' => max(1, min(5, $score)),
             'feedback' => $feedback,
+            'created_at' => $createdAt,
+            'updated_at' => $createdAt,
         ]);
     }
 

@@ -329,14 +329,44 @@ class DemoDataService
             $reqTs = strtotime("-{$daysAgo} days -" . (($index % 8) + 1) . ' hours') ?: time();
             $requestedAt = date('Y-m-d H:i:s', $reqTs);
             $isDone = $resolveHours !== null;
-            $resolvedAt = $isDone ? date('Y-m-d H:i:s', $reqTs + $resolveHours * 3600) : null;
-            $completedAt = in_array($status, ['completed', 'closed'], true) ? $resolvedAt : null;
-            $isTerminalReject = in_array($status, ['rejected', 'cancelled'], true);
+            $isRejected = $status === 'rejected';
+            $isCancelled = $status === 'cancelled';
+            $isTerminalReject = $isRejected || $isCancelled;
+            $hasAssignment = in_array($status, ['assigned', 'accepted', 'in_progress', 'on_hold', 'resolved', 'completed', 'closed'], true);
+            $hasResponse = in_array($status, ['accepted', 'in_progress', 'on_hold', 'resolved', 'completed', 'closed'], true);
+            $hasStarted = in_array($status, ['in_progress', 'on_hold', 'resolved', 'completed', 'closed'], true);
             $approvalStatus = $status === 'rejected' ? 'rejected' : 'approved';
             $tech = $techIds[$techIdx % $techCount] ?? null;
             $deptId = $departmentIds[$deptCodes[$index % count($deptCodes)]] ?? null;
-            $responseDue = date('Y-m-d H:i:s', $reqTs + 3600);
-            $resolutionDue = date('Y-m-d H:i:s', $reqTs + 8 * 3600);
+
+            $approvedAt = $isRejected ? null : date('Y-m-d H:i:s', $reqTs + 30 * 60);
+            $initialAssignedAt = $hasAssignment ? date('Y-m-d H:i:s', $reqTs + 40 * 60) : null;
+            $initialResponseAt = $hasResponse ? date('Y-m-d H:i:s', $reqTs + 45 * 60) : null;
+            $initialStartedAt = $hasStarted ? date('Y-m-d H:i:s', $reqTs + 50 * 60) : null;
+            $resolvedAt = $isDone ? date('Y-m-d H:i:s', $reqTs + (int) $resolveHours * 3600) : null;
+            $firstResolvedAt = $reopen ? date('Y-m-d H:i:s', $reqTs + 4 * 3600) : $resolvedAt;
+            $reopenedAt = $reopen ? date('Y-m-d H:i:s', $reqTs + 12 * 3600) : null;
+
+            // Reopen starts a new reporting cycle. Current ticket/work-order fields describe that latest cycle,
+            // while the first cycle remains frozen in SLA/activity history.
+            $assignedAt = $reopen ? $reopenedAt : $initialAssignedAt;
+            $firstResponseAt = $reopen ? date('Y-m-d H:i:s', $reqTs + 12 * 3600 + 5 * 60) : $initialResponseAt;
+            $startedAt = $reopen ? date('Y-m-d H:i:s', $reqTs + 12 * 3600 + 10 * 60) : $initialStartedAt;
+            $completedAt = in_array($status, ['completed', 'closed'], true) && $resolvedAt !== null
+                ? date('Y-m-d H:i:s', (strtotime($resolvedAt) ?: $reqTs) + 15 * 60)
+                : null;
+            $closedAt = $status === 'closed' && $completedAt !== null
+                ? date('Y-m-d H:i:s', (strtotime($completedAt) ?: $reqTs) + 15 * 60)
+                : null;
+            $cancelledAt = $isCancelled ? date('Y-m-d H:i:s', $reqTs + 60 * 60) : null;
+            $initialResponseDue = date('Y-m-d H:i:s', $reqTs + 3600);
+            $initialResolutionDue = date('Y-m-d H:i:s', $reqTs + 8 * 3600);
+            $responseDue = $reopen
+                ? date('Y-m-d H:i:s', $reqTs + 13 * 3600)
+                : $initialResponseDue;
+            $resolutionDue = $reopen
+                ? date('Y-m-d H:i:s', $reqTs + 20 * 3600)
+                : $initialResolutionDue;
 
             $ticketId = $this->tickets->createSeedTicket([
                 'ticket_no' => sprintf('DEMO-%03d', $index),
@@ -355,9 +385,14 @@ class DemoDataService
                 'requested_at' => $requestedAt,
                 'response_due_at' => $responseDue,
                 'resolution_due_at' => $resolutionDue,
-                'approved_at' => $status === 'rejected' ? null : date('Y-m-d H:i:s', $reqTs + 1800),
+                'approved_at' => $approvedAt,
+                'assigned_at' => $assignedAt,
+                'first_response_at' => $firstResponseAt,
+                'started_at' => $startedAt,
                 'resolved_at' => $resolvedAt,
                 'completed_at' => $completedAt,
+                'cancelled_at' => $cancelledAt,
+                'closed_at' => $closedAt,
             ]);
 
             if ($ticketId <= 0) {
@@ -365,47 +400,116 @@ class DemoDataService
             }
             $count++;
 
-            if ($isTerminalReject) {
-                continue; // ไม่นับ SLA/แรงงาน/คะแนน ให้ terminal ที่ไม่ใช่งานจริง
+            $approvalAction = $isRejected ? 'rejected' : 'approved';
+            $approvalActedAt = $isRejected
+                ? date('Y-m-d H:i:s', $reqTs + 30 * 60)
+                : $approvedAt;
+            $this->tickets->createSeedApproval($ticketId, $createdByUserId, $approvalAction, $approvalActedAt);
+            $this->tickets->createSeedActivityLog($ticketId, $createdByUserId, 'ticket_submitted', null, 'pending_approval', $requestedAt);
+
+            if ($isRejected) {
+                $this->tickets->createSeedActivityLog($ticketId, $createdByUserId, 'ticket_rejected', 'pending_approval', 'rejected', (string) $approvalActedAt);
+                continue;
             }
 
-            // Work order + labor (ช่างที่ลงมือทำ)
-            if ($tech !== null && in_array($status, ['in_progress', 'on_hold', 'accepted', 'resolved', 'completed', 'closed'], true)) {
-                $woStatus = $isDone ? 'completed' : ($status === 'in_progress' ? 'in_progress' : 'assigned');
-                $this->tickets->createSeedWorkOrder($ticketId, $tech, $createdByUserId, $woStatus, $labor, $requestedAt, $isDone ? $resolvedAt : null);
+            $this->tickets->createSeedActivityLog($ticketId, $createdByUserId, 'ticket_approved', 'pending_approval', 'approved', (string) $approvedAt);
+            if ($isCancelled) {
+                $this->tickets->createSeedActivityLog($ticketId, $createdByUserId, 'ticket_cancelled', 'approved', 'cancelled', (string) $cancelledAt);
+                continue; // terminal ที่ไม่เกิดงานจริงจึงไม่มี work order, SLA หรือคะแนน
             }
 
-            // SLA tracks: response (met) + resolution (met/breached เมื่อปิด, pending เมื่อยังค้าง)
-            $this->tickets->createSeedSlaTrack($ticketId, 'response', $responseDue, date('Y-m-d H:i:s', $reqTs + 1200), null, 'met');
-            if ($isDone) {
-                $breach = $resolveHours > 8;
-                $this->tickets->createSeedSlaTrack(
+            if ($tech !== null && $assignedAt !== null) {
+                $woStatus = match ($status) {
+                    'assigned' => 'assigned',
+                    'accepted' => 'accepted',
+                    'in_progress' => 'in_progress',
+                    'on_hold' => 'paused',
+                    default => 'completed',
+                };
+                $this->tickets->createSeedWorkOrder(
                     $ticketId,
-                    'resolution',
-                    $resolutionDue,
-                    $breach ? null : $resolvedAt,
-                    $breach ? date('Y-m-d H:i:s', $reqTs + ($resolveHours + 1) * 3600) : null,
-                    $breach ? 'breached' : 'met'
+                    $tech,
+                    $createdByUserId,
+                    $woStatus,
+                    $labor,
+                    $assignedAt,
+                    $isDone ? $resolvedAt : null,
+                    $firstResponseAt,
+                    $startedAt,
                 );
-            } else {
-                $this->tickets->createSeedSlaTrack($ticketId, 'resolution', $resolutionDue, null, null, 'pending');
             }
 
-            // Activity logs: resolved (+ reopened บางตัว → reopen rate ไม่เป็น 0)
-            if ($isDone) {
-                $this->tickets->createSeedActivityLog($ticketId, $tech ?? $createdByUserId, 'ticket_resolved', 'in_progress', 'resolved', (string) $resolvedAt);
-                if ($reopen) {
-                    $this->tickets->createSeedActivityLog($ticketId, $createdByUserId, 'ticket_reopened', 'resolved', 'assigned', date('Y-m-d H:i:s', strtotime((string) $resolvedAt) + 2 * 86400));
-                }
+            // First lifecycle cycle.
+            $this->seedSlaCycle($ticketId, 'response', $initialResponseDue, $initialResponseAt, 1);
+            $this->seedSlaCycle($ticketId, 'resolution', $initialResolutionDue, $firstResolvedAt, 1);
+            $this->tickets->createSeedActivityLog($ticketId, $createdByUserId, 'technician_assigned', 'approved', 'assigned', (string) $initialAssignedAt);
+            if ($initialResponseAt !== null) {
+                $this->tickets->createSeedActivityLog($ticketId, $tech ?? $createdByUserId, 'work_accepted', 'assigned', 'accepted', $initialResponseAt);
+            }
+            if ($initialStartedAt !== null) {
+                $this->tickets->createSeedActivityLog($ticketId, $tech ?? $createdByUserId, 'work_started', 'accepted', 'in_progress', $initialStartedAt);
             }
 
-            // Rating (คะแนน + ความคิดเห็น) — มี ≤2★ ให้เห็นจุดที่ต้องปรับปรุง
-            if ($rating !== null) {
-                $this->tickets->createSeedRating($ticketId, $createdByUserId, $tech, (int) $rating[0], (string) $rating[1]);
+            if ($reopen && $firstResolvedAt !== null && $reopenedAt !== null) {
+                $this->tickets->createSeedActivityLog($ticketId, $tech ?? $createdByUserId, 'ticket_resolved', 'in_progress', 'resolved', $firstResolvedAt);
+                $this->tickets->createSeedActivityLog($ticketId, $createdByUserId, 'ticket_reopened', 'resolved', 'assigned', $reopenedAt);
+                $this->tickets->createSeedActivityLog($ticketId, $tech ?? $createdByUserId, 'work_accepted', 'assigned', 'accepted', (string) $firstResponseAt);
+                $this->tickets->createSeedActivityLog($ticketId, $tech ?? $createdByUserId, 'work_started', 'accepted', 'in_progress', (string) $startedAt);
+                $this->seedSlaCycle($ticketId, 'response', $responseDue, $firstResponseAt, 2);
+                $this->seedSlaCycle($ticketId, 'resolution', $resolutionDue, $resolvedAt, 2);
+            }
+
+            if ($isDone && $resolvedAt !== null) {
+                $this->tickets->createSeedActivityLog($ticketId, $tech ?? $createdByUserId, 'ticket_resolved', 'in_progress', 'resolved', $resolvedAt);
+            } elseif ($status === 'on_hold' && $startedAt !== null) {
+                $pausedAt = date('Y-m-d H:i:s', (strtotime($startedAt) ?: $reqTs) + 5 * 60);
+                $this->tickets->createSeedActivityLog($ticketId, $tech ?? $createdByUserId, 'work_paused', 'in_progress', 'on_hold', $pausedAt);
+            }
+
+            if ($completedAt !== null) {
+                $this->tickets->createSeedActivityLog($ticketId, $createdByUserId, 'ticket_completed', 'resolved', 'completed', $completedAt);
+            }
+            if ($closedAt !== null) {
+                $this->tickets->createSeedActivityLog($ticketId, $createdByUserId, 'ticket_closed', 'completed', 'closed', $closedAt);
+            }
+
+            // คะแนนเกิดหลังผู้แจ้งยืนยัน completed เท่านั้น; resolved ยังรอการยืนยัน จึงยังให้คะแนนไม่ได้.
+            if ($rating !== null && $completedAt !== null) {
+                $this->tickets->createSeedRating(
+                    $ticketId,
+                    $createdByUserId,
+                    $tech,
+                    (int) $rating[0],
+                    (string) $rating[1],
+                    $reopen ? 2 : 1,
+                    $completedAt,
+                );
             }
         }
 
         return $count;
+    }
+
+    /**
+     * สรุปผล SLA ของ demo ให้เหมือน operation จริง: ถ้าทำสำเร็จช้า achieved_at และ breached_at
+     * จะเป็นเวลาเดียวกัน; ถ้ายังไม่ทำและเลยกำหนดแล้วจะมีเฉพาะ breached_at.
+     */
+    private function seedSlaCycle(int $ticketId, string $metric, string $targetAt, ?string $achievedAt, int $cycle): void
+    {
+        $breached = $achievedAt === null || $achievedAt > $targetAt;
+        $breachedAt = $breached
+            ? ($achievedAt ?? date('Y-m-d H:i:s', (strtotime($targetAt) ?: time()) + 1))
+            : null;
+
+        $this->tickets->createSeedSlaTrack(
+            $ticketId,
+            $metric,
+            $targetAt,
+            $achievedAt,
+            $breachedAt,
+            $breached ? 'breached' : 'met',
+            $cycle,
+        );
     }
 
     /**
