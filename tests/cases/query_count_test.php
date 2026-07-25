@@ -76,7 +76,7 @@ test('query-count(dashboard): getDashboardData stays bounded as tickets grow (no
     // hundreds and blow past this). Upper-bound guard, so it is not flaky about the normal variation.
     $pdo = tvm_container()->get(PDO::class);
     $floor = (int) $pdo->query('SELECT COALESCE(MAX(id), 0) FROM tickets')->fetchColumn();
-    $states = ['submitted', 'assigned', 'in_progress', 'resolved', 'completed'];
+    $states = ['pending_approval', 'assigned', 'in_progress', 'resolved', 'completed'];
 
     try {
         $insert = $pdo->prepare(

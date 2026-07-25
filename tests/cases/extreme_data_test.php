@@ -32,7 +32,7 @@ test('extreme(scale): the ticket list stays correct + a flat 2 queries with thou
             $tuples = [];
             $params = [];
             for ($i = 0; $i < $count; $i++) {
-                $tuples[] = "(?, 'load test', 'load test', 1, 1, 1, 1, 'submitted', NOW())";
+                $tuples[] = "(?, 'load test', 'load test', 1, 1, 1, 1, 'pending_approval', NOW())";
                 $params[] = 'BIGLOAD-' . $start . '-' . $i . '-' . bin2hex(random_bytes(3));
             }
             $pdo->prepare($prefix . implode(',', $tuples))->execute($params);
@@ -68,7 +68,7 @@ test('extreme(length): a max-length title + a huge description round-trip and re
     try {
         $pdo->prepare(
             "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at)
-             VALUES (?, ?, ?, 1, 1, 1, 1, 'submitted', NOW())"
+             VALUES (?, ?, ?, 1, 1, 1, 1, 'pending_approval', NOW())"
         )->execute([$ticketNo, $longTitle, $hugeDesc]);
         $id = (int) $pdo->lastInsertId();
 

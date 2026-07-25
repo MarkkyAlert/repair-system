@@ -56,7 +56,7 @@ test('asset reliability: summary counts ALL matching assets, not just the displa
             $assetIds[] = $aid;
             arr_pdo()->prepare(
                 "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, asset_id, status, requested_at)
-                 VALUES (?, 'x', 'x', 1, ?, 1, 1, ?, 'submitted', NOW())"
+                 VALUES (?, 'x', 'x', 1, ?, 1, 1, ?, 'pending_approval', NOW())"
             )->execute(["ARRF1T-$rid-$i", $locId, $aid]);
             $ticketIds[] = (int) arr_pdo()->lastInsertId();
         }
@@ -129,7 +129,7 @@ test('asset reliability: heuristic health scoring — high-risk asset = คว�
         for ($i = 0; $i < 6; $i++) {
             arr_pdo()->prepare(
                 "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, asset_id, status, requested_at)
-                 VALUES (?, 'x', 'x', 1, 1, 1, 1, ?, 'submitted', ?)"
+                 VALUES (?, 'x', 'x', 1, 1, 1, 1, ?, 'pending_approval', ?)"
             )->execute(["ARRBT-$rid-$i", $badAsset, date('Y-m-d H:i:s', strtotime("-$i days"))]);
             $ticketIds[] = (int) arr_pdo()->lastInsertId();
         }
@@ -142,7 +142,7 @@ test('asset reliability: heuristic health scoring — high-risk asset = คว�
         $goodAsset = (int) arr_pdo()->lastInsertId();
         arr_pdo()->prepare(
             "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, asset_id, status, requested_at)
-             VALUES (?, 'x', 'x', 1, 1, 1, 1, ?, 'submitted', ?)"
+             VALUES (?, 'x', 'x', 1, 1, 1, 1, ?, 'pending_approval', ?)"
         )->execute(["ARRGT-$rid", $goodAsset, date('Y-m-d H:i:s')]);
         $ticketIds[] = (int) arr_pdo()->lastInsertId();
 
@@ -328,7 +328,7 @@ test('asset reliability: MTBF = span / (failures - 1)', function (): void {
         foreach ([60, 30, 0] as $i => $daysAgo) {
             arr_pdo()->prepare(
                 "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, asset_id, status, requested_at)
-                 VALUES (?, 'x', 'x', 1, 1, 1, 1, ?, 'submitted', ?)"
+                 VALUES (?, 'x', 'x', 1, 1, 1, 1, ?, 'pending_approval', ?)"
             )->execute(["ARRMT-$rid-$i", $assetId, date('Y-m-d H:i:s', strtotime("-$daysAgo days"))]);
             $ticketIds[] = (int) arr_pdo()->lastInsertId();
         }
@@ -362,7 +362,7 @@ test('asset reliability: asset_status filter restricts rows', function (): void 
             ${$status === 'active' ? 'activeAsset' : 'maintAsset'} = $assetId;
             arr_pdo()->prepare(
                 "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, asset_id, status, requested_at)
-                 VALUES (?, 'x', 'x', 1, 1, 1, 1, ?, 'submitted', NOW())"
+                 VALUES (?, 'x', 'x', 1, 1, 1, 1, ?, 'pending_approval', NOW())"
             )->execute(["ARRFT-$rid-$status", $assetId]);
             $ticketIds[] = (int) arr_pdo()->lastInsertId();
         }
@@ -436,7 +436,7 @@ test('asset reliability export: a leading-zero asset code stays text and matches
 
         arr_pdo()->prepare(
             "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, asset_id, status, requested_at)
-             VALUES (?, 'x', 'x', 1, ?, 1, 1, ?, 'submitted', NOW())"
+             VALUES (?, 'x', 'x', 1, ?, 1, 1, ?, 'pending_approval', NOW())"
         )->execute(["ARRZLT-$rid", $locationId, $assetId]);
         $ticketId = (int) arr_pdo()->lastInsertId();
 
@@ -495,7 +495,7 @@ test('asset reliability export: a decimal-looking asset code stays text and matc
 
         arr_pdo()->prepare(
             "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, asset_id, status, requested_at)
-             VALUES (?, 'x', 'x', 1, ?, 1, 1, ?, 'submitted', NOW())"
+             VALUES (?, 'x', 'x', 1, ?, 1, 1, ?, 'pending_approval', NOW())"
         )->execute(["ARRDLT-$rid", $locationId, $assetId]);
         $ticketId = (int) arr_pdo()->lastInsertId();
 
@@ -544,9 +544,9 @@ test('asset reliability panel A5: the /reports panel excludes future-dated ticke
     $tids = [];
     try {
         // one real (past) failure + one future-dated ticket (clock skew / bad import)
-        arr_pdo()->prepare("INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, asset_id, status, requested_at) VALUES (?, 'x','x',1,?,1,1,?, 'submitted', DATE_SUB(NOW(), INTERVAL 1 DAY))")->execute(["A5T1-$rid", $locId, $assetId]);
+        arr_pdo()->prepare("INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, asset_id, status, requested_at) VALUES (?, 'x','x',1,?,1,1,?, 'pending_approval', DATE_SUB(NOW(), INTERVAL 1 DAY))")->execute(["A5T1-$rid", $locId, $assetId]);
         $tids[] = (int) arr_pdo()->lastInsertId();
-        arr_pdo()->prepare("INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, asset_id, status, requested_at) VALUES (?, 'x','x',1,?,1,1,?, 'submitted', DATE_ADD(NOW(), INTERVAL 10 DAY))")->execute(["A5T2-$rid", $locId, $assetId]);
+        arr_pdo()->prepare("INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, asset_id, status, requested_at) VALUES (?, 'x','x',1,?,1,1,?, 'pending_approval', DATE_ADD(NOW(), INTERVAL 10 DAY))")->execute(["A5T2-$rid", $locId, $assetId]);
         $tids[] = (int) arr_pdo()->lastInsertId();
 
         $rows = $repo->getAssetReliabilityRows($admin, ['location_id' => $locId]);

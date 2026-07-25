@@ -33,7 +33,7 @@ function wf_insert_ticket(array $overrides): int
         'location_id' => 1,
         'ticket_category_id' => 1,
         'priority_id' => 1,
-        'status' => 'submitted',
+        'status' => 'pending_approval',
         'approval_status' => 'pending',
     ], $overrides);
     $fields = implode(', ', array_keys($cols));
@@ -119,10 +119,6 @@ function wf_reject(callable $action, int $ticketId, string $context): void
 /** Create a normal lifecycle state through the real public services whenever such a path exists. */
 function wf_drive_to_status(string $targetStatus): int
 {
-    if ($targetStatus === 'submitted') {
-        // Synthetic: schema default exists, but the public create flow writes pending_approval atomically.
-        return wf_insert_ticket(['status' => 'submitted', 'approval_status' => 'pending']);
-    }
     if ($targetStatus === 'closed') {
         // Synthetic: imports/demo may contain closed history, but there is no public close transition.
         return wf_insert_ticket([
@@ -1076,7 +1072,7 @@ test('workflow(terminal): completed / cancelled / rejected / closed reject every
     }
 });
 
-test('workflow(matrix): all 84 expected-deny status × state-action cells reject with zero side effects', function (): void {
+test('workflow(matrix): all 75 expected-deny status × state-action cells reject with zero side effects', function (): void {
     $suffix = bin2hex(random_bytes(4));
     wf_pdo()->prepare(
         "INSERT INTO users (username, email, password_hash, full_name, role, is_active)
@@ -1085,7 +1081,6 @@ test('workflow(matrix): all 84 expected-deny status × state-action cells reject
     $otherTechId = (int) wf_pdo()->lastInsertId();
 
     $states = [
-        'submitted' => 'pending',
         'pending_approval' => 'pending',
         'approved' => 'approved',
         'assigned' => 'approved',
@@ -1098,7 +1093,6 @@ test('workflow(matrix): all 84 expected-deny status × state-action cells reject
         'closed' => 'approved',
     ];
     $allowed = [
-        'submitted' => [],
         'pending_approval' => ['approve', 'reject', 'cancel'],
         'approved' => ['assign', 'cancel'],
         'assigned' => ['assign', 'accept', 'start'],
@@ -1151,7 +1145,7 @@ test('workflow(matrix): all 84 expected-deny status × state-action cells reject
         wf_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$otherTechId]);
     }
 
-    assert_same(84, $checked, 'the full 11-status × 9-action matrix contains 84 expected-deny cells');
+    assert_same(75, $checked, 'the full 10-status × 9-action matrix contains 75 expected-deny cells');
 });
 
 test('workflow(matrix): all 15 expected-allow state transitions succeed through reachable workflows with aligned side effects', function (): void {
@@ -1233,7 +1227,7 @@ test('workflow(matrix): all 15 expected-allow state transitions succeed through 
 
                 $ticket = wf_pdo()->query(
                     "SELECT status, approval_status, assigned_technician_id, approved_at, assigned_at,
-                            first_response_at, started_at, resolved_at, completed_at, cancelled_at
+                            first_response_at, started_at, resolved_at, completed_at, cancelled_at, closed_at
                      FROM tickets WHERE id = $id"
                 )->fetch(PDO::FETCH_ASSOC);
                 assert_same($expectedStatus, (string) $ticket['status'], "$from × $action reaches $expectedStatus");
@@ -1263,6 +1257,7 @@ test('workflow(matrix): all 15 expected-allow state transitions succeed through 
                 }
                 if ($expectedStatus === 'completed') {
                     assert_true($ticket['completed_at'] !== null, "$from × $action writes completed_at");
+                    assert_true($ticket['closed_at'] === null, "$from × $action does not fabricate a later closed_at");
                     assert_same(1, (int) wf_pdo()->query(
                         "SELECT COUNT(*) FROM ticket_ratings WHERE ticket_id = $id"
                     )->fetchColumn(), "$from × $action writes one rating for the cycle");
@@ -1291,9 +1286,9 @@ test('workflow(matrix): all 15 expected-allow state transitions succeed through 
     assert_count(15, $cases, 'all expected-allow cells were exercised');
 });
 
-test('workflow(matrix): duplicate-form policy matches all 11 statuses and never mutates the source ticket', function (): void {
+test('workflow(matrix): duplicate-form policy matches all 10 statuses and never mutates the source ticket', function (): void {
     $allowed = ['completed', 'rejected', 'cancelled', 'closed'];
-    $statuses = ['submitted', 'pending_approval', 'approved', 'assigned', 'accepted', 'in_progress', 'resolved', 'completed', 'rejected', 'cancelled', 'closed'];
+    $statuses = ['pending_approval', 'approved', 'assigned', 'accepted', 'in_progress', 'resolved', 'completed', 'rejected', 'cancelled', 'closed'];
     $tickets = tvm_container()->get(App\Services\TicketService::class);
 
     foreach ($statuses as $status) {
@@ -1321,8 +1316,8 @@ test('workflow(matrix): duplicate-form policy matches all 11 statuses and never 
     }
 });
 
-test('workflow(matrix): bulk approve is partial-per-item and matches all 11 source statuses', function (): void {
-    $statuses = ['submitted', 'pending_approval', 'approved', 'assigned', 'accepted', 'in_progress', 'resolved', 'completed', 'rejected', 'cancelled', 'closed'];
+test('workflow(matrix): bulk approve is partial-per-item and matches all 10 source statuses', function (): void {
+    $statuses = ['pending_approval', 'approved', 'assigned', 'accepted', 'in_progress', 'resolved', 'completed', 'rejected', 'cancelled', 'closed'];
 
     foreach ($statuses as $status) {
         $id = wf_drive_to_status($status);

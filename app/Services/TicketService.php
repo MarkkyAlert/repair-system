@@ -812,7 +812,7 @@ class TicketService
     private function mapTicketSummary(array $ticket): array
     {
         $priorityCode = strtoupper((string) ($ticket['priority_code'] ?? 'MEDIUM'));
-        $status = (string) ($ticket['status'] ?? 'submitted');
+        $status = (string) ($ticket['status'] ?? 'pending_approval');
         $approvalStatus = (string) ($ticket['approval_status'] ?? 'pending');
         $sla = $this->buildSlaSummary($ticket);
 

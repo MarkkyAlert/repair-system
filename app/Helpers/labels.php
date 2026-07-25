@@ -52,7 +52,6 @@ if (!function_exists('ticket_status_label_th')) {
     function ticket_status_label_th(string $status): string
     {
         static $map = [
-            'submitted' => 'ส่งคำขอแล้ว',
             'pending_approval' => 'รออนุมัติ',
             'approved' => 'อนุมัติแล้ว',
             'assigned' => 'มอบหมายแล้ว',
@@ -77,7 +76,7 @@ if (!function_exists('ticket_status_tone')) {
             'resolved', 'completed' => 'success',
             'pending_approval' => 'warning',
             'rejected', 'cancelled' => 'danger',
-            'approved', 'assigned', 'accepted', 'in_progress', 'submitted' => 'info',
+            'approved', 'assigned', 'accepted', 'in_progress' => 'info',
             default => 'default',
         };
     }
@@ -104,7 +103,6 @@ if (!function_exists('ticket_status_values')) {
     function ticket_status_values(): array
     {
         return [
-            'submitted',
             'pending_approval',
             'approved',
             'assigned',

@@ -434,7 +434,7 @@ test('ticket trend: Σcreated across periods reconciles with getSummary.total fo
         foreach (['2020-05-03 09:00:00', '2020-05-09 09:00:00', '2020-05-21 09:00:00'] as $i => $when) {
             ttr_pdo()->prepare(
                 "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at)
-                 VALUES (?, 'x', 'x', 1, 1, 1, 1, 'submitted', ?)"
+                 VALUES (?, 'x', 'x', 1, 1, 1, 1, 'pending_approval', ?)"
             )->execute(["TTRR-$rid-$i", $when]);
             $ids[] = (int) ttr_pdo()->lastInsertId();
         }

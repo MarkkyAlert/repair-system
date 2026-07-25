@@ -22,7 +22,7 @@ test('AttachmentRepository: getByTicketId hides internal-comment attachments unl
     $pdo = ar_pdo();
     $repo = ar_repo();
 
-    $pdo->prepare("INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, approval_status) VALUES (?, ?, 'x', 1, 1, 1, 1, 'submitted', 'pending')")
+    $pdo->prepare("INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, approval_status) VALUES (?, ?, 'x', 1, 1, 1, 1, 'pending_approval', 'pending')")
         ->execute(['ATT-' . bin2hex(random_bytes(4)), 'attachment repo test']);
     $ticketId = (int) $pdo->lastInsertId();
 

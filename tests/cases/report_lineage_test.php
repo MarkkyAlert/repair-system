@@ -705,7 +705,7 @@ test('lineage(e2e): the trend reads its SLA from the frozen per-cycle track, not
 function lin_ticket_status_enum(): array
 {
     $schema = (string) file_get_contents(BASE_PATH . '/database/schema.sql');
-    if (!preg_match("/\n\s*status ENUM\(([^)]*)\)\s*NOT NULL DEFAULT 'submitted'/", $schema, $m)) {
+    if (!preg_match("/\n\s*status ENUM\(([^)]*)\)\s*NOT NULL DEFAULT 'pending_approval'/", $schema, $m)) {
         throw new RuntimeException('could not locate the tickets.status ENUM in schema.sql');
     }
 

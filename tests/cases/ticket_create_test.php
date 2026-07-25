@@ -376,7 +376,7 @@ test('ticket numbering: past 9999 the next number is 10001, not a duplicate (str
     $ids = [];
     try {
         foreach (['9999', '10000'] as $seq) {
-            $pdo->prepare("INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, approval_status) VALUES (?, 'numbering probe', 'x', 1, 1, 1, 1, 'submitted', 'pending')")
+            $pdo->prepare("INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, approval_status) VALUES (?, 'numbering probe', 'x', 1, 1, 1, 1, 'pending_approval', 'pending')")
                 ->execute([$prefix . $seq]);
             $ids[] = (int) $pdo->lastInsertId();
         }

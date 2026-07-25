@@ -20,6 +20,12 @@ test('demo-load(integrity): generated lifecycle, work order, SLA, approval, hist
 
         $result = $container->get(DemoDataService::class)->load(4);
         assert_same(20, (int) ($result['tickets'] ?? 0), 'the real demo operation created its complete ticket pack');
+        assert_true(
+            (int) $database->query(
+                "SELECT COUNT(*) FROM tickets WHERE status = 'closed' AND closed_at IS NOT NULL"
+            )->fetchColumn() > 0,
+            'the real demo operation intentionally exercises closed history with its own closed_at'
+        );
 
         $timestampViolations = (int) $database->query(
             "SELECT COUNT(*) FROM tickets

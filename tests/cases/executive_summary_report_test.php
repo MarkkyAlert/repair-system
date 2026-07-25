@@ -95,7 +95,7 @@ test('executive: KPI "แจ้งซ่อมทั้งหมด" (this perio
         foreach (['2020-08-04 09:00:00', '2020-08-11 09:00:00', '2020-08-25 09:00:00'] as $i => $when) {
             exs_pdo()->prepare(
                 "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at)
-                 VALUES (?, 'x', 'x', 1, 1, 1, 1, 'submitted', ?)"
+                 VALUES (?, 'x', 'x', 1, 1, 1, 1, 'pending_approval', ?)"
             )->execute(["EXS-$rid-$i", $when]);
             $ids[] = (int) exs_pdo()->lastInsertId();
         }
@@ -119,8 +119,8 @@ test('summary: "ปิดงาน" (resolved) counts resolved+completed+closed,
     $ids = [];
 
     try {
-        // 3 successful-closure statuses (all count as ปิดงาน) + cancelled/submitted (must NOT count).
-        $statuses = ['resolved', 'completed', 'closed', 'cancelled', 'submitted'];
+        // 3 successful-closure statuses (all count as ปิดงาน) + cancelled/pending_approval (must NOT count).
+        $statuses = ['resolved', 'completed', 'closed', 'cancelled', 'pending_approval'];
         foreach ($statuses as $i => $status) {
             exs_pdo()->prepare(
                 "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at)
@@ -131,7 +131,7 @@ test('summary: "ปิดงาน" (resolved) counts resolved+completed+closed,
 
         $summary = exs_service()->getReportPageData($admin, ['from_date' => '2020-09-01', 'to_date' => '2020-09-30'])['summary'];
         assert_same(5, $summary['total'], 'all 5 tickets in the window');
-        assert_same(3, $summary['resolved'], 'ปิดงาน = resolved+completed+closed (closed must be included; cancelled/submitted excluded)');
+        assert_same(3, $summary['resolved'], 'ปิดงาน = resolved+completed+closed (closed must be included; cancelled/pending_approval excluded)');
     } finally {
         foreach ($ids as $id) {
             exs_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
@@ -301,7 +301,7 @@ test('summary: date-window filter includes both edges and excludes just-outside 
         foreach (array_keys($moments) as $i => $when) {
             exs_pdo()->prepare(
                 "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at)
-                 VALUES (?, 'x', 'x', 1, 1, 1, 1, 'submitted', ?)"
+                 VALUES (?, 'x', 'x', 1, 1, 1, 1, 'pending_approval', ?)"
             )->execute(["EXW-$rid-$i", $when]);
             $ids[] = (int) exs_pdo()->lastInsertId();
         }
@@ -485,8 +485,8 @@ test('executive PDF: the on-screen completion value is printed verbatim in the P
     $filters = ['preset' => 'custom', 'from_date' => '2020-04-01', 'to_date' => '2020-04-30'];
 
     try {
-        // 3 resolved + 1 submitted, all requested in the window → completion 3/4 = 75.0%
-        foreach (['resolved', 'resolved', 'resolved', 'submitted'] as $i => $status) {
+        // 3 resolved + 1 pending_approval, all requested in the window → completion 3/4 = 75.0%
+        foreach (['resolved', 'resolved', 'resolved', 'pending_approval'] as $i => $status) {
             exs_pdo()->prepare(
                 "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at)
                  VALUES (?, 'x', 'x', 1, 1, 1, 1, ?, '2020-04-10 09:00:00')"

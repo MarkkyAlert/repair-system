@@ -4,7 +4,7 @@
 
 > เป้าหมาย: อ่านจบไฟล์เดียวแล้วเปิดเครื่องทดสอบระบบได้เอง พร้อมรู้ว่าแต่ละหน้าทำอะไรและคาดหวังผลแบบไหน
 >
-> _ตรวจทานกับ source แล้ว 2026-07-10: บัญชีทดสอบ/endpoints/scripts/routes/คอลัมน์ ตรงกับโค้ด · แก้ตาราง status ให้ครบ 12 ค่า (ของเดิมมี 7), เพิ่มสถานะ `accepted` ใน Flow 5, ระบุ 403 ใน Flow 9._
+> _ตรวจทานกับ source แล้ว 2026-07-26: บัญชีทดสอบ/endpoints/scripts/routes/คอลัมน์ ตรงกับโค้ด · ตาราง status มี 10 ค่าที่ระบบใช้งานจริง, เพิ่มสถานะ `accepted` ใน Flow 5, ระบุ 403 ใน Flow 9._
 
 ---
 
@@ -44,11 +44,10 @@
 
 ### สถานะของ Ticket (เพื่อให้เข้าใจเวลาทดสอบ)
 
-คอลัมน์ `tickets.status` เป็น ENUM **11 ค่า** (ตาม `database/schema.sql`, ค่า default = `submitted`) เรียงตาม lifecycle ปกติ + สถานะพิเศษ:
+คอลัมน์ `tickets.status` เป็น ENUM **10 ค่า** (ตาม `database/schema.sql`, ค่า default = `pending_approval`) เรียงตาม lifecycle ปกติ + สถานะพิเศษ:
 
 | status | ความหมาย |
 |---|---|
-| `submitted` | เพิ่งสร้าง (ค่าเริ่มต้นใน DB) ก่อนเข้าสู่ขั้นอนุมัติ |
 | `pending_approval` | รออนุมัติจาก manager |
 | `approved` | manager อนุมัติแล้ว ยังไม่มอบหมายช่าง |
 | `rejected` | manager ปฏิเสธ ปิดเคสไม่ดำเนินการต่อ |
@@ -58,7 +57,7 @@
 | `resolved` | ช่างสรุปผลซ่อมเสร็จ รอผู้แจ้งยืนยัน |
 | `completed` | ผู้แจ้งยืนยันปิดงานและให้คะแนน |
 | `cancelled` | ยกเลิกงาน |
-| `closed` | ปิดงานสมบูรณ์ (สถานะปิดปลายทาง — นับรวมกับ resolved/completed เป็น "ปิดงาน") |
+| `closed` | ปิดงานสมบูรณ์ในข้อมูลประวัติ/ข้อมูลตัวอย่าง (นับรวมกับ resolved/completed เป็น "ปิดงาน"); flow ปกติของผู้แจ้งจบที่ `completed` |
 
 > หมายเหตุ: ระบบยังมีคอลัมน์แยกต่างหาก `tickets.approval_status` = ENUM(`not_required`, `pending`, `approved`, `rejected`) ที่ track สถานะการอนุมัติควบคู่กับ `status` — เวลาตรวจ DB ให้ดู 2 คอลัมน์นี้คู่กัน (เช่น รออนุมัติจริง = `status='pending_approval' AND approval_status='pending'`)
 
@@ -267,10 +266,12 @@ SELECT * FROM notifications ORDER BY id DESC LIMIT 1;
    - **ความคิดเห็น / ข้อเสนอแนะ** (optional)
    - **บันทึกปิดงาน (closure note)**: เช่น "ใช้งานได้ปกติ"
 5. กด **ยืนยันปิดงาน**
-6. สถานะ → `completed`, `completed_at` ถูกบันทึก, `closed_at` ถูกบันทึก
+6. สถานะ → `completed` และ `completed_at` ถูกบันทึก ส่วน `closed_at` ยังเป็น `NULL`
 7. ตาราง `ticket_ratings` มี record ใหม่
 
 **คาดหวัง**: ✅ ticket.status = `completed`, ✅ ticket_ratings มีคะแนนที่ให้, ✅ SLA `resolution` ถูก mark `met` หรือ `breached` ตามเวลาจริง
+
+> `closed_at` ใช้เฉพาะแถวที่ `ticket.status = 'closed'` เท่านั้น ไม่ใช่เวลาที่ผู้แจ้งกดยืนยันเป็น `completed`
 
 ---
 

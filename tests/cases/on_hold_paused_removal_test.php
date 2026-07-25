@@ -13,11 +13,11 @@ use App\Services\TicketWorkflowService;
 // These tests lock the removal: the retired values must be absent from every source of truth, and no code may
 // reintroduce them — while the surrounding transitions (assigned → in_progress → resolved → completed) keep working.
 
-/** Parse the tickets.status enum values out of schema.sql (anchored on its DEFAULT 'submitted' to skip assets.status). */
+/** Parse the tickets.status enum values out of schema.sql (anchored on its DEFAULT to skip assets.status). */
 function ohp_ticket_status_enum(): array
 {
     $schema = (string) file_get_contents(BASE_PATH . '/database/schema.sql');
-    if (!preg_match("/\n\s*status ENUM\(([^)]*)\)\s*NOT NULL DEFAULT 'submitted'/", $schema, $m)) {
+    if (!preg_match("/\n\s*status ENUM\(([^)]*)\)\s*NOT NULL DEFAULT 'pending_approval'/", $schema, $m)) {
         throw new RuntimeException('could not locate the tickets.status ENUM in schema.sql');
     }
     preg_match_all("/'([a-z_]+)'/", $m[1], $vals);
@@ -28,7 +28,7 @@ function ohp_ticket_status_enum(): array
 test('on_hold/paused(lock): the retired values are gone from every canonical source of truth', function (): void {
     // 1) the tickets.status single source (PHP) and the schema enum agree, and neither carries on_hold
     $phpValues = ticket_status_values();
-    assert_count(11, $phpValues, 'the canonical ticket status list dropped on_hold (12 → 11)');
+    assert_count(10, $phpValues, 'the canonical ticket status list contains only reachable/currently supported states');
     assert_false(in_array('on_hold', $phpValues, true), 'on_hold is not a ticket status the app offers');
 
     $ticketEnum = ohp_ticket_status_enum();
@@ -41,12 +41,12 @@ test('on_hold/paused(lock): the retired values are gone from every canonical sou
 
     // 2) the work_orders.status enum dropped paused. ohp_schema_enum('status') matches the FIRST status ENUM
     //    (tickets); the work_orders one is the status enum that has assigned+completed but not the ticket-only
-    //    'submitted', so pick it out explicitly.
+    //    'pending_approval', so pick it out explicitly.
     $schema = (string) file_get_contents(BASE_PATH . '/database/schema.sql');
     preg_match_all("/status ENUM\(([^)]*)\)/", $schema, $all);
     $woDecl = '';
     foreach ($all[1] as $decl) {
-        if (str_contains($decl, 'assigned') && str_contains($decl, 'completed') && !str_contains($decl, 'submitted')) {
+        if (str_contains($decl, 'assigned') && str_contains($decl, 'completed') && !str_contains($decl, 'pending_approval')) {
             $woDecl = $decl;
         }
     }

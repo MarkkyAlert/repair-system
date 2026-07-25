@@ -3376,7 +3376,7 @@ class ReportService
         $hasResolution = isset($row['resolution_minutes']);
         $resolutionMinutes = $hasResolution ? (int) $row['resolution_minutes'] : 0;
         $ratingScore = (int) ($row['rating_score'] ?? 0);
-        $status = (string) ($row['status'] ?? 'submitted');
+        $status = (string) ($row['status'] ?? 'pending_approval');
         $priorityCode = strtoupper((string) ($row['priority_code'] ?? 'MEDIUM'));
         $isOverdue = (bool) ($sla['is_overdue'] ?? false);
 

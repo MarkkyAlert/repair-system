@@ -224,7 +224,7 @@ CREATE TABLE tickets (
     assigned_manager_id BIGINT UNSIGNED NULL,
     assigned_technician_id BIGINT UNSIGNED NULL,
     approval_status ENUM('not_required','pending','approved','rejected') NOT NULL DEFAULT 'pending',
-    status ENUM('submitted','pending_approval','approved','assigned','accepted','in_progress','resolved','completed','rejected','cancelled','closed') NOT NULL DEFAULT 'submitted',
+    status ENUM('pending_approval','approved','assigned','accepted','in_progress','resolved','completed','rejected','cancelled','closed') NOT NULL DEFAULT 'pending_approval',
     channel ENUM('web','qr','phone','email','walk_in') NOT NULL DEFAULT 'web',
     impact_level ENUM('low','medium','high','critical') NOT NULL DEFAULT 'medium',
     urgency_level ENUM('low','medium','high','critical') NOT NULL DEFAULT 'medium',

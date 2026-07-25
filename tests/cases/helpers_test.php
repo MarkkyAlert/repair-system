@@ -38,16 +38,16 @@ test('normalize_date_range: impossible calendar dates are rejected, a real leap 
 });
 
 // ── ticket status single source ──
-test('ticket_status_values: 11 canonical values in order', function (): void {
+test('ticket_status_values: 10 canonical values in order', function (): void {
     $v = ticket_status_values();
-    assert_count(11, $v);
-    assert_same('submitted', $v[0]);
-    assert_same('closed', $v[10]);
+    assert_count(10, $v);
+    assert_same('pending_approval', $v[0]);
+    assert_same('closed', $v[9]);
 });
 
 test('ticket_status_options: includeAll prepends + Thai labels (no English fallback)', function (): void {
     $opts = ticket_status_options(true);
-    assert_count(12, $opts);
+    assert_count(11, $opts);
     assert_same('', $opts[0]['value']);
     assert_same('ทุกสถานะ', $opts[0]['label']);
     $byValue = [];
