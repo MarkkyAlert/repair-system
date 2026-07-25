@@ -483,6 +483,68 @@ test('workflow(idempotency): assigning an in_progress ticket to the SAME technic
     }
 });
 
+test('workflow(invariant): reassigning in_progress work clears the old ticket start time before the new technician starts', function (): void {
+    $rid = bin2hex(random_bytes(4));
+    wf_pdo()->prepare(
+        "INSERT INTO users (username, email, password_hash, full_name, role, is_active)
+         VALUES (?, ?, 'x', ?, 'technician', 1)"
+    )->execute(["wf_started_$rid", "wf_started_$rid@example.com", "WF Started Tech $rid"]);
+    $newTechId = (int) wf_pdo()->lastInsertId();
+    $id = wf_insert_ticket([
+        'status' => 'pending_approval',
+        'approval_status' => 'pending',
+        'requester_id' => 1,
+    ]);
+
+    try {
+        $admin = ['id' => 4, 'role' => 'admin'];
+        $oldTech = ['id' => 3, 'role' => 'technician'];
+        wf_service()->approveTicket($id, $admin, ['note' => '']);
+        wf_service()->assignTechnician($id, $admin, ['technician_id' => 3, 'instructions' => '']);
+        wf_service()->acceptAssignedWork($id, $oldTech, ['accept_note' => '']);
+        wf_service()->startAssignedWork($id, $oldTech, ['start_note' => '']);
+
+        $oldStartedAt = wf_pdo()->query(
+            "SELECT started_at FROM tickets WHERE id = $id"
+        )->fetchColumn();
+        assert_true($oldStartedAt !== false && $oldStartedAt !== null, 'precondition: the old technician started work');
+
+        wf_service()->assignTechnician(
+            $id,
+            $admin,
+            ['technician_id' => $newTechId, 'instructions' => 'เปลี่ยนผู้รับผิดชอบกลางงาน']
+        );
+
+        $ticketAfterReassign = wf_pdo()->query(
+            "SELECT status, assigned_technician_id, started_at FROM tickets WHERE id = $id"
+        )->fetch(PDO::FETCH_ASSOC);
+        $workOrderAfterReassign = wf_pdo()->query(
+            "SELECT status, technician_id, started_at FROM work_orders WHERE ticket_id = $id"
+        )->fetch(PDO::FETCH_ASSOC);
+        assert_same('assigned', (string) $ticketAfterReassign['status'], 'ticket returns to assigned');
+        assert_same($newTechId, (int) $ticketAfterReassign['assigned_technician_id'], 'ticket moves to the new technician');
+        assert_true($ticketAfterReassign['started_at'] === null, 'ticket old started_at is cleared for the new work cycle');
+        assert_true($workOrderAfterReassign['started_at'] === null, 'work-order old started_at is cleared for the new work cycle');
+
+        // Positive preservation: the new technician can still start, and both tables record the same new time.
+        wf_service()->startAssignedWork(
+            $id,
+            ['id' => $newTechId, 'role' => 'technician'],
+            ['start_note' => 'เริ่มงานโดยช่างคนใหม่']
+        );
+        $newTimes = wf_pdo()->query(
+            "SELECT t.started_at AS ticket_started_at, wo.started_at AS work_order_started_at
+             FROM tickets t JOIN work_orders wo ON wo.ticket_id = t.id
+             WHERE t.id = $id"
+        )->fetch(PDO::FETCH_ASSOC);
+        assert_true($newTimes['ticket_started_at'] !== null, 'new technician can start the reassigned work');
+        assert_same($newTimes['ticket_started_at'], $newTimes['work_order_started_at'], 'ticket/work-order start times stay aligned');
+    } finally {
+        wf_cleanup($id);
+        wf_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$newTechId]);
+    }
+});
+
 test('workflow(neg): mid-work reassign without a reason is rejected — accepted and in_progress (F2)', function (): void {
     foreach (['accepted', 'in_progress'] as $status) {
         $id = wf_insert_ticket(['status' => $status, 'approval_status' => 'approved', 'requester_id' => 1, 'assigned_technician_id' => 3]);

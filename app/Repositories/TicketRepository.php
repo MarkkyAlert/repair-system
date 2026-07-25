@@ -465,13 +465,13 @@ class TicketRepository
                 $existingResponseDueAt = (string) ($dueStmt->fetchColumn() ?: '');
             }
 
-            $firstResponseClause = $isReassign ? 'first_response_at = NULL,' : '';
+            $reassignResetClause = $isReassign ? 'first_response_at = NULL, started_at = NULL,' : '';
             $ticketStmt = $this->db->prepare(
                 'UPDATE tickets
                  SET assigned_technician_id = :technician_id,
                      status = :status,
                      assigned_at = :assigned_at,
-                     ' . $firstResponseClause . '
+                     ' . $reassignResetClause . '
                      updated_at = :updated_at
                  WHERE id = :ticket_id'
             );
