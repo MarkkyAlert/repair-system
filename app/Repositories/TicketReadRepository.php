@@ -269,10 +269,13 @@ class TicketReadRepository
         $this->applyDashboardFilters($conditions, $filters, $params);
         $whereClause = implode(' AND ', $conditions);
 
+        // นับเฉพาะแถวที่ resolved_at ไม่ย้อนหลังกว่า requested_at (import/clock skew/แอดมินแก้วันแจ้ง) — ให้ตรงกับ
+        // ทุก query ฝั่ง report ที่ clamp เงื่อนไขนี้ไว้ ไม่งั้นค่าลบจะถ่วง AVG ของเดือนนั้นให้ต่ำผิด/ติดลบ (งานเดียวกัน
+        // ต้องได้ชั่วโมงเท่ากันทุกแผง). แถวที่ resolved ก่อน requested จะกลายเป็น NULL แล้ว AVG มองข้ามให้เอง.
         $stmt = $this->db->prepare(
             "SELECT
                 MONTH(t.resolved_at) AS month_no,
-                AVG(TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at)) AS avg_minutes
+                AVG(CASE WHEN t.resolved_at >= t.requested_at THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at) END) AS avg_minutes
              FROM tickets t
              WHERE $whereClause
              GROUP BY MONTH(t.resolved_at)
