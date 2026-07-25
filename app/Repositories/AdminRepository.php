@@ -860,11 +860,17 @@ class AdminRepository
     private function throwFriendlyUniqueViolation(PDOException $exception, string $codeMessage, string $nameMessage): never
     {
         if (is_duplicate_key_error($exception)) {
-            $message = strtolower($exception->getMessage());
-            if (str_contains($message, 'code')) {
+            // ดูจาก "ชื่อ index" (ส่วนหลัง "for key ...") ไม่ใช่ทั้งข้อความ เพราะ MySQL แนบ "ค่าที่ซ้ำ" มาในข้อความด้วย
+            // (เช่น Duplicate entry 'Barcode Team' for key 'uq_..._name') — ถ้าเช็คทั้งข้อความ ค่าที่มีคำว่า code/name
+            // ปนอยู่ (bar-code) จะทำให้ทายผิดคอลัมน์
+            $keyName = '';
+            if (preg_match('/for key [`\']?([^`\'\s]+)/i', $exception->getMessage(), $matches) === 1) {
+                $keyName = strtolower($matches[1]);
+            }
+            if (str_contains($keyName, 'code')) {
                 throw new DomainException($codeMessage);
             }
-            if (str_contains($message, 'name')) {
+            if (str_contains($keyName, 'name')) {
                 throw new DomainException($nameMessage);
             }
         }

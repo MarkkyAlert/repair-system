@@ -411,3 +411,30 @@ test('reference data (LOW#13/#14): ticket & asset category name is UNIQUE at the
         }
     }
 });
+
+// bug-hunt R6-A2: throwFriendlyUniqueViolation matched the WHOLE duplicate-key message for "code"/"name" to pick a
+// friendly message, but MySQL embeds the duplicated VALUE in that message (Duplicate entry 'Barcode Team' for key
+// 'uq_departments_name'). A duplicate department NAME whose value contains "code" (e.g. "Barcode Team") matched the
+// 'code' branch first → the admin was wrongly told the CODE already exists. It now inspects only the index name.
+test('reference data(R6-A2): a duplicate department NAME containing "code" reports a NAME conflict, not a code one', function (): void {
+    rd_bind_request();
+    $name = 'Barcode Team ' . bin2hex(random_bytes(4)); // the duplicated VALUE contains "code" (bar-CODE)
+    $first = rd_valid_dept(['name' => $name]);
+    $second = rd_valid_dept(['name' => $name]); // different random code, same name → NAME collision
+
+    try {
+        rd_service()->createDepartment(rd_admin(), $first);
+
+        $threw = null;
+        try {
+            rd_service()->createDepartment(rd_admin(), $second);
+        } catch (DomainException $e) {
+            $threw = $e->getMessage();
+        }
+
+        assert_true($threw !== null, 'a duplicate department name is rejected');
+        assert_same('ชื่อแผนกนี้มีอยู่แล้ว', $threw, 'the message names the NAME conflict — the value "Barcode" must not misfire the code branch');
+    } finally {
+        rd_pdo()->prepare('DELETE FROM departments WHERE code IN (?, ?)')->execute([$first['code'], $second['code']]);
+    }
+});
