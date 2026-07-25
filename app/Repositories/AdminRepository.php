@@ -215,8 +215,10 @@ class AdminRepository
                 throw new DomainException('ผู้ใช้นี้ยังมีงานซ่อมที่กำลังดำเนินการ กรุณามอบหมายงานให้ช่างคนอื่นก่อน');
             }
 
-            if ($currentRole === 'manager' && ($newRole !== 'manager' || !$newIsActive) && $this->hasLiveManagedTickets($userId)) {
-                throw new DomainException('ผู้ใช้นี้ยังเป็นผู้รับผิดชอบ Ticket ที่ไม่จบ กรุณาดำเนินงานให้เรียบร้อยก่อนปิดบัญชีหรือเปลี่ยน role');
+            if ($currentRole === 'manager' && ($newRole !== 'manager' || !$newIsActive)) {
+                // งานที่ไม่มี manager เจ้าของคือคิวส่วนกลางอยู่แล้ว จึงปล่อยเฉพาะงานที่ยังไม่จบก่อน
+                // ปิดบัญชี/เปลี่ยน role ใน transaction เดียวกัน ส่วนงานที่จบแล้วเก็บเจ้าของเดิมเป็นประวัติ.
+                $this->releaseLiveManagedTickets($userId);
             }
 
             if (!$newIsActive && $this->hasOpenRequesterTickets($userId)) {
@@ -311,18 +313,19 @@ class AdminRepository
         return (bool) $stmt->fetchColumn();
     }
 
-    private function hasLiveManagedTickets(int $userId): bool
+    private function releaseLiveManagedTickets(int $userId): void
     {
         $stmt = $this->db->prepare(
-            "SELECT EXISTS(
-                SELECT 1 FROM tickets
-                WHERE assigned_manager_id = :user_id
-                  AND status NOT IN ('completed', 'rejected', 'cancelled', 'closed')
-             )"
+            "UPDATE tickets
+             SET assigned_manager_id = NULL,
+                 updated_at = :updated_at
+             WHERE assigned_manager_id = :user_id
+               AND status NOT IN ('completed', 'rejected', 'cancelled', 'closed')"
         );
-        $stmt->execute(['user_id' => $userId]);
-
-        return (bool) $stmt->fetchColumn();
+        $stmt->execute([
+            'user_id' => $userId,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
     }
 
     public function updateDepartment(int $departmentId, array $payload): void
