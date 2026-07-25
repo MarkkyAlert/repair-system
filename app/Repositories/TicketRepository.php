@@ -289,6 +289,27 @@ class TicketRepository
 
         try {
             $this->db->beginTransaction();
+
+            // Serialize with AdminRepository::updateUser(): a manager request may have passed middleware just
+            // before an admin deactivated/demoted that account. Recheck under the same user-row lock used by
+            // updateUser so an inactive/non-manager account can never become the live ticket owner.
+            if ($managerId !== null) {
+                $managerStmt = $this->db->prepare(
+                    'SELECT role, is_active
+                     FROM users
+                     WHERE id = :manager_id
+                     LIMIT 1
+                     FOR UPDATE'
+                );
+                $managerStmt->execute(['manager_id' => $managerId]);
+                $manager = $managerStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+                if ($manager === null
+                    || (string) ($manager['role'] ?? '') !== 'manager'
+                    || (int) ($manager['is_active'] ?? 0) !== 1) {
+                    throw new DomainException('หัวหน้างานไม่พร้อมใช้งาน กรุณารีเฟรชหน้าแล้วลองอีกครั้ง');
+                }
+            }
+
             $this->lockTicketForTransition($ticketId, ['pending_approval'], 'pending');
 
             // บันทึกหัวหน้างานเจ้าของงานตอนอนุมัติ ไม่งั้น assigned_manager_id เป็น NULL ตลอด → แจ้งเตือนหัวหน้างาน

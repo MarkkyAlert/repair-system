@@ -215,6 +215,10 @@ class AdminRepository
                 throw new DomainException('ผู้ใช้นี้ยังมีงานซ่อมที่กำลังดำเนินการ กรุณามอบหมายงานให้ช่างคนอื่นก่อน');
             }
 
+            if ($currentRole === 'manager' && ($newRole !== 'manager' || !$newIsActive) && $this->hasLiveManagedTickets($userId)) {
+                throw new DomainException('ผู้ใช้นี้ยังเป็นผู้รับผิดชอบ Ticket ที่ไม่จบ กรุณาดำเนินงานให้เรียบร้อยก่อนปิดบัญชีหรือเปลี่ยน role');
+            }
+
             if (!$newIsActive && $this->hasOpenRequesterTickets($userId)) {
                 throw new DomainException('ผู้ใช้นี้ยังมี Ticket ที่เป็นผู้แจ้ง กรุณาปิดงานให้เรียบร้อยก่อนปิดบัญชี');
             }
@@ -299,6 +303,20 @@ class AdminRepository
             "SELECT EXISTS(
                 SELECT 1 FROM tickets
                 WHERE requester_id = :user_id
+                  AND status NOT IN ('completed', 'rejected', 'cancelled', 'closed')
+             )"
+        );
+        $stmt->execute(['user_id' => $userId]);
+
+        return (bool) $stmt->fetchColumn();
+    }
+
+    private function hasLiveManagedTickets(int $userId): bool
+    {
+        $stmt = $this->db->prepare(
+            "SELECT EXISTS(
+                SELECT 1 FROM tickets
+                WHERE assigned_manager_id = :user_id
                   AND status NOT IN ('completed', 'rejected', 'cancelled', 'closed')
              )"
         );

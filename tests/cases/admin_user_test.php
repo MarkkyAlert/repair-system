@@ -2,7 +2,10 @@
 declare(strict_types=1);
 
 use App\Core\Request;
+use App\Repositories\TicketReadRepository;
 use App\Services\AdminService;
+use App\Services\TicketService;
+use App\Services\TicketWorkflowService;
 
 // Validation + happy-path tests for AdminService user CRUD (createUser / updateUser). Reject branches
 // throw before any DB write (nothing to clean up); the happy paths seed a department, create/update a
@@ -235,6 +238,156 @@ test('updateUser: demoting/deactivating a user with open work is blocked (round 
     } finally {
         au_pdo()->prepare('DELETE FROM tickets WHERE id IN (?, ?)')->execute([$techTicket, $reqTicket]);
         au_pdo()->prepare('DELETE FROM users WHERE id IN (?, ?)')->execute([$techId, $reqId]);
+    }
+});
+
+test('updateUser(integrity): a manager who owns a live ticket cannot be deactivated or demoted', function (): void {
+    au_bind_request();
+    $suffix = bin2hex(random_bytes(4));
+    au_pdo()->prepare(
+        'INSERT INTO users (username, email, password_hash, full_name, role, is_active, created_at, updated_at)
+         VALUES (?, ?, "x", "Manager Owner", "manager", 1, NOW(), NOW())'
+    )->execute(["mowner_$suffix", "mowner_$suffix@example.com"]);
+    $managerId = (int) au_pdo()->lastInsertId();
+    $ticketId = 0;
+
+    try {
+        $reference = tvm_container()->get(TicketReadRepository::class)->getCreateFormReferenceData();
+        $ticketId = tvm_container()->get(TicketService::class)->createTicket(
+            ['id' => 1, 'role' => 'requester'],
+            [
+                'submission_token' => bin2hex(random_bytes(32)),
+                'title' => 'Manager ownership integrity probe',
+                'description' => 'The approving manager becomes the live ticket owner.',
+                'priority_id' => (int) $reference['priorities'][0]['id'],
+                'ticket_category_id' => (int) $reference['categories'][0]['id'],
+                'location_id' => (int) $reference['locations'][0]['id'],
+                'impact_level' => 'medium',
+                'urgency_level' => 'medium',
+            ],
+            []
+        );
+        tvm_container()->get(TicketWorkflowService::class)->approveTicket(
+            $ticketId,
+            ['id' => $managerId, 'role' => 'manager'],
+            ['note' => '']
+        );
+
+        foreach ([
+            ['role' => 'manager', 'is_active' => '0'],
+            ['role' => 'requester', 'is_active' => '1'],
+        ] as $change) {
+            $blocked = false;
+            try {
+                au_service()->updateUser($managerId, au_admin(), [
+                    'full_name' => 'Manager Owner',
+                    'email' => "mowner_$suffix@example.com",
+                    'role' => $change['role'],
+                    'is_active' => $change['is_active'],
+                    'original_version' => '1',
+                ]);
+            } catch (DomainException $exception) {
+                $blocked = str_contains($exception->getMessage(), 'ยังเป็นผู้รับผิดชอบ Ticket');
+            }
+            assert_true($blocked, 'a live ticket owner must be reassigned before the manager account changes');
+        }
+
+        $manager = au_pdo()->query("SELECT role, is_active FROM users WHERE id = $managerId")->fetch(PDO::FETCH_ASSOC);
+        assert_same('manager', (string) $manager['role'], 'the owner keeps the manager role');
+        assert_same(1, (int) $manager['is_active'], 'the owner stays active');
+        assert_same(
+            $managerId,
+            (int) au_pdo()->query("SELECT assigned_manager_id FROM tickets WHERE id = $ticketId")->fetchColumn(),
+            'the live ticket still has a usable manager owner'
+        );
+    } finally {
+        if ($ticketId > 0) {
+            au_pdo()->prepare("DELETE FROM notifications WHERE related_type = 'ticket' AND related_id = ?")->execute([$ticketId]);
+            au_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+        }
+        au_pdo()->prepare("DELETE FROM audit_logs WHERE entity_type = 'user' AND entity_id = ?")->execute([$managerId]);
+        au_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$managerId]);
+    }
+});
+
+test('updateUser(integrity): a manager with no live owned ticket can still be deactivated', function (): void {
+    au_bind_request();
+    $suffix = bin2hex(random_bytes(4));
+    au_pdo()->prepare(
+        'INSERT INTO users (username, email, password_hash, full_name, role, is_active, created_at, updated_at)
+         VALUES (?, ?, "x", "Free Manager", "manager", 1, NOW(), NOW())'
+    )->execute(["mfree_$suffix", "mfree_$suffix@example.com"]);
+    $managerId = (int) au_pdo()->lastInsertId();
+
+    try {
+        au_service()->updateUser($managerId, au_admin(), [
+            'full_name' => 'Free Manager',
+            'email' => "mfree_$suffix@example.com",
+            'role' => 'manager',
+            'is_active' => '0',
+            'original_version' => '1',
+        ]);
+        assert_same(
+            0,
+            (int) au_pdo()->query("SELECT is_active FROM users WHERE id = $managerId")->fetchColumn(),
+            'the guard is limited to managers who still own live tickets'
+        );
+    } finally {
+        au_pdo()->prepare("DELETE FROM audit_logs WHERE entity_type = 'user' AND entity_id = ?")->execute([$managerId]);
+        au_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$managerId]);
+    }
+});
+
+test('updateUser(integrity): a stale request from an inactive manager cannot approve and own a new ticket', function (): void {
+    $suffix = bin2hex(random_bytes(4));
+    au_pdo()->prepare(
+        'INSERT INTO users (username, email, password_hash, full_name, role, is_active, created_at, updated_at)
+         VALUES (?, ?, "x", "Inactive Manager", "manager", 0, NOW(), NOW())'
+    )->execute(["minactive_$suffix", "minactive_$suffix@example.com"]);
+    $managerId = (int) au_pdo()->lastInsertId();
+    $ticketId = 0;
+
+    try {
+        $reference = tvm_container()->get(TicketReadRepository::class)->getCreateFormReferenceData();
+        $ticketId = tvm_container()->get(TicketService::class)->createTicket(
+            ['id' => 1, 'role' => 'requester'],
+            [
+                'submission_token' => bin2hex(random_bytes(32)),
+                'title' => 'Inactive manager race probe',
+                'description' => 'A request started before deactivation must not assign an inactive owner.',
+                'priority_id' => (int) $reference['priorities'][0]['id'],
+                'ticket_category_id' => (int) $reference['categories'][0]['id'],
+                'location_id' => (int) $reference['locations'][0]['id'],
+                'impact_level' => 'medium',
+                'urgency_level' => 'medium',
+            ],
+            []
+        );
+
+        $blocked = false;
+        try {
+            tvm_container()->get(TicketWorkflowService::class)->approveTicket(
+                $ticketId,
+                ['id' => $managerId, 'role' => 'manager'],
+                ['note' => 'stale request']
+            );
+        } catch (DomainException $exception) {
+            $blocked = str_contains($exception->getMessage(), 'หัวหน้างานไม่พร้อมใช้งาน');
+        }
+        assert_true($blocked, 'the repository rechecks manager role/active under lock before assigning ownership');
+
+        $ticket = au_pdo()->query(
+            "SELECT status, approval_status, assigned_manager_id FROM tickets WHERE id = $ticketId"
+        )->fetch(PDO::FETCH_ASSOC);
+        assert_same('pending_approval', (string) $ticket['status'], 'approval was rolled back');
+        assert_same('pending', (string) $ticket['approval_status'], 'approval status remains pending');
+        assert_true($ticket['assigned_manager_id'] === null, 'no inactive manager is assigned');
+    } finally {
+        if ($ticketId > 0) {
+            au_pdo()->prepare("DELETE FROM notifications WHERE related_type = 'ticket' AND related_id = ?")->execute([$ticketId]);
+            au_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+        }
+        au_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$managerId]);
     }
 });
 
