@@ -122,7 +122,8 @@ class AssetRepository
         $q = trim((string) ($filters['q'] ?? ''));
         if ($q !== '') {
             $where[] = '(a.asset_code LIKE :q_asset_code OR a.name LIKE :q_name OR a.serial_number LIKE :q_serial OR a.brand LIKE :q_brand OR a.model LIKE :q_model)';
-            $like = '%' . $q . '%';
+            // escape wildcard ของ LIKE (%, _) ในคำค้น — รหัสทรัพย์สิน/serial มี _ บ่อย ถ้าไม่ escape จะจับเกินไปผิดแถว
+            $like = '%' . like_escape($q) . '%';
             $params['q_asset_code'] = $like;
             $params['q_name'] = $like;
             $params['q_serial'] = $like;

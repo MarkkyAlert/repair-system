@@ -888,9 +888,10 @@ class TicketReadRepository
         $sla = trim((string) ($filters['sla'] ?? ''));
 
         if ($search !== '') {
+            // escape wildcard ของ LIKE (%, _) ในคำค้น ไม่งั้น "100%" หรือเลขที่มี _ จะจับเกินไปโดนแถวอื่น
             $conditions[] = '(t.ticket_no LIKE :ticket_no_search OR t.title LIKE :ticket_title_search)';
-            $params['ticket_no_search'] = '%' . $search . '%';
-            $params['ticket_title_search'] = '%' . $search . '%';
+            $params['ticket_no_search'] = '%' . like_escape($search) . '%';
+            $params['ticket_title_search'] = '%' . like_escape($search) . '%';
         }
         if ($status !== '') {
             $conditions[] = 't.status = :ticket_status';
