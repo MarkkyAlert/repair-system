@@ -13,7 +13,10 @@ use Throwable;
 class NotificationService
 {
     public const NOTIFICATION_TYPES = [
-        'ticket_approved' => 'Ticket ได้รับการอนุมัติ / รออนุมัติ',
+        // คิวงานที่ "รอคุณอนุมัติ" (มี ticket ใหม่เข้ามา) แยกจาก "ใบตัวเองได้รับอนุมัติ" (แจ้งเพื่อทราบ) — เดิมใช้ key
+        // เดียวกัน หัวหน้าที่ปิด key นั้นเลยพลาดคิวงานที่ต้องอนุมัติไปด้วย (เจ้าของตัดสินใจแยก 2026-07-25)
+        'ticket_pending_approval' => 'มี Ticket ใหม่รอคุณอนุมัติ',
+        'ticket_approved' => 'Ticket ของคุณได้รับการอนุมัติ',
         'ticket_rejected' => 'Ticket ถูกปฏิเสธ',
         'ticket_status_changed' => 'สถานะ Ticket เปลี่ยน',
         'comment_added' => 'มี comment ใหม่ใน Ticket',
@@ -28,7 +31,8 @@ class NotificationService
     ];
 
     public const NOTIFICATION_TYPE_OFF_IMPACT = [
-        'ticket_approved' => 'ปิดแล้วจะไม่ทราบทันทีว่า ticket ของคุณได้รับการอนุมัติหรือไม่',
+        'ticket_pending_approval' => 'แนะนำให้เปิดไว้ — ปิดแล้วจะพลาดคิวงานที่มี Ticket ใหม่รอให้คุณอนุมัติ',
+        'ticket_approved' => 'ปิดแล้วจะไม่ทราบเมื่อ Ticket ที่คุณแจ้งได้รับการอนุมัติ (เป็นข้อมูลแจ้งเพื่อทราบ)',
         'ticket_rejected' => 'ปิดแล้วจะไม่ทราบเมื่อ ticket ถูกปฏิเสธ — อาจตกหล่นการแก้ไข',
         'ticket_status_changed' => 'ปิดแล้วจะไม่ทราบเมื่อช่างเริ่มงาน / สรุปงาน / ปิดงาน',
         'comment_added' => 'ปิดแล้วจะไม่ทราบเมื่อมีคนตอบกลับใน ticket ของคุณ',
@@ -523,8 +527,9 @@ class NotificationService
         }
 
         return match ($eventType) {
+            // "ticket ใหม่เข้ามา" = คิวรออนุมัติของผู้อนุมัติ → key แยก (ไม่ปนกับ "ใบตัวเองได้รับอนุมัติ" ของผู้แจ้ง)
+            'ticket.created' => 'ticket_pending_approval',
             'ticket.approved' => 'ticket_approved',
-            'ticket.created' => 'ticket_approved',
             'ticket.rejected' => 'ticket_rejected',
             default => 'ticket_status_changed',
         };

@@ -422,3 +422,36 @@ test('notify(R6-B2): a broadcast with zero in-app recipients still claims its su
         nt_pdo()->prepare('DELETE FROM notifications WHERE submission_token = ?')->execute([$token]);
     }
 });
+
+// bug-hunt R6-B3 (owner: split the toggle): "a new ticket is awaiting YOUR approval" (the approval queue) shared one
+// preference key with "your own ticket was approved" (FYI). A manager who muted ticket_approved silently stopped
+// getting their approval queue. ticket.created now maps to a separate ticket_pending_approval key (defaults ON via
+// the opt-out model), so muting the FYI no longer drops the queue.
+test('notify(R6-B3): muting the own-approved FYI no longer silences the approval queue', function (): void {
+    $svc = nt_service();
+    $mgr = nt_seed_user('manager');
+
+    try {
+        // the manager mutes the FYI "your ticket was approved" on BOTH channels
+        foreach (['in_app', 'email'] as $ch) {
+            nt_pdo()->prepare('INSERT INTO notification_preferences (user_id, notification_type, channel, is_enabled) VALUES (?, "ticket_approved", ?, 0)')
+                ->execute([$mgr, $ch]);
+        }
+
+        // the two events now map to DISTINCT preference keys
+        assert_same('ticket_pending_approval', call_private($svc, 'notificationTypeFor', ['ticket.created']), 'a new ticket (approval queue) maps to its own key');
+        assert_same('ticket_approved', call_private($svc, 'notificationTypeFor', ['ticket.approved']), 'own-ticket-approved keeps the FYI key');
+
+        // the approval queue still reaches the manager (they only muted the FYI) — default ON, no disable row
+        $queueInApp = call_private($svc, 'filterByPreference', [[$mgr], 'ticket_pending_approval', 'in_app']);
+        $queueEmail = call_private($svc, 'filterByPreference', [[$mgr], 'ticket_pending_approval', 'email']);
+        assert_true(in_array($mgr, $queueInApp, true) && in_array($mgr, $queueEmail, true), 'the manager still receives the approval queue on both channels');
+
+        // and the FYI they muted stays muted
+        $fyiInApp = call_private($svc, 'filterByPreference', [[$mgr], 'ticket_approved', 'in_app']);
+        assert_true(!in_array($mgr, $fyiInApp, true), 'the muted own-approved FYI stays muted');
+    } finally {
+        nt_pdo()->prepare('DELETE FROM notification_preferences WHERE user_id = ?')->execute([$mgr]);
+        nt_cleanup([], [$mgr]);
+    }
+});
