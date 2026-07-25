@@ -120,26 +120,19 @@ if (!empty($workflow['canReview'])) {
                 }
             }
 
-            // สถานะจบแบบ terminal (rejected/cancelled) จะหลุดออกจากเส้นทางปกติ ส่วน on_hold คือพักไว้ และ closed คือปิดจบสมบูรณ์
+            // สถานะจบแบบ terminal (rejected/cancelled) จะหลุดออกจากเส้นทางปกติ ส่วน closed คือปิดจบสมบูรณ์
             $terminalLabels = ['rejected' => 'ถูกปฏิเสธ', 'cancelled' => 'ยกเลิกแล้ว'];
             $isTerminal = array_key_exists($currentStatus, $terminalLabels);
-            $isOnHold = $currentStatus === 'on_hold';
             if ($currentStatus === 'closed') {
                 $reachedIndex = array_search('completed', $stepKeys, true);
             }
 
-            $activeStatus = $isOnHold ? 'in_progress' : $currentStatus;
+            $activeStatus = $currentStatus;
             $currentIndex = array_search($activeStatus, $stepKeys, true);
             if ($currentIndex === false) {
                 $currentIndex = $reachedIndex;
             }
         ?>
-        <?php if ($isOnHold): ?>
-            <div class="button-row">
-                <?= render_partial('partials/components/badge', ['label' => 'พักงานชั่วคราว', 'tone' => 'warning']) ?>
-                <span class="helper-text">งานถูกพักไว้ชั่วคราว จะกลับมาดำเนินการต่อในขั้น “ดำเนินการ”</span>
-            </div>
-        <?php endif; ?>
         <div class="workflow-progress-wrap">
         <ol class="workflow-progress" aria-label="สถานะการดำเนินงาน">
             <?php foreach ($progressSteps as $statusKey => $statusLabel): ?>

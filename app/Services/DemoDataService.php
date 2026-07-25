@@ -310,12 +310,12 @@ class DemoDataService
             ['จอมอนิเตอร์ห้องเซิร์ฟเวอร์ไม่ติด', 4, 'completed', 'HARDWARE', 'SERVER', 'HIGH', 'SRV-001', 1, 50, [3, 'พอใช้ได้'], 4, false],
             ['ไฟออฟฟิศชั้น 1 บางดวงดับ', 6, 'resolved', 'ELECTRICAL', 'OFFICE-1F', 'LOW', 'LGT-001', 2, 30, null, 3, false],
             // ── งานค้าง (backlog) ── ยังไม่ปิด อายุหลากหลาย (2 ตัวเกิน 30 วัน)
-            ['PC ฝ่ายขายเปิดไม่ติด (รอชิ้นส่วน)', 40, 'on_hold', 'HARDWARE', 'OFFICE-2F', 'HIGH', 'PC-002', 0, 30, null, null, false],
+            ['PC ฝ่ายขายเปิดไม่ติด (รอชิ้นส่วน)', 40, 'in_progress', 'HARDWARE', 'OFFICE-2F', 'HIGH', 'PC-002', 0, 30, null, null, false],
             ['แอร์ห้องเซิร์ฟเวอร์ไม่เย็นพอ', 33, 'in_progress', 'ELECTRICAL', 'SERVER', 'URGENT', 'AC-001', 1, 60, null, null, false],
             ['ตั้งค่าเครื่องพิมพ์ใหม่ยังไม่ได้', 15, 'in_progress', 'HARDWARE', 'OFFICE-1F', 'MEDIUM', 'PRT-002', 2, 20, null, null, false],
             ['ขอเพิ่ม RAM เครื่องกราฟิก', 9, 'accepted', 'HARDWARE', 'OFFICE-2F', 'LOW', 'PC-001', 0, 0, null, null, false],
             ['ไฟคลังสินค้ากระพริบ', 5, 'assigned', 'ELECTRICAL', 'WAREHOUSE', 'MEDIUM', 'LGT-001', 1, 0, null, null, false],
-            ['เมนบอร์ดเซิร์ฟเวอร์สำรองเสีย', 3, 'on_hold', 'HARDWARE', 'SERVER', 'HIGH', 'SRV-001', 2, 0, null, null, false],
+            ['เมนบอร์ดเซิร์ฟเวอร์สำรองเสีย', 3, 'in_progress', 'HARDWARE', 'SERVER', 'HIGH', 'SRV-001', 2, 0, null, null, false],
             // ── terminal ที่ไม่นับเป็นปิดงาน/ค้าง ──
             ['ขอย้ายปลั๊กไฟ (ผู้แจ้งยกเลิกเอง)', 20, 'cancelled', 'ELECTRICAL', 'OFFICE-1F', 'LOW', 'LGT-001', 0, 0, null, null, false],
             ['แจ้งผิดแผนก (ปฏิเสธ)', 14, 'rejected', 'SOFTWARE', 'OFFICE-2F', 'LOW', 'PC-002', 0, 0, null, null, false],
@@ -332,9 +332,9 @@ class DemoDataService
             $isRejected = $status === 'rejected';
             $isCancelled = $status === 'cancelled';
             $isTerminalReject = $isRejected || $isCancelled;
-            $hasAssignment = in_array($status, ['assigned', 'accepted', 'in_progress', 'on_hold', 'resolved', 'completed', 'closed'], true);
-            $hasResponse = in_array($status, ['accepted', 'in_progress', 'on_hold', 'resolved', 'completed', 'closed'], true);
-            $hasStarted = in_array($status, ['in_progress', 'on_hold', 'resolved', 'completed', 'closed'], true);
+            $hasAssignment = in_array($status, ['assigned', 'accepted', 'in_progress', 'resolved', 'completed', 'closed'], true);
+            $hasResponse = in_array($status, ['accepted', 'in_progress', 'resolved', 'completed', 'closed'], true);
+            $hasStarted = in_array($status, ['in_progress', 'resolved', 'completed', 'closed'], true);
             $approvalStatus = $status === 'rejected' ? 'rejected' : 'approved';
             $tech = $techIds[$techIdx % $techCount] ?? null;
             $deptId = $departmentIds[$deptCodes[$index % count($deptCodes)]] ?? null;
@@ -423,7 +423,6 @@ class DemoDataService
                     'assigned' => 'assigned',
                     'accepted' => 'accepted',
                     'in_progress' => 'in_progress',
-                    'on_hold' => 'paused',
                     default => 'completed',
                 };
                 $this->tickets->createSeedWorkOrder(
@@ -461,9 +460,6 @@ class DemoDataService
 
             if ($isDone && $resolvedAt !== null) {
                 $this->tickets->createSeedActivityLog($ticketId, $tech ?? $createdByUserId, 'ticket_resolved', 'in_progress', 'resolved', $resolvedAt);
-            } elseif ($status === 'on_hold' && $startedAt !== null) {
-                $pausedAt = date('Y-m-d H:i:s', (strtotime($startedAt) ?: $reqTs) + 5 * 60);
-                $this->tickets->createSeedActivityLog($ticketId, $tech ?? $createdByUserId, 'work_paused', 'in_progress', 'on_hold', $pausedAt);
             }
 
             if ($completedAt !== null) {

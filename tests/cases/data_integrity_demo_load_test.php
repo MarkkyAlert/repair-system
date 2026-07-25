@@ -23,9 +23,9 @@ test('demo-load(integrity): generated lifecycle, work order, SLA, approval, hist
 
         $timestampViolations = (int) $database->query(
             "SELECT COUNT(*) FROM tickets
-             WHERE (status IN ('assigned','accepted','in_progress','on_hold','resolved','completed','closed') AND assigned_at IS NULL)
-                OR (status IN ('accepted','in_progress','on_hold','resolved','completed','closed') AND first_response_at IS NULL)
-                OR (status IN ('in_progress','on_hold','resolved','completed','closed') AND started_at IS NULL)
+             WHERE (status IN ('assigned','accepted','in_progress','resolved','completed','closed') AND assigned_at IS NULL)
+                OR (status IN ('accepted','in_progress','resolved','completed','closed') AND first_response_at IS NULL)
+                OR (status IN ('in_progress','resolved','completed','closed') AND started_at IS NULL)
                 OR (status IN ('resolved','completed','closed') AND resolved_at IS NULL)
                 OR (status IN ('completed','closed') AND completed_at IS NULL)
                 OR (status = 'cancelled' AND cancelled_at IS NULL)
@@ -45,16 +45,15 @@ test('demo-load(integrity): generated lifecycle, work order, SLA, approval, hist
             "SELECT COUNT(*)
              FROM tickets t
              LEFT JOIN work_orders wo ON wo.ticket_id = t.id
-             WHERE (t.status IN ('assigned','accepted','in_progress','on_hold','resolved','completed','closed') AND wo.id IS NULL)
-                OR (t.status IN ('assigned','accepted','in_progress','on_hold','resolved','completed','closed')
+             WHERE (t.status IN ('assigned','accepted','in_progress','resolved','completed','closed') AND wo.id IS NULL)
+                OR (t.status IN ('assigned','accepted','in_progress','resolved','completed','closed')
                     AND (t.assigned_technician_id IS NULL OR wo.technician_id <> t.assigned_technician_id))
                 OR (t.status = 'assigned' AND wo.status <> 'assigned')
                 OR (t.status = 'accepted' AND wo.status <> 'accepted')
                 OR (t.status = 'in_progress' AND wo.status <> 'in_progress')
-                OR (t.status = 'on_hold' AND wo.status <> 'paused')
                 OR (t.status IN ('resolved','completed','closed') AND wo.status <> 'completed')
-                OR (wo.status IN ('accepted','in_progress','paused','completed') AND wo.accepted_at IS NULL)
-                OR (wo.status IN ('in_progress','paused','completed') AND wo.started_at IS NULL)
+                OR (wo.status IN ('accepted','in_progress','completed') AND wo.accepted_at IS NULL)
+                OR (wo.status IN ('in_progress','completed') AND wo.started_at IS NULL)
                 OR (wo.status = 'completed' AND wo.completed_at IS NULL)
                 OR (t.first_response_at IS NOT NULL AND wo.accepted_at IS NOT NULL AND t.first_response_at <> wo.accepted_at)
                 OR (t.started_at IS NOT NULL AND wo.started_at IS NOT NULL AND t.started_at <> wo.started_at)

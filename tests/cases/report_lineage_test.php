@@ -720,8 +720,8 @@ test('status contract: every status the reports filter on is a real tickets.stat
 
     // the two status sets the report engine filters on (ReportRepository)
     $reportFiltered = array_merge(
-        ticket_resolved_statuses(),                          // resolved / "ปิดงาน" filter
-        ['assigned', 'accepted', 'in_progress', 'on_hold']   // "open" filter (ReportRepository open_count)
+        ticket_resolved_statuses(),                    // resolved / "ปิดงาน" filter
+        ['assigned', 'accepted', 'in_progress']        // "open" filter (ReportRepository open_count)
     );
 
     foreach ($reportFiltered as $status) {

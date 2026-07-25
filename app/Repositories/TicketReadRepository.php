@@ -74,7 +74,7 @@ class TicketReadRepository
             "SELECT
                 COUNT(*) AS total_tickets,
                 COALESCE(SUM(CASE WHEN t.approval_status = 'pending' THEN 1 ELSE 0 END), 0) AS pending_approval_tickets,
-                COALESCE(SUM(CASE WHEN t.status IN ('assigned', 'accepted', 'in_progress', 'on_hold') THEN 1 ELSE 0 END), 0) AS active_work_tickets,
+                COALESCE(SUM(CASE WHEN t.status IN ('assigned', 'accepted', 'in_progress') THEN 1 ELSE 0 END), 0) AS active_work_tickets,
                 COALESCE(SUM(CASE
                     WHEN t.completed_at IS NOT NULL
                         AND YEAR(t.completed_at) = YEAR(CURDATE())

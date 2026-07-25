@@ -58,7 +58,6 @@ if (!function_exists('ticket_status_label_th')) {
             'assigned' => 'มอบหมายแล้ว',
             'accepted' => 'รับงานแล้ว',
             'in_progress' => 'กำลังดำเนินการ',
-            'on_hold' => 'พักงานชั่วคราว',
             'resolved' => 'รอตรวจรับ',
             'completed' => 'เสร็จสิ้น',
             'rejected' => 'ถูกปฏิเสธ',
@@ -76,7 +75,7 @@ if (!function_exists('ticket_status_tone')) {
     {
         return match ($status) {
             'resolved', 'completed' => 'success',
-            'pending_approval', 'on_hold' => 'warning',
+            'pending_approval' => 'warning',
             'rejected', 'cancelled' => 'danger',
             'approved', 'assigned', 'accepted', 'in_progress', 'submitted' => 'info',
             default => 'default',
@@ -111,7 +110,6 @@ if (!function_exists('ticket_status_values')) {
             'assigned',
             'accepted',
             'in_progress',
-            'on_hold',
             'resolved',
             'completed',
             'rejected',
@@ -254,14 +252,13 @@ if (!function_exists('severity_values')) {
 }
 
 if (!function_exists('work_order_status_label_th')) {
-    /** enum ของ work_orders.status: assigned/accepted/in_progress/paused/completed/cancelled */
+    /** enum ของ work_orders.status: assigned/accepted/in_progress/completed/cancelled */
     function work_order_status_label_th(string $status): string
     {
         static $map = [
             'assigned' => 'มอบหมายแล้ว',
             'accepted' => 'รับงานแล้ว',
             'in_progress' => 'กำลังดำเนินการ',
-            'paused' => 'พักงานชั่วคราว',
             'completed' => 'เสร็จสิ้น',
             'cancelled' => 'ยกเลิกแล้ว',
         ];
