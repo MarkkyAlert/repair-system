@@ -742,3 +742,34 @@ test('workflow (labor cap): resolveAssignedWork rejects over-1440 labor per entr
         wf_cleanup($id);
     }
 });
+
+// AUTHZ vertical-escalation lock (authz audit 2026-07-25): approve/assign are manager/admin-only, enforced ONLY at
+// the service layer via TicketPolicy::canManageWorkflow / canAssignTicket (no controller role backstop). Existing
+// tests cover state gates (wrong-state) and SoD (manager approving own), but not the pure ROLE denial — a requester
+// or technician acting on a VALID-state ticket they can see. Two-sided: the wrong role is denied (state untouched),
+// the right role still succeeds. Mutating canManageWorkflow to allow all roles reddens the requester deny cases.
+test('authz(vertical): requester/technician cannot approve or assign; manager/admin still can', function (): void {
+    // — approve: requester (owns + can see the ticket) and technician are denied by ROLE, not state —
+    $id = wf_insert_ticket(['status' => 'pending_approval', 'approval_status' => 'pending', 'requester_id' => 1]);
+    try {
+        wf_reject(fn () => wf_service()->approveTicket($id, ['id' => 1, 'role' => 'requester'], ['note' => 'x']), $id, 'requester approve (role-denied)');
+        wf_reject(fn () => wf_service()->approveTicket($id, ['id' => 3, 'role' => 'technician'], ['note' => 'x']), $id, 'technician approve');
+        // positive: a manager (ticket unowned, not self) can approve → the guard is not over-tight
+        wf_service()->approveTicket($id, ['id' => 2, 'role' => 'manager'], ['note' => 'ok']);
+        assert_same('approved', wf_state($id)['status'], 'a manager can still approve an unowned pending ticket');
+    } finally {
+        wf_cleanup($id);
+    }
+
+    // — assign: requester (owns + can see it) and technician are denied by ROLE —
+    $id2 = wf_insert_ticket(['status' => 'approved', 'approval_status' => 'approved', 'requester_id' => 1]);
+    try {
+        wf_reject(fn () => wf_service()->assignTechnician($id2, ['id' => 1, 'role' => 'requester'], ['technician_id' => 3, 'instructions' => 'go']), $id2, 'requester assign (role-denied)');
+        wf_reject(fn () => wf_service()->assignTechnician($id2, ['id' => 3, 'role' => 'technician'], ['technician_id' => 3, 'instructions' => 'go']), $id2, 'technician assign');
+        // positive: an admin can still assign → guard not over-tight
+        wf_service()->assignTechnician($id2, ['id' => 4, 'role' => 'admin'], ['technician_id' => 3, 'instructions' => 'go']);
+        assert_same('assigned', wf_state($id2)['status'], 'an admin can still assign a technician');
+    } finally {
+        wf_cleanup($id2);
+    }
+});
