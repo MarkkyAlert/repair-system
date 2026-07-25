@@ -248,8 +248,6 @@ class AuthController
         $fresh = $userId > 0 ? ($this->users->findById($userId) ?? []) : [];
 
         $passwordChangedAt = (string) ($fresh['password_changed_at'] ?? '');
-        $lastLoginAt = (string) ($fresh['last_login_at'] ?? '');
-        $createdAt = (string) ($fresh['created_at'] ?? '');
         $hasRememberToken = ((string) ($fresh['remember_token'] ?? '')) !== '';
 
         $passwordAgeDays = null;
@@ -264,15 +262,7 @@ class AuthController
             'title' => 'ข้อมูลบัญชี',
             'pageHeading' => 'ข้อมูลบัญชีของฉัน',
             'currentUser' => $viewer,
-            'profile' => [
-                'full_name' => (string) ($oldInput['full_name'] ?? ($viewer['full_name'] ?? '')),
-                'email' => (string) ($oldInput['email'] ?? ($viewer['email'] ?? '')),
-                'phone' => (string) ($oldInput['phone'] ?? ($viewer['phone'] ?? '')),
-                'username' => (string) ($viewer['username'] ?? ''),
-                'role' => (string) ($viewer['role'] ?? 'guest'),
-                'created_at' => $createdAt,
-                'last_login_at' => $lastLoginAt,
-            ],
+            'profile' => $this->buildProfileData($viewer, $fresh, $oldInput),
             'security' => [
                 'password_changed_at' => $passwordChangedAt,
                 'password_age_days' => $passwordAgeDays,
@@ -281,6 +271,31 @@ class AuthController
             'errorMessage' => flash_message('error'),
             'successMessage' => flash_message('success'),
         ]);
+    }
+
+    /**
+     * ประกอบ view-model ส่วน "โปรไฟล์". แยกออกมาให้เทสต์ตรวจได้ตรง ๆ ว่าฟอร์มพก version ปัจจุบันของ user ไปด้วย
+     * เพื่อ optimistic lock ของ updateProfile — เดิม array นี้ประกอบ inline แล้ว "ลืมใส่ version" ทำให้ hidden field
+     * ในฟอร์มตกไปเป็น 1 เสมอ พอเซฟครั้งแรกสำเร็จ (version→2) การเซฟครั้งถัดไปจะส่ง 1 ไม่ตรงกับแถว → เด้ง error
+     * "แก้ไขจากอุปกรณ์อื่น" ทั้งที่ไม่มีใครแตะ (แก้โปรไฟล์ตัวเองได้ครั้งเดียวตลอดกาล).
+     *
+     * @param array<string, mixed> $viewer   ผู้ใช้จาก session
+     * @param array<string, mixed> $fresh     แถว user ล่าสุดจาก DB (มี version/created_at/last_login_at)
+     * @param array<string, mixed> $oldInput  ค่าที่กรอกค้างไว้หลัง validation fail
+     * @return array<string, mixed>
+     */
+    protected function buildProfileData(array $viewer, array $fresh, array $oldInput): array
+    {
+        return [
+            'full_name' => (string) ($oldInput['full_name'] ?? ($viewer['full_name'] ?? '')),
+            'email' => (string) ($oldInput['email'] ?? ($viewer['email'] ?? '')),
+            'phone' => (string) ($oldInput['phone'] ?? ($viewer['phone'] ?? '')),
+            'username' => (string) ($viewer['username'] ?? ''),
+            'role' => (string) ($viewer['role'] ?? 'guest'),
+            'version' => (int) ($fresh['version'] ?? 1),
+            'created_at' => (string) ($fresh['created_at'] ?? ''),
+            'last_login_at' => (string) ($fresh['last_login_at'] ?? ''),
+        ];
     }
 
     /**
