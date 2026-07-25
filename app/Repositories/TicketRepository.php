@@ -867,7 +867,7 @@ class TicketRepository
     }
 
     /**
-     * ผู้แจ้งเปิดงานซ้ำหลังปิด (resolved → assigned) ล้างเวลา/สรุปของรอบก่อน แล้วตั้ง due ใหม่.
+     * ผู้แจ้งเปิดงานซ้ำหลังปิด (resolved → assigned หรือ approved เมื่อช่างเดิมไม่พร้อม) ล้างเวลา/สรุปของรอบก่อน แล้วตั้ง due ใหม่.
      * ผลข้างเคียง: ทำใน transaction เดียว — lock แถว ticket (FOR UPDATE) + re-check ใต้ lock (resolved,
      * approval_status approved, ผู้ทำเป็น requester) แล้ว UPDATE tickets + UPDATE work_orders (คง labor_minutes ไว้ as-reported) +
      * append แถว SLA cycle ใหม่ (ticket_sla_tracks response/resolution) + INSERT ticket_activity_logs.
@@ -899,6 +899,7 @@ class TicketRepository
             $techRow = $techStmt->fetch(PDO::FETCH_ASSOC) ?: [];
             $currentTechId = (int) ($techRow['assigned_technician_id'] ?? 0);
             $technicianActive = $currentTechId > 0 && (int) ($techRow['is_active'] ?? 0) === 1;
+            $targetStatus = $technicianActive ? 'assigned' : 'approved';
 
             $ticketStmt = $this->db->prepare(
                 'UPDATE tickets
@@ -917,7 +918,7 @@ class TicketRepository
                  WHERE id = :ticket_id'
             );
             $ticketStmt->execute([
-                'status' => $technicianActive ? 'assigned' : 'approved',
+                'status' => $targetStatus,
                 'assigned_technician_id' => $technicianActive ? $currentTechId : null,
                 'assigned_at' => $technicianActive ? $reopenedAt : null,
                 'response_due_at' => $responseDueAt,
@@ -932,7 +933,7 @@ class TicketRepository
             $workOrderStmt = $this->db->prepare(
                 'UPDATE work_orders
                  SET status = :status,
-                     assigned_at = :assigned_at,
+                     assigned_at = COALESCE(:assigned_at, assigned_at),
                      accepted_at = NULL,
                      started_at = NULL,
                      completed_at = NULL,
@@ -942,8 +943,8 @@ class TicketRepository
                  WHERE ticket_id = :ticket_id'
             );
             $workOrderStmt->execute([
-                'status' => 'assigned',
-                'assigned_at' => $reopenedAt,
+                'status' => $technicianActive ? 'assigned' : 'cancelled',
+                'assigned_at' => $technicianActive ? $reopenedAt : null,
                 'updated_at' => $reopenedAt,
                 'ticket_id' => $ticketId,
             ]);
@@ -964,7 +965,7 @@ class TicketRepository
             if ($resolutionDueAt !== null) {
                 $this->appendSlaCycle($ticketId, 'resolution', $resolutionDueAt, $nextCycle);
             }
-            $this->insertActivityLog($ticketId, $actorId, 'ticket_reopened', $currentStatus, 'assigned', $note);
+            $this->insertActivityLog($ticketId, $actorId, 'ticket_reopened', $currentStatus, $targetStatus, $note);
 
             $this->db->commit();
         } catch (Throwable $exception) {

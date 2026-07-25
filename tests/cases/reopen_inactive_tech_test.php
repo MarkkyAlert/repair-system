@@ -62,6 +62,9 @@ test('reopen(integrity): a resolved ticket whose technician was deactivated reop
     $id = rit_make_resolved($ghost);
 
     try {
+        $priorAssignedAt = (string) rit_pdo()->query(
+            "SELECT assigned_at FROM work_orders WHERE ticket_id = $id"
+        )->fetchColumn();
         rit_pdo()->prepare('UPDATE users SET is_active = 0 WHERE id = ?')->execute([$ghost]); // the technician leaves
         $wf->reopenTicket($id, $req, ['reopen_note' => 'ยังไม่หาย']);
 
@@ -75,6 +78,19 @@ test('reopen(integrity): a resolved ticket whose technician was deactivated reop
 
         // the departed tech's labor from the prior cycle is preserved (as-reported)
         assert_same(10, (int) rit_pdo()->query("SELECT labor_minutes FROM work_orders WHERE ticket_id = $id")->fetchColumn(), 'prior labor is preserved through the unassigning reopen');
+
+        $workOrder = rit_pdo()->query(
+            "SELECT status, assigned_at FROM work_orders WHERE ticket_id = $id"
+        )->fetch(PDO::FETCH_ASSOC);
+        assert_same('cancelled', (string) $workOrder['status'], 'the stale work order is closed while the ticket waits for reassignment');
+        assert_same($priorAssignedAt, (string) $workOrder['assigned_at'], 'historical assignment time is not rewritten as if the departed tech were assigned again');
+
+        $reopenLogStatus = (string) rit_pdo()->query(
+            "SELECT to_status FROM ticket_activity_logs
+             WHERE ticket_id = $id AND action = 'ticket_reopened'
+             ORDER BY id DESC LIMIT 1"
+        )->fetchColumn();
+        assert_same('approved', $reopenLogStatus, 'history records the same waiting-for-assignment status shown by the ticket');
 
         // positive path: a manager can reassign an ACTIVE technician and work resumes
         $wf->assignTechnician($id, ['id' => 4, 'role' => 'admin'], ['technician_id' => 3, 'instructions' => '']);
@@ -97,6 +113,20 @@ test('reopen(integrity): reopening with an ACTIVE technician keeps the same tech
         $row = rit_pdo()->query("SELECT status, assigned_technician_id FROM tickets WHERE id = $id")->fetch(PDO::FETCH_ASSOC);
         assert_same('assigned', (string) $row['status'], 'an active tech → reopen keeps it assigned');
         assert_same(3, (int) $row['assigned_technician_id'], 'the same active technician stays assigned');
+        assert_same(
+            'assigned',
+            (string) rit_pdo()->query("SELECT status FROM work_orders WHERE ticket_id = $id")->fetchColumn(),
+            'the active technician work order is reopened for work'
+        );
+        assert_same(
+            'assigned',
+            (string) rit_pdo()->query(
+                "SELECT to_status FROM ticket_activity_logs
+                 WHERE ticket_id = $id AND action = 'ticket_reopened'
+                 ORDER BY id DESC LIMIT 1"
+            )->fetchColumn(),
+            'history keeps the normal active-technician destination'
+        );
     } finally {
         rit_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
     }
