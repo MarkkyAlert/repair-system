@@ -85,6 +85,12 @@ class CommentService
         $comment = $this->requireEditableComment($ticketId, $commentId, $viewer, $ticket);
         $body = trim((string) ($input['body'] ?? ''));
         $isInternal = $this->parseInternalFlag($viewer, $input, (bool) ($comment['is_internal'] ?? false));
+        // โน้ตภายในเป็น "ภายในถาวร" — เปลี่ยนกลับเป็นสาธารณะไม่ได้ (การตัดสินใจของเจ้าของ). โน้ตที่เคยเป็น internal
+        // จะคงเป็น internal เสมอ แม้ POST จะส่ง is_internal=0 มา (ทั้งเผลอ uncheck และคำขอปลอม) — ล็อกที่ service
+        // เป็นด่านตัดสิน ส่วนฟอร์มก็ปิดปุ่มติ๊กให้ตรงกัน. ยัง upgrade สาธารณะ→ภายในได้ตามเดิม.
+        if ((bool) ($comment['is_internal'] ?? false)) {
+            $isInternal = true;
+        }
         $originalVersion = (int) ($input['original_version'] ?? 0);
 
         if ($body === '') {

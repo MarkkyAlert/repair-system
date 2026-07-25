@@ -512,3 +512,35 @@ test('comment (batch3 #1): an internal-note notification skips the requester eve
         cm_cleanup($ticketId);
     }
 });
+
+// bug-hunt R5-4 (owner decision: internal notes are permanent): an internal comment must NOT be downgradable to
+// public via edit. The edit form's checkbox previously worked one way only (unchecking it sent nothing, silently
+// ignored), and a crafted POST with is_internal=0 would have downgraded it. updateComment now forces an
+// already-internal note to stay internal; a public note can still be UPGRADED to internal.
+test('comment(R5-4): an internal note stays internal on edit even when is_internal=0 is submitted (permanent)', function (): void {
+    $ticketId = cm_seed_ticket();
+    try {
+        // a staff-authored INTERNAL note (owned by the manager, who is not the ticket requester)
+        cm_pdo()->prepare('INSERT INTO ticket_comments (ticket_id, user_id, body, is_internal, created_at, updated_at) VALUES (?, 2, "internal note", 1, NOW(), NOW())')->execute([$ticketId]);
+        $cId = (int) cm_pdo()->lastInsertId();
+        $ver = cm_version($cId);
+
+        // manager edits it and tries to un-mark internal (the downgrade a crafted POST / stale form could attempt)
+        $result = cm_service()->updateComment($ticketId, $cId, cm_manager(), [
+            'body' => 'still internal',
+            'is_internal' => '0',
+            'original_version' => $ver,
+        ]);
+
+        assert_same(1, (int) cm_pdo()->query("SELECT is_internal FROM ticket_comments WHERE id = $cId")->fetchColumn(), 'the internal note stays internal in the DB — downgrade to public is blocked');
+        assert_true((bool) $result['is_internal'], 'the returned view-model still reports internal');
+        assert_same('still internal', cm_body($cId), 'the body edit still applied');
+
+        // sanity: a PUBLIC note can still be UPGRADED to internal (only the downgrade direction is locked)
+        [$pubId, $pubVer] = cm_seed_comment($ticketId, 2, 'public note');
+        cm_service()->updateComment($ticketId, $pubId, cm_manager(), ['body' => 'now internal', 'is_internal' => '1', 'original_version' => $pubVer]);
+        assert_same(1, (int) cm_pdo()->query("SELECT is_internal FROM ticket_comments WHERE id = $pubId")->fetchColumn(), 'public → internal upgrade still works');
+    } finally {
+        cm_cleanup($ticketId);
+    }
+});

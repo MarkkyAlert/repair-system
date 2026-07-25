@@ -56,9 +56,10 @@ $canUseInternalComment = $canUseInternalComment ?? false;
                 </div>
                 <p class="field-error" data-comment-edit-error hidden></p>
                 <?php if ($canUseInternalComment): ?>
+                    <?php $internalLocked = !empty($comment['is_internal']); // โน้ตภายในเปลี่ยนกลับเป็นสาธารณะไม่ได้ — ปิดปุ่มติ๊กให้ตรงกับ service ?>
                     <label class="checkbox-row checkbox-row-sm">
-                        <input type="checkbox" name="is_internal" value="1"<?= $editInternalChecked ? ' checked' : '' ?>>
-                        <span>บันทึกภายใน</span>
+                        <input type="checkbox" name="is_internal" value="1"<?= $editInternalChecked ? ' checked' : '' ?><?= $internalLocked ? ' disabled' : '' ?>>
+                        <span>บันทึกภายใน<?= $internalLocked ? ' (ล็อกถาวร — เปลี่ยนกลับเป็นสาธารณะไม่ได้)' : '' ?></span>
                     </label>
                 <?php endif; ?>
                 <div class="button-row">
