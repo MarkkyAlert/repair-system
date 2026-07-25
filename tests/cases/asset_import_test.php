@@ -413,3 +413,26 @@ test('assetImport.parseUploadedFile B5: a formula-guarded cell in an app-exporte
         @unlink($file['tmp_name']);
     }
 });
+
+// bug-hunt R6-B1 (owner: keep archive, plug leaks): export dumps every asset with its real category/location/
+// department code (no is_active filter), but import resolved codes against the ACTIVE-only reference — so
+// re-importing an exported file rejected any row whose category/location/department had since been archived,
+// breaking the documented round-trip. Import now resolves codes against ALL masters (custodian stays active-only).
+test('import(R6-B1): a row referencing an ARCHIVED category code re-imports, not rejected (round-trip parity)', function (): void {
+    $ref = ai_ref(); // an active location for the required location_code
+    $catCode = 'ARCCAT' . strtoupper(bin2hex(random_bytes(3)));
+    ai_pdo()->prepare('INSERT INTO asset_categories (code, name, is_active, created_at, updated_at) VALUES (?, ?, 0, NOW(), NOW())')
+        ->execute([$catCode, 'Archived Cat ' . $catCode]);
+    $catId = (int) ai_pdo()->lastInsertId();
+
+    try {
+        $row = ai_raw($ref, ['category_code' => $catCode]); // active location + ARCHIVED category
+        $result = ai_service()->validateRows([$row]);
+
+        assert_same(1, count($result['valid']), 'the row using an archived category code is VALID, not rejected (round-trip parity)');
+        assert_same(0, count($result['invalid']), 'no rejection for an archived-but-exported category code');
+        assert_same($catId, (int) $result['valid'][0]['asset_category_id'], 'it resolves to the archived category id');
+    } finally {
+        ai_pdo()->prepare('DELETE FROM asset_categories WHERE id = ?')->execute([$catId]);
+    }
+});

@@ -38,7 +38,9 @@ class AssetImportService
 
     public function validateRows(array $rows): array
     {
-        $reference = $this->assets->getAssetFormReferenceData();
+        // resolve รหัสจาก master "ทั้งหมด" (รวม archived) — ไฟล์ที่ export มาต้องผูกกลับได้ครบ ไม่ reject เพราะหมวด/
+        // สถานที่/แผนกถูก archive ไปแล้ว (round-trip parity). ตัว dropdown ฟอร์มยังใช้ active-only ตามเดิม.
+        $reference = $this->assets->getImportCodeReference();
         $categoriesByCode = $this->indexByCode($reference['categories'] ?? []);
         $locationsByCode = $this->indexByCode($reference['locations'] ?? []);
         $departmentsByCode = $this->indexByCode($reference['departments'] ?? []);

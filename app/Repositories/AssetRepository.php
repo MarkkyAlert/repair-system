@@ -252,6 +252,22 @@ class AssetRepository
         }
     }
 
+    /**
+     * code→row ของ category/location/department "ทั้งหมด" (รวมที่ archive แล้ว) — สำหรับ import ที่ต้องผูกรหัสของไฟล์
+     * ที่ export ออกไปกลับให้ครบ. export ดึงทุกแถวไม่กรอง is_active ดังนั้นการ re-import ต้อง resolve รหัสของ master
+     * ที่ถูก archive ได้ ไม่ปฏิเสธแถว (custodian ยังคง active-only ที่ตัว import จงใจ กันมอบทรัพย์ให้บัญชีที่ปิดไปแล้ว).
+     *
+     * @return array{categories: list<array<string, mixed>>, locations: list<array<string, mixed>>, departments: list<array<string, mixed>>}
+     */
+    public function getImportCodeReference(): array
+    {
+        return [
+            'categories' => $this->db->query('SELECT id, code FROM asset_categories')->fetchAll(PDO::FETCH_ASSOC) ?: [],
+            'locations' => $this->db->query('SELECT id, code FROM locations')->fetchAll(PDO::FETCH_ASSOC) ?: [],
+            'departments' => $this->db->query('SELECT id, code FROM departments')->fetchAll(PDO::FETCH_ASSOC) ?: [],
+        ];
+    }
+
     private function translateAssetUniqueViolation(Throwable $exception): void
     {
         if (!is_duplicate_key_error($exception)) {
