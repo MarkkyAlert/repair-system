@@ -62,7 +62,8 @@ class AssetService
             return null;
         }
 
-        return $this->buildAssetFormData($viewer, $this->assets->getAssetFormReferenceData(), $oldInput, $asset);
+        // ส่ง $asset เข้าไปด้วย เพื่อให้ reference คงค่า "ปัจจุบัน" ที่อาจถูก archive แล้วไว้ในฟอร์ม (ไม่หายเงียบ ๆ)
+        return $this->buildAssetFormData($viewer, $this->assets->getAssetFormReferenceData($asset), $oldInput, $asset);
     }
 
     public function getAssetDetailData(int $assetId, array $viewer): ?array
@@ -97,7 +98,8 @@ class AssetService
     {
         $this->assertManageable($viewer);
 
-        if ($this->assets->findAssetById($assetId) === null) {
+        $asset = $this->assets->findAssetById($assetId);
+        if ($asset === null) {
             throw new DomainException('ไม่พบ asset ที่ต้องการแก้ไข');
         }
 
@@ -106,7 +108,9 @@ class AssetService
             throw new DomainException('ข้อมูล Asset ไม่ครบถ้วน กรุณารีเฟรชหน้าแล้วลองอีกครั้ง');
         }
 
-        $payload = $this->validateAssetInput($input);
+        // ส่ง asset ปัจจุบันเข้าไป — reference ในการ validate จะรวมค่าที่ archive แล้วของ asset นี้ด้วย ให้เก็บค่าเดิม
+        // ที่ผูกอยู่ไว้ได้ (ไม่โดนปฏิเสธ/ไม่ถูก null ทิ้ง) ตอนแก้ field อื่น
+        $payload = $this->validateAssetInput($input, $asset);
         $payload['original_version'] = $originalVersion;
 
         $this->assets->updateAsset($assetId, $payload);
@@ -381,11 +385,11 @@ class AssetService
             'canManage' => $this->canManageAssets($viewer),
             'categories' => array_map(fn (array $category): array => [
                 'id' => (int) ($category['id'] ?? 0),
-                'label' => (string) ($category['name'] ?? '') . ' (' . (string) ($category['code'] ?? '') . ')',
+                'label' => (string) ($category['name'] ?? '') . ' (' . (string) ($category['code'] ?? '') . ')' . $this->inactiveSuffix($category),
             ], $reference['categories'] ?? []),
             'departments' => array_map(fn (array $department): array => [
                 'id' => (int) ($department['id'] ?? 0),
-                'label' => (string) ($department['name'] ?? '') . ' (' . (string) ($department['code'] ?? '') . ')',
+                'label' => (string) ($department['name'] ?? '') . ' (' . (string) ($department['code'] ?? '') . ')' . $this->inactiveSuffix($department),
             ], $reference['departments'] ?? []),
             'locations' => array_map(fn (array $location): array => [
                 'id' => (int) ($location['id'] ?? 0),
@@ -393,11 +397,11 @@ class AssetService
                     (string) ($location['name'] ?? ''),
                     (string) ($location['building'] ?? ''),
                     (string) ($location['room'] ?? ''),
-                ]),
+                ]) . $this->inactiveSuffix($location),
             ], $reference['locations'] ?? []),
             'custodians' => array_map(fn (array $custodian): array => [
                 'id' => (int) ($custodian['id'] ?? 0),
-                'label' => (string) ($custodian['full_name'] ?? '') . ' · ' . role_label_th((string) ($custodian['role'] ?? 'user')),
+                'label' => (string) ($custodian['full_name'] ?? '') . ' · ' . role_label_th((string) ($custodian['role'] ?? 'user')) . $this->inactiveSuffix($custodian),
             ], $reference['custodians'] ?? []),
             'statusOptions' => array_map(static fn (string $status): array => [
                 'value' => $status,
@@ -423,9 +427,10 @@ class AssetService
         ];
     }
 
-    private function validateAssetInput(array $input): array
+    private function validateAssetInput(array $input, ?array $currentAsset = null): array
     {
-        $reference = $this->assets->getAssetFormReferenceData();
+        // ตอนแก้ไข ส่ง asset ปัจจุบันเข้ามาด้วย → reference จะรวมค่าที่ archive แล้วของ asset นี้ ทำให้ค่าเดิมผ่าน validation
+        $reference = $this->assets->getAssetFormReferenceData($currentAsset);
 
         $assetCode = strtoupper(trim((string) ($input['asset_code'] ?? '')));
         $name = trim((string) ($input['name'] ?? ''));
@@ -712,6 +717,12 @@ class AssetService
         }
 
         return thai_datetime($timestamp, false);
+    }
+
+    /** ป้ายต่อท้าย label ของ reference ที่ถูก archive แล้ว (โผล่เฉพาะค่าปัจจุบันของ asset ที่กำลังแก้). */
+    private function inactiveSuffix(array $ref): string
+    {
+        return array_key_exists('is_active', $ref) && !$ref['is_active'] ? ' — ปิดใช้งาน' : '';
     }
 
     private function buildLabel(array $parts): string

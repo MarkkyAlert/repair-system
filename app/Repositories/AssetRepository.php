@@ -179,35 +179,45 @@ class AssetRepository
         ];
     }
 
-    public function getAssetFormReferenceData(): array
+    public function getAssetFormReferenceData(?array $asset = null): array
     {
         $categories = $this->db->query(
-            'SELECT id, code, name
+            'SELECT id, code, name, is_active
              FROM asset_categories
              WHERE is_active = 1
              ORDER BY sort_order ASC, id ASC'
         )->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
         $departments = $this->db->query(
-            'SELECT id, code, name
+            'SELECT id, code, name, is_active
              FROM departments
              WHERE is_active = 1
              ORDER BY name ASC, id ASC'
         )->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
         $locations = $this->db->query(
-            'SELECT id, code, name, building, floor, room
+            'SELECT id, code, name, building, floor, room, is_active
              FROM locations
              WHERE is_active = 1
              ORDER BY name ASC, id ASC'
         )->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
         $custodians = $this->db->query(
-            "SELECT id, full_name, role
+            "SELECT id, full_name, role, is_active
              FROM users
              WHERE is_active = 1
              ORDER BY full_name ASC, id ASC"
         )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        // แก้ฟอร์มของ asset ที่หมวด/สถานที่/แผนก/ผู้ครอบครอง "ปัจจุบัน" ถูก archive (is_active=0) ไปแล้ว: ต่อค่าปัจจุบัน
+        // ที่ปิดใช้งานเข้ามาใน list ด้วย เพื่อ 1) dropdown แสดงค่าเดิม (ติดป้าย inactive) ไม่ใช่ช่องว่าง 2) เซฟแล้วค่าไม่หาย
+        // เงียบ ๆ (validation ยอมรับค่าปัจจุบัน). ฟอร์มสร้างใหม่ (asset = null) ยังเห็นเฉพาะตัว active.
+        if ($asset !== null) {
+            $this->appendCurrentInactiveRef($categories, 'asset_categories', 'id, code, name, is_active', (int) ($asset['asset_category_id'] ?? 0));
+            $this->appendCurrentInactiveRef($departments, 'departments', 'id, code, name, is_active', (int) ($asset['department_id'] ?? 0));
+            $this->appendCurrentInactiveRef($locations, 'locations', 'id, code, name, building, floor, room, is_active', (int) ($asset['location_id'] ?? 0));
+            $this->appendCurrentInactiveRef($custodians, 'users', 'id, full_name, role, is_active', (int) ($asset['custodian_user_id'] ?? 0));
+        }
 
         return [
             'categories' => $categories,
@@ -215,6 +225,31 @@ class AssetRepository
             'locations' => $locations,
             'custodians' => $custodians,
         ];
+    }
+
+    /**
+     * ถ้า id ปัจจุบันของ asset ไม่อยู่ใน list (เพราะถูก archive) ให้ดึงแถวนั้นมาต่อท้าย (ไม่สนใจ is_active) เพื่อคงค่าเดิม
+     * ในฟอร์มแก้ไข — reference ที่ผูกอยู่แล้วต้องไม่หาย. แถวที่ต่อเข้ามาพก is_active=0 ให้ view ติดป้าย "(ปิดใช้งาน)".
+     * $table/$columns เป็น literal ที่ควบคุมเองในคลาสนี้ ไม่ใช่ input ผู้ใช้.
+     *
+     * @param array<int, array<mixed>> $list
+     */
+    private function appendCurrentInactiveRef(array &$list, string $table, string $columns, int $currentId): void
+    {
+        if ($currentId <= 0) {
+            return;
+        }
+        foreach ($list as $row) {
+            if ((int) ($row['id'] ?? 0) === $currentId) {
+                return; // ยัง active — มีใน list อยู่แล้ว
+            }
+        }
+        $stmt = $this->db->prepare("SELECT $columns FROM $table WHERE id = :id LIMIT 1");
+        $stmt->execute(['id' => $currentId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (is_array($row)) {
+            $list[] = $row;
+        }
     }
 
     private function translateAssetUniqueViolation(Throwable $exception): void
