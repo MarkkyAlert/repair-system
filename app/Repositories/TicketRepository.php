@@ -1487,10 +1487,19 @@ class TicketRepository
         return (int) $stmt->fetchColumn();
     }
 
-    /** cycle ปัจจุบันของ lifecycle ของ ticket = cycle SLA สูงสุดข้าม metric ทั้งหมด (>=1). */
+    /**
+     * cycle ปัจจุบันของ lifecycle = 1 + จำนวนครั้งที่เปิดงานซ้ำ.
+     * ห้ามอาศัย MAX(ticket_sla_tracks.cycle): เมื่อปิด SLA ทั้ง response และ resolution จะไม่มีแถว SLA เลย
+     * แต่ lifecycle ยังเปิดซ้ำได้ และ rating/report ต้องอยู่รอบจริงเหมือนเดิม.
+     */
     private function currentTicketCycle(int $ticketId): int
     {
-        $stmt = $this->db->prepare('SELECT COALESCE(MAX(cycle), 1) FROM ticket_sla_tracks WHERE ticket_id = :ticket_id');
+        $stmt = $this->db->prepare(
+            "SELECT 1 + COUNT(*)
+             FROM ticket_activity_logs
+             WHERE ticket_id = :ticket_id
+               AND action = 'ticket_reopened'"
+        );
         $stmt->execute(['ticket_id' => $ticketId]);
 
         return max(1, (int) $stmt->fetchColumn());
