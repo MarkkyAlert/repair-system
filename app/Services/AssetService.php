@@ -277,7 +277,12 @@ class AssetService
         return array_map(static fn (mixed $value): string => sanitize_export_cell($value), $values);
     }
 
-    public function getScanData(string $token): ?array
+    /**
+     * ข้อมูล asset จากการสแกน QR. $showSerial ควบคุมว่าจะ "ส่ง serial ออกมาไหม" — หน้า scan สาธารณะ (guest) ไม่เห็น
+     * หมายเลขเครื่องโดยดีฟอลต์ (ผู้สแกนยืนยันตัวทรัพย์จากชื่อ+สถานที่ก็พอ) ; เจ้าหน้าที่ที่ล็อกอิน หรือแอดมินเปิด
+     * setting scan_show_serial_to_guest ถึงจะเห็น. blank serial ทิ้งตั้งแต่ชั้น data เพื่อไม่ให้หลุดใน response ของ guest.
+     */
+    public function getScanData(string $token, bool $showSerial = false): ?array
     {
         $token = trim($token);
         if ($token === '') {
@@ -300,7 +305,7 @@ class AssetService
                 'id' => (int) ($asset['id'] ?? 0),
                 'asset_code' => (string) ($asset['asset_code'] ?? ''),
                 'name' => (string) ($asset['name'] ?? ''),
-                'serial_number' => (string) ($asset['serial_number'] ?? '-'),
+                'serial_number' => $showSerial ? (string) ($asset['serial_number'] ?? '-') : '',
                 'category_name' => (string) ($asset['category_name'] ?? '-'),
                 'location_label' => $this->buildLabel([
                     (string) ($asset['location_name'] ?? ''),

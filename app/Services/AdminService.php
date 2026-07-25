@@ -333,6 +333,7 @@ class AdminService
             'ticket_prefix' => $values['ticket_prefix'] ?? 'MT',
             'business_start' => (string) ($businessHours['start'] ?? '08:30'),
             'business_end' => (string) ($businessHours['end'] ?? '17:30'),
+            'scan_show_serial_to_guest' => truthy_input($values['scan_show_serial_to_guest'] ?? '0'),
             'timezoneOptions' => $this->timezoneOptions($values['default_timezone'] ?? (string) config('app.timezone', 'Asia/Bangkok')),
         ];
     }

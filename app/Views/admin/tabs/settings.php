@@ -55,6 +55,13 @@
                     </div>
                 </div>
                 <p class="field-hint">เวลาทำการใช้สำหรับอ้างอิง/แสดงผล — ปัจจุบันการนับ SLA (เวลาตอบกลับ/แก้ไข) นับต่อเนื่องแบบ 24 ชั่วโมง ไม่หักเวลานอกเวลาทำการ</p>
+                <div class="field-group">
+                    <label class="checkbox-row">
+                        <input type="checkbox" name="scan_show_serial_to_guest" value="1"<?= !empty($systemForm['scan_show_serial_to_guest']) ? ' checked' : '' ?>>
+                        <span>แสดงหมายเลขเครื่อง (Serial) บนหน้าสแกน QR สำหรับผู้ที่ยังไม่ล็อกอิน</span>
+                    </label>
+                    <p class="field-hint">ค่าเริ่มต้น: ปิด — ผู้ที่สแกน QR โดยไม่ล็อกอินจะเห็นแค่ชื่อทรัพย์สินและสถานที่ (พอยืนยันว่าถูกตัว) ไม่เห็น Serial</p>
+                </div>
                 <div class="button-row">
                     <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'บันทึกการตั้งค่าระบบ', 'variant' => 'primary', 'icon' => 'check-circle']) ?>
                 </div>

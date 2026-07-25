@@ -26,7 +26,9 @@ class ScanController
      */
     public function show(string $token): void
     {
-        $data = $this->assets->getScanData($token);
+        // serial ของทรัพย์สินโชว์ให้เจ้าหน้าที่ที่ล็อกอินเสมอ; guest เห็นเฉพาะเมื่อแอดมินเปิด setting (ดีฟอลต์ซ่อน)
+        $showSerial = auth()->check() || (bool) setting('scan_show_serial_to_guest', false);
+        $data = $this->assets->getScanData($token, $showSerial);
         if ($data === null) {
             Response::abort(404, 'ไม่พบ QR token หรือ Asset ที่เกี่ยวข้อง');
         }
@@ -42,6 +44,7 @@ class ScanController
             'loginPath' => $data['login_path'],
             'guestReportPath' => '/scan/' . rawurlencode($token) . '/report',
             'isAuthenticated' => auth()->check(),
+            'showSerial' => $showSerial,
         ], $layout);
     }
 

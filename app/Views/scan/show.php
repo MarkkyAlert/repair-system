@@ -18,7 +18,10 @@
             </div>
             <div class="stack-md">
                 <p class="body-text"><strong>หมวดหมู่:</strong> <?= e($asset['category_name']) ?></p>
-                <p class="body-text"><strong>หมายเลขเครื่อง / Serial:</strong> <?= e($asset['serial_number']) ?></p>
+                <?php if (!empty($showSerial)): ?>
+                    <?php // หมายเลขเครื่อง (serial) ซ่อนจากหน้า scan สาธารณะโดยดีฟอลต์ — guest ยืนยันตัวทรัพย์จากชื่อ+สถานที่ ?>
+                    <p class="body-text"><strong>หมายเลขเครื่อง / Serial:</strong> <?= e($asset['serial_number']) ?></p>
+                <?php endif; ?>
                 <p class="body-text"><strong>สถานที่:</strong> <?= e($asset['location_label']) ?></p>
                 <p class="body-text"><strong>สแกนล่าสุด:</strong> <?= e($asset['last_scanned_at']) ?></p>
                 <?php if (!empty($isAuthenticated)): ?>

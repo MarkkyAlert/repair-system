@@ -110,6 +110,8 @@ class SystemSettingsService
         $ticketPrefix = strtoupper(trim((string) ($input['ticket_prefix'] ?? '')));
         $businessStart = trim((string) ($input['business_start'] ?? ''));
         $businessEnd = trim((string) ($input['business_end'] ?? ''));
+        // guest ที่สแกน QR เห็นหมายเลขเครื่อง (serial) ไหม — ดีฟอลต์ซ่อน (checkbox ไม่ติ๊ก = ไม่ส่งคีย์ = '0')
+        $showScanSerialToGuest = truthy_input($input['scan_show_serial_to_guest'] ?? '0');
         $updatedBy = (int) ($viewer['id'] ?? 0);
 
         if ($appName === '') {
@@ -152,6 +154,7 @@ class SystemSettingsService
                 'start' => $businessStart,
                 'end' => $businessEnd,
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 'json', false, $updatedBy);
+            $this->settings->upsert('scan_show_serial_to_guest', $showScanSerialToGuest ? '1' : '0', 'bool', false, $updatedBy);
             $this->db->commit();
         } catch (Throwable $exception) {
             if ($this->db->inTransaction()) {
