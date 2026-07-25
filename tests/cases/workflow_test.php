@@ -773,3 +773,33 @@ test('authz(vertical): requester/technician cannot approve or assign; manager/ad
         wf_cleanup($id2);
     }
 });
+
+// state-machine transition-matrix lock (state audit 2026-07-25): completed / cancelled / rejected are ABSORBING
+// terminals — no state-changing action may move a ticket out of them (a requester "reopens" only from resolved;
+// everything else is a hard stop). Firing the matrix confirmed it; this locks the whole terminal row so a future
+// guard that forgets to exclude a terminal state (e.g. canRequesterReopenTicket accepting 'completed') is caught.
+// Each action must throw AND leave status/approval_status/assigned_technician_id untouched (wf_reject).
+test('workflow(terminal): completed / cancelled / rejected reject every state-changing action (absorbing)', function (): void {
+    $terminals = [
+        ['status' => 'completed', 'approval_status' => 'approved'],
+        ['status' => 'cancelled', 'approval_status' => 'approved'],
+        ['status' => 'rejected', 'approval_status' => 'rejected'],
+    ];
+    foreach ($terminals as $shape) {
+        $id = wf_insert_ticket($shape + ['requester_id' => 1, 'assigned_technician_id' => 3]);
+        $s = $shape['status'];
+        try {
+            wf_reject(fn () => wf_service()->approveTicket($id, ['id' => 4, 'role' => 'admin'], ['note' => '']), $id, "$s approve");
+            wf_reject(fn () => wf_service()->rejectTicket($id, ['id' => 4, 'role' => 'admin'], ['note' => 'x']), $id, "$s reject");
+            wf_reject(fn () => wf_service()->assignTechnician($id, ['id' => 4, 'role' => 'admin'], ['technician_id' => 3, 'instructions' => 'x']), $id, "$s assign");
+            wf_reject(fn () => wf_service()->acceptAssignedWork($id, ['id' => 3, 'role' => 'technician'], ['accept_note' => '']), $id, "$s accept");
+            wf_reject(fn () => wf_service()->startAssignedWork($id, ['id' => 3, 'role' => 'technician'], ['start_note' => '']), $id, "$s start");
+            wf_reject(fn () => wf_service()->resolveAssignedWork($id, ['id' => 3, 'role' => 'technician'], ['diagnosis_summary' => 'd', 'resolution_summary' => 'r', 'labor_minutes' => '5']), $id, "$s resolve");
+            wf_reject(fn () => wf_service()->completeResolvedTicket($id, ['id' => 1, 'role' => 'requester'], ['score' => 5, 'closure_note' => '', 'feedback' => '']), $id, "$s complete");
+            wf_reject(fn () => wf_service()->reopenTicket($id, ['id' => 1, 'role' => 'requester'], ['reopen_note' => 'x']), $id, "$s reopen");
+            wf_reject(fn () => wf_service()->cancelTicket($id, ['id' => 1, 'role' => 'requester'], ['cancel_note' => 'x']), $id, "$s cancel");
+        } finally {
+            wf_cleanup($id);
+        }
+    }
+});
