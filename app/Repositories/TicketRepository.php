@@ -866,9 +866,23 @@ class TicketRepository
             $this->db->beginTransaction();
             $this->lockTicketForTransition($ticketId, ['resolved'], 'approved', 'requester_id', $actorId);
 
+            // ถ้าช่างที่เคยรับงานถูกปิดบัญชี (ลาออก) ไปแล้ว การเปิดซ้ำต้องไม่เด้งงานกลับไปผูกกับช่างที่ล็อกอินไม่ได้
+            // (งานค้างกับผี) → ส่งกลับสถานะ 'approved' (รอมอบหมาย) ปลดช่างออก ให้หัวหน้าจัดช่างใหม่ (assignTechnician
+            // รับเฉพาะช่าง active). ถ้าช่างเดิมยัง active ก็เด้งกลับหาคนเดิมตามเดิม (resolved → assigned).
+            $techStmt = $this->db->prepare(
+                'SELECT t.assigned_technician_id, u.is_active
+                 FROM tickets t LEFT JOIN users u ON u.id = t.assigned_technician_id
+                 WHERE t.id = :ticket_id'
+            );
+            $techStmt->execute(['ticket_id' => $ticketId]);
+            $techRow = $techStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+            $currentTechId = (int) ($techRow['assigned_technician_id'] ?? 0);
+            $technicianActive = $currentTechId > 0 && (int) ($techRow['is_active'] ?? 0) === 1;
+
             $ticketStmt = $this->db->prepare(
                 'UPDATE tickets
                  SET status = :status,
+                     assigned_technician_id = :assigned_technician_id,
                      assigned_at = :assigned_at,
                      first_response_at = NULL,
                      started_at = NULL,
@@ -882,8 +896,9 @@ class TicketRepository
                  WHERE id = :ticket_id'
             );
             $ticketStmt->execute([
-                'status' => 'assigned',
-                'assigned_at' => $reopenedAt,
+                'status' => $technicianActive ? 'assigned' : 'approved',
+                'assigned_technician_id' => $technicianActive ? $currentTechId : null,
+                'assigned_at' => $technicianActive ? $reopenedAt : null,
                 'response_due_at' => $responseDueAt,
                 'resolution_due_at' => $resolutionDueAt,
                 'updated_at' => $reopenedAt,
