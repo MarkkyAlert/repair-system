@@ -483,7 +483,11 @@ class NotificationService
      */
     private function dispatchNotification(array $payload, array $recipientIds): bool
     {
-        if ($recipientIds === []) {
+        // ไม่มีผู้รับ in-app และไม่มี idempotency token → ไม่มีอะไรต้องทำ. แต่ถ้ามี submission_token (broadcast)
+        // ต้องเขียนแถว notification เพื่อ "จอง" token ไว้เสมอ แม้ผู้รับ in-app จะว่าง (ทุกคนปิด in-app แต่เปิด email) —
+        // ไม่งั้น token ไม่ถูก commit แล้วการลองใหม่จะส่งอีเมลซ้ำทั้งกลุ่ม (ฝั่งอีเมลไม่มี UNIQUE กันซ้ำ).
+        // createNotification เขียนแถว notification (พร้อม token) ก่อน แล้วค่อย insert ผู้รับ; ผู้รับว่างก็ยังจอง token ได้.
+        if ($recipientIds === [] && ($payload['submission_token'] ?? '') === '') {
             return true;
         }
 

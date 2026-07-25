@@ -388,3 +388,37 @@ test('notify(pref atomicity): a failing cell rolls back the whole preference mat
         nt_cleanup([], [$userId]);
     }
 });
+
+// bug-hunt R6-B2: a system-announcement broadcast is idempotent via a submission_token stored on the notifications
+// row (UNIQUE). But dispatchNotification early-returned on an empty recipient set WITHOUT writing that row — so a
+// broadcast whose in-app recipients were all opted out (in-app off, email on) queued emails yet never persisted the
+// token. A retry then saw no token and re-sent duplicate emails to the whole group. dispatchNotification now still
+// claims the token (writes the notifications row) when a submission_token is present, even with zero recipients.
+test('notify(R6-B2): a broadcast with zero in-app recipients still claims its submission_token (no duplicate on retry)', function (): void {
+    $svc = nt_service();
+    $repo = tvm_container()->get(NotificationRepository::class);
+    $token = bin2hex(random_bytes(16));
+
+    $dispatch = new ReflectionMethod(NotificationService::class, 'dispatchNotification');
+    $dispatch->setAccessible(true);
+
+    try {
+        assert_false($repo->broadcastTokenExists($token), 'precondition: token not yet used');
+
+        // the "everyone opted out of in-app" branch: dispatch with a token but an EMPTY recipient set
+        $ok = (bool) $dispatch->invoke($svc, [
+            'type' => 'system.announcement',
+            'title' => 't',
+            'message' => 'm',
+            'payload' => null,
+            'related_type' => 'system',
+            'related_id' => null,
+            'submission_token' => $token,
+        ], []);
+
+        assert_true($ok, 'dispatch reports success');
+        assert_true($repo->broadcastTokenExists($token), 'the submission_token is persisted even with zero recipients — a retry sees it and will NOT re-send emails');
+    } finally {
+        nt_pdo()->prepare('DELETE FROM notifications WHERE submission_token = ?')->execute([$token]);
+    }
+});
