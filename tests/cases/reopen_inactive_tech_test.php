@@ -1,7 +1,9 @@
 <?php
 declare(strict_types=1);
 
+use App\Core\Request;
 use App\Repositories\TicketReadRepository;
+use App\Services\AdminService;
 use App\Services\TicketService;
 use App\Services\TicketWorkflowService;
 
@@ -129,5 +131,57 @@ test('reopen(integrity): reopening with an ACTIVE technician keeps the same tech
         );
     } finally {
         rit_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
+    }
+});
+
+test('reopen(integrity): a resolved ticket whose active technician was DEMOTED reopens to the shared queue', function (): void {
+    $wf = tvm_container()->get(TicketWorkflowService::class);
+    $req = ['id' => 1, 'role' => 'requester'];
+    $formerTech = rit_seed_tech();
+    $id = rit_make_resolved($formerTech);
+
+    try {
+        $user = rit_pdo()->query(
+            "SELECT full_name, email, version FROM users WHERE id = $formerTech"
+        )->fetch(PDO::FETCH_ASSOC);
+        tvm_container()->instance(Request::class, Request::capture());
+        tvm_container()->get(AdminService::class)->updateUser(
+            $formerTech,
+            ['id' => 4, 'role' => 'admin'],
+            [
+                'full_name' => (string) $user['full_name'],
+                'email' => (string) $user['email'],
+                'role' => 'requester',
+                'is_active' => '1',
+                'original_version' => (int) $user['version'],
+            ]
+        );
+
+        $demoted = rit_pdo()->query(
+            "SELECT role, is_active FROM users WHERE id = $formerTech"
+        )->fetch(PDO::FETCH_ASSOC);
+        assert_same('requester', (string) $demoted['role'], 'precondition: the former technician was demoted through the real admin service');
+        assert_same(1, (int) $demoted['is_active'], 'precondition: the demoted account remains active');
+
+        $wf->reopenTicket($id, $req, ['reopen_note' => 'ยังไม่หาย']);
+
+        $ticket = rit_pdo()->query(
+            "SELECT status, assigned_technician_id FROM tickets WHERE id = $id"
+        )->fetch(PDO::FETCH_ASSOC);
+        assert_same('approved', (string) $ticket['status'], 'reopened work returns to the shared manager queue');
+        assert_true($ticket['assigned_technician_id'] === null, 'a non-technician is never assigned live technician work');
+
+        $violations = (int) rit_pdo()->query(
+            "SELECT COUNT(*)
+             FROM tickets t
+             JOIN users u ON u.id = t.assigned_technician_id
+             WHERE t.id = $id
+               AND t.status NOT IN ('completed', 'rejected', 'cancelled', 'closed')
+               AND (u.role <> 'technician' OR u.is_active <> 1)"
+        )->fetchColumn();
+        assert_same(0, $violations, 'invariant holds: active tickets only bind active users whose role is technician');
+    } finally {
+        rit_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
+        rit_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$formerTech]);
     }
 });
