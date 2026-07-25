@@ -56,14 +56,56 @@ function wf_cleanup(int $ticketId): void
     $pdo->prepare('DELETE FROM tickets WHERE id=?')->execute([$ticketId]);   // children cascade
 }
 
+/** @return array<string, mixed> */
+function wf_transition_snapshot(int $ticketId): array
+{
+    $pdo = wf_pdo();
+
+    return [
+        'ticket' => $pdo->query(
+            "SELECT * FROM tickets WHERE id = $ticketId"
+        )->fetch(PDO::FETCH_ASSOC),
+        'approval' => $pdo->query(
+            "SELECT * FROM ticket_approvals WHERE ticket_id = $ticketId ORDER BY id"
+        )->fetchAll(PDO::FETCH_ASSOC),
+        'work_order' => $pdo->query(
+            "SELECT * FROM work_orders WHERE ticket_id = $ticketId ORDER BY id"
+        )->fetchAll(PDO::FETCH_ASSOC),
+        'sla' => $pdo->query(
+            "SELECT * FROM ticket_sla_tracks WHERE ticket_id = $ticketId ORDER BY id"
+        )->fetchAll(PDO::FETCH_ASSOC),
+        'ratings' => $pdo->query(
+            "SELECT * FROM ticket_ratings WHERE ticket_id = $ticketId ORDER BY id"
+        )->fetchAll(PDO::FETCH_ASSOC),
+        'activity' => $pdo->query(
+            "SELECT * FROM ticket_activity_logs WHERE ticket_id = $ticketId ORDER BY id"
+        )->fetchAll(PDO::FETCH_ASSOC),
+        'notifications' => $pdo->query(
+            "SELECT * FROM notifications
+             WHERE related_type = 'ticket' AND related_id = $ticketId
+             ORDER BY id"
+        )->fetchAll(PDO::FETCH_ASSOC),
+        'notification_recipients' => $pdo->query(
+            "SELECT nr.*
+             FROM notification_recipients nr
+             JOIN notifications n ON n.id = nr.notification_id
+             WHERE n.related_type = 'ticket' AND n.related_id = $ticketId
+             ORDER BY nr.id"
+        )->fetchAll(PDO::FETCH_ASSOC),
+        'email_queue_watermark' => $pdo->query(
+            'SELECT COUNT(*) AS row_count, COALESCE(MAX(id), 0) AS max_id FROM email_queue'
+        )->fetch(PDO::FETCH_ASSOC),
+    ];
+}
+
 /**
- * Assert a guard rejects an action: it must throw DomainException AND leave the ticket's
- * status/approval_status/assigned_technician_id untouched — proving the guard fires before any
- * (even partial) DB mutation. Captures the row before, runs the action, then re-reads and compares.
+ * Assert a guard rejects an action: it must throw DomainException and leave the ticket plus every
+ * workflow side effect unchanged (timestamps, approval/work order, SLA, rating, activity,
+ * notification recipients, and email queue).
  */
 function wf_reject(callable $action, int $ticketId, string $context): void
 {
-    $before = wf_state($ticketId);
+    $before = wf_transition_snapshot($ticketId);
     $threw = false;
     try {
         $action();
@@ -71,7 +113,99 @@ function wf_reject(callable $action, int $ticketId, string $context): void
         $threw = true;
     }
     assert_true($threw, "$context — must throw DomainException");
-    assert_same($before, wf_state($ticketId), "$context — DB state must be unchanged after rejection");
+    assert_same($before, wf_transition_snapshot($ticketId), "$context — no state or side effect may survive rejection");
+}
+
+/** Create a normal lifecycle state through the real public services whenever such a path exists. */
+function wf_drive_to_status(string $targetStatus): int
+{
+    if ($targetStatus === 'submitted') {
+        // Synthetic: schema default exists, but the public create flow writes pending_approval atomically.
+        return wf_insert_ticket(['status' => 'submitted', 'approval_status' => 'pending']);
+    }
+    if ($targetStatus === 'closed') {
+        // Synthetic: imports/demo may contain closed history, but there is no public close transition.
+        return wf_insert_ticket([
+            'status' => 'closed',
+            'approval_status' => 'approved',
+            'assigned_technician_id' => 3,
+            'closed_at' => date('Y-m-d H:i:s'),
+        ]);
+    }
+
+    $tickets = tvm_container()->get(App\Services\TicketService::class);
+    $reads = tvm_container()->get(App\Repositories\TicketReadRepository::class);
+    $ref = $reads->getCreateFormReferenceData();
+    $id = $tickets->createTicket(
+        ['id' => 1, 'role' => 'requester'],
+        [
+            'submission_token' => bin2hex(random_bytes(32)),
+            'title' => 'workflow matrix ' . $targetStatus,
+            'description' => 'matrix',
+            'priority_id' => (int) $ref['priorities'][0]['id'],
+            'ticket_category_id' => (int) $ref['categories'][0]['id'],
+            'location_id' => (int) $ref['locations'][0]['id'],
+            'impact_level' => 'medium',
+            'urgency_level' => 'medium',
+        ],
+        []
+    );
+    if ($targetStatus === 'pending_approval') {
+        return $id;
+    }
+
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $tech = ['id' => 3, 'role' => 'technician'];
+    $requester = ['id' => 1, 'role' => 'requester'];
+
+    if ($targetStatus === 'rejected') {
+        wf_service()->rejectTicket($id, $admin, ['note' => 'matrix reject']);
+        return $id;
+    }
+    if ($targetStatus === 'cancelled') {
+        wf_service()->cancelTicket($id, $requester, ['cancel_note' => 'matrix cancel']);
+        return $id;
+    }
+
+    wf_service()->approveTicket($id, $admin, ['note' => '']);
+    if ($targetStatus === 'approved') {
+        return $id;
+    }
+
+    wf_service()->assignTechnician($id, $admin, ['technician_id' => 3, 'instructions' => '']);
+    if ($targetStatus === 'assigned') {
+        return $id;
+    }
+
+    wf_service()->acceptAssignedWork($id, $tech, ['accept_note' => '']);
+    if ($targetStatus === 'accepted') {
+        return $id;
+    }
+
+    wf_service()->startAssignedWork($id, $tech, ['start_note' => '']);
+    if ($targetStatus === 'in_progress') {
+        return $id;
+    }
+
+    wf_service()->resolveAssignedWork(
+        $id,
+        $tech,
+        ['diagnosis_summary' => 'matrix d', 'resolution_summary' => 'matrix r', 'labor_minutes' => 5]
+    );
+    if ($targetStatus === 'resolved') {
+        return $id;
+    }
+
+    wf_service()->completeResolvedTicket(
+        $id,
+        $requester,
+        ['score' => 5, 'closure_note' => '', 'feedback' => '']
+    );
+    if ($targetStatus === 'completed') {
+        return $id;
+    }
+
+    throw new LogicException("Unsupported workflow matrix status: $targetStatus");
 }
 
 test('workflow: approveTicket pending_approval → approved + activity log', function (): void {
@@ -911,16 +1045,17 @@ test('authz(vertical): requester/technician cannot approve or assign; manager/ad
     }
 });
 
-// state-machine transition-matrix lock (state audit 2026-07-25): completed / cancelled / rejected are ABSORBING
+// state-machine transition-matrix lock (state audit 2026-07-25): completed / cancelled / rejected / closed are ABSORBING
 // terminals — no state-changing action may move a ticket out of them (a requester "reopens" only from resolved;
 // everything else is a hard stop). Firing the matrix confirmed it; this locks the whole terminal row so a future
 // guard that forgets to exclude a terminal state (e.g. canRequesterReopenTicket accepting 'completed') is caught.
-// Each action must throw AND leave status/approval_status/assigned_technician_id untouched (wf_reject).
-test('workflow(terminal): completed / cancelled / rejected reject every state-changing action (absorbing)', function (): void {
+// Each action must throw AND leave the full ticket/work-order/SLA/rating/activity/notification snapshot untouched.
+test('workflow(terminal): completed / cancelled / rejected / closed reject every state-changing action (absorbing)', function (): void {
     $terminals = [
         ['status' => 'completed', 'approval_status' => 'approved'],
         ['status' => 'cancelled', 'approval_status' => 'approved'],
         ['status' => 'rejected', 'approval_status' => 'rejected'],
+        ['status' => 'closed', 'approval_status' => 'approved'],
     ];
     foreach ($terminals as $shape) {
         $id = wf_insert_ticket($shape + ['requester_id' => 1, 'assigned_technician_id' => 3]);
@@ -935,6 +1070,275 @@ test('workflow(terminal): completed / cancelled / rejected reject every state-ch
             wf_reject(fn () => wf_service()->completeResolvedTicket($id, ['id' => 1, 'role' => 'requester'], ['score' => 5, 'closure_note' => '', 'feedback' => '']), $id, "$s complete");
             wf_reject(fn () => wf_service()->reopenTicket($id, ['id' => 1, 'role' => 'requester'], ['reopen_note' => 'x']), $id, "$s reopen");
             wf_reject(fn () => wf_service()->cancelTicket($id, ['id' => 1, 'role' => 'requester'], ['cancel_note' => 'x']), $id, "$s cancel");
+        } finally {
+            wf_cleanup($id);
+        }
+    }
+});
+
+test('workflow(matrix): all 84 expected-deny status × state-action cells reject with zero side effects', function (): void {
+    $suffix = bin2hex(random_bytes(4));
+    wf_pdo()->prepare(
+        "INSERT INTO users (username, email, password_hash, full_name, role, is_active)
+         VALUES (?, ?, 'x', ?, 'technician', 1)"
+    )->execute(["wf_matrix_$suffix", "wf_matrix_$suffix@example.com", "WF Matrix Tech $suffix"]);
+    $otherTechId = (int) wf_pdo()->lastInsertId();
+
+    $states = [
+        'submitted' => 'pending',
+        'pending_approval' => 'pending',
+        'approved' => 'approved',
+        'assigned' => 'approved',
+        'accepted' => 'approved',
+        'in_progress' => 'approved',
+        'resolved' => 'approved',
+        'completed' => 'approved',
+        'rejected' => 'rejected',
+        'cancelled' => 'approved',
+        'closed' => 'approved',
+    ];
+    $allowed = [
+        'submitted' => [],
+        'pending_approval' => ['approve', 'reject', 'cancel'],
+        'approved' => ['assign', 'cancel'],
+        'assigned' => ['assign', 'accept', 'start'],
+        'accepted' => ['assign', 'start', 'resolve'],
+        'in_progress' => ['assign', 'resolve'],
+        'resolved' => ['complete', 'reopen'],
+        'completed' => [],
+        'rejected' => [],
+        'cancelled' => [],
+        'closed' => [],
+    ];
+    $checked = 0;
+
+    try {
+        foreach ($states as $status => $approvalStatus) {
+            // Synthetic isolation fixture: ownership/role are made valid so STATUS is the rejecting gate.
+            // Allowed cells are tested separately below through reachable public workflows.
+            $id = wf_insert_ticket([
+                'status' => $status,
+                'approval_status' => $approvalStatus,
+                'requester_id' => 1,
+                'assigned_technician_id' => 3,
+            ]);
+
+            try {
+                $actions = [
+                    'approve' => fn () => wf_service()->approveTicket($id, ['id' => 4, 'role' => 'admin'], ['note' => '']),
+                    'reject' => fn () => wf_service()->rejectTicket($id, ['id' => 4, 'role' => 'admin'], ['note' => 'matrix']),
+                    'assign' => fn () => wf_service()->assignTechnician($id, ['id' => 4, 'role' => 'admin'], ['technician_id' => $otherTechId, 'instructions' => 'matrix']),
+                    'accept' => fn () => wf_service()->acceptAssignedWork($id, ['id' => 3, 'role' => 'technician'], ['accept_note' => '']),
+                    'start' => fn () => wf_service()->startAssignedWork($id, ['id' => 3, 'role' => 'technician'], ['start_note' => '']),
+                    'resolve' => fn () => wf_service()->resolveAssignedWork($id, ['id' => 3, 'role' => 'technician'], ['diagnosis_summary' => 'd', 'resolution_summary' => 'r', 'labor_minutes' => 5]),
+                    'complete' => fn () => wf_service()->completeResolvedTicket($id, ['id' => 1, 'role' => 'requester'], ['score' => 5, 'closure_note' => '', 'feedback' => '']),
+                    'reopen' => fn () => wf_service()->reopenTicket($id, ['id' => 1, 'role' => 'requester'], ['reopen_note' => 'matrix']),
+                    'cancel' => fn () => wf_service()->cancelTicket($id, ['id' => 1, 'role' => 'requester'], ['cancel_note' => 'matrix']),
+                ];
+
+                foreach ($actions as $action => $call) {
+                    if (in_array($action, $allowed[$status], true)) {
+                        continue;
+                    }
+                    wf_reject($call, $id, "$status × $action");
+                    $checked++;
+                }
+            } finally {
+                wf_cleanup($id);
+            }
+        }
+    } finally {
+        wf_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$otherTechId]);
+    }
+
+    assert_same(84, $checked, 'the full 11-status × 9-action matrix contains 84 expected-deny cells');
+});
+
+test('workflow(matrix): all 15 expected-allow state transitions succeed through reachable workflows with aligned side effects', function (): void {
+    $suffix = bin2hex(random_bytes(4));
+    wf_pdo()->prepare(
+        "INSERT INTO users (username, email, password_hash, full_name, role, is_active)
+         VALUES (?, ?, 'x', ?, 'technician', 1)"
+    )->execute(["wf_allow_$suffix", "wf_allow_$suffix@example.com", "WF Allow Tech $suffix"]);
+    $otherTechId = (int) wf_pdo()->lastInsertId();
+
+    $cases = [
+        ['pending_approval', 'approve', 'approved'],
+        ['pending_approval', 'reject', 'rejected'],
+        ['pending_approval', 'cancel', 'cancelled'],
+        ['approved', 'assign', 'assigned'],
+        ['approved', 'cancel', 'cancelled'],
+        ['assigned', 'assign', 'assigned'],
+        ['assigned', 'accept', 'accepted'],
+        ['assigned', 'start', 'in_progress'],
+        ['accepted', 'assign', 'assigned'],
+        ['accepted', 'start', 'in_progress'],
+        ['accepted', 'resolve', 'resolved'],
+        ['in_progress', 'assign', 'assigned'],
+        ['in_progress', 'resolve', 'resolved'],
+        ['resolved', 'complete', 'completed'],
+        ['resolved', 'reopen', 'assigned'],
+    ];
+    $activityActions = [
+        'approve' => 'ticket_approved',
+        'reject' => 'ticket_rejected',
+        'assign' => 'technician_assigned',
+        'accept' => 'work_accepted',
+        'start' => 'work_started',
+        'resolve' => 'ticket_resolved',
+        'complete' => 'ticket_completed',
+        'reopen' => 'ticket_reopened',
+        'cancel' => 'ticket_cancelled',
+    ];
+    $notificationTypes = [
+        'approve' => 'ticket.approved',
+        'reject' => 'ticket.rejected',
+        'assign' => 'ticket.assigned',
+        'accept' => 'ticket.accepted',
+        'start' => 'ticket.started',
+        'resolve' => 'ticket.resolved',
+        'complete' => 'ticket.completed',
+        'reopen' => 'ticket.reopened',
+        'cancel' => 'ticket.cancelled',
+    ];
+
+    try {
+        foreach ($cases as [$from, $action, $expectedStatus]) {
+            $id = wf_drive_to_status($from);
+            try {
+                $activityAction = $activityActions[$action];
+                $notificationType = $notificationTypes[$action];
+                $activityBefore = (int) wf_pdo()->query(
+                    "SELECT COUNT(*) FROM ticket_activity_logs
+                     WHERE ticket_id = $id AND action = " . wf_pdo()->quote($activityAction)
+                )->fetchColumn();
+                $notificationBefore = (int) wf_pdo()->query(
+                    "SELECT COUNT(*) FROM notifications
+                     WHERE related_type = 'ticket' AND related_id = $id
+                       AND type = " . wf_pdo()->quote($notificationType)
+                )->fetchColumn();
+
+                $targetTechId = $from === 'approved' ? 3 : $otherTechId;
+                match ($action) {
+                    'approve' => wf_service()->approveTicket($id, ['id' => 4, 'role' => 'admin'], ['note' => '']),
+                    'reject' => wf_service()->rejectTicket($id, ['id' => 4, 'role' => 'admin'], ['note' => 'matrix']),
+                    'assign' => wf_service()->assignTechnician($id, ['id' => 4, 'role' => 'admin'], ['technician_id' => $targetTechId, 'instructions' => 'matrix reassignment']),
+                    'accept' => wf_service()->acceptAssignedWork($id, ['id' => 3, 'role' => 'technician'], ['accept_note' => '']),
+                    'start' => wf_service()->startAssignedWork($id, ['id' => 3, 'role' => 'technician'], ['start_note' => '']),
+                    'resolve' => wf_service()->resolveAssignedWork($id, ['id' => 3, 'role' => 'technician'], ['diagnosis_summary' => 'd', 'resolution_summary' => 'r', 'labor_minutes' => 5]),
+                    'complete' => wf_service()->completeResolvedTicket($id, ['id' => 1, 'role' => 'requester'], ['score' => 5, 'closure_note' => '', 'feedback' => '']),
+                    'reopen' => wf_service()->reopenTicket($id, ['id' => 1, 'role' => 'requester'], ['reopen_note' => 'matrix']),
+                    'cancel' => wf_service()->cancelTicket($id, ['id' => 1, 'role' => 'requester'], ['cancel_note' => 'matrix']),
+                };
+
+                $ticket = wf_pdo()->query(
+                    "SELECT status, approval_status, assigned_technician_id, approved_at, assigned_at,
+                            first_response_at, started_at, resolved_at, completed_at, cancelled_at
+                     FROM tickets WHERE id = $id"
+                )->fetch(PDO::FETCH_ASSOC);
+                assert_same($expectedStatus, (string) $ticket['status'], "$from × $action reaches $expectedStatus");
+
+                $expectedApproval = $expectedStatus === 'rejected'
+                    ? 'rejected'
+                    : ($action === 'cancel' && $from === 'pending_approval' ? 'not_required' : 'approved');
+                assert_same($expectedApproval, (string) $ticket['approval_status'], "$from × $action keeps the approval dimension aligned");
+
+                if ($expectedStatus === 'approved') {
+                    assert_true($ticket['approved_at'] !== null, "$from × $action writes approved_at");
+                }
+                if ($expectedStatus === 'assigned') {
+                    $expectedTechId = $action === 'reopen' ? 3 : $targetTechId;
+                    assert_same($expectedTechId, (int) $ticket['assigned_technician_id'], "$from × $action binds the intended technician");
+                    assert_true($ticket['assigned_at'] !== null, "$from × $action writes assigned_at");
+                    assert_true($ticket['first_response_at'] === null && $ticket['started_at'] === null, "$from × $action starts a clean technician cycle");
+                }
+                if ($expectedStatus === 'accepted') {
+                    assert_true($ticket['first_response_at'] !== null, "$from × $action writes first_response_at");
+                }
+                if ($expectedStatus === 'in_progress') {
+                    assert_true($ticket['first_response_at'] !== null && $ticket['started_at'] !== null, "$from × $action writes response/start timestamps");
+                }
+                if ($expectedStatus === 'resolved') {
+                    assert_true($ticket['first_response_at'] !== null && $ticket['started_at'] !== null && $ticket['resolved_at'] !== null, "$from × $action writes all resolution timestamps");
+                }
+                if ($expectedStatus === 'completed') {
+                    assert_true($ticket['completed_at'] !== null, "$from × $action writes completed_at");
+                    assert_same(1, (int) wf_pdo()->query(
+                        "SELECT COUNT(*) FROM ticket_ratings WHERE ticket_id = $id"
+                    )->fetchColumn(), "$from × $action writes one rating for the cycle");
+                }
+                if ($expectedStatus === 'cancelled') {
+                    assert_true($ticket['cancelled_at'] !== null, "$from × $action writes cancelled_at");
+                }
+
+                assert_same($activityBefore + 1, (int) wf_pdo()->query(
+                    "SELECT COUNT(*) FROM ticket_activity_logs
+                     WHERE ticket_id = $id AND action = " . wf_pdo()->quote($activityAction)
+                )->fetchColumn(), "$from × $action writes exactly one activity");
+                assert_same($notificationBefore + 1, (int) wf_pdo()->query(
+                    "SELECT COUNT(*) FROM notifications
+                     WHERE related_type = 'ticket' AND related_id = $id
+                       AND type = " . wf_pdo()->quote($notificationType)
+                )->fetchColumn(), "$from × $action creates exactly one notification");
+            } finally {
+                wf_cleanup($id);
+            }
+        }
+    } finally {
+        wf_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$otherTechId]);
+    }
+
+    assert_count(15, $cases, 'all expected-allow cells were exercised');
+});
+
+test('workflow(matrix): duplicate-form policy matches all 11 statuses and never mutates the source ticket', function (): void {
+    $allowed = ['completed', 'rejected', 'cancelled', 'closed'];
+    $statuses = ['submitted', 'pending_approval', 'approved', 'assigned', 'accepted', 'in_progress', 'resolved', 'completed', 'rejected', 'cancelled', 'closed'];
+    $tickets = tvm_container()->get(App\Services\TicketService::class);
+
+    foreach ($statuses as $status) {
+        $id = wf_drive_to_status($status);
+        try {
+            $before = wf_transition_snapshot($id);
+            $error = null;
+            $form = null;
+            try {
+                $form = $tickets->getDuplicateFormData($id, ['id' => 1, 'role' => 'requester']);
+            } catch (DomainException $exception) {
+                $error = $exception;
+            }
+
+            if (in_array($status, $allowed, true)) {
+                assert_true($error === null, "$status allows opening the duplicate form");
+                assert_same($id, (int) ($form['prefill']['source_ticket_id'] ?? 0), "$status prefill points to the source ticket");
+            } else {
+                assert_true($error instanceof DomainException, "$status rejects opening the duplicate form");
+            }
+            assert_same($before, wf_transition_snapshot($id), "$status duplicate-form check is read-only");
+        } finally {
+            wf_cleanup($id);
+        }
+    }
+});
+
+test('workflow(matrix): bulk approve is partial-per-item and matches all 11 source statuses', function (): void {
+    $statuses = ['submitted', 'pending_approval', 'approved', 'assigned', 'accepted', 'in_progress', 'resolved', 'completed', 'rejected', 'cancelled', 'closed'];
+
+    foreach ($statuses as $status) {
+        $id = wf_drive_to_status($status);
+        try {
+            $before = wf_transition_snapshot($id);
+            $result = wf_service()->bulkApproveTickets([$id], ['id' => 4, 'role' => 'admin'], 'matrix bulk');
+
+            if ($status === 'pending_approval') {
+                assert_same(1, (int) $result['approved'], 'pending_approval is approved by bulk action');
+                assert_count(0, $result['failed'], 'eligible bulk item has no failure');
+                assert_same('approved', (string) wf_state($id)['status'], 'eligible bulk item reaches approved');
+            } else {
+                assert_same(0, (int) $result['approved'], "$status is not bulk-approved");
+                assert_count(1, $result['failed'], "$status is reported as a per-item failure");
+                assert_same($before, wf_transition_snapshot($id), "$status failed bulk item has zero side effects");
+            }
         } finally {
             wf_cleanup($id);
         }
