@@ -41,14 +41,15 @@ class ReportRepository
     }
 
     /**
-     * ticket ที่ "นับรวมใน SLA" การ cancel แค่พลิก status (sla_tracks ยังคงอยู่ครบ) และหน้ารายละเอียด
-     * ของแต่ละ ticket ถือว่า ticket ที่ cancel แล้วเป็น "ไม่คิด SLA" อยู่แล้ว — ดังนั้นทุกจุดที่รวมยอด SLA ต้อง
-     * ตัดมันออกด้วย ไม่งั้น report จะขัดกับรายละเอียด ticket (Round-8 F1; rejected ยังคงคิด SLA ตาม
-     * product decision)
+     * ticket ที่ "นับรวมใน SLA" — ต้องเป็นงานที่ระบบสั่งให้ทำจริงเท่านั้น
+     * cancel กับ reject แค่พลิก status ส่วน sla_tracks ยังค้างอยู่ครบ (pending) ถ้าไม่ตัดออก พอเลย target
+     * ทุกใบจะกลายเป็น "เกิน SLA" ถาวรทั้งที่ไม่เคยมีใครลงมือทำ — และขัดกับ cron ที่ข้ามงานสถานะจบไปแล้ว
+     * (ไม่เคยเตือนสักครั้ง) รวมทั้งขัดกับหน้ารายละเอียด ticket ที่ถือว่าไม่คิด SLA อยู่แล้ว
+     * เจ้าของระบบยืนยัน 2026-07-26: ไม่นับทั้ง cancelled และ rejected (กลับด้าน product decision เดิมที่เคยนับ rejected)
      */
     private function slaApplicableCondition(): string
     {
-        return "t.status <> 'cancelled'";
+        return "t.status NOT IN ('cancelled', 'rejected')";
     }
 
     /**
@@ -222,6 +223,8 @@ class ReportRepository
         // requested_at ที่เป็นอนาคต (clock skew / import ผิด) ไม่ใช่ความเสียหายจริง — ตัดออกให้ตรงกับรายงานเต็ม
         // (getAssetReliabilityReport) ไม่งั้นแผงสรุปบน /reports จะนับ failure สูงกว่าหน้ารายงานเต็มของ asset เดียวกัน
         $conditions[] = 't.requested_at <= NOW()';
+        // เหตุผลเดียวกับรายงานเต็ม: ยกเลิก/ปฏิเสธ = ไม่ใช่ความเสียหาย ต้องตัดออกทั้งสองที่ให้ตรงกัน
+        $conditions[] = $this->slaApplicableCondition();
         $whereClause = implode(' AND ', $conditions);
         $limit = max(1, min($limit, 200));
 
@@ -270,6 +273,9 @@ class ReportRepository
         // requested_at ที่เป็นอนาคต (clock skew / import ผิด) ไม่ใช่ความเสียหายจริง — ตัดออกเพื่อให้
         // failure_count / first_failure / last_failure / MTBF / downtime ยังคงถูกต้อง
         $conditions[] = 't.requested_at <= NOW()';
+        // งานที่ถูกยกเลิก/ปฏิเสธ ก็ไม่ใช่ความเสียหายจริงเช่นกัน (ไม่มีใครลงมือซ่อม) ถ้านับรวมจะดัน
+        // failure_count ขึ้นและย่น MTBF จนทรัพย์สินดี ๆ ถูกจัดเข้ากลุ่ม "ควรเปลี่ยน" (เจ้าของยืนยัน 2026-07-26)
+        $conditions[] = $this->slaApplicableCondition();
         $whereClause = implode(' AND ', $conditions);
         $limit = max(1, min($limit, self::MAX_ROWS));
 
