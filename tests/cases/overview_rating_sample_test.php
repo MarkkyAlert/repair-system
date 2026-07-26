@@ -91,3 +91,76 @@ test('overview rating: with no reviews the card stays "-" and claims no sample',
         $pdo->prepare('DELETE FROM departments WHERE id = ?')->execute([$deptId]);
     }
 });
+
+// AN-02 verify follow-up (2026-07-26): the KPI card and the PDF summary block were fixed, but the technician
+// mini-table on the overview — and its twin inside the overview PDF — still printed a bare "5.0". Those two
+// tables are where a manager actually compares PEOPLE, so a score from one review sitting next to a score from
+// a hundred is the most damaging place to omit the base. The earlier test only covered the card and the summary
+// block, so it stayed green while two outputs were still wrong: this one renders the real view and the real PDF
+// and reads the technician row itself.
+test('overview rating: the technician mini-table shows the review count on the page AND in the PDF', function (): void {
+    $svc = tvm_container()->get(ReportService::class);
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $pdo = ors_pdo();
+    $sfx = bin2hex(random_bytes(4));
+
+    $pdo->prepare('INSERT INTO departments (code, name, is_active, created_at, updated_at) VALUES (?, ?, 1, NOW(), NOW())')
+        ->execute(["ORST-$sfx", "OrsTechDept-$sfx"]);
+    $deptId = (int) $pdo->lastInsertId();
+    $locationId = (int) $pdo->query('SELECT id FROM locations LIMIT 1')->fetchColumn();
+    $catId = (int) $pdo->query('SELECT id FROM ticket_categories LIMIT 1')->fetchColumn();
+    $priId = (int) $pdo->query('SELECT id FROM priorities LIMIT 1')->fetchColumn();
+    $filters = ['department_id' => $deptId];
+
+    // a throwaway technician so the row is unambiguous
+    $pdo->prepare('INSERT INTO users (username, email, password_hash, full_name, role, is_active, created_at, updated_at)
+                   VALUES (?, ?, "x", ?, "technician", 1, NOW(), NOW())')
+        ->execute(["orstech_$sfx", "orstech_$sfx@x.test", "OrsTech $sfx"]);
+    $techId = (int) $pdo->lastInsertId();
+
+    try {
+        $requested = date('Y-m-d H:i:s', strtotime('-3 days'));
+        $resolved = date('Y-m-d H:i:s', strtotime('-2 days'));
+        $pdo->prepare(
+            'INSERT INTO tickets (ticket_no, title, description, requester_id, requester_department_id, location_id,
+                ticket_category_id, priority_id, assigned_technician_id, status, approval_status, requested_at,
+                resolved_at, completed_at, created_at, updated_at)
+             VALUES (?, ?, "x", 1, ?, ?, ?, ?, ?, "completed", "approved", ?, ?, ?, NOW(), NOW())'
+        )->execute(["ORST-$sfx", 'tech rating', $deptId, $locationId, $catId, $priId, $techId, $requested, $resolved, $resolved]);
+        $ticketId = (int) $pdo->lastInsertId();
+        // the resolver credit the technician report reads comes from the activity log
+        $pdo->prepare("INSERT INTO ticket_activity_logs (ticket_id, actor_id, action, from_status, to_status, created_at)
+                       VALUES (?, ?, 'ticket_resolved', 'in_progress', 'resolved', ?)")->execute([$ticketId, $techId, $resolved]);
+        $pdo->prepare('INSERT INTO ticket_ratings (ticket_id, requester_id, technician_id, cycle, score, feedback, created_at, updated_at)
+                       VALUES (?, 1, ?, 1, 5, "ดีมาก", ?, ?)')->execute([$ticketId, $techId, $resolved, $resolved]);
+
+        $page = $svc->getReportPageData($admin, $filters);
+        $row = null;
+        foreach (($page['technicianPerformance'] ?? []) as $tech) {
+            if ((string) ($tech['full_name'] ?? '') === "OrsTech $sfx") {
+                $row = $tech;
+            }
+        }
+        assert_true($row !== null, 'the technician appears in the overview mini-table');
+        assert_same('5.0', (string) $row['avg_rating_label'], 'the score itself');
+        assert_same(1, (int) $row['rating_count'], 'built from a single review');
+
+        // (1) the rendered overview page must print the base next to that score
+        $html = \App\Core\View::capture('reports/index', $page);
+        assert_contains_str(
+            '5.0</span> <small',
+            $html,
+            'the mini-table prints the review count beside the score, not a bare 5.0'
+        );
+        assert_contains_str('(1)</small>', $html, 'and the count is the actual sample size');
+
+        // (2) the overview PDF carries the same disclosure in its technician table
+        $pdf = (string) ($svc->exportPdf($admin, $filters)['content'] ?? '');
+        $text = (new Parser())->parseContent($pdf)->getText();
+        assert_contains_str('5.0 (1)', $text, 'the printed technician table shows the score with its review count');
+    } finally {
+        $pdo->prepare('DELETE FROM tickets WHERE ticket_no = ?')->execute(["ORST-$sfx"]);
+        $pdo->prepare('DELETE FROM users WHERE id = ?')->execute([$techId]);
+        $pdo->prepare('DELETE FROM departments WHERE id = ?')->execute([$deptId]);
+    }
+});

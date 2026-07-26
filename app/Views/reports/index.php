@@ -248,7 +248,9 @@ $isCapped = !empty($rowsMeta['capped']);
                             <td><?= e((string) $tech['resolved']) ?></td>
                             <td><?= e((string) $tech['open_now']) ?></td>
                             <td><?= e($tech['mttr_hours_label']) ?></td>
-                            <td><span class="badge badge-<?= e($tech['avg_rating_tone']) ?>"><?= e($tech['avg_rating_label']) ?></span></td>
+                            <?php // คะแนนต้องพกจำนวนรีวิวเสมอ — ตารางนี้คือที่ที่หัวหน้าเอาช่างมาเทียบกัน
+                                  // "5.0 จากรีวิวเดียว" ห้ามดูเท่า "5.0 จาก 100 รีวิว" (รูปแบบวงเล็บตรงกับหน้าเต็มและคู่มือ) ?>
+                            <td><span class="badge badge-<?= e($tech['avg_rating_tone']) ?>"><?= e($tech['avg_rating_label']) ?></span><?php if ((int) ($tech['rating_count'] ?? 0) > 0): ?> <small title="จำนวนรีวิวที่เป็นฐานของคะแนนนี้">(<?= e((string) $tech['rating_count']) ?>)</small><?php endif; ?></td>
                         </tr>
                     <?php endforeach; ?>
                     </tbody>

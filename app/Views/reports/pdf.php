@@ -138,7 +138,8 @@
                 <td class="num"><?= e((string) ($t['resolved'] ?? 0)) ?></td>
                 <td class="num"><?= e((string) ($t['open_now'] ?? 0)) ?></td>
                 <td class="num"><?= e((string) ($t['mttr_hours_label'] ?? '-')) ?></td>
-                <td class="num"><?= e((string) ($t['avg_rating_label'] ?? '-')) ?></td>
+                <?php // เหมือนหน้าจอ: คะแนนพกจำนวนรีวิวไปด้วย ไฟล์ที่ส่งต่อให้ผู้บริหารต้องบอก sample size เท่ากัน ?>
+                <td class="num"><?= e((string) ($t['avg_rating_label'] ?? '-')) ?><?= (int) ($t['rating_count'] ?? 0) > 0 ? e(' (' . $t['rating_count'] . ')') : '' ?></td>
             </tr>
         <?php endforeach; ?>
         </tbody>
