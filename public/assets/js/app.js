@@ -604,7 +604,8 @@ document.addEventListener('DOMContentLoaded', () => {
             dataset.fill = !hasDatasets;
             dataset.tension = 0.35;
             dataset.pointRadius = 3;
-            dataset.spanGaps = true;
+            // null = งวดที่ไม่มีข้อมูล ไม่ใช่ศูนย์: เว้นเส้นไว้เพื่อไม่สร้างค่าระหว่างทางที่ไม่มีจริง
+            dataset.spanGaps = false;
           } else if (chartType === 'doughnut') {
             dataset.backgroundColor = chartData.labels.map((_, i) => palette[i % palette.length]);
             dataset.borderColor = chartColors.doughnutBorder;
