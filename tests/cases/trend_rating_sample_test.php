@@ -121,3 +121,19 @@ test('trend rating: a period with no reviews claims no sample rather than a fake
         $pdo->prepare('DELETE FROM departments WHERE id = ?')->execute([$deptId]);
     }
 });
+
+// The chart tooltip lives in JavaScript, so no PHP test can prove Chart.js actually paints it — that was verified
+// in the browser (the CSAT tooltip renders afterBody "จาก 1 รีวิว" on the rated point, and "" on an empty bucket).
+// What this DOES lock is the wiring between the two halves: the backend ships sample_counts and the frontend
+// consumes it. If either side is deleted the contract breaks silently, and the payload assertions above would
+// still pass. Deliberately a source check, and named as one — it is not evidence of rendering.
+test('trend rating(wiring): the chart script consumes the sample_counts the backend ships', function (): void {
+    $js = (string) file_get_contents(BASE_PATH . '/public/assets/js/app.js');
+
+    assert_contains_str('sample_counts', $js, 'the chart script reads the per-bucket review counts');
+    assert_contains_str('รีวิว', $js, 'and renders them in words next to the score');
+    assert_true(
+        str_contains($js, 'afterLabel') || str_contains($js, 'afterBody'),
+        'the counts are attached to the tooltip, not merely parsed and dropped'
+    );
+});

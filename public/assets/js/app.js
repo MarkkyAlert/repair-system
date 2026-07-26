@@ -637,6 +637,16 @@ document.addEventListener('DOMContentLoaded', () => {
                   color: textColor,
                 },
               },
+              // ค่าเฉลี่ยต้องบอกฐานเสมอ ไม่ว่าจะอ่านจากการ์ด ตาราง ไฟล์ หรือจุดบนกราฟ — ถ้า payload ส่ง
+              // sample_counts มาด้วย ให้ tooltip ต่อท้ายว่า "จาก N รีวิว" จุด 5.0 จากรีวิวเดียวจะได้ไม่ดูเท่ารีวิวจำนวนมาก
+              tooltip: Array.isArray(chartData.sample_counts) ? {
+                callbacks: {
+                  afterLabel: (context) => {
+                    const count = Number(chartData.sample_counts[context.dataIndex]);
+                    return Number.isFinite(count) && count > 0 ? 'จาก ' + count + ' รีวิว' : '';
+                  },
+                },
+              } : {},
             },
             scales: chartType === 'doughnut' ? {} : {
               x: {
