@@ -1161,36 +1161,7 @@ class ReportService
 
         $periods = [];
         foreach ($buckets as $key => $label) {
-            $c = (int) ($created[$key]['created'] ?? 0);
-            $r = $resolved[$key] ?? [];
-            $resolvedCount = (int) ($r['resolved'] ?? 0);
-            $mttrMinutes = (float) ($r['mttr_minutes'] ?? 0);
-            $slaBase = (int) ($r['sla_base'] ?? 0);
-            $slaOnTime = (int) ($r['sla_on_time'] ?? 0);
-            $ratingCount = (int) ($r['rating_count'] ?? 0);
-            $ratingSum = (float) ($r['rating_sum'] ?? 0);
-
-            // การมีอยู่ดูจาก base (จำนวน resolved/rating) ไม่ใช่ค่าที่ aggregate แล้ว — ค่า 0.0 ของจริง
-            // (MTTR ต่ำกว่านาที, SLA เกินทุกใบ) เป็นข้อมูลจริง ต่างจาก null ที่แปลว่า "ไม่มี base"
-            $slaPct = $slaBase > 0 ? round($slaOnTime / $slaBase * 100, 1) : null;
-            $mttrHours = $resolvedCount > 0 ? round($mttrMinutes / 60, 1) : null;
-            $csat = $ratingCount > 0 ? round($ratingSum / $ratingCount, 2) : null;
-
-            $periods[] = [
-                'key' => $key,
-                'label' => $label,
-                'created' => $c,
-                'resolved' => $resolvedCount,
-                'net' => $c - $resolvedCount,
-                'sla_pct' => $slaPct,
-                'sla_pct_label' => $slaPct === null ? '-' : number_format($slaPct, 1) . '%',
-                'sla_base' => $slaBase,
-                'mttr_hours' => $mttrHours,
-                'mttr_hours_label' => $mttrHours === null ? '-' : number_format($mttrHours, 1),
-                'csat' => $csat,
-                'csat_label' => $csat === null ? '-' : number_format($csat, 2),
-                'rating_count' => $ratingCount,
-            ];
+            $periods[] = $this->buildTrendPeriodRow((string) $key, (string) $label, $created[$key] ?? [], $resolved[$key] ?? []);
         }
 
         $filterData = $this->buildFilterData($normalizedFilters, $reference);
@@ -1203,11 +1174,145 @@ class ReportService
 
         return [
             'filters' => $filterData,
-            'summary' => $this->buildTrendSummary($periods),
+            'summary' => $this->buildTrendSummary(
+                $periods,
+                $this->equalisedPreviousTrendRow($viewer, $normalizedFilters, $granularity, $buckets)
+            ),
             'charts' => $this->buildTrendCharts($periods),
             'periods' => $periods,
             'rowsMeta' => ['displayed' => count($periods), 'granularity' => $granularity],
         ];
+    }
+
+    /**
+     * แปลงผลดิบของหนึ่ง bucket เป็นแถวงวดที่หน้าเว็บใช้ ใช้ร่วมกันระหว่างงวดปกติกับงวดก่อนแบบเทียบเท่าวัน
+     * (equalisedPreviousTrendRow) เพื่อให้ทั้งสองทางคิดเลขด้วยสูตรเดียวกันเสมอ
+     *
+     * @param array<string, mixed> $createdRow
+     * @param array<string, mixed> $resolvedRow
+     * @return array<string, mixed>
+     */
+    private function buildTrendPeriodRow(string $key, string $label, array $createdRow, array $resolvedRow): array
+    {
+        $c = (int) ($createdRow['created'] ?? 0);
+        $resolvedCount = (int) ($resolvedRow['resolved'] ?? 0);
+        $mttrMinutes = (float) ($resolvedRow['mttr_minutes'] ?? 0);
+        $slaBase = (int) ($resolvedRow['sla_base'] ?? 0);
+        $slaOnTime = (int) ($resolvedRow['sla_on_time'] ?? 0);
+        $ratingCount = (int) ($resolvedRow['rating_count'] ?? 0);
+        $ratingSum = (float) ($resolvedRow['rating_sum'] ?? 0);
+
+        // การมีอยู่ดูจาก base (จำนวน resolved/rating) ไม่ใช่ค่าที่ aggregate แล้ว — ค่า 0.0 ของจริง
+        // (MTTR ต่ำกว่านาที, SLA เกินทุกใบ) เป็นข้อมูลจริง ต่างจาก null ที่แปลว่า "ไม่มี base"
+        $slaPct = $slaBase > 0 ? round($slaOnTime / $slaBase * 100, 1) : null;
+        $mttrHours = $resolvedCount > 0 ? round($mttrMinutes / 60, 1) : null;
+        $csat = $ratingCount > 0 ? round($ratingSum / $ratingCount, 2) : null;
+
+        return [
+            'key' => $key,
+            'label' => $label,
+            'created' => $c,
+            'resolved' => $resolvedCount,
+            'net' => $c - $resolvedCount,
+            'sla_pct' => $slaPct,
+            'sla_pct_label' => $slaPct === null ? '-' : number_format($slaPct, 1) . '%',
+            'sla_base' => $slaBase,
+            'mttr_hours' => $mttrHours,
+            'mttr_hours_label' => $mttrHours === null ? '-' : number_format($mttrHours, 1),
+            'csat' => $csat,
+            'csat_label' => $csat === null ? '-' : number_format($csat, 2),
+            'rating_count' => $ratingCount,
+        ];
+    }
+
+    /**
+     * ขอบเขตวันแรก/วันสุดท้ายของ bucket หนึ่งงวด (คีย์ตรงกับ trendBucketList: day=Y-m-d, week=o-W, month=Y-m)
+     *
+     * @return array{0: \DateTimeImmutable, 1: \DateTimeImmutable}|null
+     */
+    private function trendBucketBounds(string $granularity, string $key): ?array
+    {
+        try {
+            if ($granularity === 'day') {
+                $start = new \DateTimeImmutable($key);
+
+                return [$start, $start];
+            }
+            if ($granularity === 'week') {
+                [$year, $week] = array_map('intval', explode('-', $key) + [0, 0]);
+                $start = (new \DateTimeImmutable())->setISODate($year, $week)->setTime(0, 0);
+
+                return [$start, $start->modify('+6 days')];
+            }
+            $start = new \DateTimeImmutable($key . '-01');
+
+            return [$start, $start->modify('last day of this month')];
+        } catch (\Exception) {
+            return null;
+        }
+    }
+
+    /**
+     * งวดก่อนแบบ "เทียบเท่าจำนวนวันที่ผ่านไป" สำหรับการ์ดงวดล่าสุด
+     *
+     * ถ้างวดล่าสุดยังไม่จบ (เช่นวันที่ 10 ของเดือน) การเอาไปเทียบกับเดือนก่อนที่นับครบ 30 วัน จะทำให้ยอด
+     * "ตก" ทุกต้นเดือนทั้งที่ไม่มีอะไรเปลี่ยน จึงตัดงวดก่อนให้เหลือจำนวนวันเท่ากันแล้วค่อยเทียบ
+     * (หน้าสรุปผู้บริหารทำแบบนี้อยู่แล้วใน computePeriodWindows — หน้านี้เพิ่งได้รับการปรับให้ตรงกัน)
+     * คืน null เมื่องวดล่าสุดจบแล้ว = เทียบเต็มงวดได้ตามปกติ
+     *
+     * @param array<string, mixed> $normalizedFilters
+     * @param array<string, string> $buckets
+     * @return array<string, mixed>|null
+     */
+    private function equalisedPreviousTrendRow(array $viewer, array $normalizedFilters, string $granularity, array $buckets): ?array
+    {
+        $keys = array_keys($buckets);
+        if (count($keys) < 2) {
+            return null;
+        }
+
+        $lastBounds = $this->trendBucketBounds($granularity, (string) $keys[count($keys) - 1]);
+        $prevKey = (string) $keys[count($keys) - 2];
+        $prevBounds = $this->trendBucketBounds($granularity, $prevKey);
+        if ($lastBounds === null || $prevBounds === null) {
+            return null;
+        }
+
+        // จุดสังเกตจริงคือวันสุดท้ายที่มีข้อมูลได้ = to_date แต่ไม่เกินวันนี้
+        try {
+            $observed = new \DateTimeImmutable((string) ($normalizedFilters['to_date'] ?? date('Y-m-d')));
+        } catch (\Exception) {
+            return null;
+        }
+        $today = new \DateTimeImmutable(date('Y-m-d'));
+        if ($observed > $today) {
+            $observed = $today;
+        }
+        if ($observed >= $lastBounds[1]) {
+            return null; // งวดล่าสุดจบแล้ว ไม่ต้องตัดงวดก่อน
+        }
+
+        $elapsedDays = (int) $lastBounds[0]->diff($observed)->days;
+        $prevCut = $prevBounds[0]->modify('+' . $elapsedDays . ' days');
+        if ($prevCut > $prevBounds[1]) {
+            $prevCut = $prevBounds[1];
+        }
+
+        $equalised = $normalizedFilters;
+        $equalised['from_date'] = $prevBounds[0]->format('Y-m-d');
+        $equalised['to_date'] = $prevCut->format('Y-m-d');
+        $equalised['from_datetime'] = $equalised['from_date'] . ' 00:00:00';
+        $equalised['to_datetime'] = $equalised['to_date'] . ' 23:59:59';
+
+        $created = $this->indexByBucket($this->reports->getTicketTrendCreated($viewer, $equalised, $granularity));
+        $resolved = $this->indexByBucket($this->reports->getTicketTrendResolved($viewer, $equalised, $granularity));
+
+        return $this->buildTrendPeriodRow(
+            $prevKey,
+            (string) ($buckets[$prevKey] ?? $prevKey),
+            $created[$prevKey] ?? [],
+            $resolved[$prevKey] ?? []
+        );
     }
 
     /** @param array<int, array<string, mixed>> $rows @return array<string, array<string, mixed>> */
@@ -1251,12 +1356,18 @@ class ReportService
         ];
     }
 
-    /** งวดล่าสุด + Δ เทียบงวดก่อน (tone ตามทิศที่ "ดี": SLA/CSAT ขึ้น=ดี, MTTR ลง=ดี, created เป็นกลาง). */
-    private function buildTrendSummary(array $periods): array
+    /**
+     * งวดล่าสุด + Δ เทียบงวดก่อน (tone ตามทิศที่ "ดี": SLA/CSAT ขึ้น=ดี, MTTR ลง=ดี, created เป็นกลาง)
+     * $equalisedPrev = งวดก่อนที่ถูกตัดให้มีจำนวนวันเท่างวดล่าสุดที่ยังไม่จบ ถ้าไม่ส่งมาแปลว่างวดล่าสุดจบแล้ว
+     * จึงเทียบเต็มงวดได้ตามปกติ
+     *
+     * @param array<string, mixed>|null $equalisedPrev
+     */
+    private function buildTrendSummary(array $periods, ?array $equalisedPrev = null): array
     {
         $n = count($periods);
         $last = $n > 0 ? $periods[$n - 1] : [];
-        $prev = $n > 1 ? $periods[$n - 2] : [];
+        $prev = $equalisedPrev ?? ($n > 1 ? $periods[$n - 2] : []);
 
         return [
             'latest_label' => (string) ($last['label'] ?? '-'),
