@@ -152,7 +152,10 @@ test('executive: "เกิน SLA" KPI is period-scoped breach, not the NOW-ove
              VALUES (?, 'x', 'x', 1, 1, 1, 1, 'closed', '2020-10-10 09:00:00')"
         )->execute(["EXSB-$rid"]);
         $ticketId = (int) exs_pdo()->lastInsertId();
-        exs_pdo()->prepare("INSERT INTO ticket_sla_tracks (ticket_id, metric_type, target_at, breached_at, status) VALUES (?, 'resolution', '2020-10-11 09:00:00', '2020-10-15 09:00:00', 'breached')")
+        exs_pdo()->prepare(
+            "INSERT INTO ticket_sla_tracks (ticket_id, metric_type, target_at, breached_at, status, created_at)
+             VALUES (?, 'resolution', '2020-10-11 09:00:00', '2020-10-15 09:00:00', 'breached', '2020-10-10 09:00:00')"
+        )
             ->execute([$ticketId]);
 
         $filters = ['preset' => 'custom', 'from_date' => '2020-10-01', 'to_date' => '2020-10-31'];
@@ -245,7 +248,10 @@ test('executive export: CSV/XLSX carry the rating sample count, matching screen/
             )->execute(["EXF4X-$rid-$i"]);
             $tid = (int) exs_pdo()->lastInsertId();
             $ids[] = $tid;
-            exs_pdo()->prepare('INSERT INTO ticket_ratings (ticket_id, requester_id, score) VALUES (?, 1, 5)')->execute([$tid]);
+            exs_pdo()->prepare(
+                "INSERT INTO ticket_ratings (ticket_id, requester_id, score, created_at, updated_at)
+                 VALUES (?, 1, 5, '2020-05-15 12:05:00', '2020-05-15 12:05:00')"
+            )->execute([$tid]);
         }
         $filters = ['preset' => 'custom', 'from_date' => '2020-05-01', 'to_date' => '2020-05-31'];
 
@@ -438,7 +444,10 @@ test('executive export: an empty previous period carries prev="-" across screen 
             )->execute(["EXF2-$rid-$i"]);
             $tid = (int) exs_pdo()->lastInsertId();
             $ids[] = $tid;
-            exs_pdo()->prepare('INSERT INTO ticket_ratings (ticket_id, requester_id, score) VALUES (?, 1, 5)')->execute([$tid]);
+            exs_pdo()->prepare(
+                "INSERT INTO ticket_ratings (ticket_id, requester_id, score, created_at, updated_at)
+                 VALUES (?, 1, 5, '2020-03-15 12:05:00', '2020-03-15 12:05:00')"
+            )->execute([$tid]);
         }
 
         $kpi = [];
@@ -560,7 +569,10 @@ test('executive: the rating KPI exposes its review count (Finding F4)', function
             )->execute(["EXF4-$rid-$i"]);
             $tid = (int) exs_pdo()->lastInsertId();
             $ids[] = $tid;
-            exs_pdo()->prepare('INSERT INTO ticket_ratings (ticket_id, requester_id, score) VALUES (?, 1, 5)')->execute([$tid]);
+            exs_pdo()->prepare(
+                "INSERT INTO ticket_ratings (ticket_id, requester_id, score, created_at, updated_at)
+                 VALUES (?, 1, 5, '2020-05-15 12:05:00', '2020-05-15 12:05:00')"
+            )->execute([$tid]);
         }
 
         $page = exs_service()->getExecutiveSummaryPage($admin, ['preset' => 'custom', 'from_date' => '2020-05-01', 'to_date' => '2020-05-31']);

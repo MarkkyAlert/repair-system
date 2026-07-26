@@ -200,3 +200,21 @@ test with controlled timestamps + directly seeded rating cycles.
 gated to the `is_final` bucket) reddens the period-immutability unit lock (period 1's cycle-1 SLA base drops to
 0) and the E2E lock (the period flips to a false 0% after the column mutation); restoring returns the suite to
 green.
+
+## Phase 3 — requested-cohort reports freeze at period end
+
+The overview summary, Executive KPI, Asset Reliability MTTR/downtime, and Problem Hotspot previously filtered
+the cohort by `t.requested_at` but read the ticket's mutable current `status` / `resolved_at`. A ticket requested
+in January and resolved in July therefore rewrote January from open to closed and could create an MTTR of tens of
+thousands of hours.
+
+When a report has `to_datetime`, `ReportRepository::reportPeriodSnapshot()` now reconstructs the ticket state at
+that cutoff from the latest `ticket_activity_logs.to_status` and uses the latest `ticket_resolved` event at or
+before the cutoff. Ratings and SLA verdicts are likewise bounded at the cutoff. Legacy/import rows with no
+activity log at all fall back to their stored columns, so upgrading does not silently erase old report data.
+
+The freeze applies to closed-period closure count, MTTR, SLA, and CSAT. Backlog/live technician workload and
+cumulative labor remain explicitly current-state operational metrics; the report guide labels that distinction.
+`analytics_independent_verification_test.php` drives a historical ticket through real resolve → reopen →
+re-resolve → complete/rate operations and proves January stays byte-for-byte unchanged while a window that
+includes those operations still sees them.

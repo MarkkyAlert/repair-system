@@ -75,20 +75,166 @@ class ReportRepository
         return "$a.cycle = (SELECT MAX(rtc.cycle) FROM ticket_ratings rtc WHERE rtc.ticket_id = $a.ticket_id)";
     }
 
+    /**
+     * Snapshot สถานะ + เวลาปิด ณ วันสิ้นงวด เพื่อให้งวดอดีตไม่เปลี่ยนเมื่อ ticket ถูกปิด/เปิดซ้ำภายหลัง.
+     *
+     * Production flow เขียนทุก transition ลง ticket_activity_logs จึงย้อนสถานะ ณ cutoff ได้จาก event ล่าสุด
+     * และใช้ ticket_resolved ล่าสุดที่เกิดไม่เกิน cutoff เป็น MTTR. แถว legacy/import ที่ไม่มี activity log
+     * เลยยัง fallback ไปคอลัมน์เดิมเพื่อไม่ทำข้อมูลเก่าหายจากรายงาน.
+     *
+     * @return array{joins:string,status:string,resolved_at:string,cutoff:string,bounded:bool}
+     */
+    private function reportPeriodSnapshot(array $filters, array &$params, string $prefix): array
+    {
+        $to = is_string($filters['to_datetime'] ?? null) ? trim((string) $filters['to_datetime']) : '';
+        if ($to === '') {
+            return [
+                'joins' => '',
+                'status' => 't.status',
+                'resolved_at' => 't.resolved_at',
+                'cutoff' => 'NOW()',
+                'bounded' => false,
+            ];
+        }
+
+        if (preg_match('/^[a-z][a-z0-9_]*$/', $prefix) !== 1) {
+            throw new RuntimeException('Invalid report snapshot prefix');
+        }
+
+        $stateAlias = $prefix . '_state';
+        $eventAlias = $prefix . '_events';
+        $cutoffAlias = $prefix . '_cutoff';
+        $stateParam = $prefix . '_state_to';
+        $eventParam = $prefix . '_event_to';
+        $legacyParam = $prefix . '_legacy_to';
+        $params[$stateParam] = $to;
+        $params[$eventParam] = $to;
+        $params[$legacyParam] = $to;
+
+        $joins = "
+            CROSS JOIN (SELECT :$legacyParam AS cutoff_at) $cutoffAlias
+            LEFT JOIN (
+                SELECT ranked.ticket_id, ranked.to_status
+                FROM (
+                    SELECT
+                        l.ticket_id,
+                        l.to_status,
+                        ROW_NUMBER() OVER (PARTITION BY l.ticket_id ORDER BY l.created_at DESC, l.id DESC) AS row_num
+                    FROM ticket_activity_logs l
+                    WHERE l.created_at <= :$stateParam
+                      AND l.to_status IS NOT NULL
+                ) ranked
+                WHERE ranked.row_num = 1
+            ) $stateAlias ON $stateAlias.ticket_id = t.id
+            LEFT JOIN (
+                SELECT
+                    l.ticket_id,
+                    COUNT(*) AS event_count,
+                    SUM(CASE WHEN l.action = 'ticket_resolved' THEN 1 ELSE 0 END) AS resolve_event_count,
+                    MAX(CASE
+                        WHEN l.action = 'ticket_resolved' AND l.created_at <= :$eventParam THEN l.created_at
+                        ELSE NULL
+                    END) AS report_resolved_at
+                FROM ticket_activity_logs l
+                GROUP BY l.ticket_id
+            ) $eventAlias ON $eventAlias.ticket_id = t.id";
+
+        $status = "COALESCE(
+            $stateAlias.to_status,
+            CASE WHEN $eventAlias.event_count IS NULL THEN t.status ELSE 'pending_approval' END
+        )";
+        $resolvedAt = "COALESCE(
+            $eventAlias.report_resolved_at,
+            CASE
+                WHEN COALESCE($eventAlias.resolve_event_count, 0) = 0
+                    AND t.resolved_at <= $cutoffAlias.cutoff_at
+                THEN t.resolved_at
+                ELSE NULL
+            END
+        )";
+
+        return [
+            'joins' => $joins,
+            'status' => $status,
+            'resolved_at' => $resolvedAt,
+            'cutoff' => "$cutoffAlias.cutoff_at",
+            'bounded' => true,
+        ];
+    }
+
+    /**
+     * คะแนนของงวดอดีตอ่านเฉพาะ rating ที่เกิดไม่เกินวันสิ้นงวด ไม่หยิบ cycle ล่าสุดจากอนาคตมาย้อนแก้ค่าเฉลี่ย.
+     */
+    private function reportRatingJoin(array $filters, array &$params, string $prefix): string
+    {
+        $to = is_string($filters['to_datetime'] ?? null) ? trim((string) $filters['to_datetime']) : '';
+        if ($to === '') {
+            return "LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id AND {$this->latestRatingCycleClause('tr')}";
+        }
+
+        if (preg_match('/^[a-z][a-z0-9_]*$/', $prefix) !== 1) {
+            throw new RuntimeException('Invalid report rating prefix');
+        }
+
+        $param = $prefix . '_rating_to';
+        $params[$param] = $to;
+
+        return "LEFT JOIN ticket_ratings tr ON tr.id = (
+            SELECT period_rating.id
+            FROM ticket_ratings period_rating
+            WHERE period_rating.ticket_id = t.id
+              AND period_rating.created_at <= :$param
+            ORDER BY period_rating.created_at DESC, period_rating.id DESC
+            LIMIT 1
+        )";
+    }
+
     public function getSummary(array $viewer, array $filters): array
     {
         $params = [];
+        $period = $this->reportPeriodSnapshot($filters, $params, 'summary_period');
+        $ratingJoin = $this->reportRatingJoin($filters, $params, 'summary_period');
         $conditions = [$this->visibilityClause($viewer, $params)];
-        $this->applyReportFilters($conditions, $filters, $params);
+        $this->applyReportFilters($conditions, $filters, $params, $period['status']);
         $whereClause = implode(' AND ', $conditions);
         $closedStatuses = ticket_terminal_statuses_sql();
         $resolvedStatuses = ticket_resolved_statuses_sql();
-        $slaApplicable = $this->slaApplicableCondition();
+        $periodStatus = $period['status'];
+        $periodResolvedAt = $period['resolved_at'];
+        $slaApplicable = $period['bounded']
+            ? "$periodStatus NOT IN ('cancelled', 'rejected')"
+            : $this->slaApplicableCondition();
+        $breachedCondition = $period['bounded']
+            ? "EXISTS (
+                SELECT 1
+                FROM ticket_sla_tracks ts
+                WHERE ts.ticket_id = t.id
+                  AND ts.created_at <= {$period['cutoff']}
+                  AND ts.cycle = (
+                      SELECT MAX(slc.cycle)
+                      FROM ticket_sla_tracks slc
+                      WHERE slc.ticket_id = ts.ticket_id
+                        AND slc.metric_type = ts.metric_type
+                        AND slc.created_at <= {$period['cutoff']}
+                  )
+                  AND ts.target_at < {$period['cutoff']}
+                  AND (ts.achieved_at IS NULL OR ts.achieved_at > ts.target_at)
+            )"
+            : "EXISTS (
+                SELECT 1
+                FROM ticket_sla_tracks ts
+                WHERE ts.ticket_id = t.id
+                  AND {$this->latestSlaCycleClause('ts')}
+                  AND (
+                      ts.status = 'breached'
+                      OR (ts.status = 'pending' AND ts.target_at < NOW())
+                  )
+            )";
 
         $stmt = $this->db->prepare(
             "SELECT
                 COUNT(*) AS total_tickets,
-                COALESCE(SUM(CASE WHEN t.status IN ($resolvedStatuses) THEN 1 ELSE 0 END), 0) AS resolved_tickets,
+                COALESCE(SUM(CASE WHEN $periodStatus IN ($resolvedStatuses) THEN 1 ELSE 0 END), 0) AS resolved_tickets,
                 COALESCE(COUNT(DISTINCT CASE
                     WHEN t.status NOT IN ($closedStatuses)
                         AND EXISTS (
@@ -105,30 +251,30 @@ class ReportRepository
                     ELSE NULL
                 END), 0) AS overdue_tickets,
                 COALESCE(SUM(CASE
-                    WHEN {$slaApplicable} AND EXISTS (
-                        SELECT 1
-                        FROM ticket_sla_tracks ts
-                        WHERE ts.ticket_id = t.id
-                          AND {$this->latestSlaCycleClause('ts')}
-                          AND (
-                              ts.status = 'breached'
-                              OR (ts.status = 'pending' AND ts.target_at < NOW())
-                          )
-                    )
+                    WHEN {$slaApplicable} AND $breachedCondition
                     THEN 1
                     ELSE 0
                 END), 0) AS breached_tickets,
                 ROUND(COALESCE(AVG(CASE
-                    WHEN t.resolved_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at)
+                    WHEN $periodStatus IN ($resolvedStatuses)
+                        AND $periodResolvedAt IS NOT NULL
+                        AND $periodResolvedAt >= t.requested_at
+                    THEN TIMESTAMPDIFF(MINUTE, t.requested_at, $periodResolvedAt)
                     ELSE NULL
                 END), 0), 1) AS avg_resolution_minutes,
-                -- ฐานสำหรับค่าเฉลี่ย MTTR: มีกี่ ticket ที่มี resolved_at จริง ๆ. 0 → ไม่มีข้อมูล ('-');
+                -- ฐานสำหรับค่าเฉลี่ย MTTR: มีกี่ ticket ที่มีเวลาปิด ณ สิ้นงวดจริง ๆ. 0 → ไม่มีข้อมูล ('-');
                 -- >0 แต่ค่าเฉลี่ยเป็น 0 นาที → ปิดงานภายในนาทีเดียวจริง ('0.0') ไม่ใช่ 'ไม่มีข้อมูล'.
-                SUM(CASE WHEN t.resolved_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN 1 ELSE 0 END) AS resolution_base,
+                SUM(CASE
+                    WHEN $periodStatus IN ($resolvedStatuses)
+                        AND $periodResolvedAt IS NOT NULL
+                        AND $periodResolvedAt >= t.requested_at
+                    THEN 1 ELSE 0
+                END) AS resolution_base,
                 ROUND(COALESCE(AVG(tr.score), 0), 1) AS avg_rating,
                 COUNT(tr.score) AS rating_count
              FROM tickets t
-             LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id AND {$this->latestRatingCycleClause('tr')}
+             {$period['joins']}
+             $ratingJoin
              WHERE $whereClause"
         );
         $stmt->execute($params);
@@ -147,24 +293,28 @@ class ReportRepository
     public function getRows(array $viewer, array $filters, ?int $limit = 250): array
     {
         $params = [];
+        $period = $this->reportPeriodSnapshot($filters, $params, 'rows_period');
+        $ratingJoin = $this->reportRatingJoin($filters, $params, 'rows_period');
         $conditions = [$this->visibilityClause($viewer, $params)];
-        $this->applyReportFilters($conditions, $filters, $params);
+        $this->applyReportFilters($conditions, $filters, $params, $period['status']);
         $whereClause = implode(' AND ', $conditions);
         $closedStatuses = ticket_terminal_statuses_sql();
         $limitClause = $limit !== null ? 'LIMIT ' . max(1, min($limit, self::MAX_ROWS)) : '';
+        $periodStatus = $period['status'];
+        $periodResolvedAt = $period['resolved_at'];
 
         $stmt = $this->db->prepare(
             "SELECT
                 t.id,
                 t.ticket_no,
                 t.title,
-                t.status,
+                $periodStatus AS status,
                 t.approval_status,
                 t.channel,
                 t.requested_at,
                 t.first_response_at,
                 t.response_due_at,
-                t.resolved_at,
+                $periodResolvedAt AS resolved_at,
                 t.resolution_due_at,
                 t.completed_at,
                 p.code AS priority_code,
@@ -176,11 +326,14 @@ class ReportRepository
                 technician.full_name AS technician_name,
                 tr.score AS rating_score,
                 CASE
-                    WHEN t.resolved_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at)
+                    WHEN $periodStatus IN (" . ticket_resolved_statuses_sql() . ")
+                        AND $periodResolvedAt IS NOT NULL
+                        AND $periodResolvedAt >= t.requested_at
+                    THEN TIMESTAMPDIFF(MINUTE, t.requested_at, $periodResolvedAt)
                     ELSE NULL
                 END AS resolution_minutes,
                 CASE
-                    WHEN t.status NOT IN ($closedStatuses)
+                    WHEN $periodStatus NOT IN ($closedStatuses)
                         AND EXISTS (
                             SELECT 1
                             FROM ticket_sla_tracks ts
@@ -201,7 +354,8 @@ class ReportRepository
              INNER JOIN users requester ON requester.id = t.requester_id
              LEFT JOIN departments d ON d.id = t.requester_department_id
              LEFT JOIN users technician ON technician.id = t.assigned_technician_id
-             LEFT JOIN ticket_ratings tr ON tr.ticket_id = t.id AND {$this->latestRatingCycleClause('tr')}
+             {$period['joins']}
+             $ratingJoin
              WHERE $whereClause
              ORDER BY t.requested_at DESC, t.id DESC
              $limitClause"
@@ -218,15 +372,19 @@ class ReportRepository
     public function getAssetReliabilityRows(array $viewer, array $filters, int $limit = 20): array
     {
         $params = [];
+        $period = $this->reportPeriodSnapshot($filters, $params, 'asset_panel_period');
         $conditions = [$this->visibilityClause($viewer, $params)];
-        $this->applyReportFilters($conditions, $filters, $params);
+        $this->applyReportFilters($conditions, $filters, $params, $period['status']);
         // requested_at ที่เป็นอนาคต (clock skew / import ผิด) ไม่ใช่ความเสียหายจริง — ตัดออกให้ตรงกับรายงานเต็ม
         // (getAssetReliabilityReport) ไม่งั้นแผงสรุปบน /reports จะนับ failure สูงกว่าหน้ารายงานเต็มของ asset เดียวกัน
         $conditions[] = 't.requested_at <= NOW()';
         // เหตุผลเดียวกับรายงานเต็ม: ยกเลิก/ปฏิเสธ = ไม่ใช่ความเสียหาย ต้องตัดออกทั้งสองที่ให้ตรงกัน
-        $conditions[] = $this->slaApplicableCondition();
+        $conditions[] = "{$period['status']} NOT IN ('cancelled', 'rejected')";
         $whereClause = implode(' AND ', $conditions);
         $limit = max(1, min($limit, 200));
+        $resolvedStatuses = ticket_resolved_statuses_sql();
+        $periodStatus = $period['status'];
+        $periodResolvedAt = $period['resolved_at'];
 
         $stmt = $this->db->prepare(
             "SELECT
@@ -239,15 +397,24 @@ class ReportRepository
                 COUNT(*) AS failure_count,
                 MAX(t.requested_at) AS last_failure_at,
                 ROUND(COALESCE(AVG(CASE
-                    WHEN t.resolved_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at)
+                    WHEN $periodStatus IN ($resolvedStatuses)
+                        AND $periodResolvedAt IS NOT NULL
+                        AND $periodResolvedAt >= t.requested_at
+                    THEN TIMESTAMPDIFF(MINUTE, t.requested_at, $periodResolvedAt)
                     ELSE NULL
                 END), 0), 1) AS avg_resolution_minutes,
-                SUM(CASE WHEN t.resolved_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN 1 ELSE 0 END) AS resolved_count,
+                SUM(CASE
+                    WHEN $periodStatus IN ($resolvedStatuses)
+                        AND $periodResolvedAt IS NOT NULL
+                        AND $periodResolvedAt >= t.requested_at
+                    THEN 1 ELSE 0
+                END) AS resolved_count,
                 COALESCE(SUM(wo.labor_minutes), 0) AS labor_minutes
              FROM tickets t
              INNER JOIN assets a ON a.id = t.asset_id
              INNER JOIN asset_categories ac ON ac.id = a.asset_category_id
              INNER JOIN locations l ON l.id = a.location_id
+             {$period['joins']}
              LEFT JOIN work_orders wo ON wo.ticket_id = t.id
              WHERE $whereClause
              GROUP BY a.id, a.asset_code, a.name, a.status, ac.name, l.name
@@ -268,6 +435,7 @@ class ReportRepository
     public function getAssetReliabilityReport(array $viewer, array $filters, int $limit = 500): array
     {
         $params = [];
+        $period = $this->reportPeriodSnapshot($filters, $params, 'asset_report_period');
         $conditions = [$this->visibilityClause($viewer, $params)];
         $this->applyAssetReportFilters($conditions, $filters, $params);
         // requested_at ที่เป็นอนาคต (clock skew / import ผิด) ไม่ใช่ความเสียหายจริง — ตัดออกเพื่อให้
@@ -275,9 +443,12 @@ class ReportRepository
         $conditions[] = 't.requested_at <= NOW()';
         // งานที่ถูกยกเลิก/ปฏิเสธ ก็ไม่ใช่ความเสียหายจริงเช่นกัน (ไม่มีใครลงมือซ่อม) ถ้านับรวมจะดัน
         // failure_count ขึ้นและย่น MTBF จนทรัพย์สินดี ๆ ถูกจัดเข้ากลุ่ม "ควรเปลี่ยน" (เจ้าของยืนยัน 2026-07-26)
-        $conditions[] = $this->slaApplicableCondition();
+        $conditions[] = "{$period['status']} NOT IN ('cancelled', 'rejected')";
         $whereClause = implode(' AND ', $conditions);
         $limit = max(1, min($limit, self::MAX_ROWS));
+        $resolvedStatuses = ticket_resolved_statuses_sql();
+        $periodStatus = $period['status'];
+        $periodResolvedAt = $period['resolved_at'];
 
         $stmt = $this->db->prepare(
             "SELECT
@@ -293,12 +464,23 @@ class ReportRepository
                 MAX(t.requested_at) AS last_failure_at,
                 MIN(t.requested_at) AS first_failure_at,
                 ROUND(COALESCE(AVG(CASE
-                    WHEN t.resolved_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at)
+                    WHEN $periodStatus IN ($resolvedStatuses)
+                        AND $periodResolvedAt IS NOT NULL
+                        AND $periodResolvedAt >= t.requested_at
+                    THEN TIMESTAMPDIFF(MINUTE, t.requested_at, $periodResolvedAt)
                     ELSE NULL
                 END), 0), 1) AS avg_resolution_minutes,
-                SUM(CASE WHEN t.resolved_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN 1 ELSE 0 END) AS resolved_count,
+                SUM(CASE
+                    WHEN $periodStatus IN ($resolvedStatuses)
+                        AND $periodResolvedAt IS NOT NULL
+                        AND $periodResolvedAt >= t.requested_at
+                    THEN 1 ELSE 0
+                END) AS resolved_count,
                 COALESCE(SUM(CASE
-                    WHEN t.resolved_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at)
+                    WHEN $periodStatus IN ($resolvedStatuses)
+                        AND $periodResolvedAt IS NOT NULL
+                        AND $periodResolvedAt >= t.requested_at
+                    THEN TIMESTAMPDIFF(MINUTE, t.requested_at, $periodResolvedAt)
                     ELSE 0
                 END), 0) AS downtime_minutes,
                 COALESCE(SUM(wo.labor_minutes), 0) AS labor_minutes
@@ -306,6 +488,7 @@ class ReportRepository
              INNER JOIN assets a ON a.id = t.asset_id
              INNER JOIN asset_categories ac ON ac.id = a.asset_category_id
              INNER JOIN locations l ON l.id = a.location_id
+             {$period['joins']}
              LEFT JOIN work_orders wo ON wo.ticket_id = t.id
              WHERE $whereClause
              GROUP BY a.id, a.asset_code, a.name, a.status, a.purchase_date, a.warranty_expires_at, ac.name, l.name
@@ -663,42 +846,93 @@ class ReportRepository
     {
         $map = self::HOTSPOT_DIMENSIONS[$dimension] ?? self::HOTSPOT_DIMENSIONS['department'];
         $terminal = ticket_terminal_statuses_sql();
+        $resolvedStatuses = ticket_resolved_statuses_sql();
 
         $params = [];
+        $period = $this->reportPeriodSnapshot($filters, $params, 'hotspot_period');
         $conditions = [$this->visibilityClause($viewer, $params)];
-        $this->applyReportFilters($conditions, $filters, $params);
+        $this->applyReportFilters($conditions, $filters, $params, $period['status']);
         // งานที่ยกเลิก/ปฏิเสธไม่ใช่ภาระงานจริง ถ้าปล่อยไว้ track ที่ค้าง pending ของมันจะถูกนับว่าพลาดกำหนด
         // และยังไปเจือจาง %เกิน SLA ให้พื้นที่ดูดีเกินจริง
-        $conditions[] = $this->slaApplicableCondition();
+        $conditions[] = "{$period['status']} NOT IN ('cancelled', 'rejected')";
         $whereClause = implode(' AND ', $conditions);
+        $periodStatus = $period['status'];
+        $periodResolvedAt = $period['resolved_at'];
+        if ($period['bounded']) {
+            $overdueCondition = "EXISTS (
+                SELECT 1 FROM ticket_sla_tracks ts
+                WHERE ts.ticket_id = t.id
+                  AND ts.created_at <= {$period['cutoff']}
+                  AND ts.cycle = (
+                      SELECT MAX(slc.cycle)
+                      FROM ticket_sla_tracks slc
+                      WHERE slc.ticket_id = ts.ticket_id
+                        AND slc.metric_type = ts.metric_type
+                        AND slc.created_at <= {$period['cutoff']}
+                  )
+                  AND ts.target_at < {$period['cutoff']}
+                  AND (ts.achieved_at IS NULL OR ts.achieved_at > ts.target_at)
+            )";
+            $slaBaseCondition = "EXISTS (
+                SELECT 1 FROM ticket_sla_tracks tb
+                WHERE tb.ticket_id = t.id
+                  AND tb.created_at <= {$period['cutoff']}
+                  AND tb.cycle = (
+                      SELECT MAX(slc.cycle)
+                      FROM ticket_sla_tracks slc
+                      WHERE slc.ticket_id = tb.ticket_id
+                        AND slc.metric_type = tb.metric_type
+                        AND slc.created_at <= {$period['cutoff']}
+                  )
+                  AND (
+                      (tb.achieved_at IS NOT NULL AND tb.achieved_at <= {$period['cutoff']})
+                      OR tb.target_at < {$period['cutoff']}
+                  )
+            )";
+        } else {
+            $overdueCondition = "EXISTS (
+                SELECT 1 FROM ticket_sla_tracks ts
+                WHERE ts.ticket_id = t.id
+                  AND {$this->latestSlaCycleClause('ts')}
+                  AND (ts.status = 'breached' OR (ts.status = 'pending' AND ts.target_at < NOW()))
+            )";
+            $slaBaseCondition = "EXISTS (
+                SELECT 1 FROM ticket_sla_tracks tb
+                WHERE tb.ticket_id = t.id
+                  AND {$this->latestSlaCycleClause('tb')}
+                  AND (tb.status = 'met' OR tb.status = 'breached' OR (tb.status = 'pending' AND tb.target_at < NOW()))
+            )";
+        }
 
         $stmt = $this->db->prepare(
             "SELECT
                 {$map['label']} AS dimension_label,
                 COUNT(*) AS ticket_count,
-                SUM(CASE WHEN t.status NOT IN ($terminal) THEN 1 ELSE 0 END) AS open_count,
+                SUM(CASE WHEN $periodStatus NOT IN ($terminal) THEN 1 ELSE 0 END) AS open_count,
                 SUM(CASE
-                    WHEN EXISTS (
-                        SELECT 1 FROM ticket_sla_tracks ts
-                        WHERE ts.ticket_id = t.id
-                          AND {$this->latestSlaCycleClause('ts')}
-                          AND (ts.status = 'breached' OR (ts.status = 'pending' AND ts.target_at < NOW()))
-                    )
+                    WHEN $overdueCondition
                     THEN 1 ELSE 0
                 END) AS overdue_count,
                 SUM(CASE
-                    WHEN EXISTS (
-                        SELECT 1 FROM ticket_sla_tracks tb
-                        WHERE tb.ticket_id = t.id
-                          AND {$this->latestSlaCycleClause('tb')}
-                          AND (tb.status = 'met' OR tb.status = 'breached' OR (tb.status = 'pending' AND tb.target_at < NOW()))
-                    )
+                    WHEN $slaBaseCondition
                     THEN 1 ELSE 0
                 END) AS sla_base_count,
-                SUM(CASE WHEN t.resolved_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN 1 ELSE 0 END) AS resolved_count,
-                ROUND(AVG(CASE WHEN t.resolved_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at) ELSE NULL END), 1) AS avg_resolution_minutes,
+                SUM(CASE
+                    WHEN $periodStatus IN ($resolvedStatuses)
+                        AND $periodResolvedAt IS NOT NULL
+                        AND $periodResolvedAt >= t.requested_at
+                    THEN 1 ELSE 0
+                END) AS resolved_count,
+                ROUND(AVG(CASE
+                    WHEN $periodStatus IN ($resolvedStatuses)
+                        AND $periodResolvedAt IS NOT NULL
+                        AND $periodResolvedAt >= t.requested_at
+                    THEN TIMESTAMPDIFF(MINUTE, t.requested_at, $periodResolvedAt)
+                    ELSE NULL
+                END), 1) AS avg_resolution_minutes,
                 COALESCE(SUM(wo.labor_minutes), 0) AS labor_minutes
              FROM tickets t
+             {$period['joins']}
              LEFT JOIN work_orders wo ON wo.ticket_id = t.id
              {$map['join']}
              WHERE $whereClause
@@ -1206,7 +1440,7 @@ class ReportRepository
         ]);
     }
 
-    private function applyReportFilters(array &$conditions, array $filters, array &$params): void
+    private function applyReportFilters(array &$conditions, array $filters, array &$params, string $statusExpression = 't.status'): void
     {
         $fromDate = is_string($filters['from_datetime'] ?? null) ? trim((string) $filters['from_datetime']) : '';
         $toDate = is_string($filters['to_datetime'] ?? null) ? trim((string) $filters['to_datetime']) : '';
@@ -1235,7 +1469,7 @@ class ReportRepository
         }
 
         if ($status !== '') {
-            $conditions[] = 't.status = :filter_status';
+            $conditions[] = "$statusExpression = :filter_status";
             $params['filter_status'] = $status;
         }
     }
