@@ -921,10 +921,13 @@ class ReportService
         $laborMinutes = (int) ($row['labor_minutes'] ?? 0);
         $avgMinutes = (float) ($row['avg_resolution_minutes'] ?? 0);
         $avgHours = round($avgMinutes / 60, 1);
-        $overdueRate = $ticketCount > 0 ? round($overdueCount / $ticketCount * 100, 1) : 0.0;
+        // %เกิน SLA = ใบที่พลาดกำหนด ÷ ใบที่ตัดสินได้แล้ว (ไม่ใช่ ÷ ใบทั้งหมด) งานที่ยังไม่ถึงกำหนดจึงไม่ถูกนับ
+        // เป็นทั้งตัวเศษและตัวส่วน และเมื่อยังตัดสินอะไรไม่ได้เลยต้องเป็น null → '-' ไม่ใช่ 0.0% เขียว
+        $slaBase = (int) ($row['sla_base_count'] ?? 0);
+        $overdueRate = $slaBase > 0 ? round($overdueCount / $slaBase * 100, 1) : null;
 
         $hotspot = $this->scoreHotspot([
-            'overdue_rate' => $overdueRate,
+            'overdue_rate' => $overdueRate ?? 0.0,
             'ticket_count' => $ticketCount,
             'labor_minutes' => $laborMinutes,
             'avg_resolution_hours' => $avgHours,
@@ -935,7 +938,8 @@ class ReportService
             'ticket_count' => $ticketCount,
             'open_count' => $openCount,
             'overdue_count' => $overdueCount,
-            'overdue_rate_label' => number_format($overdueRate, 1) . '%',
+            'sla_base' => $slaBase,
+            'overdue_rate_label' => $overdueRate === null ? '-' : number_format($overdueRate, 1) . '%',
             'overdue_tone' => $this->breachTone($overdueRate),
             'avg_resolution_hours_label' => (int) ($row['resolved_count'] ?? 0) > 0 ? number_format($avgHours, 1) : '-',
             'labor_minutes' => $laborMinutes,

@@ -651,9 +651,13 @@ class ReportRepository
 
     /**
      * Problem Hotspot — สรุป ticket ต่อพื้นที่ (แผนก/สถานที่): ปริมาณ + งานค้าง + เกิน SLA + เวลาซ่อม + แรงงาน.
-     * "เกิน SLA" = ticket-level นิยามเดียวกับ getSummary.overdue_tickets (status ยังไม่ terminal + EXISTS track
-     * breached/pending-overdue) → reconcile กับ dashboard ได้ และไม่ fan-out (subquery scalar ต่อ ticket).
-     * work_orders 1:1 → SUM(labor)/COUNT(*) ไม่ inflate. dimension มาจาก whitelist เท่านั้น.
+     * "เกิน SLA" = ระดับ ticket และเป็นมุมมอง "ทั้งช่วงเวลา": overdue_count นับใบที่พลาดกำหนด ไม่ว่าตอนนี้จะปิดไปแล้ว
+     * หรือยังค้างอยู่ ส่วน sla_base_count คือใบที่ตัดสินได้แล้ว (met/พลาด) — service เอาสองค่านี้ไปหาร
+     * ได้เป็น %เกิน SLA ที่ตอบคำถามเดียวกับหน้า sla-breach
+     * เดิมตัวเศษบังคับ status ยังไม่ terminal (มุมมองงานค้าง ณ ตอนนี้) แต่ตัวส่วนเป็น COUNT(*) ทั้งช่วง — คนละกลุ่มกัน
+     * พื้นที่ที่พลาดกำหนดทุกใบแต่ปิดงานหมดแล้วจึงโชว์ 0.0% เขียว สวนทางหน้า sla-breach ที่โชว์ 100% แดง (แก้ 2026-07-26)
+     * ยังไม่ fan-out (subquery scalar ต่อ ticket), work_orders 1:1 → SUM(labor)/COUNT(*) ไม่ inflate,
+     * dimension มาจาก whitelist เท่านั้น
      */
     public function getProblemHotspotByDimension(array $viewer, array $filters, string $dimension): array
     {
@@ -663,6 +667,9 @@ class ReportRepository
         $params = [];
         $conditions = [$this->visibilityClause($viewer, $params)];
         $this->applyReportFilters($conditions, $filters, $params);
+        // งานที่ยกเลิก/ปฏิเสธไม่ใช่ภาระงานจริง ถ้าปล่อยไว้ track ที่ค้าง pending ของมันจะถูกนับว่าพลาดกำหนด
+        // และยังไปเจือจาง %เกิน SLA ให้พื้นที่ดูดีเกินจริง
+        $conditions[] = $this->slaApplicableCondition();
         $whereClause = implode(' AND ', $conditions);
 
         $stmt = $this->db->prepare(
@@ -671,15 +678,23 @@ class ReportRepository
                 COUNT(*) AS ticket_count,
                 SUM(CASE WHEN t.status NOT IN ($terminal) THEN 1 ELSE 0 END) AS open_count,
                 SUM(CASE
-                    WHEN t.status NOT IN ($terminal)
-                        AND EXISTS (
-                            SELECT 1 FROM ticket_sla_tracks ts
-                            WHERE ts.ticket_id = t.id
-                              AND {$this->latestSlaCycleClause('ts')}
-                              AND (ts.status = 'breached' OR (ts.status = 'pending' AND ts.target_at < NOW()))
-                        )
+                    WHEN EXISTS (
+                        SELECT 1 FROM ticket_sla_tracks ts
+                        WHERE ts.ticket_id = t.id
+                          AND {$this->latestSlaCycleClause('ts')}
+                          AND (ts.status = 'breached' OR (ts.status = 'pending' AND ts.target_at < NOW()))
+                    )
                     THEN 1 ELSE 0
                 END) AS overdue_count,
+                SUM(CASE
+                    WHEN EXISTS (
+                        SELECT 1 FROM ticket_sla_tracks tb
+                        WHERE tb.ticket_id = t.id
+                          AND {$this->latestSlaCycleClause('tb')}
+                          AND (tb.status = 'met' OR tb.status = 'breached' OR (tb.status = 'pending' AND tb.target_at < NOW()))
+                    )
+                    THEN 1 ELSE 0
+                END) AS sla_base_count,
                 SUM(CASE WHEN t.resolved_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN 1 ELSE 0 END) AS resolved_count,
                 ROUND(AVG(CASE WHEN t.resolved_at IS NOT NULL AND t.resolved_at >= t.requested_at THEN TIMESTAMPDIFF(MINUTE, t.requested_at, t.resolved_at) ELSE NULL END), 1) AS avg_resolution_minutes,
                 COALESCE(SUM(wo.labor_minutes), 0) AS labor_minutes

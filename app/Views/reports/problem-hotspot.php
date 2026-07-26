@@ -188,7 +188,7 @@ $dimensionLabel = (string) ($filters['dimensionLabel'] ?? 'แผนก');
                             <td><strong><?= e((string) $row['ticket_count']) ?></strong></td>
                             <td><?= e((string) $row['open_count']) ?></td>
                             <td><?= e((string) $row['overdue_count']) ?></td>
-                            <td><span class="badge badge-<?= e((string) $row['overdue_tone']) ?>"><?= e((string) $row['overdue_rate_label']) ?></span></td>
+                            <td><span class="badge badge-<?= e((string) $row['overdue_tone']) ?>"><?= e((string) $row['overdue_rate_label']) ?></span><?php if ((int) ($row['sla_base'] ?? 0) > 0): ?> <small title="จำนวนงานที่ตัดสิน SLA ได้แล้ว (ฐานของอัตรานี้)">(<?= e((string) $row['sla_base']) ?>)</small><?php endif; ?></td>
                             <td><?= e((string) $row['avg_resolution_hours_label']) ?></td>
                             <td><?= e((string) $row['labor_hours_label']) ?></td>
                         </tr>
