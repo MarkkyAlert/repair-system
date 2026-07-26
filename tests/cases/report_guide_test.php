@@ -163,3 +163,62 @@ test('report guide: the period-freeze promise and the ≥30 backlog boundary mat
     // (4) the hotspot rate definition the code now implements is documented
     assert_contains_str('งานที่พลาดกำหนดในช่วง ÷ งานที่ตัดสินผลได้แล้ว', $guide, 'guide defines %เกิน SLA as missed over judged');
 });
+
+// AN-01 verify follow-up (2026-07-26): the first guard only scanned SQL strings in ReportRepository, so it sailed
+// straight past a SIXTH SLA verdict living in the service layer — ReportService::buildSlaMetricState compared the
+// deadline to time(). The header was frozen to the period end while the detail row and every export below it
+// still consulted today's clock, so one screen contradicted itself. A guard that only knows one layer is not a
+// guard; this one checks BEHAVIOUR at each layer that decides "overdue", plus the source patterns.
+test('sla as-of: every layer that judges "overdue" honours the period end, not the clock (cross-layer guard)', function (): void {
+    $svc = rg_service();
+    $state = new ReflectionMethod(ReportService::class, 'buildSlaMetricState');
+    $state->setAccessible(true);
+    $summary = new ReflectionMethod(ReportService::class, 'buildSlaSummary');
+    $summary->setAccessible(true);
+
+    $requested = date('Y-m-d H:i:s', strtotime('-10 days'));
+    $target = date('Y-m-d H:i:s', strtotime('-2 days'));
+
+    // (1) SERVICE behaviour — the same unfinished ticket, judged at two different reference moments
+    assert_same(
+        'breached',
+        (string) ($state->invoke($svc, $target, null, $requested)['status'] ?? ''),
+        'live view (no as-of): a deadline already past is breached'
+    );
+    assert_same(
+        'pending',
+        (string) ($state->invoke($svc, $target, null, $requested, strtotime('-5 days'))['status'] ?? ''),
+        'as of a moment BEFORE the deadline it was not yet late — the row must not import today into a closed period'
+    );
+
+    // (2) SERVICE population — rejected work is not judged on SLA, exactly like cancelled, so the row cannot
+    //     contradict the totals (the repository already excludes both)
+    foreach (['cancelled', 'rejected'] as $status) {
+        $row = $summary->invoke($svc, ['status' => $status, 'resolution_due_at' => $target, 'requested_at' => $requested]);
+        assert_same('ไม่คิด SLA', (string) ($row['label'] ?? ''), "$status work is not judged on SLA in the detail row");
+        assert_false((bool) ($row['is_overdue'] ?? true), "$status work is never flagged overdue");
+    }
+
+    // (3) SOURCE — no caller may drop the cutoff on the floor, and no new bare-clock SLA comparison may appear
+    $service = (string) file_get_contents(BASE_PATH . '/app/Services/ReportService.php');
+    assert_false(
+        str_contains($service, 'mapReportRow($row)'),
+        'every mapReportRow call site must pass the as-of cutoff through to the row SLA'
+    );
+    assert_false(
+        str_contains($service, '$targetTimestamp < time()'),
+        'the row SLA verdict must go through the as-of parameter, never a bare time()'
+    );
+
+    // (4) SOURCE, the whole REPORTING layer — repository + service together. Scoped to reporting on purpose:
+    //     TicketReadRepository legitimately consults the clock (a technician's live queue, the "overdue" filter,
+    //     the SLA alert cron) because those surfaces ARE "right now". Reporting is the layer that must answer as
+    //     of a chosen period, so exactly one clock-based deadline test may survive here: the overview's live
+    //     backlog card, which the guide explicitly excludes from the freeze promise.
+    $reportingLayer = (string) file_get_contents(BASE_PATH . '/app/Repositories/ReportRepository.php') . $service;
+    assert_same(
+        1,
+        substr_count($reportingLayer, 'target_at < NOW()'),
+        'only the live backlog card may test a deadline against the clock anywhere in the reporting layer'
+    );
+});

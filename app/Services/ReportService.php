@@ -27,7 +27,8 @@ class ReportService
         $reference = $this->reports->getFilterReferenceData();
         $summary = $this->reports->getSummary($viewer, $normalizedFilters);
         $rowLimit = 250;
-        $rows = array_map(fn (array $row): array => $this->mapReportRow($row), $this->reports->getRows($viewer, $normalizedFilters, $rowLimit));
+        $rowsAsOf = $this->reportAsOfTimestamp($normalizedFilters);
+        $rows = array_map(fn (array $row): array => $this->mapReportRow($row, $rowsAsOf), $this->reports->getRows($viewer, $normalizedFilters, $rowLimit));
 
         $totalTickets = (int) ($summary['total_tickets'] ?? 0);
         $displayedCount = count($rows);
@@ -3084,7 +3085,9 @@ class ReportService
             throw new DomainException('ข้อมูลสำหรับ export มีมากเกิน ' . number_format($maxRows) . ' แถว กรุณากรองช่วงวันที่หรือเงื่อนไขให้แคบลงก่อน export');
         }
 
-        return array_map(fn (array $row): array => $this->mapReportRow($row), $rows);
+        $asOf = $this->reportAsOfTimestamp($normalizedFilters);
+
+        return array_map(fn (array $row): array => $this->mapReportRow($row, $asOf), $rows);
     }
 
     public function exportExcel(array $viewer, array $filters = []): array
@@ -3491,9 +3494,22 @@ class ReportService
         ];
     }
 
-    private function mapReportRow(array $row): array
+    /**
+     * เวลาอ้างอิงของรายงาน (as-of) = สิ้นสุดช่วงที่เลือก แต่ไม่เกินตอนนี้ — คู่กับ reportPeriodSnapshot ฝั่ง
+     * repository ที่ทำแบบเดียวกันในระดับ SQL ถ้าไม่ได้เลือกช่วงวันที่ ก็คือเวลาปัจจุบัน (มุมมองสด)
+     */
+    private function reportAsOfTimestamp(array $filters): int
     {
-        $sla = $this->buildSlaSummary($row);
+        $to = is_string($filters['to_datetime'] ?? null) ? trim((string) $filters['to_datetime']) : '';
+        $timestamp = $to !== '' ? strtotime($to) : false;
+
+        return $timestamp === false ? time() : min($timestamp, time());
+    }
+
+    /** @param int|null $asOf วันสิ้นงวดที่เลือก — ส่งต่อให้ SLA ของแถวตัดสินเวลาเดียวกับยอดรวม */
+    private function mapReportRow(array $row, ?int $asOf = null): array
+    {
+        $sla = $this->buildSlaSummary($row, $asOf);
         // resolution_minutes จะเป็น NULL เฉพาะเมื่อ ticket ไม่เคยถูกปิด (ปิดในนาทีเดียวกัน = 0 ไม่ใช่
         // NULL). ตรวจที่การมีอยู่ ไม่ใช่ > 0 เพื่อให้การปิดในนาทีเดียวกันแสดง 0.0 แทนที่จะเป็น '-'.
         $hasResolution = isset($row['resolution_minutes']);
@@ -3533,9 +3549,15 @@ class ReportService
         ];
     }
 
-    private function buildSlaSummary(array $ticket): array
+    /**
+     * @param int|null $asOf เวลาอ้างอิง = วันสิ้นงวดที่เลือก ต้องเป็นเวลาเดียวกับที่ repository ใช้ตัดสินยอดรวม
+     *                       ไม่งั้นหัวรายงานกับแถวข้างล่างจะตอบคนละอย่างบนหน้าจอเดียวกัน (null = เดี๋ยวนี้)
+     */
+    private function buildSlaSummary(array $ticket, ?int $asOf = null): array
     {
-        if ((string) ($ticket['status'] ?? '') === 'cancelled') {
+        // ยกเลิก/ปฏิเสธ = ไม่เคยมีใครถูกสั่งให้ทำ จึงไม่ตัดสิน SLA — ต้องตรงกับ slaApplicableCondition() ฝั่ง
+        // repository ที่ตัดสองสถานะนี้ออกจากยอดรวม ไม่งั้นแถวจะขึ้นว่าเกินกำหนดทั้งที่ยอดรวมไม่ได้นับมัน
+        if (in_array((string) ($ticket['status'] ?? ''), ['cancelled', 'rejected'], true)) {
             return [
                 'label' => 'ไม่คิด SLA',
                 'is_overdue' => false,
@@ -3543,8 +3565,8 @@ class ReportService
         }
 
         $requestedAt = $ticket['requested_at'] ?? null;
-        $response = $this->buildSlaMetricState($ticket['response_due_at'] ?? null, $ticket['first_response_at'] ?? null, $requestedAt);
-        $resolution = $this->buildSlaMetricState($ticket['resolution_due_at'] ?? null, $ticket['resolved_at'] ?? null, $requestedAt);
+        $response = $this->buildSlaMetricState($ticket['response_due_at'] ?? null, $ticket['first_response_at'] ?? null, $requestedAt, $asOf);
+        $resolution = $this->buildSlaMetricState($ticket['resolution_due_at'] ?? null, $ticket['resolved_at'] ?? null, $requestedAt, $asOf);
         $isOverdue = ($response['status'] ?? '') === 'breached' || ($resolution['status'] ?? '') === 'breached' || (bool) ($ticket['is_overdue'] ?? false);
 
         if (($resolution['status'] ?? '') === 'breached') {
@@ -3567,7 +3589,8 @@ class ReportService
         ];
     }
 
-    private function buildSlaMetricState(mixed $targetAt, mixed $achievedAt, mixed $requestedAt = null): array
+    /** @param int|null $asOf ตัดสิน "เลยกำหนดหรือยัง" ณ เวลานี้ (null = เดี๋ยวนี้ สำหรับมุมมองสด) */
+    private function buildSlaMetricState(mixed $targetAt, mixed $achievedAt, mixed $requestedAt = null, ?int $asOf = null): array
     {
         $target = is_string($targetAt) ? trim($targetAt) : '';
         $achieved = is_string($achievedAt) ? trim($achievedAt) : '';
@@ -3590,7 +3613,9 @@ class ReportService
             return ['status' => $achievedTimestamp > $targetTimestamp ? 'breached' : 'met'];
         }
 
-        return ['status' => $targetTimestamp < time() ? 'breached' : 'pending'];
+        // ยังปิดไม่ได้ → เลยกำหนดหรือยัง ต้องวัดกับ "วันสิ้นงวดที่เลือก" ไม่ใช่นาฬิกาวันนี้
+        // (งวดที่ปิดไปแล้วต้องไม่โตขึ้นเองเมื่อเวลาผ่านไป และต้องตรงกับยอดรวมที่ repository ตรึงไว้)
+        return ['status' => $targetTimestamp < ($asOf ?? time()) ? 'breached' : 'pending'];
     }
 
     private function countActiveFilters(array $filters): int
