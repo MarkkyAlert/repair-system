@@ -65,6 +65,45 @@ class ReportRepository
     }
 
     /**
+     * cycle ล่าสุด "ณ เวลา $cutoff" — มองเห็นเฉพาะรอบที่เกิดขึ้นแล้ว ณ ตอนนั้น
+     *
+     * การเปิดงานซ้ำจะ append cycle ใหม่ ถ้าเลือก cycle ด้วย MAX() เฉย ๆ งวดที่ปิดไปแล้วจะกระโดดไปอ่านรอบใหม่
+     * (ที่ยังไม่ถึงกำหนด) แล้วลบประวัติการเกิน SLA ของตัวเองทิ้ง — AN-01
+     * $cutoff เป็น SQL expression (alias.column หรือ NOW()) จึงอ้างอิงซ้ำได้โดยไม่ชน named param ที่ใช้ซ้ำไม่ได้
+     */
+    private function latestSlaCycleAsOf(string $a, string $cutoff): string
+    {
+        return "$a.created_at <= $cutoff
+                  AND $a.cycle = (
+                      SELECT MAX(slc.cycle)
+                      FROM ticket_sla_tracks slc
+                      WHERE slc.ticket_id = $a.ticket_id
+                        AND slc.metric_type = $a.metric_type
+                        AND slc.created_at <= $cutoff
+                  )";
+    }
+
+    /**
+     * "ทันกำหนด ณ $cutoff" — ปิดได้จริงก่อนถึงเวลาที่กำหนด และปิดไปแล้ว ณ ตอนนั้น
+     * แถวเก่า/นำเข้าที่ไม่มี achieved_at แต่ถูกบันทึกสถานะไว้ว่า met ยังคงนับให้ (ไม่ทำข้อมูลเก่าหาย)
+     */
+    private function slaMetAsOf(string $a, string $cutoff): string
+    {
+        return "(($a.achieved_at IS NOT NULL AND $a.achieved_at <= $cutoff AND $a.achieved_at <= $a.target_at)
+                 OR ($a.achieved_at IS NULL AND $a.status = 'met'))";
+    }
+
+    /**
+     * "เกินกำหนด ณ $cutoff" — ถึงเวลานั้นเลยกำหนดแล้วและยังปิดไม่ได้
+     * นิยามเป็นส่วนเติมเต็มของ slaMetAsOf บนงานที่เลยกำหนดแล้ว จึงไม่มีทางนับซ้ำหรือตกหล่น
+     * และงานที่กำหนดส่งยังมาไม่ถึง ณ ตอนนั้น จะไม่ถูกนับเป็นทั้งทันและเกิน (ผลยังไม่ออก)
+     */
+    private function slaBreachedAsOf(string $a, string $cutoff): string
+    {
+        return "($a.target_at < $cutoff AND NOT " . $this->slaMetAsOf($a, $cutoff) . ')';
+    }
+
+    /**
      * As-reported: ตรึงการ join ticket_ratings (alias $a) ไว้กับ rating cycle ล่าสุดของ ticket =
      * ความพึงพอใจ ณ ปัจจุบัน ตอนนี้ ticket_ratings เก็บหนึ่งแถวต่อ cycle (re-rate หลัง reopen จะ append เพิ่ม)
      * จุดที่แสดง CSAT แบบสถานะปัจจุบัน (executive summary, แถว overview, ค่าเฉลี่ยของช่าง) จึงอ่าน cycle ใหม่สุด
@@ -204,31 +243,13 @@ class ReportRepository
         $slaApplicable = $period['bounded']
             ? "$periodStatus NOT IN ('cancelled', 'rejected')"
             : $this->slaApplicableCondition();
-        $breachedCondition = $period['bounded']
-            ? "EXISTS (
+        // as-of เดียวกันทั้งไฟล์: ไม่มี window → cutoff = NOW() ซึ่งให้ผลเท่ากับพฤติกรรมเดิมของมุมมองสด
+        $breachedCondition = "EXISTS (
                 SELECT 1
                 FROM ticket_sla_tracks ts
                 WHERE ts.ticket_id = t.id
-                  AND ts.created_at <= {$period['cutoff']}
-                  AND ts.cycle = (
-                      SELECT MAX(slc.cycle)
-                      FROM ticket_sla_tracks slc
-                      WHERE slc.ticket_id = ts.ticket_id
-                        AND slc.metric_type = ts.metric_type
-                        AND slc.created_at <= {$period['cutoff']}
-                  )
-                  AND ts.target_at < {$period['cutoff']}
-                  AND (ts.achieved_at IS NULL OR ts.achieved_at > ts.target_at)
-            )"
-            : "EXISTS (
-                SELECT 1
-                FROM ticket_sla_tracks ts
-                WHERE ts.ticket_id = t.id
-                  AND {$this->latestSlaCycleClause('ts')}
-                  AND (
-                      ts.status = 'breached'
-                      OR (ts.status = 'pending' AND ts.target_at < NOW())
-                  )
+                  AND {$this->latestSlaCycleAsOf('ts', $period['cutoff'])}
+                  AND {$this->slaBreachedAsOf('ts', $period['cutoff'])}
             )";
 
         $stmt = $this->db->prepare(
@@ -338,11 +359,8 @@ class ReportRepository
                             SELECT 1
                             FROM ticket_sla_tracks ts
                             WHERE ts.ticket_id = t.id
-                              AND {$this->latestSlaCycleClause('ts')}
-                              AND (
-                                  ts.status = 'breached'
-                                  OR (ts.status = 'pending' AND ts.target_at < NOW())
-                              )
+                              AND {$this->latestSlaCycleAsOf('ts', $period['cutoff'])}
+                              AND {$this->slaBreachedAsOf('ts', $period['cutoff'])}
                         )
                     THEN 1
                     ELSE 0
@@ -569,10 +587,13 @@ class ReportRepository
     public function getSlaComplianceByPriority(array $viewer, array $filters): array
     {
         $params = [];
+        $period = $this->reportPeriodSnapshot($filters, $params, 'slacomp');
+        $cutoff = $period['cutoff'];
         $conditions = [$this->visibilityClause($viewer, $params)];
         $this->applyReportFilters($conditions, $filters, $params);
-        $conditions[] = $this->slaApplicableCondition(); // cancelled ticket = ไม่คิด SLA
-        $conditions[] = $this->latestSlaCycleClause('ts'); // sla-compliance ปัจจุบัน = ผลตัดสินของ cycle ล่าสุด
+        // ยกเลิก/ปฏิเสธ ณ วันสิ้นงวด (ไม่ใช่สถานะวันนี้) — งานที่เพิ่งถูกยกเลิกเดือนนี้ต้องไม่หายไปจากงวดเก่า
+        $conditions[] = "{$period['status']} NOT IN ('cancelled', 'rejected')";
+        $conditions[] = $this->latestSlaCycleAsOf('ts', $cutoff); // ผลตัดสินของรอบที่มีอยู่ ณ วันสิ้นงวด
         $whereClause = implode(' AND ', $conditions);
 
         $stmt = $this->db->prepare(
@@ -580,11 +601,12 @@ class ReportRepository
                 p.name AS priority_name,
                 p.level AS priority_level,
                 ts.metric_type,
-                SUM(CASE WHEN ts.status = 'met' THEN 1 ELSE 0 END) AS met,
-                SUM(CASE WHEN ts.status = 'breached' OR (ts.status = 'pending' AND ts.target_at < NOW()) THEN 1 ELSE 0 END) AS breached
+                SUM(CASE WHEN {$this->slaMetAsOf('ts', $cutoff)} THEN 1 ELSE 0 END) AS met,
+                SUM(CASE WHEN {$this->slaBreachedAsOf('ts', $cutoff)} THEN 1 ELSE 0 END) AS breached
              FROM ticket_sla_tracks ts
              INNER JOIN tickets t ON t.id = ts.ticket_id
              INNER JOIN priorities p ON p.id = t.priority_id
+             {$period['joins']}
              WHERE $whereClause
              GROUP BY p.id, p.name, p.level, ts.metric_type
              ORDER BY p.level DESC"
@@ -613,10 +635,13 @@ class ReportRepository
         $map = self::SLA_BREACH_DIMENSIONS[$dimension] ?? self::SLA_BREACH_DIMENSIONS['priority'];
 
         $params = [];
+        $period = $this->reportPeriodSnapshot($filters, $params, 'slabreach');
+        $cutoff = $period['cutoff'];
         $conditions = [$this->visibilityClause($viewer, $params)];
         $this->applySlaBreachFilters($conditions, $filters, $params);
-        $conditions[] = $this->slaApplicableCondition(); // cancelled ticket = ไม่คิด SLA
-        $conditions[] = $this->latestSlaCycleClause('ts'); // sla-breach ปัจจุบัน = ผลตัดสินของ cycle ล่าสุด
+        // ยกเลิก/ปฏิเสธ ณ วันสิ้นงวด (ไม่ใช่สถานะวันนี้) — งานที่เพิ่งถูกยกเลิกเดือนนี้ต้องไม่หายไปจากงวดเก่า
+        $conditions[] = "{$period['status']} NOT IN ('cancelled', 'rejected')";
+        $conditions[] = $this->latestSlaCycleAsOf('ts', $cutoff); // ผลตัดสินของรอบที่มีอยู่ ณ วันสิ้นงวด
         $whereClause = implode(' AND ', $conditions);
 
         $stmt = $this->db->prepare(
@@ -624,11 +649,12 @@ class ReportRepository
                 dim.id AS dimension_id,
                 {$map['label']} AS dimension_label,
                 ts.metric_type,
-                SUM(CASE WHEN ts.status = 'met' THEN 1 ELSE 0 END) AS met,
-                SUM(CASE WHEN ts.status = 'breached' OR (ts.status = 'pending' AND ts.target_at < NOW()) THEN 1 ELSE 0 END) AS breached
+                SUM(CASE WHEN {$this->slaMetAsOf('ts', $cutoff)} THEN 1 ELSE 0 END) AS met,
+                SUM(CASE WHEN {$this->slaBreachedAsOf('ts', $cutoff)} THEN 1 ELSE 0 END) AS breached
              FROM ticket_sla_tracks ts
              INNER JOIN tickets t ON t.id = ts.ticket_id
              {$map['join']}
+             {$period['joins']}
              WHERE $whereClause
              GROUP BY {$map['group']}, ts.metric_type
              ORDER BY {$map['order']}"
@@ -858,51 +884,20 @@ class ReportRepository
         $whereClause = implode(' AND ', $conditions);
         $periodStatus = $period['status'];
         $periodResolvedAt = $period['resolved_at'];
-        if ($period['bounded']) {
-            $overdueCondition = "EXISTS (
+        // as-of เดียวกันทั้งไฟล์: ไม่มี window → cutoff = NOW() ซึ่งให้ผลเท่ากับพฤติกรรมเดิมของมุมมองสด
+        $cutoff = $period['cutoff'];
+        $overdueCondition = "EXISTS (
                 SELECT 1 FROM ticket_sla_tracks ts
                 WHERE ts.ticket_id = t.id
-                  AND ts.created_at <= {$period['cutoff']}
-                  AND ts.cycle = (
-                      SELECT MAX(slc.cycle)
-                      FROM ticket_sla_tracks slc
-                      WHERE slc.ticket_id = ts.ticket_id
-                        AND slc.metric_type = ts.metric_type
-                        AND slc.created_at <= {$period['cutoff']}
-                  )
-                  AND ts.target_at < {$period['cutoff']}
-                  AND (ts.achieved_at IS NULL OR ts.achieved_at > ts.target_at)
+                  AND {$this->latestSlaCycleAsOf('ts', $cutoff)}
+                  AND {$this->slaBreachedAsOf('ts', $cutoff)}
             )";
-            $slaBaseCondition = "EXISTS (
+        $slaBaseCondition = "EXISTS (
                 SELECT 1 FROM ticket_sla_tracks tb
                 WHERE tb.ticket_id = t.id
-                  AND tb.created_at <= {$period['cutoff']}
-                  AND tb.cycle = (
-                      SELECT MAX(slc.cycle)
-                      FROM ticket_sla_tracks slc
-                      WHERE slc.ticket_id = tb.ticket_id
-                        AND slc.metric_type = tb.metric_type
-                        AND slc.created_at <= {$period['cutoff']}
-                  )
-                  AND (
-                      (tb.achieved_at IS NOT NULL AND tb.achieved_at <= {$period['cutoff']})
-                      OR tb.target_at < {$period['cutoff']}
-                  )
+                  AND {$this->latestSlaCycleAsOf('tb', $cutoff)}
+                  AND ({$this->slaMetAsOf('tb', $cutoff)} OR {$this->slaBreachedAsOf('tb', $cutoff)})
             )";
-        } else {
-            $overdueCondition = "EXISTS (
-                SELECT 1 FROM ticket_sla_tracks ts
-                WHERE ts.ticket_id = t.id
-                  AND {$this->latestSlaCycleClause('ts')}
-                  AND (ts.status = 'breached' OR (ts.status = 'pending' AND ts.target_at < NOW()))
-            )";
-            $slaBaseCondition = "EXISTS (
-                SELECT 1 FROM ticket_sla_tracks tb
-                WHERE tb.ticket_id = t.id
-                  AND {$this->latestSlaCycleClause('tb')}
-                  AND (tb.status = 'met' OR tb.status = 'breached' OR (tb.status = 'pending' AND tb.target_at < NOW()))
-            )";
-        }
 
         $stmt = $this->db->prepare(
             "SELECT

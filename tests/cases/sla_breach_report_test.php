@@ -175,8 +175,16 @@ test('sla breach: two same-named locations (different id) stay separate rows (Fi
     $tids = [];
 
     try {
-        // location A: resolution BREACHED ; location B: resolution MET — different outcomes, same name
-        foreach ([[$locA, 'breached', 'breached_at'], [$locB, 'met', 'achieved_at']] as [$loc, $status, $col]) {
+        // location A: resolution BREACHED ; location B: resolution MET — different outcomes, same name.
+        // Each row's timestamps must agree with its status the way the live flow writes them:
+        // TicketRepository::markSlaAchieved stores 'breached' whenever achieved_at > target_at, so a 'met' row
+        // closed AFTER its own target cannot exist in production. breached = closed after the target,
+        // met = closed before it. Both targets are already past, so both outcomes are decided.
+        $rows = [
+            [$locA, 'breached', 'breached_at', time() - 3600, time()],
+            [$locB, 'met', 'achieved_at', time() - 60, time() - 3600],
+        ];
+        foreach ($rows as [$loc, $status, $col, $targetAt, $stampAt]) {
             slab_pdo()->prepare(
                 "INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id, priority_id, status, requested_at)
                  VALUES (?, 'x', 'x', 1, ?, 1, 1, 'in_progress', NOW())"
@@ -184,7 +192,7 @@ test('sla breach: two same-named locations (different id) stay separate rows (Fi
             $tid = (int) slab_pdo()->lastInsertId();
             $tids[] = $tid;
             slab_pdo()->prepare("INSERT INTO ticket_sla_tracks (ticket_id, metric_type, target_at, $col, status) VALUES (?, 'resolution', ?, ?, ?)")
-                ->execute([$tid, date('Y-m-d H:i:s', time() - 3600), date('Y-m-d H:i:s'), $status]);
+                ->execute([$tid, date('Y-m-d H:i:s', $targetAt), date('Y-m-d H:i:s', $stampAt), $status]);
         }
 
         $page = slab_service()->getSlaBreachReportPage(['id' => 4, 'role' => 'admin'], ['dimension' => 'location']);
