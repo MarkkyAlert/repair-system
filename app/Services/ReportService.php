@@ -3606,7 +3606,14 @@ class ReportService
             return ['status' => 'unavailable'];
         }
 
-        if ($achievedTimestamp !== false) {
+        $asOfTimestamp = $asOf ?? time();
+
+        // มิติที่สามของ as-of: นอกจากกำหนดเวลาต้องเป็นของรอบที่ตรงงวดแล้ว "การบรรลุเป้า" ก็ต้องเกิดไม่เกินวันสิ้นงวดด้วย
+        // ถ้าช่างมากดรับงานหลังปิดงวด แล้วเรานับว่าบรรลุแล้ว งวดเก่าจะเปลี่ยนคำตอบตัวเองย้อนหลัง
+        // (เคยเปลี่ยนจาก "รอตอบรับ" เป็น "ตอบรับเกินกำหนด") — ณ วันสิ้นงวดนั้นยังไม่มีใครรับงาน จึงต้องถือว่ายังไม่บรรลุ
+        $achievedWithinPeriod = $achievedTimestamp !== false && $achievedTimestamp <= $asOfTimestamp;
+
+        if ($achievedWithinPeriod) {
             // การบรรลุเป้าที่เกิดก่อน ticket ถูกแจ้ง เป็นข้อมูลที่เป็นไปไม่ได้ (seed/import เพี้ยน) — ตัดสิน
             // met/breached ไม่ได้ จึงถือว่า SLA ใช้ไม่ได้ (unavailable) แทนที่จะเป็น "met" ปลอม.
             if ($requestedTimestamp !== false && $achievedTimestamp < $requestedTimestamp) {
@@ -3616,9 +3623,9 @@ class ReportService
             return ['status' => $achievedTimestamp > $targetTimestamp ? 'breached' : 'met'];
         }
 
-        // ยังปิดไม่ได้ → เลยกำหนดหรือยัง ต้องวัดกับ "วันสิ้นงวดที่เลือก" ไม่ใช่นาฬิกาวันนี้
+        // ยังปิดไม่ได้ (หรือเพิ่งมาปิดหลังงวดจบ) → เลยกำหนดหรือยัง วัดกับ "วันสิ้นงวดที่เลือก" ไม่ใช่นาฬิกาวันนี้
         // (งวดที่ปิดไปแล้วต้องไม่โตขึ้นเองเมื่อเวลาผ่านไป และต้องตรงกับยอดรวมที่ repository ตรึงไว้)
-        return ['status' => $targetTimestamp < ($asOf ?? time()) ? 'breached' : 'pending'];
+        return ['status' => $targetTimestamp < $asOfTimestamp ? 'breached' : 'pending'];
     }
 
     private function countActiveFilters(array $filters): int

@@ -169,14 +169,18 @@ test('report guide: the period-freeze promise and the ≥30 backlog boundary mat
 // deadline to time(). The header was frozen to the period end while the detail row and every export below it
 // still consulted today's clock, so one screen contradicted itself.
 //
-// SCOPE, stated honestly because the first version of this guard was described as stronger than it was: an
-// earlier revision only drove buildSlaMetricState, so an independent review defeated it by adding a clock verdict
-// to buildSlaSummary instead — the guard stayed green while the report was wrong. What follows therefore does not
-// rely on knowing the entry points. Checks (1)-(3) pin behaviour and known call sites; check (5) inverts the
-// question and demands that EVERY use of the clock in ReportService sit in a method explicitly allowed to be
-// live, so a bare time() in any other method — existing or newly written, in any comparison shape — fails.
-// What it still cannot see: a clock reached through a different API (DateTime, $_SERVER['REQUEST_TIME']) or a
-// wrong-cycle deadline, which is not a clock bug at all. sla_row_period_parity_test covers that second class.
+// SCOPE — read this before trusting it. This guard is a PATTERN SCANNER plus a couple of behavioural probes,
+// and a scanner can never be complete. An independent review demonstrated it catching only 2 of 8 mutations:
+// `time ()` with a space, strtotime('now'), date('U'), `NOW() > target_at` with the operands swapped, CURDATE(),
+// and a clock added on the repository side all slip past it. Earlier revisions of this comment claimed far more
+// than that, twice, which is worse than a weak guard because it stops people looking.
+//
+// What it is actually good for: it fails FAST and points at a method name when someone writes the obvious form.
+// The real protection against a closed period rewriting itself is behavioural and lives in
+// closed_period_immutability_test — snapshot a finished period, drive real workflow actions after it, demand the
+// snapshot is byte-identical. That one is immune to which clock API (or none at all — a wrong-cycle deadline is
+// not a clock bug) the regression happens to use, because it never reads the source.
+
 test('sla as-of: every layer that judges "overdue" honours the period end, not the clock (cross-layer guard)', function (): void {
     $svc = rg_service();
     $state = new ReflectionMethod(ReportService::class, 'buildSlaMetricState');
