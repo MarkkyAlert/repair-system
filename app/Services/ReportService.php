@@ -698,7 +698,9 @@ class ReportService
         $slaBase = (int) ($resolver['sla_base'] ?? 0);
         $slaOnTime = (int) ($resolver['sla_on_time'] ?? 0);
         $ratingCount = (int) ($resolver['rating_count'] ?? 0);
-        $avgRating = $ratingCount > 0 ? (float) ($resolver['rating_sum'] ?? 0) / $ratingCount : 0.0;
+        // ปัดก่อนแล้วค่อยให้สี (เหมือน mapCsatRow/buildCsatSummary) ไม่งั้น 3.96 จะโชว์ "4.0" แต่ติดป้ายเหลือง
+        // ทั้งที่คู่มือบอกว่า >= 4.0 ต้องเขียว — ช่องที่อ่านว่า 4.0 แต่ไม่เขียวทำให้คนไม่เชื่อถือทั้งตาราง
+        $avgRating = $ratingCount > 0 ? round((float) ($resolver['rating_sum'] ?? 0) / $ratingCount, 1) : 0.0;
 
         $slaRate = $slaBase > 0 ? round($slaOnTime / $slaBase * 100, 1) : null;
         $sharePct = $totalOpenNow > 0 ? round($openNow / $totalOpenNow * 100, 1) : null;
