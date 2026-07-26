@@ -256,6 +256,9 @@ class ReportRepository
             "SELECT
                 COUNT(*) AS total_tickets,
                 COALESCE(SUM(CASE WHEN $periodStatus IN ($resolvedStatuses) THEN 1 ELSE 0 END), 0) AS resolved_tickets,
+                -- งานค้างที่เลยกำหนด = ภาพ ณ ตอนนี้โดยตั้งใจ (อ่าน t.status สด ไม่ใช่สถานะ ณ วันสิ้นงวด) ไว้ไล่งานค้างวันนี้
+                -- คู่มือระบุว่ากลุ่มตัวเลขงานค้างไม่ใช่ยอดตรึงรายงวด ต่างจาก breached_tickets ด้านล่างที่ตรึงตามงวด
+                -- นี่คือจุดเดียวในไฟล์ที่ยังตัดสิน SLA ด้วยนาฬิกา และ report_guide_test ล็อกไว้ว่าต้องมีที่เดียวเท่านั้น
                 COALESCE(COUNT(DISTINCT CASE
                     WHEN t.status NOT IN ($closedStatuses)
                         AND EXISTS (

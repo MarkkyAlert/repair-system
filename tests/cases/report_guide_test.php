@@ -129,3 +129,37 @@ test('report guide/trend: the at-a-glance net line is a hedged signal, not a def
         assert_contains_str('สัญญาณคร่าว ๆ ว่างานค้างอาจเพิ่ม', $html, "$name hedges the net line as a rough signal");
     }
 });
+
+// AN-01 follow-up (2026-07-26): the guide claims a closed period freezes its ปิดงาน · MTTR · SLA · คะแนน.
+// That sentence was false for SLA until the as-of fix — the queries still picked the newest cycle and judged
+// overdue against NOW(), so a reopen rewrote a closed month. A doc that promises a guarantee the code does not
+// keep is worse than no doc, so both halves are pinned here: the promise stays in the guide, and the code keeps
+// it (sla_period_freeze_test drives the reopen end-to-end). Also pins the ≥30 backlog boundary, which the guide
+// printed as ">30 วัน" while the query, the screen, the export and the PDF all use >= 30.
+test('report guide: the period-freeze promise and the ≥30 backlog boundary match the code (AN-01)', function (): void {
+    $guide = (string) file_get_contents(BASE_PATH . '/app/Views/reports/guide.php');
+    $repo = (string) file_get_contents(BASE_PATH . '/app/Repositories/ReportRepository.php');
+
+    // (1) the guide still promises the freeze — including SLA by name
+    assert_contains_str('งวดที่จบแล้วตรึงยอดปิด · MTTR · SLA · คะแนน', $guide, 'the guide promises closed periods are frozen');
+
+    // (2) the code keeps it: every SLA verdict tied to a reporting PERIOD goes through the as-of helpers,
+    //     whose cutoff is the period end (and only falls back to NOW() when no window is selected).
+    assert_contains_str('latestSlaCycleAsOf', $repo, 'SLA cycle selection is as-of the period end');
+    assert_contains_str('slaBreachedAsOf', $repo, 'the overdue verdict is as-of the period end');
+
+    //     Exactly ONE clock-based SLA verdict may remain: the overview's "งานค้างที่เลยกำหนด" card, which is a
+    //     deliberate live-backlog snapshot (it reads the live t.status, and the guide carves backlog numbers out
+    //     of the freeze promise). A second occurrence means a period metric slipped back onto the clock.
+    $clockVerdict = "ts.status = 'pending' AND ts.target_at < NOW()";
+    assert_same(1, substr_count($repo, $clockVerdict), 'only the live backlog card may judge SLA against the clock');
+    $where = (int) strpos($repo, $clockVerdict);
+    assert_contains_str('overdue_tickets', substr($repo, $where, 600), 'and that one occurrence is the live backlog card');
+
+    // (3) the backlog boundary is inclusive in the code, so the guide must not print the exclusive form
+    assert_false(str_contains($guide, '>30 วัน'), 'the guide must not print the exclusive >30 form');
+    assert_contains_str('≥30 วัน', $guide, 'the guide uses the inclusive ≥30 boundary the query implements');
+
+    // (4) the hotspot rate definition the code now implements is documented
+    assert_contains_str('งานที่พลาดกำหนดในช่วง ÷ งานที่ตัดสินผลได้แล้ว', $guide, 'guide defines %เกิน SLA as missed over judged');
+});
