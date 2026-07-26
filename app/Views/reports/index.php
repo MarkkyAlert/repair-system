@@ -87,10 +87,14 @@ $isCapped = !empty($rowsMeta['capped']);
             'meta' => 'ตั้งแต่แจ้งจนแก้ไขสำเร็จ',
             'tone' => 'info',
         ]) ?>
+        <?php $overviewRatingCount = (int) ($summary['ratingCount'] ?? 0); ?>
         <?= render_partial('partials/components/card', [
             'title' => 'คะแนนเฉลี่ย',
             'value' => (string) ($summary['avgRatingLabel'] ?? '-'),
-            'meta' => 'ความพึงพอใจของผู้แจ้ง',
+            // บอกจำนวนรีวิวเสมอ — คะแนนเต็มจากรีวิวเดียวต้องไม่อ่านเหมือนคะแนนเต็มจากรีวิวจำนวนมาก
+            'meta' => $overviewRatingCount > 0
+                ? 'ความพึงพอใจของผู้แจ้ง · จาก ' . number_format($overviewRatingCount) . ' รีวิว'
+                : 'ความพึงพอใจของผู้แจ้ง · ยังไม่มีรีวิว',
             'tone' => 'warning',
         ]) ?>
     </div>

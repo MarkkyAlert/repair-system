@@ -67,8 +67,11 @@
         <div class="summary-value"><?= e((string) ($summary['avgResolutionHoursLabel'] ?? '-')) ?></div>
     </div>
     <div class="summary-item">
+        <?php $pdfRatingCount = (int) ($summary['ratingCount'] ?? 0); ?>
         <div class="summary-title">คะแนนเฉลี่ย</div>
         <div class="summary-value"><?= e((string) ($summary['avgRatingLabel'] ?? '-')) ?></div>
+        <?php // ไฟล์ที่ส่งต่อให้ผู้บริหารต้องบอก sample size ติดไปด้วย ไม่งั้นคะแนนจากรีวิวเดียวดูน่าเชื่อเกินจริง ?>
+        <div class="summary-title"><?= e($pdfRatingCount > 0 ? 'จาก ' . number_format($pdfRatingCount) . ' รีวิว' : 'ยังไม่มีรีวิว') ?></div>
     </div>
 </div>
 

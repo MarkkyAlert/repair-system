@@ -44,7 +44,11 @@ class ReportService
                     ? number_format(round(((float) ($summary['avg_resolution_minutes'] ?? 0)) / 60, 1), 1)
                     : '-',
                 'avgRating' => (float) ($summary['avg_rating'] ?? 0),
-                'avgRatingLabel' => (float) ($summary['avg_rating'] ?? 0) > 0 ? number_format((float) ($summary['avg_rating'] ?? 0), 1) : '-',
+                // ป้ายคะแนนอิง "จำนวนรีวิว" เป็น base เช่นเดียวกับ MTTR ข้างบน: ไม่มีรีวิว → '-'
+                // (เดิมเช็ค avg > 0 ซึ่งจะอ่านช่วงที่ทุกคนให้คะแนนต่ำสุดว่า "ไม่มีข้อมูล")
+                'avgRatingLabel' => (int) ($summary['rating_count'] ?? 0) > 0 ? number_format((float) ($summary['avg_rating'] ?? 0), 1) : '-',
+                // sample size ของคะแนน — "5.0 จาก 1 รีวิว" ต้องอ่านไม่เหมือน "5.0 จาก 40 รีวิว"
+                'ratingCount' => (int) ($summary['rating_count'] ?? 0),
             ],
             'rows' => $rows,
             // ตารางบนหน้าจอถูกจำกัดจำนวนแถว; meta นี้ช่วยให้ view แสดงจำนวนจริงตามตรง
@@ -3184,7 +3188,8 @@ class ReportService
                     'avgResolutionHoursLabel' => (int) ($summary['resolution_base'] ?? 0) > 0
                         ? number_format(round(((float) ($summary['avg_resolution_minutes'] ?? 0)) / 60, 1), 1)
                         : '-',
-                    'avgRatingLabel' => (float) ($summary['avg_rating'] ?? 0) > 0 ? number_format((float) ($summary['avg_rating'] ?? 0), 1) : '-',
+                    'avgRatingLabel' => (int) ($summary['rating_count'] ?? 0) > 0 ? number_format((float) ($summary['avg_rating'] ?? 0), 1) : '-',
+                    'ratingCount' => (int) ($summary['rating_count'] ?? 0),
                 ],
                 'rows' => $rows,
                 'filters' => $this->describeFilters($normalizedFilters, $this->reports->getFilterReferenceData()),
@@ -3262,7 +3267,8 @@ class ReportService
 
         return [
             ['title' => 'SLA ตรงตามกำหนด', 'headers' => ['ระดับความสำคัญ', 'ตอบรับ ตรง', 'ตอบรับ เกิน', 'ตอบรับ %', 'แก้ไข ตรง', 'แก้ไข เกิน', 'แก้ไข %'], 'rows' => $slaRows],
-            ['title' => 'ผลงานช่างเทคนิค', 'headers' => ['ช่าง', 'ปิดงาน', 'ค้าง', 'เวลาซ่อมเฉลี่ย (ชม.)', 'คะแนนเฉลี่ย'], 'rows' => array_map(fn (array $t): array => [$this->txt($t['full_name']), $t['resolved'], $t['open_now'], $t['mttr_hours_label'], $t['avg_rating_label']], $analytics['technicianPerformance'] ?? [])],
+            // 'จำนวนรีวิว' = base ของคะแนน — ให้ไฟล์ที่ export ออกไปบอก sample size เหมือนที่หน้าจอบอก
+            ['title' => 'ผลงานช่างเทคนิค', 'headers' => ['ช่าง', 'ปิดงาน', 'ค้าง', 'เวลาซ่อมเฉลี่ย (ชม.)', 'คะแนนเฉลี่ย', 'จำนวนรีวิว'], 'rows' => array_map(fn (array $t): array => [$this->txt($t['full_name']), $t['resolved'], $t['open_now'], $t['mttr_hours_label'], $t['avg_rating_label'], (int) ($t['rating_count'] ?? 0)], $analytics['technicianPerformance'] ?? [])],
             ['title' => 'ชั่วโมงแรงงาน', 'headers' => ['หมวดหมู่งาน', 'จำนวนงาน', 'งานที่บันทึกแรงงาน', 'รวมชั่วโมง', 'เฉลี่ย/งาน (ชม.)'], 'rows' => array_map(fn (array $c): array => [$this->txt($c['category_name']), $c['tickets'], $c['labored_tickets'], $c['labor_hours_label'], $c['avg_hours_label']], $analytics['laborEffort']['byCategory'] ?? [])],
             ['title' => 'ทรัพย์สินเสียบ่อย', 'headers' => ['รหัส', 'ชื่อ', 'หมวดหมู่', 'สถานที่', 'สถานะ', 'จำนวนครั้ง', 'ครั้งล่าสุด', 'เวลาซ่อมเฉลี่ย (ชม.)', 'ชม.แรงงาน'], 'rows' => array_map(fn (array $a): array => [$this->txt($a['asset_code']), $this->txt($a['name']), $this->txt($a['category_name']), $this->txt($a['location_name']), $a['status_label'], $a['failure_count'], $a['last_failure'], $a['avg_resolution_hours_label'], $a['labor_hours_label']], $analytics['assetReliability'] ?? [])],
         ];
