@@ -167,8 +167,16 @@ test('report guide: the period-freeze promise and the ≥30 backlog boundary mat
 // AN-01 verify follow-up (2026-07-26): the first guard only scanned SQL strings in ReportRepository, so it sailed
 // straight past a SIXTH SLA verdict living in the service layer — ReportService::buildSlaMetricState compared the
 // deadline to time(). The header was frozen to the period end while the detail row and every export below it
-// still consulted today's clock, so one screen contradicted itself. A guard that only knows one layer is not a
-// guard; this one checks BEHAVIOUR at each layer that decides "overdue", plus the source patterns.
+// still consulted today's clock, so one screen contradicted itself.
+//
+// SCOPE, stated honestly because the first version of this guard was described as stronger than it was: an
+// earlier revision only drove buildSlaMetricState, so an independent review defeated it by adding a clock verdict
+// to buildSlaSummary instead — the guard stayed green while the report was wrong. What follows therefore does not
+// rely on knowing the entry points. Checks (1)-(3) pin behaviour and known call sites; check (5) inverts the
+// question and demands that EVERY use of the clock in ReportService sit in a method explicitly allowed to be
+// live, so a bare time() in any other method — existing or newly written, in any comparison shape — fails.
+// What it still cannot see: a clock reached through a different API (DateTime, $_SERVER['REQUEST_TIME']) or a
+// wrong-cycle deadline, which is not a clock bug at all. sla_row_period_parity_test covers that second class.
 test('sla as-of: every layer that judges "overdue" honours the period end, not the clock (cross-layer guard)', function (): void {
     $svc = rg_service();
     $state = new ReflectionMethod(ReportService::class, 'buildSlaMetricState');
@@ -220,5 +228,49 @@ test('sla as-of: every layer that judges "overdue" honours the period end, not t
         1,
         substr_count($reportingLayer, 'target_at < NOW()'),
         'only the live backlog card may test a deadline against the clock anywhere in the reporting layer'
+    );
+
+    // (5) SOURCE, per METHOD — the previous version of this guard only drove buildSlaMetricState, so a clock
+    //     verdict added anywhere ELSE in ReportService (e.g. `$deadline < time()` inside buildSlaSummary) sailed
+    //     past it. Instead of trusting a list of known entry points, this asserts the inverse: every single use
+    //     of the clock in ReportService must live in a method that is ALLOWED to be "now"-based. A new bare
+    //     time() in any other method — existing or newly written — fails, whatever shape the comparison takes.
+    $reflection = new ReflectionClass(ReportService::class);
+    $lines = (array) file(BASE_PATH . '/app/Services/ReportService.php');
+    $ownerOfLine = [];
+    foreach ($reflection->getMethods() as $method) {
+        if ($method->getDeclaringClass()->getName() !== ReportService::class) {
+            continue;
+        }
+        for ($line = (int) $method->getStartLine(); $line <= (int) $method->getEndLine(); $line++) {
+            $ownerOfLine[$line] = $method->getName();
+        }
+    }
+    // methods whose whole job is a live/relative measurement, plus the one as-of helper and its fallback
+    $mayUseClock = [
+        'yearsSince',              // asset age today
+        'warrantyState',           // in/out of warranty today
+        'meanTimeBetweenFailures', // rejects future failure timestamps
+        'daysSince',               // oldest-open age today
+        'reportAsOfTimestamp',     // derives the as-of moment (and clamps it to now)
+        'buildSlaMetricState',     // only as the `$asOf ?? time()` fallback, asserted below
+    ];
+    $offenders = [];
+    foreach ($lines as $index => $text) {
+        if (!str_contains((string) $text, 'time()') || str_contains((string) $text, 'thai_datetime(time())')) {
+            continue; // print stamps ("generated at") are unambiguous and always live
+        }
+        $method = $ownerOfLine[$index + 1] ?? '(outside any method)';
+        if (!in_array($method, $mayUseClock, true)) {
+            $offenders[] = $method . ' @ line ' . ($index + 1);
+        }
+        if ($method === 'buildSlaMetricState' && !str_contains((string) $text, '$asOf ?? time()')) {
+            $offenders[] = 'buildSlaMetricState uses a bare clock @ line ' . ($index + 1);
+        }
+    }
+    assert_same(
+        [],
+        $offenders,
+        'every clock use in ReportService must sit in a method allowed to be live: ' . implode(', ', $offenders)
     );
 });
