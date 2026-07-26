@@ -1112,8 +1112,7 @@ class TicketRepository
         ?string $completedAt,
         ?string $acceptedAt = null,
         ?string $startedAt = null,
-    ): void
-    {
+    ): void {
         $stmt = $this->db->prepare(
             'INSERT IGNORE INTO work_orders (
                 work_order_no, ticket_id, technician_id, assigned_by, status, labor_minutes,
@@ -1147,8 +1146,7 @@ class TicketRepository
         ?string $breachedAt,
         string $status,
         int $cycle = 1,
-    ): void
-    {
+    ): void {
         $stmt = $this->db->prepare(
             'INSERT IGNORE INTO ticket_sla_tracks (ticket_id, metric_type, cycle, target_at, achieved_at, breached_at, status, created_at)
              VALUES (:ticket_id, :metric, :cycle, :target, :achieved, :breached, :status, :created)'
@@ -1207,8 +1205,7 @@ class TicketRepository
         string $feedback,
         int $cycle = 1,
         ?string $createdAt = null,
-    ): void
-    {
+    ): void {
         $createdAt ??= date('Y-m-d H:i:s');
         $stmt = $this->db->prepare(
             'INSERT IGNORE INTO ticket_ratings (ticket_id, requester_id, technician_id, cycle, score, feedback, created_at, updated_at)
