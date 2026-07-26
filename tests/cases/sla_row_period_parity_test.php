@@ -154,3 +154,99 @@ test('sla(row): a REJECTED ticket is "ไม่คิด SLA" in its row, exactl
         srp_pdo()->prepare('DELETE FROM departments WHERE id = ?')->execute([$d[0]]);
     }
 });
+
+// AN-01 verify round 3 (2026-07-26) — the row could still disagree with the header WITHOUT any clock involved.
+// getRows handed the service t.response_due_at / t.resolution_due_at / t.first_response_at, which are the CURRENT
+// cycle's values. A reopen overwrites them with the new cycle's targets, so a month whose aggregate correctly
+// still counted a breach had its own detail row re-judged against a deadline that did not exist yet in that
+// month — "ยอดรวม = เกิน, แถว = รอตอบรับ". The as-of moment was right; the deadline was from the wrong cycle.
+test('sla(row): after a reopen the row is judged by the cycle that was live in that period, not the new one', function (): void {
+    $svc = tvm_container()->get(ReportService::class);
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $pdo = srp_pdo();
+    $sfx = bin2hex(random_bytes(4));
+    $d = srp_dims($sfx);
+
+    $monthStart = new DateTimeImmutable(date('Y-m-01', strtotime('-6 months')));
+    $monthEnd = $monthStart->modify('last day of this month');
+    $filters = [
+        'from_date' => $monthStart->format('Y-m-d'),
+        'to_date' => $monthEnd->format('Y-m-d'),
+        'department_id' => $d[0],
+    ];
+    $ticketNo = "SRPRO-$sfx";
+
+    try {
+        // a ticket requested in the closed month whose resolution deadline was missed inside that month
+        $requested = $monthStart->modify('+2 days')->format('Y-m-d H:i:s');
+        $target = $monthStart->modify('+3 days')->format('Y-m-d H:i:s');
+        $ticketId = srp_ticket($ticketNo, $d, 'in_progress', $requested, $target);
+
+        $before = srp_row($filters, $ticketNo);
+        assert_true((bool) $before['sla_overdue'], 'baseline: inside that month the deadline was already missed');
+
+        // …reopened today. reopenTicket recalculates the ticket's due columns for the NEW cycle and appends cycle 2.
+        $newTarget = date('Y-m-d H:i:s', strtotime('+10 days'));
+        $pdo->prepare('UPDATE tickets SET response_due_at = ?, resolution_due_at = ?, first_response_at = NULL WHERE id = ?')
+            ->execute([$newTarget, $newTarget, $ticketId]);
+        $pdo->prepare("INSERT INTO ticket_sla_tracks (ticket_id, metric_type, cycle, target_at, status, created_at)
+                       VALUES (?, 'resolution', 2, ?, 'pending', NOW())")->execute([$ticketId, $newTarget]);
+
+        // the aggregate for that closed month is unchanged (it reads the cycle that existed then)
+        $headerBreached = 0;
+        $compliance = $svc->getReportPageData($admin, $filters)['slaCompliance']['overall'] ?? [];
+        foreach (['response', 'resolution'] as $metric) {
+            $headerBreached += (int) ($compliance[$metric]['breached'] ?? 0);
+        }
+        assert_true($headerBreached >= 1, 'sanity: the header still records the breach for that month');
+
+        $after = srp_row($filters, $ticketNo);
+        assert_true(
+            (bool) $after['sla_overdue'],
+            'the row must still show the breach — a reopen today cannot re-judge a closed month against tomorrow\'s deadline'
+        );
+        assert_same('แก้ไขเกินกำหนด', (string) $after['sla_label'], 'and its label still names the missed resolution');
+    } finally {
+        $pdo->prepare('DELETE FROM tickets WHERE ticket_no = ?')->execute([$ticketNo]);
+        $pdo->prepare('DELETE FROM departments WHERE id = ?')->execute([$d[0]]);
+    }
+});
+
+// A future to_date is selectable in the UI (the date inputs are not capped). The service clamped its as-of moment
+// to "now" while the repository used the future date verbatim, so the two halves of one screen judged SLA at
+// different moments: the header called both metrics breached while the row said รอแก้ไข.
+test('sla(row): a FUTURE to_date is clamped the same way in both layers', function (): void {
+    $svc = tvm_container()->get(ReportService::class);
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $pdo = srp_pdo();
+    $sfx = bin2hex(random_bytes(4));
+    $d = srp_dims($sfx);
+    $ticketNo = "SRPF-$sfx";
+
+    try {
+        // deadline lands a week from now — nothing is late yet, whichever way you look at it
+        $requested = date('Y-m-d H:i:s', strtotime('-2 days'));
+        $target = date('Y-m-d H:i:s', strtotime('+7 days'));
+        srp_ticket($ticketNo, $d, 'in_progress', $requested, $target);
+
+        // …but the user picks an end date a month into the future
+        $filters = [
+            'from_date' => date('Y-m-d', strtotime('-30 days')),
+            'to_date' => date('Y-m-d', strtotime('+30 days')),
+            'department_id' => $d[0],
+        ];
+
+        $page = $svc->getReportPageData($admin, $filters);
+        $headerBreached = 0;
+        foreach (['response', 'resolution'] as $metric) {
+            $headerBreached += (int) ($page['slaCompliance']['overall'][$metric]['breached'] ?? 0);
+        }
+        assert_same(0, $headerBreached, 'the header must not treat a future date as already elapsed');
+
+        $row = srp_row($filters, $ticketNo);
+        assert_false((bool) $row['sla_overdue'], 'and the row agrees — neither layer may read the calendar ahead of today');
+    } finally {
+        $pdo->prepare('DELETE FROM tickets WHERE ticket_no = ?')->execute([$ticketNo]);
+        $pdo->prepare('DELETE FROM departments WHERE id = ?')->execute([$d[0]]);
+    }
+});

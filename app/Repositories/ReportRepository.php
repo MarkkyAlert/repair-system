@@ -104,6 +104,27 @@ class ReportRepository
     }
 
     /**
+     * ค่าใน ticket_sla_tracks ของ metric หนึ่ง ณ cycle ที่มีอยู่จริง ณ $cutoff
+     *
+     * คอลัมน์ t.response_due_at / t.resolution_due_at / t.first_response_at เป็นค่าของ "รอบปัจจุบัน" การเปิดซ้ำ
+     * เขียนทับด้วยกำหนดเวลาของรอบใหม่ ถ้าแถวรายละเอียดอ่านจากคอลัมน์เหล่านั้น งวดที่ปิดไปแล้วจะถูกตัดสินด้วย
+     * กำหนดเวลาที่ยังไม่เกิดขึ้นในงวดนั้น (ยอดรวมบอกว่าเกิน แต่แถวบอกว่ารอตอบรับ) — ต้องอ่านจากรอบที่ตรงงวด
+     * ถ้าไม่มีแถว SLA เลย (ข้อมูลเก่า/นำเข้า) ผู้เรียกจะ COALESCE กลับไปคอลัมน์เดิมเพื่อไม่ทำข้อมูลเก่าหาย
+     */
+    private function slaAsOfTrackValue(string $metric, string $field, string $cutoff, string $alias): string
+    {
+        if (!in_array($metric, ['response', 'resolution'], true) || !in_array($field, ['target_at', 'achieved_at'], true)) {
+            throw new RuntimeException('Invalid SLA as-of track selector');
+        }
+
+        return "(SELECT $alias.$field
+                 FROM ticket_sla_tracks $alias
+                 WHERE $alias.ticket_id = t.id
+                   AND $alias.metric_type = '$metric'
+                   AND {$this->latestSlaCycleAsOf($alias, $cutoff)})";
+    }
+
+    /**
      * As-reported: ตรึงการ join ticket_ratings (alias $a) ไว้กับ rating cycle ล่าสุดของ ticket =
      * ความพึงพอใจ ณ ปัจจุบัน ตอนนี้ ticket_ratings เก็บหนึ่งแถวต่อ cycle (re-rate หลัง reopen จะ append เพิ่ม)
      * จุดที่แสดง CSAT แบบสถานะปัจจุบัน (executive summary, แถว overview, ค่าเฉลี่ยของช่าง) จึงอ่าน cycle ใหม่สุด
@@ -151,7 +172,10 @@ class ReportRepository
         $params[$legacyParam] = $to;
 
         $joins = "
-            CROSS JOIN (SELECT :$legacyParam AS cutoff_at) $cutoffAlias
+            -- as-of ต้องไม่ล้ำอนาคต: ผู้ใช้เลือกวันสิ้นสุดเป็นวันหน้าได้ (ช่องวันที่ไม่ได้ห้าม) ถ้าเอาไปใช้ตรง ๆ
+            -- งานที่ยังไม่ถึงกำหนดจะถูกตัดสินว่าเกินกำหนดล่วงหน้า และจะไม่ตรงกับฝั่ง service ที่ตัดที่ปัจจุบัน
+            -- (reportAsOfTimestamp) — สองชั้นต้องใช้กติกาเดียวกัน
+            CROSS JOIN (SELECT LEAST(:$legacyParam, NOW()) AS cutoff_at) $cutoffAlias
             LEFT JOIN (
                 SELECT ranked.ticket_id, ranked.to_status
                 FROM (
@@ -336,10 +360,11 @@ class ReportRepository
                 t.approval_status,
                 t.channel,
                 t.requested_at,
-                t.first_response_at,
-                t.response_due_at,
+                -- กำหนดเวลา/เวลาตอบรับของรอบที่ตรงกับงวด ไม่ใช่รอบล่าสุดหลังเปิดซ้ำ (COALESCE = ข้อมูลเก่าที่ไม่มีแถว SLA)
+                COALESCE({$this->slaAsOfTrackValue('response', 'achieved_at', $period['cutoff'], 'rowfr')}, t.first_response_at) AS first_response_at,
+                COALESCE({$this->slaAsOfTrackValue('response', 'target_at', $period['cutoff'], 'rowrd')}, t.response_due_at) AS response_due_at,
                 $periodResolvedAt AS resolved_at,
-                t.resolution_due_at,
+                COALESCE({$this->slaAsOfTrackValue('resolution', 'target_at', $period['cutoff'], 'rowxd')}, t.resolution_due_at) AS resolution_due_at,
                 t.completed_at,
                 p.code AS priority_code,
                 p.name AS priority_name,
