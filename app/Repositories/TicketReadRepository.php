@@ -304,6 +304,9 @@ class TicketReadRepository
                 u.full_name,
                 COUNT(DISTINCT t.id) AS ticket_count,
                 ROUND(COALESCE(AVG(tr.score), 0), 1) AS avg_rating,
+                -- ฐานของคะแนน: ต้องส่งไปด้วยเสมอ ไม่งั้น 5.0 จากรีวิวเดียวจะดูเท่า 5.0 จากสี่สิบรีวิว
+                -- บนตารางที่ใช้จัดอันดับคน และยังใช้แยกกรณียังไม่มีรีวิว ออกจากกรณีคะแนนต่ำจริง
+                COUNT(tr.score) AS rating_count,
                 COUNT(DISTINCT CASE
                     WHEN t.status NOT IN ($closedStatuses)
                         AND EXISTS (

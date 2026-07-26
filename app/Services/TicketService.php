@@ -101,7 +101,11 @@ class TicketService
                     'name' => (string) ($row['full_name'] ?? '-'),
                     'ticket_count' => (int) ($row['ticket_count'] ?? 0),
                     'avg_rating' => (float) ($row['avg_rating'] ?? 0),
-                    'avg_rating_label' => (float) ($row['avg_rating'] ?? 0) > 0 ? number_format((float) ($row['avg_rating'] ?? 0), 1) : '-',
+                    // ป้ายคะแนนอิง "จำนวนรีวิว" เป็น base ไม่ใช่ค่า avg > 0 — ถ้าคะแนนที่บันทึกไว้เป็น 0
+                    // (นำเข้า/ย้ายข้อมูล) ค่าเฉลี่ยจะเป็น 0 แล้วถูกอ่านว่า "ยังไม่มีรีวิว" ทั้งที่ถูกรีวิวแย่จริง
+                    'avg_rating_label' => (int) ($row['rating_count'] ?? 0) > 0 ? number_format((float) ($row['avg_rating'] ?? 0), 1) : '-',
+                    // sample size — ตารางนี้ใช้จัดอันดับคน "5.0 จาก 1 รีวิว" ต้องไม่อ่านเท่า "5.0 จาก 40 รีวิว"
+                    'rating_count' => (int) ($row['rating_count'] ?? 0),
                     'overdue_count' => (int) ($row['overdue_count'] ?? 0),
                 ], $topTechnicians),
                 'topCategories' => array_map(fn (array $row): array => [

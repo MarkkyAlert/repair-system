@@ -500,7 +500,8 @@ $metricCount = static fn (string $key): int => max(0, (int) ($metrics[$key] ?? 0
                             <tr>
                                 <td data-label="ช่างเทคนิค"><?= e($row['name']) ?></td>
                                 <td data-label="จำนวนงาน" class="leaderboard-number"><?= e((string) $row['ticket_count']) ?></td>
-                                <td data-label="คะแนนเฉลี่ย"><?= e((string) $row['avg_rating_label']) ?></td>
+                                <?php // ตารางนี้ใช้จัดอันดับคน จึงต้องบอกเสมอว่าคะแนนมาจากกี่รีวิว ไม่งั้นรีวิวเดียวชนะสี่สิบรีวิวได้ ?>
+                                <td data-label="คะแนนเฉลี่ย"><?= e((string) $row['avg_rating_label']) ?><?php if ((int) ($row['rating_count'] ?? 0) > 0): ?> <small class="helper-text">จาก <?= e((string) $row['rating_count']) ?> รีวิว</small><?php endif; ?></td>
                                 <td data-label="เกินกำหนด"><?= e((string) $row['overdue_count']) ?></td>
                             </tr>
                         <?php endforeach; ?>
