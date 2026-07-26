@@ -13,7 +13,11 @@ declare(strict_types=1);
 function csrf_login_capture(string $csrfExpr): string
 {
     $bootstrap = dirname(__DIR__, 2) . '/bootstrap.php';
-    $code = '$_SERVER["REQUEST_METHOD"]="POST";'
+    // Point the subprocess at the isolated test DB (like pdf_branding / backup_worker tests). The parent's
+    // $_ENV["DB_NAME"] from run.php does not cross the process boundary, so without this the child boots against
+    // the default 'repair_system' dev DB — present locally but absent in CI (SQLSTATE 1049 Unknown database).
+    $code = '$_ENV["DB_NAME"]="repair_system_test";'
+        . '$_SERVER["REQUEST_METHOD"]="POST";'
         . '$_SERVER["HTTP_ACCEPT"]="text/html";'
         . 'register_shutdown_function(function () { echo "\nHTTP_STATUS:" . http_response_code(); });'
         . 'require ' . var_export($bootstrap, true) . ';'

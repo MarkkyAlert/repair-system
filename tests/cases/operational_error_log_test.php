@@ -69,6 +69,9 @@ test('F1: ticket/auth flows log the operational RuntimeException instead of flas
 test('F3 (auth): sendResetLink logs an operational RuntimeException with a reference, without leaking the email', function (): void {
     $bootstrap = dirname(__DIR__, 2) . '/bootstrap.php';
     $parts = [
+        // Point the subprocess at the isolated test DB (see csrf_http_stability / pdf_branding tests): the parent's
+        // run.php $_ENV["DB_NAME"] does not reach the child, which would otherwise boot against the dev DB — absent in CI.
+        '$_ENV["DB_NAME"]="repair_system_test";',
         '$_SERVER["REQUEST_METHOD"]="POST";',
         '$_SERVER["HTTP_ACCEPT"]="text/html";',
         'require ' . var_export($bootstrap, true) . ';',

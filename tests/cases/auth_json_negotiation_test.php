@@ -16,7 +16,10 @@ declare(strict_types=1);
 function auth_mw_capture(string $accept): string
 {
     $bootstrap = dirname(__DIR__, 2) . '/bootstrap.php';
-    $code = '$_SERVER["HTTP_ACCEPT"] = ' . var_export($accept, true) . ';'
+    // Point the subprocess at the isolated test DB (see csrf_http_stability / pdf_branding tests): the parent's
+    // run.php $_ENV["DB_NAME"] does not reach the child, which would otherwise boot against the dev DB — absent in CI.
+    $code = '$_ENV["DB_NAME"]="repair_system_test";'
+        . '$_SERVER["HTTP_ACCEPT"] = ' . var_export($accept, true) . ';'
         . '$_SERVER["REQUEST_URI"] = "/notifications/feed";'
         . '$_SERVER["REQUEST_METHOD"] = "GET";'
         . 'register_shutdown_function(function () { echo "\nHTTP_STATUS:" . http_response_code(); });'
