@@ -1,0 +1,123 @@
+<?php
+
+declare(strict_types=1);
+
+use App\Core\View;
+use App\Services\ReportService;
+use Smalot\PdfParser\Parser;
+
+// AN-02 round 3 (2026-07-26): the trend report's per-period TABLE already carried จำนวนรีวิว, but the three
+// surfaces above it did not — the "คะแนนเฉลี่ย (งวดล่าสุด)" card, the same block in the trend PDF, and the CSAT
+// chart payload, which shipped only the averages. So a period whose 5.00 came from a single review looked
+// identical to one backed by forty, and hovering the chart told the reader nothing either.
+//
+// The period rows have carried rating_count all along (buildTrendPeriodRow); it simply never reached the summary,
+// the chart or the printed page.
+
+function trs_pdo(): PDO
+{
+    return tvm_container()->get(PDO::class);
+}
+
+/** One rated, completed ticket inside the current month for a throwaway department. */
+function trs_seed(string $sfx, int $deptId, int $score): void
+{
+    $pdo = trs_pdo();
+    $locationId = (int) $pdo->query('SELECT id FROM locations LIMIT 1')->fetchColumn();
+    $catId = (int) $pdo->query('SELECT id FROM ticket_categories LIMIT 1')->fetchColumn();
+    $priId = (int) $pdo->query('SELECT id FROM priorities LIMIT 1')->fetchColumn();
+    $requested = date('Y-m-d H:i:s', strtotime('-2 days'));
+    $resolved = date('Y-m-d H:i:s', strtotime('-1 day'));
+
+    $pdo->prepare(
+        'INSERT INTO tickets (ticket_no, title, description, requester_id, requester_department_id, location_id,
+            ticket_category_id, priority_id, assigned_technician_id, status, approval_status, requested_at,
+            resolved_at, completed_at, created_at, updated_at)
+         VALUES (?, ?, "x", 1, ?, ?, ?, ?, 3, "completed", "approved", ?, ?, ?, NOW(), NOW())'
+    )->execute(["TRS-$sfx", 'trend rating', $deptId, $locationId, $catId, $priId, $requested, $resolved, $resolved]);
+    $ticketId = (int) $pdo->lastInsertId();
+
+    // the trend reads its per-cycle CSAT off the resolve event + rating cycle
+    $pdo->prepare("INSERT INTO ticket_activity_logs (ticket_id, actor_id, action, from_status, to_status, created_at)
+                   VALUES (?, 3, 'ticket_resolved', 'in_progress', 'resolved', ?)")->execute([$ticketId, $resolved]);
+    $pdo->prepare('INSERT INTO ticket_ratings (ticket_id, requester_id, technician_id, cycle, score, feedback, created_at, updated_at)
+                   VALUES (?, 1, 3, 1, ?, "x", ?, ?)')->execute([$ticketId, $score, $resolved, $resolved]);
+}
+
+test('trend rating: the งวดล่าสุด card, its PDF and the chart all disclose how many reviews the score came from', function (): void {
+    $svc = tvm_container()->get(ReportService::class);
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $pdo = trs_pdo();
+    $sfx = bin2hex(random_bytes(4));
+
+    $pdo->prepare('INSERT INTO departments (code, name, is_active, created_at, updated_at) VALUES (?, ?, 1, NOW(), NOW())')
+        ->execute(["TRSD-$sfx", "TrsDept-$sfx"]);
+    $deptId = (int) $pdo->lastInsertId();
+
+    $filters = [
+        'granularity' => 'month',
+        'from_date' => date('Y-m-01', strtotime('-2 months')),
+        'to_date' => date('Y-m-d'),
+        'department_id' => $deptId,
+    ];
+
+    try {
+        trs_seed($sfx, $deptId, 5); // exactly one review, top score
+
+        $page = $svc->getTicketTrendReportPage($admin, $filters);
+
+        // (1) the summary card payload must carry the sample size, not just the average
+        assert_same('5.00', (string) ($page['summary']['csat']['value'] ?? ''), 'the average itself');
+        assert_same(
+            1,
+            (int) ($page['summary']['csat']['sample_count'] ?? -1),
+            'the latest-period card carries the review count behind that 5.00'
+        );
+
+        // (2) the chart payload must ship the per-bucket counts so a point can be read honestly
+        $counts = $page['charts']['trendCsat']['sample_counts'] ?? null;
+        assert_true(is_array($counts), 'the CSAT chart ships a parallel series of review counts');
+        assert_same(1, (int) array_sum($counts), 'and they add up to the single review that exists');
+
+        // (3) the rendered page states it in words
+        $html = View::capture('reports/trend', $page);
+        assert_contains_str('จาก 1 รีวิว', $html, 'the trend page tells the reader the score came from one review');
+
+        // (4) so does the printed PDF
+        $pdf = (string) ($svc->exportTicketTrendPdf($admin, $filters)['content'] ?? '');
+        assert_true(str_starts_with($pdf, '%PDF-'), 'sanity: a real PDF was produced');
+        assert_contains_str('จาก 1 รีวิว', (new Parser())->parseContent($pdf)->getText(), 'the trend PDF discloses it too');
+    } finally {
+        $pdo->prepare('DELETE FROM tickets WHERE ticket_no = ?')->execute(["TRS-$sfx"]);
+        $pdo->prepare('DELETE FROM departments WHERE id = ?')->execute([$deptId]);
+    }
+});
+
+test('trend rating: a period with no reviews claims no sample rather than a fake zero', function (): void {
+    $svc = tvm_container()->get(ReportService::class);
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $pdo = trs_pdo();
+    $sfx = bin2hex(random_bytes(4));
+
+    $pdo->prepare('INSERT INTO departments (code, name, is_active, created_at, updated_at) VALUES (?, ?, 1, NOW(), NOW())')
+        ->execute(["TRSD-$sfx", "TrsDept-$sfx"]);
+    $deptId = (int) $pdo->lastInsertId();
+
+    $filters = [
+        'granularity' => 'month',
+        'from_date' => date('Y-m-01', strtotime('-2 months')),
+        'to_date' => date('Y-m-d'),
+        'department_id' => $deptId,
+    ];
+
+    try {
+        $page = $svc->getTicketTrendReportPage($admin, $filters);
+        assert_same('-', (string) ($page['summary']['csat']['value'] ?? ''), 'no reviews = no score');
+        assert_same(0, (int) ($page['summary']['csat']['sample_count'] ?? -1), 'and an honest zero base');
+
+        $html = View::capture('reports/trend', $page);
+        assert_false(str_contains($html, 'จาก 0 รีวิว'), 'an empty period does not advertise a zero-review sample');
+    } finally {
+        $pdo->prepare('DELETE FROM departments WHERE id = ?')->execute([$deptId]);
+    }
+});

@@ -1357,7 +1357,8 @@ class ReportService
             ],
             'trendSla' => ['label' => 'SLA ตรงเวลา %', 'labels' => $labels, 'data' => $sla, 'has_data' => $hasSeries($sla)],
             'trendMttr' => ['label' => 'เวลาซ่อมเฉลี่ย (ชม.)', 'labels' => $labels, 'data' => $mttr, 'has_data' => $hasSeries($mttr)],
-            'trendCsat' => ['label' => 'คะแนนเฉลี่ย', 'labels' => $labels, 'data' => $csat, 'has_data' => $hasSeries($csat)],
+            // sample_counts = จำนวนรีวิวต่องวด ส่งขนานไปกับค่าเฉลี่ย ให้จุดบนกราฟอ่านได้ว่ามาจากกี่รีวิว
+            'trendCsat' => ['label' => 'คะแนนเฉลี่ย', 'labels' => $labels, 'data' => $csat, 'sample_counts' => array_map(static fn (array $p): int => (int) ($p['rating_count'] ?? 0), $periods), 'has_data' => $hasSeries($csat)],
         ];
     }
 
@@ -1379,14 +1380,15 @@ class ReportService
             'created' => $this->trendMetricCard((string) (($last['created'] ?? 0)), $last['created'] ?? null, $prev['created'] ?? null, 'neutral', 0),
             'sla' => $this->trendMetricCard((string) ($last['sla_pct_label'] ?? '-'), $last['sla_pct'] ?? null, $prev['sla_pct'] ?? null, 'up_good', 1, '%'),
             'mttr' => $this->trendMetricCard((string) ($last['mttr_hours_label'] ?? '-'), $last['mttr_hours'] ?? null, $prev['mttr_hours'] ?? null, 'down_good', 1, ' ชม.'),
-            'csat' => $this->trendMetricCard((string) ($last['csat_label'] ?? '-'), $last['csat'] ?? null, $prev['csat'] ?? null, 'up_good', 2),
+            'csat' => $this->trendMetricCard((string) ($last['csat_label'] ?? '-'), $last['csat'] ?? null, $prev['csat'] ?? null, 'up_good', 2, '', (int) ($last['rating_count'] ?? 0)),
         ];
     }
 
-    private function trendMetricCard(string $valueLabel, mixed $last, mixed $prev, string $goodDir, int $decimals, string $unit = ''): array
+    /** @param int|null $sampleCount ฐานของค่าเฉลี่ย (เช่นจำนวนรีวิว) — การ์ดที่เป็น avg ต้องบอก sample size */
+    private function trendMetricCard(string $valueLabel, mixed $last, mixed $prev, string $goodDir, int $decimals, string $unit = '', ?int $sampleCount = null): array
     {
         if ($last === null || $prev === null) {
-            return ['value' => $valueLabel, 'delta_label' => '—', 'tone' => 'default'];
+            return ['value' => $valueLabel, 'delta_label' => '—', 'tone' => 'default', 'sample_count' => $sampleCount];
         }
         $delta = round((float) $last - (float) $prev, $decimals);
         $sign = $delta > 0 ? '+' : '';
@@ -1401,6 +1403,7 @@ class ReportService
             'value' => $valueLabel,
             'delta_label' => $delta === 0.0 ? 'เท่าเดิม' : $sign . number_format($delta, $decimals) . $unit,
             'tone' => $tone,
+            'sample_count' => $sampleCount,
         ];
     }
 

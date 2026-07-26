@@ -110,10 +110,13 @@ $chartCard = static function (array $chart, string $key, string $title) use ($ch
             'meta' => 'เทียบงวดก่อน ' . (string) ($summary['mttr']['delta_label'] ?? '—'),
             'tone' => (string) ($summary['mttr']['tone'] ?? 'default'),
         ]) ?>
+        <?php $trendRatingCount = (int) ($summary['csat']['sample_count'] ?? 0); ?>
         <?= render_partial('partials/components/card', [
             'title' => 'คะแนนเฉลี่ย (งวดล่าสุด)',
             'value' => (string) ($summary['csat']['value'] ?? '-'),
-            'meta' => 'เทียบงวดก่อน ' . (string) ($summary['csat']['delta_label'] ?? '—'),
+            // คะแนนเฉลี่ยต้องบอกฐานเสมอ — 5.00 จากรีวิวเดียวอ่านไม่เหมือน 5.00 จากสี่สิบรีวิว
+            'meta' => 'เทียบงวดก่อน ' . (string) ($summary['csat']['delta_label'] ?? '—')
+                . ($trendRatingCount > 0 ? ' · จาก ' . number_format($trendRatingCount) . ' รีวิว' : ''),
             'tone' => (string) ($summary['csat']['tone'] ?? 'default'),
         ]) ?>
     </div>
