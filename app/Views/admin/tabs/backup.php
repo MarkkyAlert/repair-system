@@ -54,6 +54,27 @@ $cmdVerify = 'mysql -u ' . $dbUser . ' -p -e "SHOW TABLES" ' . $dbName;
                 สำรอง &amp; ดาวน์โหลด (.sql.gz)
             </button>
         </form>
+        <?php
+        // ผลของการกดครั้งล่าสุด — ต้องบอกให้ชัดทั้งตอนสำเร็จและตอนไม่สำเร็จ เพราะไฟล์ที่ขาดครึ่งหน้าตาเหมือนไฟล์ที่ใช้ได้
+        $onDemand = $backup['on_demand'] ?? [];
+        $onDemandState = (string) ($onDemand['state'] ?? 'never');
+        ?>
+        <?php if ($onDemandState === 'ok'): ?>
+            <p class="helper-text" style="display:flex;align-items:center;gap:6px;color:var(--success-700,#15803d)">
+                <?= lucide('check-circle', 'h-4 w-4') ?>
+                สำรองสำเร็จเมื่อ <?= e(human_date((string) ($onDemand['finished_at'] ?? ''))) ?> · ไฟล์ที่ดาวน์โหลด <?= e((string) ($onDemand['size_human'] ?? '')) ?>
+            </p>
+        <?php elseif ($onDemandState === 'interrupted'): ?>
+            <p class="helper-text" style="display:flex;align-items:center;gap:6px;color:var(--danger-700,#be123c)">
+                <?= lucide('triangle-alert', 'h-4 w-4') ?>
+                การสำรองที่เริ่มเมื่อ <?= e(human_date((string) ($onDemand['started_at'] ?? ''))) ?> ไม่จบ — ไฟล์ที่ได้ไปใช้กู้คืนไม่ได้ ต้องกดสำรองใหม่
+            </p>
+        <?php elseif ($onDemandState === 'failed'): ?>
+            <p class="helper-text" style="display:flex;align-items:center;gap:6px;color:var(--danger-700,#be123c)">
+                <?= lucide('triangle-alert', 'h-4 w-4') ?>
+                <?= e((string) ($onDemand['error'] ?? 'การสำรองไม่สำเร็จ')) ?> (<?= e(human_date((string) ($onDemand['finished_at'] ?? ''))) ?>)
+            </p>
+        <?php endif; ?>
     </div>
 
     <div class="panel-card panel-card-teal stack-md">

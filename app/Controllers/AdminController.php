@@ -351,8 +351,13 @@ class AdminController
      * สำรองฐานข้อมูลแบบ on-demand ให้ admin กดดาวน์โหลดจากหน้า UI — เป็น SQL dump ที่ทำด้วย PHP (PDO) ล้วน
      * เลยใช้ได้บน shared hosting ที่ปิด mysqldump / proc_open ไว้ (พวกนี้ backup อัตโนมัติผ่าน cron ไม่ได้).
      *
-     * เข้าถึงได้เฉพาะ admin (require_role) + ต้องผ่าน CSRF. ผลข้างเคียง: ไม่เขียน DB — อ่านทั้งฐานข้อมูลออกมาเป็น SQL
-     * แล้ว stream เป็นไฟล์ดาวน์โหลด (.sql.gz ถ้ามี zlib ไม่งั้น .sql ธรรมดา, ปิดด้วย exit). ไฟล์มีข้อมูลทั้งระบบ — ถือว่า sensitive.
+     * เข้าถึงได้เฉพาะ admin (require_role) + ต้องผ่าน CSRF. ผลข้างเคียง: บันทึกผลการสำรองลง system_settings
+     * (ไว้โชว์ในแท็บสำรองข้อมูล) และทยอยส่งไฟล์ออกไปทีละก้อน (.sql.gz ถ้ามี zlib ไม่งั้น .sql, ปิดด้วย exit).
+     * ไฟล์มีข้อมูลทั้งระบบ — ถือว่า sensitive.
+     *
+     * ทำไมต้องทยอยส่ง: ของเดิมอ่านทั้งฐานข้อมูลขึ้นมาเป็นสตริงเดียวแล้วบีบอัดอีกชุด = ใช้หน่วยความจำราว 2-3 เท่าของ
+     * ขนาดฐาน ฐาน 308 MB เลยตายที่เพดาน 1 GB และตอบกลับเป็นหน้าว่างเปล่าโดยไม่มีข้อความอะไรเลย ซึ่งอันตรายกว่าการ
+     * ล้มธรรมดา เพราะเจ้าของอาจเข้าใจว่าสำรองไว้แล้วทั้งที่ไม่มีไฟล์ ตอนนี้หน่วยความจำคงที่ราว 6 MB ไม่ว่าฐานจะใหญ่แค่ไหน
      */
     public function downloadBackup(): void
     {
@@ -361,16 +366,80 @@ class AdminController
         require_role($viewer, ['admin'], 'หน้านี้สงวนสำหรับผู้ดูแลระบบเท่านั้น');
         csrf_validate();
 
-        $sql = $this->databaseExport->toSql();
-        $stamp = date('Y-m-d_His');
-
-        $gz = gzencode($sql, 6);
-        if ($gz !== false) {
-            Response::download($gz, 'backup-' . $stamp . '.sql.gz', 'application/gzip');
+        // ทุกอย่างที่ล้มได้ต้องล้มตรงนี้ ก่อน byte แรกจะออกไป — พอเริ่มส่งไฟล์แล้วจะเปลี่ยนใจไปแสดงหน้าเว็บไม่ได้อีก
+        $blocker = $this->backupBlocker();
+        if ($blocker !== null) {
+            $this->backup->recordOnDemandResult(false, 0, $blocker);
+            flash('error', 'สำรองข้อมูลไม่สำเร็จ: ' . $blocker);
+            Response::redirect('/admin#tab-backup');
         }
 
-        // ไม่มี zlib → ส่งไฟล์ .sql แบบธรรมดาให้แทน (ยังกู้คืนได้ครบทุกอย่าง).
-        Response::download($sql, 'backup-' . $stamp . '.sql', 'application/sql');
+        // ยืดเวลาที่อนุญาตให้สคริปต์รัน และไม่ยอมตายเพราะผู้ใช้ปิดแท็บกลางคัน (จะได้บันทึกผลตอนจบเสมอ)
+        @set_time_limit(0);
+        ignore_user_abort(true);
+
+        $deflate = function_exists('deflate_init') ? deflate_init(ZLIB_ENCODING_GZIP, ['level' => 6]) : false;
+        $stamp = date('Y-m-d_His');
+        $fileName = 'backup-' . $stamp . ($deflate !== false ? '.sql.gz' : '.sql');
+
+        $this->backup->recordOnDemandStart();
+
+        Response::streamDownload(
+            $fileName,
+            $deflate !== false ? 'application/gzip' : 'application/sql',
+            function (callable $write) use ($deflate): void {
+                $sent = 0;
+                $chunks = 0;
+                try {
+                    $this->databaseExport->streamTo(static function (string $sql) use ($deflate, $write, &$sent, &$chunks): void {
+                        $payload = $deflate !== false ? deflate_add($deflate, $sql, ZLIB_NO_FLUSH) : $sql;
+                        $sent += strlen($payload);
+                        $chunks++;
+                        // โฮสต์ที่ไม่ยอมให้ปลดเพดานเวลา ยังเลื่อนเส้นตายออกไปเรื่อย ๆ ระหว่างทำงานได้
+                        if ($chunks % 50 === 0) {
+                            @set_time_limit(30);
+                        }
+                        $write($payload);
+                    });
+
+                    if ($deflate !== false) {
+                        // ปิดท้าย gzip — ไฟล์ที่ไม่มีส่วนนี้จะคลายไม่ออก ซึ่งเป็นสิ่งที่เราต้องการเวลาสำรองไม่จบ
+                        $tail = deflate_add($deflate, '', ZLIB_FINISH);
+                        $sent += strlen($tail);
+                        $write($tail);
+                    }
+
+                    $this->backup->recordOnDemandResult(true, $sent);
+                } catch (\Throwable $failure) {
+                    // จงใจไม่ปิดท้าย gzip: ไฟล์ที่ผู้ใช้ได้ไปจะคลายไม่ออก จะได้ไม่มีใครเผลอเก็บไว้เป็น backup ที่ใช้ไม่ได้
+                    log_uncaught_exception($failure);
+                    $this->backup->recordOnDemandResult(false, $sent, 'สำรองไม่สำเร็จระหว่างทำงาน — ไฟล์ที่ดาวน์โหลดไปใช้กู้คืนไม่ได้');
+                }
+            }
+        );
+    }
+
+    /**
+     * เหตุผลที่สำรองไม่ได้ ถ้าตรวจได้ตั้งแต่ก่อนเริ่มส่งไฟล์ — คืน null ถ้าไปต่อได้
+     *
+     * ตรวจเท่าที่พิสูจน์ได้จริงตอนนี้เท่านั้น ไม่เดาว่าจะทันเวลาหรือไม่ (เดาแล้วปฏิเสธผิดจะกลายเป็นบล็อกการสำรอง
+     * ที่ทำได้อยู่แล้ว) ส่วนที่ตายกลางคันมีบันทึก "เริ่มแล้วไม่มีตอนจบ" คอยจับ แล้วไปโผล่เป็นข้อความในแท็บสำรองข้อมูล
+     */
+    private function backupBlocker(): ?string
+    {
+        try {
+            $tables = $this->databaseExport->countBaseTables();
+        } catch (\Throwable $probeFailure) {
+            log_uncaught_exception($probeFailure);
+
+            return 'ต่อฐานข้อมูลเพื่ออ่านรายชื่อตารางไม่ได้';
+        }
+
+        if ($tables === 0) {
+            return 'ไม่พบตารางในฐานข้อมูล จึงไม่มีอะไรให้สำรอง';
+        }
+
+        return null;
     }
 
 }

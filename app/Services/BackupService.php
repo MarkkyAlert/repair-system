@@ -18,6 +18,16 @@ class BackupService
     /** จำนวนชุด backup ที่ bin/backup-database.php เก็บไว้ (ค่า rotation เริ่มต้น) — ใช้แค่แสดงผล. */
     public const DEFAULT_RETENTION = 14;
 
+    /**
+     * ร่องรอยของปุ่ม "สำรองทันที" — บันทึกตอนเริ่มไว้ก่อน แล้วค่อยบันทึกตอนจบ. ที่ต้องมีสองจังหวะเพราะถ้า PHP ถูก
+     * ฆ่ากลางคัน (หมดเวลา/หน่วยความจำ) จะไม่มีโค้ดไหนได้รันต่อเลย — เหลือแค่ "เริ่มแล้วไม่มีตอนจบ" ที่บอกได้ว่าล้ม
+     * ไม่งั้นผู้ใช้ได้ไฟล์ขาดครึ่งกลับไปโดยไม่มีอะไรบอกว่าใช้กู้คืนไม่ได้
+     */
+    public const ONDEMAND_STARTED_KEY = 'admin_backup_ondemand_started_at';
+    public const ONDEMAND_FINISHED_KEY = 'admin_backup_ondemand_finished_at';
+    public const ONDEMAND_BYTES_KEY = 'admin_backup_ondemand_bytes';
+    public const ONDEMAND_ERROR_KEY = 'admin_backup_ondemand_error';
+
     public function __construct(private SettingsRepository $settings)
     {
     }
@@ -80,7 +90,55 @@ class BackupService
                 // ชื่อไฟล์ล่าสุดจริง (มี .gz) — view จะตัด .gz เป็นชื่อ .sql สำหรับคำสั่ง import
                 'newest_file' => $newest !== null ? basename($newest) : 'db-YYYY-MM-DD_HHMMSS.sql.gz',
             ],
+            'on_demand' => $this->onDemandStatus(),
         ];
+    }
+
+    /** ผลของการกดปุ่ม "สำรองทันที" ครั้งล่าสุด — สำเร็จ/ล้ม/ไม่จบ พร้อมขนาดไฟล์ที่ส่งออกไปจริง. */
+    private function onDemandStatus(): array
+    {
+        $read = fn (string $key): string => trim((string) ($this->settings->getByKey($key)['setting_value'] ?? ''));
+        $startedAt = $read(self::ONDEMAND_STARTED_KEY);
+        $finishedAt = $read(self::ONDEMAND_FINISHED_KEY);
+        $error = $read(self::ONDEMAND_ERROR_KEY);
+        $bytes = (int) $read(self::ONDEMAND_BYTES_KEY);
+
+        if ($startedAt === '') {
+            $state = 'never';
+        } elseif ($error !== '') {
+            $state = 'failed';
+        } elseif ($finishedAt === '' || strtotime($finishedAt) < strtotime($startedAt)) {
+            // เริ่มแล้วแต่ไม่มีตอนจบ = โดนฆ่ากลางคัน ไฟล์ที่ผู้ใช้ได้ไปคือไฟล์ขาดครึ่ง กู้คืนไม่ได้
+            $state = 'interrupted';
+        } else {
+            $state = 'ok';
+        }
+
+        return [
+            'state' => $state,
+            'started_at' => $startedAt,
+            'finished_at' => $finishedAt,
+            'error' => $error,
+            'bytes' => $bytes,
+            'size_human' => $this->humanSize($bytes),
+        ];
+    }
+
+    /** ปักหมุดว่าเริ่มสำรองแล้ว ก่อนส่ง byte แรกออกไป. */
+    public function recordOnDemandStart(): void
+    {
+        $this->settings->upsert(self::ONDEMAND_STARTED_KEY, date('Y-m-d H:i:s'), 'string', false, 0);
+        $this->settings->upsert(self::ONDEMAND_FINISHED_KEY, '', 'string', false, 0);
+        $this->settings->upsert(self::ONDEMAND_BYTES_KEY, '0', 'string', false, 0);
+        $this->settings->upsert(self::ONDEMAND_ERROR_KEY, '', 'string', false, 0);
+    }
+
+    /** ปิดงาน: สำเร็จพร้อมขนาดไฟล์ หรือล้มพร้อมเหตุผลที่เอาไปโชว์ได้. */
+    public function recordOnDemandResult(bool $succeeded, int $bytes, string $error = ''): void
+    {
+        $this->settings->upsert(self::ONDEMAND_FINISHED_KEY, date('Y-m-d H:i:s'), 'string', false, 0);
+        $this->settings->upsert(self::ONDEMAND_BYTES_KEY, (string) max(0, $bytes), 'string', false, 0);
+        $this->settings->upsert(self::ONDEMAND_ERROR_KEY, $succeeded ? '' : ($error !== '' ? $error : 'การสำรองไม่สำเร็จ'), 'string', false, 0);
     }
 
     /**

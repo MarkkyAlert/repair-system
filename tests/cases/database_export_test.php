@@ -64,7 +64,8 @@ test('backup(D8): the admin can download an on-demand gzipped backup (wired + ga
 
     $ctrl = (string) file_get_contents($root . '/app/Controllers/AdminController.php');
     assert_true(str_contains($ctrl, 'function downloadBackup'), 'AdminController::downloadBackup must exist');
-    assert_true(str_contains($ctrl, 'gzencode'), 'the download must be gzipped');
+    // Compressed, but built incrementally — see backup_stream_test for why the whole-dump variant cannot come back.
+    assert_true(str_contains($ctrl, 'ZLIB_ENCODING_GZIP'), 'the download must be gzipped');
     // admin_route_gate + csrf_route_gate walk routes.php and enforce these too; assert here for locality.
     assert_true(str_contains($ctrl, "require_role(\$viewer, ['admin']"), 'downloadBackup must enforce the admin role gate');
     assert_true(str_contains($ctrl, 'csrf_validate()'), 'downloadBackup must validate CSRF');

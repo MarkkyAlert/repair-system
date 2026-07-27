@@ -63,6 +63,44 @@ class Response
         exit;
     }
 
+    /**
+     * ส่งไฟล์แบบทยอยส่ง — ผู้ผลิตเนื้อไฟล์ได้ตัวเขียนไปเรียกทีละก้อน ไม่ต้องมีไฟล์ทั้งก้อนอยู่ในหน่วยความจำก่อน
+     * ใช้กับ output ที่อาจใหญ่กว่าเพดานหน่วยความจำของโฮสต์ (เช่น dump ฐานข้อมูล)
+     *
+     * ไม่มี Content-Length เพราะตอนส่ง header ยังไม่รู้ขนาด — เบราว์เซอร์เลยไม่โชว์ % ความคืบหน้า แลกกับการที่
+     * ฟีเจอร์นี้ทำงานได้จริงบนฐานข้อมูลใหญ่ ; และเพราะส่งไปแล้วดึงกลับไม่ได้ ผู้เรียกต้องเช็คทุกอย่างที่ล้มได้
+     * ให้จบก่อนเรียกตัวนี้
+     *
+     * @param callable(callable(string): void): void $producer
+     */
+    public static function streamDownload(string $fileName, string $contentType, callable $producer): never
+    {
+        http_response_code(200);
+        $downloadToken = preg_replace('/[^A-Za-z0-9._-]/', '', (string) ($_POST['_download_token'] ?? $_GET['_download_token'] ?? ''));
+        if ($downloadToken !== '' && !headers_sent()) {
+            setcookie('fileDownload', substr($downloadToken, 0, 64), ['expires' => 0, 'path' => '/', 'samesite' => 'Lax']);
+        }
+        header('Content-Type: ' . $contentType);
+        header('Content-Disposition: attachment; filename="' . rawurlencode($fileName) . '"; filename*=UTF-8\'\'' . rawurlencode($fileName));
+        header('Cache-Control: no-store, no-cache, must-revalidate');
+        // บอก nginx/พร็อกซีไม่ให้อมไว้ก่อน ไม่งั้นมันจะกองข้อมูลรอจนจบ ซึ่งย้ายปัญหาหน่วยความจำไปไว้ที่พร็อกซีแทน
+        header('X-Accel-Buffering: no');
+
+        while (ob_get_level() > 0) {
+            ob_end_flush();
+        }
+
+        $producer(static function (string $chunk): void {
+            if ($chunk === '') {
+                return;
+            }
+            echo $chunk;
+            flush();
+        });
+
+        exit;
+    }
+
     public static function abort(int $status = 404, string $message = ''): never
     {
         $view = View::exists('errors/' . $status) ? 'errors/' . $status : 'errors/500';

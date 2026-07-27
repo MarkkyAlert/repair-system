@@ -23,23 +23,64 @@ class DatabaseExportService
     {
     }
 
-    /** SQL dump ที่สมบูรณ์และกู้คืนได้ของทุก base table (ทั้งโครงสร้าง + ข้อมูล). */
-    public function toSql(): string
-    {
-        $out = "-- Repair System — database backup\n";
-        $out .= '-- Generated: ' . date('Y-m-d H:i:s') . "\n";
-        $out .= "-- Restore: import this file into an empty database (phpMyAdmin → Import, or mysql < file).\n\n";
-        $out .= "SET NAMES utf8mb4;\n";
-        $out .= "SET FOREIGN_KEY_CHECKS = 0;\n";
-        $out .= "SET SQL_MODE = 'NO_AUTO_VALUE_ON_ZERO';\n\n";
+    /** บรรทัดปิดท้ายไฟล์ dump — มีบรรทัดนี้เท่านั้นถึงแปลว่า dump ออกมาครบ ไม่ได้ขาดกลางคัน. */
+    public const COMPLETION_MARKER = '-- BACKUP COMPLETE';
 
-        foreach ($this->baseTables() as $table) {
-            $out .= $this->dumpTable($table);
+    /**
+     * SQL dump ที่สมบูรณ์และกู้คืนได้ของทุก base table — ส่งออกเป็นก้อน ๆ ผ่าน $emit ไม่เคยถือทั้งไฟล์ไว้ในหน่วยความจำ
+     *
+     * ตัวเลขที่ต้องรู้: ฐานข้อมูล 308 MB เคยทำให้ตัวเดิม (ที่ต่อสตริงทั้งก้อน) ตายที่ขีด 1 GB ฟีเจอร์นี้มีไว้สำหรับ
+     * shared hosting ซึ่งมักตั้งเพดานหน่วยความจำไว้ที่ 128–256 MB เท่านั้น การส่งเป็นก้อนจึงไม่ใช่การจูนให้เร็วขึ้น
+     * แต่เป็นเงื่อนไขที่ทำให้ฟีเจอร์นี้ใช้งานได้จริง
+     *
+     * @param callable(string): void $emit
+     */
+    public function streamTo(callable $emit): void
+    {
+        $emit("-- Repair System — database backup\n");
+        $emit('-- Generated: ' . date('Y-m-d H:i:s') . "\n");
+        $emit("-- Restore: import this file into an empty database (phpMyAdmin → Import, or mysql < file).\n\n");
+        $emit("SET NAMES utf8mb4;\n");
+        $emit("SET FOREIGN_KEY_CHECKS = 0;\n");
+        $emit("SET SQL_MODE = 'NO_AUTO_VALUE_ON_ZERO';\n\n");
+
+        // อ่านรายชื่อตารางให้เสร็จก่อน แล้วค่อยสั่ง connection ให้เลิก buffer ผลลัพธ์: ค่าเริ่มต้นคือดึงทั้งตารางมา
+        // กองไว้ฝั่ง PHP ก่อนแล้วค่อยวนอ่าน ซึ่งกินหน่วยความจำเท่าขนาดตาราง — ส่งออกเป็นก้อนอย่างเดียวจึงยังไม่พอ
+        $tables = $this->baseTables();
+        $bufferedAttribute = self::unbufferedAttribute();
+        $this->db->setAttribute($bufferedAttribute, false);
+
+        try {
+            foreach ($tables as $table) {
+                $this->streamTable($table, $emit);
+            }
+        } finally {
+            $this->db->setAttribute($bufferedAttribute, true);
         }
 
-        $out .= "\nSET FOREIGN_KEY_CHECKS = 1;\n";
+        $emit("\nSET FOREIGN_KEY_CHECKS = 1;\n");
+        // ตัวปิดท้าย: ไฟล์ที่ขาดกลางคัน (โดนตัดเวลา/เน็ตหลุด) จะไม่มีบรรทัดนี้ ดูออกด้วยตาเปล่าโดยไม่ต้องกู้คืนก่อน
+        $emit(self::COMPLETION_MARKER . ' ' . date('Y-m-d H:i:s') . "\n");
+    }
+
+    /**
+     * SQL dump ทั้งก้อนเป็นสตริงเดียว — สะดวกสำหรับเทสต์และสคริปต์ที่รู้ว่าฐานข้อมูลเล็ก
+     * เส้นทางที่ผู้ใช้กดจริงต้องใช้ streamTo() เพราะตัวนี้กินหน่วยความจำเท่าขนาดฐานข้อมูล
+     */
+    public function toSql(): string
+    {
+        $out = '';
+        $this->streamTo(static function (string $chunk) use (&$out): void {
+            $out .= $chunk;
+        });
 
         return $out;
+    }
+
+    /** จำนวน base table ที่จะถูกสำรอง — ใช้เป็นด่านตรวจก่อนเริ่มส่งไฟล์ว่าฐานข้อมูลยังต่อติดและมีอะไรให้สำรองจริง. */
+    public function countBaseTables(): int
+    {
+        return count($this->baseTables());
     }
 
     /** @return list<string> ชื่อ base table ในฐานข้อมูลที่เชื่อมต่ออยู่ (ไม่รวม view) */
@@ -50,21 +91,25 @@ class DatabaseExportService
         return array_map(static fn (array $row): string => (string) $row[0], $rows);
     }
 
-    private function dumpTable(string $table): string
+    /** @param callable(string): void $emit */
+    private function streamTable(string $table, callable $emit): void
     {
         $quoted = $this->quoteIdentifier($table);
 
-        $create = $this->db->query('SHOW CREATE TABLE ' . $quoted)->fetch(PDO::FETCH_ASSOC);
+        // ปิด cursor ทุกครั้ง: บน connection ที่ไม่ buffer ผลลัพธ์ที่ยังค้างอยู่จะบล็อกคำสั่งถัดไปทั้งหมด
+        $createStmt = $this->db->query('SHOW CREATE TABLE ' . $quoted);
+        $create = $createStmt->fetch(PDO::FETCH_ASSOC);
+        $createStmt->closeCursor();
         $createSql = (string) ($create['Create Table'] ?? '');
 
-        $out = "\n-- ----------------------------------------------------------------------------\n";
-        $out .= '-- Table: ' . $table . "\n";
-        $out .= "-- ----------------------------------------------------------------------------\n";
-        $out .= 'DROP TABLE IF EXISTS ' . $quoted . ";\n";
-        $out .= $createSql . ";\n\n";
+        $emit("\n-- ----------------------------------------------------------------------------\n");
+        $emit('-- Table: ' . $table . "\n");
+        $emit("-- ----------------------------------------------------------------------------\n");
+        $emit('DROP TABLE IF EXISTS ' . $quoted . ";\n");
+        $emit($createSql . ";\n\n");
 
-        // ดึง row ทีละแถวแบบ stream กันตารางใหญ่ ๆ กินหน่วยความจำทั้งก้อน. แล้วรวม INSERT เป็นชุด ไฟล์จะได้เล็กลง.
         $stmt = $this->db->query('SELECT * FROM ' . $quoted);
+
         $batch = [];
         $batchBytes = 0;
         $emitted = false;
@@ -74,21 +119,32 @@ class DatabaseExportService
             $batchBytes += strlen($tuple);
             // flush เมื่อชนเพดานจำนวน row หรือเพดานขนาด byte อย่างใดอย่างหนึ่ง กัน row เดียวที่กว้างมาก ๆ ทำให้ INSERT ใหญ่เกิน.
             if (count($batch) >= self::ROWS_PER_INSERT || $batchBytes >= self::MAX_INSERT_BYTES) {
-                $out .= $this->insertStatement($quoted, $batch);
+                $emit($this->insertStatement($quoted, $batch));
                 $batch = [];
                 $batchBytes = 0;
                 $emitted = true;
             }
         }
+        // ปิด cursor ให้เรียบร้อยก่อนไปตารางถัดไป — ผลลัพธ์แบบไม่ buffer ที่ยังค้างอยู่จะบล็อกคำสั่งถัดไปบน connection เดิม
+        $stmt->closeCursor();
+
         if ($batch !== []) {
-            $out .= $this->insertStatement($quoted, $batch);
+            $emit($this->insertStatement($quoted, $batch));
             $emitted = true;
         }
         if ($emitted) {
-            $out .= "\n";
+            $emit("\n");
         }
+    }
 
-        return $out;
+    /**
+     * ค่า attribute "ไม่ buffer ผลลัพธ์" ของไดรเวอร์ MySQL — PHP 8.4 ย้ายไปไว้ใต้ Pdo\Mysql
+     * ส่วน 8.2/8.3 (เวอร์ชันที่ CI รัน) ยังอยู่ที่ PDO เลยต้องเลือกตามเวอร์ชันที่รันจริง
+     */
+    private static function unbufferedAttribute(): int
+    {
+        /** @phpstan-ignore-next-line class_exists กันไว้สำหรับ PHP < 8.4 ที่ยังไม่มีคลาสนี้ */
+        return class_exists('\Pdo\Mysql') ? \Pdo\Mysql::ATTR_USE_BUFFERED_QUERY : PDO::MYSQL_ATTR_USE_BUFFERED_QUERY;
     }
 
     /** @param array<string, mixed> $row @return string tuple `(v1, v2, ...)` ที่ทุกค่าถูก SQL-quote */
