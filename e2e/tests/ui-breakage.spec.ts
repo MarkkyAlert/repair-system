@@ -59,6 +59,47 @@ for (const width of [701, 720, 768]) {
   });
 }
 
+// A display name is free text up to 150 characters, and a Thai name can arrive with no spaces at all, so the
+// browser has nowhere to break the line. The user chip is pinned open by `.topbar-actions > * { flex-shrink: 0 }`,
+// so before the clamp a name of roughly 80 characters made the whole topbar wider than a 768px screen and every
+// single page that person opened scrolled sideways. Measured break points before the fix: 80 chars @768px,
+// 100 @1024px, 150 @1440px — hence these three widths.
+//
+// The test rewrites the text of the server-rendered node (same element, same classes) rather than seeding a user,
+// because the defect is entirely in how the CSS treats that text; the markup the server emits is unchanged.
+for (const width of [768, 1024, 1440]) {
+  test(`topbar: a 150-character display name cannot widen the page at ${width}px`, async ({ browser }) => {
+    const context = await browser.newContext({ storageState: adminState, viewport: { width, height: 900 } });
+    try {
+      const page = await context.newPage();
+      await page.goto('/dashboard', { waitUntil: 'networkidle' });
+      await expect(page.locator('.user-chip-name')).toBeVisible();
+
+      const verdict = await page.evaluate(() => {
+        const name = document.querySelector('.user-chip-name') as HTMLElement;
+        name.textContent = 'ก'.repeat(150); // the column maximum, in a script with no break opportunities
+        const de = document.documentElement;
+        const rect = name.getBoundingClientRect();
+        return {
+          pageOverflow: de.scrollWidth - de.clientWidth,
+          nameWidth: Math.round(rect.width),
+          truncated: name.scrollWidth > name.clientWidth,
+        };
+      });
+
+      expect(
+        verdict.pageOverflow,
+        `a long display name pushed the page ${verdict.pageOverflow}px wider than the ${width}px viewport`
+      ).toBeLessThanOrEqual(1);
+      // the clamp must truncate the name, not hide the chip or wrap it into a tall block
+      expect(verdict.nameWidth, 'the name must still be shown').toBeGreaterThan(0);
+      expect(verdict.truncated, 'an over-long name must be cut off with an ellipsis').toBe(true);
+    } finally {
+      await context.close();
+    }
+  });
+}
+
 // Guardrail on the fix itself: shrinking the columns must not collapse the queue into an unreadable sliver.
 // Without this, "no overflow" could be satisfied by squashing every column to nothing.
 test('ticket queue: the title column stays readable while fitting at 768px', async ({ browser }) => {

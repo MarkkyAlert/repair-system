@@ -618,6 +618,14 @@ body > * { position: relative; z-index: 1; }
 
 .user-chip-name { font-size: .8rem; font-weight: 700; color: var(--text); }
 .user-chip-role { color: var(--muted); font-size: .74rem; text-transform: capitalize; }
+
+/* ชื่อคนไทยยาว ๆ ที่ไม่มีเว้นวรรคเบรกไม่ได้ พอการ์ดผู้ใช้ย่อไม่ได้ (.topbar-actions > * ตั้ง flex-shrink: 0)
+   แถบบนเลยกว้างเกินจอ ทุกหน้าของคนคนนั้นเลื่อนแนวนอนได้หมด — วัดได้ตั้งแต่ราว 80 ตัวอักษรที่จอ 768px
+   ตัดท้ายด้วย … แบบเดียวกับ .topbar-left .page-title ที่ทำไว้อยู่แล้ว */
+.user-chip > div { min-width: 0; max-width: 12rem; }
+.user-chip-name,
+.user-chip-role { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 /* =========================================================================
    การจัดเรียงแนวตั้ง (Stacks)
    ========================================================================= */
