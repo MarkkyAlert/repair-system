@@ -618,7 +618,6 @@ body > * { position: relative; z-index: 1; }
 
 .user-chip-name { font-size: .8rem; font-weight: 700; color: var(--text); }
 .user-chip-role { color: var(--muted); font-size: .74rem; text-transform: capitalize; }
-
 /* =========================================================================
    การจัดเรียงแนวตั้ง (Stacks)
    ========================================================================= */
@@ -4995,9 +4994,12 @@ input[type="checkbox"].switch:checked::after { left: 20px; }
   .ticket-filter-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  /* ความกว้างขั้นต่ำเดิมรวมกัน 690px + gap + padding กว้างกว่าจอในช่วง 701-799px (แท็บเล็ตแนวตั้ง)
+     แต่เลย์เอาต์แบบเรียงลงมาเริ่มที่ <=700px คอลัมน์สุดท้ายในช่วงคาบเกี่ยวนี้จึงถูกตัดหาย
+     และหน้าเลื่อนแนวนอนไม่ได้ด้วย = ผู้ใช้ไม่มีทางเห็นเลย ; ให้คอลัมน์ย่อได้ สัดส่วน fr ยังคุมความกว้างเหมือนเดิม */
   .ticket-queue-head,
   .ticket-queue-row {
-    grid-template-columns: minmax(220px, 1.55fr) minmax(100px, .7fr) minmax(110px, .75fr) minmax(150px, 1fr) minmax(110px, .7fr);
+    grid-template-columns: minmax(0, 1.55fr) minmax(0, .7fr) minmax(0, .75fr) minmax(0, 1fr) minmax(0, .7fr);
   }
   .ticket-queue-head span:nth-child(6),
   .ticket-queue-head span:nth-child(7),
