@@ -618,7 +618,9 @@ class ReportRepository
         $period = $this->reportPeriodSnapshot($filters, $params, 'slacomp');
         $cutoff = $period['cutoff'];
         $conditions = [$this->visibilityClause($viewer, $params)];
-        $this->applyReportFilters($conditions, $filters, $params);
+        // ตัวกรองสถานะต้องเป็นสถานะ ณ วันสิ้นงวดเหมือนยอดรวมและตาราง ไม่ใช่สถานะวันนี้ ไม่งั้นพอช่างกดรับงาน
+        // เดือนนี้ งานนั้นจะหลุดจากตัวกรอง "มอบหมายแล้ว" ของเดือนเก่า แผง SLA เลยว่างสวนทางกับหัวและตารางในหน้าเดียวกัน
+        $this->applyReportFilters($conditions, $filters, $params, $period['status']);
         // ยกเลิก/ปฏิเสธ ณ วันสิ้นงวด (ไม่ใช่สถานะวันนี้) — งานที่เพิ่งถูกยกเลิกเดือนนี้ต้องไม่หายไปจากงวดเก่า
         $conditions[] = "{$period['status']} NOT IN ('cancelled', 'rejected')";
         $conditions[] = $this->latestSlaCycleAsOf('ts', $cutoff); // ผลตัดสินของรอบที่มีอยู่ ณ วันสิ้นงวด

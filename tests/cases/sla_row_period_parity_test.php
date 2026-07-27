@@ -250,3 +250,55 @@ test('sla(row): a FUTURE to_date is clamped the same way in both layers', functi
         $pdo->prepare('DELETE FROM departments WHERE id = ?')->execute([$d[0]]);
     }
 });
+
+// AN-01 round 5 (2026-07-26) — the SLA panel filtered on the CURRENT status while the totals and the table beside
+// it filtered as-of the period end. Open a closed month with a status filter (say "assigned"), let the technician
+// accept the work today, and the panel empties out while the header and rows correctly stay put: one screen,
+// three components, two different answers about what that month contained.
+test('sla(panel): the SLA panel obeys the same as-of status filter as the totals and the table', function (): void {
+    $svc = tvm_container()->get(ReportService::class);
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $pdo = srp_pdo();
+    $sfx = bin2hex(random_bytes(4));
+    $d = srp_dims($sfx);
+
+    $monthStart = new DateTimeImmutable(date('Y-m-01', strtotime('-6 months')));
+    $monthEnd = $monthStart->modify('last day of this month');
+    // the reader is looking at work that sat "assigned" during that closed month
+    $filters = [
+        'from_date' => $monthStart->format('Y-m-d'),
+        'to_date' => $monthEnd->format('Y-m-d'),
+        'department_id' => $d[0],
+        'status' => 'assigned',
+    ];
+    $ticketNo = "SRPP-$sfx";
+
+    try {
+        $requested = $monthStart->modify('+2 days')->format('Y-m-d H:i:s');
+        $target = $monthStart->modify('+3 days')->format('Y-m-d H:i:s');
+        $ticketId = srp_ticket($ticketNo, $d, 'assigned', $requested, $target);
+        // it also needs an activity log so the as-of status snapshot can see it was 'assigned' back then
+        $pdo->prepare("INSERT INTO ticket_activity_logs (ticket_id, actor_id, action, from_status, to_status, created_at)
+                       VALUES (?, 4, 'technician_assigned', 'approved', 'assigned', ?)")->execute([$ticketId, $requested]);
+
+        $panelBefore = $svc->getReportPageData($admin, $filters)['slaCompliance']['overall'] ?? [];
+        $breachedBefore = (int) ($panelBefore['resolution']['breached'] ?? 0);
+        assert_true($breachedBefore >= 1, 'sanity: during that month the assigned work had already missed its deadline');
+
+        // today the technician finally accepts it — t.status stops being 'assigned'
+        $pdo->prepare("UPDATE tickets SET status = 'accepted', first_response_at = NOW() WHERE id = ?")->execute([$ticketId]);
+        $pdo->prepare("INSERT INTO ticket_activity_logs (ticket_id, actor_id, action, from_status, to_status, created_at)
+                       VALUES (?, 3, 'work_accepted', 'assigned', 'accepted', NOW())")->execute([$ticketId]);
+
+        $panelAfter = $svc->getReportPageData($admin, $filters)['slaCompliance']['overall'] ?? [];
+        assert_same(
+            $breachedBefore,
+            (int) ($panelAfter['resolution']['breached'] ?? -1),
+            'the panel must still describe what that month looked like — accepting today does not remove the '
+            . 'ticket from a month in which it WAS assigned'
+        );
+    } finally {
+        $pdo->prepare('DELETE FROM tickets WHERE ticket_no = ?')->execute([$ticketNo]);
+        $pdo->prepare('DELETE FROM departments WHERE id = ?')->execute([$d[0]]);
+    }
+});
