@@ -27,13 +27,29 @@ use App\Services\TicketWorkflowService;
 //
 // Neither reads the source, so a regression cannot hide by using a different clock API — or none at all.
 //
-// THE LIMIT, because the previous wording ("covers both failure directions") read as a completeness claim and is
-// not one: a net only guards the OUTPUTS ITS FIXTURE ACTUALLY CALLS. The two tests above call /reports
-// (getReportPageData). A review mutated the SLA-breach page's own query and all 679 tests stayed green, because
-// nothing here reached getSlaBreachReportPage. The third test closes that specific page. Every other report page
-// — trend, technician, hotspot, CSAT, backlog, asset — still has no known-answer period fixture, so a
-// period-freeze regression written directly into one of those queries would not be caught here. Adding a page to
-// this file is the cheap fix when that matters; assuming the file already covers it is not.
+// THE LIMIT — a net only guards the OUTPUTS ITS FIXTURE ACTUALLY CALLS. The two tests above call /reports
+// (getReportPageData); the third calls /reports/sla-breach. That third one exists because a review mutated the
+// SLA-breach query and all 679 tests stayed green — nothing here had ever reached getSlaBreachReportPage.
+//
+// Coverage map for period-freeze, written from grepping the suite rather than from memory (this comment has been
+// wrong three times by describing what the nets were meant to cover instead of what they do):
+//
+//   already covered ELSEWHERE, by their own as-reported tests — no fixture needed here:
+//     trend        ticket_trend_report_test.php:161        reopened ticket stays in its past period
+//     technician   technician_performance_report_test.php:115  SLA rate read from the frozen cycle target
+//     csat         csat_report_test.php:89                 a re-rate does not restate the earlier period
+//     reopen-rate  reopen_rate_report_test.php:151         a reopen after the window does not restate the past
+//
+//   deliberately NOT frozen — current-state by design, documented in guide.php:89 ("ภาพสถานะปัจจุบัน"):
+//     backlog aging, technician live workload, cumulative labour hours
+//
+//   THIN — covered only by the snapshot test above, which catches "changed retroactively" but is blind to a value
+//   that is wrong from the first photograph and stays wrong:
+//     problem-hotspot, asset-reliability, executive
+//   (executive does pin period SCOPING — executive_summary_report_test.php:142 keeps its breach KPI off the
+//   NOW-overdue snapshot — but no test drives an action AFTER the period and re-reads it, and none feeds an
+//   after-cutoff known answer.) A period-freeze regression written directly into one of those three queries
+//   would not be caught. Adding a known-answer fixture for a page is cheap; assuming it is already covered is not.
 
 function cpi_pdo(): PDO
 {
@@ -297,4 +313,37 @@ test('sla-breach(reconciliation): work finished after the cutoff is not counted 
         $pdo->prepare('DELETE FROM tickets WHERE ticket_no = ?')->execute(["CPIB-$sfx"]);
         $pdo->prepare('DELETE FROM locations WHERE id = ?')->execute([$locationId]);
     }
+});
+
+// The coverage map at the top of this file has been wrong three times, always the same way: written from what the
+// nets were meant to cover rather than what they measurably do. A prose map also rots the moment someone renames
+// or deletes a test it cites, and nothing tells you. So the map cites file:line, and this pins those citations to
+// reality — if a cited test disappears, the map is stale and the build says so instead of quietly misleading the
+// next reader.
+test('closed period(map): the coverage map at the top of this file still matches the suite', function (): void {
+    $cited = [
+        'ticket_trend_report_test.php' => 'stays in its past period as-reported',
+        'technician_performance_report_test.php' => 'from the frozen cycle target',
+        'csat_report_test.php' => 'does not restate the earlier period CSAT',
+        'reopen_rate_report_test.php' => 'does not restate a past period',
+        'executive_summary_report_test.php' => 'period-scoped breach, not the NOW-overdue snapshot',
+    ];
+    foreach ($cited as $file => $needle) {
+        $body = (string) file_get_contents(BASE_PATH . '/tests/cases/' . $file);
+        assert_contains_str($needle, $body, "the coverage map cites a test in $file that no longer exists under that name");
+    }
+
+    // The two pages the map calls THIN must still lack period-immutability coverage of their own. If one gains it,
+    // the map is understating coverage and should be updated — otherwise someone duplicates the work here.
+    foreach (['problem_hotspot_report_test.php', 'asset_reliability_report_test.php'] as $file) {
+        $body = (string) file_get_contents(BASE_PATH . '/tests/cases/' . $file);
+        assert_false(
+            str_contains($body, 'as-reported') || str_contains($body, 'restate'),
+            "$file now has period-immutability coverage — promote it out of the THIN list in the map above"
+        );
+    }
+
+    // the backlog exemption is a documented product decision, not an oversight — keep the guide saying so
+    $guide = (string) file_get_contents(BASE_PATH . '/app/Views/reports/guide.php');
+    assert_contains_str('เป็นภาพสถานะปัจจุบัน', $guide, 'the guide still documents backlog/workload as current-state by design');
 });
