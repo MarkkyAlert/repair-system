@@ -17,6 +17,14 @@ require __DIR__ . '/counting_pdo.php';
 // Fault injector (FailingPdo + with_failing_pdo) for atomicity / rollback tests.
 require __DIR__ . '/failing_pdo.php';
 
+// ตารางบันทึกแบบต่อท้าย (คิวอีเมล/ล็อก) ไม่มีเคสไหนเป็นเจ้าของ เลยไม่มีใครลบ — ทุกงานที่เทสต์สร้างจะดัน
+// อีเมลเข้าคิวเพิ่มทุกรอบ วัดได้ 112,047 แถว ≈ 330 MB สะสมใน 2 วัน จนปุ่มสำรองฐานข้อมูลของ admin ล้ม
+// เพราะต้องอ่านทั้งฐานขึ้นหน่วยความจำ. CI สร้างฐานใหม่ทุกครั้งอยู่แล้ว อันนี้กันฝั่งเครื่อง dev
+// ล้าง "ก่อน" รัน ไม่ใช่หลัง — เทสต์ล้มเมื่อไหร่จะได้ยังเหลือของไว้ให้ไล่ดู
+foreach (['email_queue', 'login_attempts', 'export_jobs'] as $volatileLogTable) {
+    $GLOBALS['__container']->get(PDO::class)->exec("DELETE FROM {$volatileLogTable}");
+}
+
 foreach (glob(__DIR__ . '/cases/*.php') as $case) {
     require $case;
 }
