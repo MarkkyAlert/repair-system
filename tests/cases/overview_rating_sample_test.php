@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Core\View;
 use App\Services\ReportService;
 use Smalot\PdfParser\Parser;
 
@@ -161,6 +162,70 @@ test('overview rating: the technician mini-table shows the review count on the p
     } finally {
         $pdo->prepare('DELETE FROM tickets WHERE ticket_no = ?')->execute(["ORST-$sfx"]);
         $pdo->prepare('DELETE FROM users WHERE id = ?')->execute([$techId]);
+        $pdo->prepare('DELETE FROM departments WHERE id = ?')->execute([$deptId]);
+    }
+});
+
+// AN-02 round 4 (2026-07-26): the executive KPI card shows BOTH periods' scores but disclosed the sample size of
+// only the current one — "คะแนนเฉลี่ย 5.0 · งวดก่อน 4.0 · จาก 1 รีวิว". The reader cannot tell whether that 4.0 is
+// a solid forty-review baseline or another single review, which is exactly the comparison the card exists to
+// support. Every other surface now names its base; the previous period was the last one left anonymous.
+test('executive rating: BOTH periods disclose their review count, not just the current one', function (): void {
+    $svc = tvm_container()->get(ReportService::class);
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $pdo = ors_pdo();
+    $sfx = bin2hex(random_bytes(4));
+
+    $pdo->prepare('INSERT INTO departments (code, name, is_active, created_at, updated_at) VALUES (?, ?, 1, NOW(), NOW())')
+        ->execute(["ORSE-$sfx", "OrsExecDept-$sfx"]);
+    $deptId = (int) $pdo->lastInsertId();
+    $locationId = (int) $pdo->query('SELECT id FROM locations LIMIT 1')->fetchColumn();
+    $catId = (int) $pdo->query('SELECT id FROM ticket_categories LIMIT 1')->fetchColumn();
+    $priId = (int) $pdo->query('SELECT id FROM priorities LIMIT 1')->fetchColumn();
+
+    $rate = static function (string $no, string $when, int $score) use ($pdo, $deptId, $locationId, $catId, $priId): void {
+        $pdo->prepare(
+            'INSERT INTO tickets (ticket_no, title, description, requester_id, requester_department_id, location_id,
+                ticket_category_id, priority_id, status, approval_status, requested_at, resolved_at, completed_at,
+                created_at, updated_at)
+             VALUES (?, ?, "x", 1, ?, ?, ?, ?, "completed", "approved", ?, ?, ?, NOW(), NOW())'
+        )->execute([$no, 'exec rating', $deptId, $locationId, $catId, $priId, $when, $when, $when]);
+        $pdo->prepare('INSERT INTO ticket_ratings (ticket_id, requester_id, technician_id, cycle, score, feedback, created_at, updated_at)
+                       VALUES (?, 1, 3, 1, ?, "x", ?, ?)')->execute([(int) $pdo->lastInsertId(), $score, $when, $when]);
+    };
+
+    try {
+        // this month: a single 5. previous month: three reviews averaging 4 — the comparison the card invites
+        $thisMonth = date('Y-m-05 10:00:00');
+        $prevMonth = date('Y-m-05 10:00:00', strtotime('-1 month'));
+        $rate("ORSE-$sfx-1", $thisMonth, 5);
+        foreach ([1, 2, 3] as $i) {
+            $rate("ORSE-$sfx-P$i", $prevMonth, 4);
+        }
+
+        $page = $svc->getExecutiveSummaryPage($admin, ['preset' => 'month', 'department_id' => $deptId]);
+        $rating = null;
+        foreach (($page['kpis'] ?? []) as $kpi) {
+            if ((string) ($kpi['label'] ?? '') === 'คะแนนเฉลี่ย') {
+                $rating = $kpi;
+            }
+        }
+        assert_true($rating !== null, 'the rating KPI card exists');
+        assert_same('จาก 1 รีวิว', (string) ($rating['sample_label'] ?? ''), 'the current period already named its base');
+        assert_same(
+            'จาก 3 รีวิว',
+            (string) ($rating['prev_sample_label'] ?? ''),
+            'the previous period must name its base too — otherwise "งวดก่อน 4.0" could be forty reviews or one'
+        );
+
+        // Assert the RENDERS, not just the payload. An earlier round of this work edited two views with a
+        // mismatched search string, so the edits silently never applied while a payload-only test stayed green.
+        $html = View::capture('reports/executive', $page);
+        assert_contains_str('จาก 3 รีวิว', $html, 'the executive page prints the previous period base');
+        $pdf = (string) ($svc->exportExecutiveSummaryPdf($admin, ['preset' => 'month', 'department_id' => $deptId])['content'] ?? '');
+        assert_contains_str('จาก 3 รีวิว', (new Parser())->parseContent($pdf)->getText(), 'and so does the printed PDF');
+    } finally {
+        $pdo->prepare('DELETE FROM tickets WHERE ticket_no LIKE ?')->execute(["ORSE-$sfx-%"]);
         $pdo->prepare('DELETE FROM departments WHERE id = ?')->execute([$deptId]);
     }
 });

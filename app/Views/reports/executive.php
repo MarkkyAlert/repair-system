@@ -74,7 +74,10 @@ $kpis = $kpis ?? [];
             <?= render_partial('partials/components/card', [
                 'title' => (string) ($kpi['label'] ?? '-'),
                 'value' => (string) ($kpi['value_label'] ?? '-'),
-                'meta' => (string) ($kpi['delta_label'] ?? '—') . ' (' . (string) ($kpi['pct_label'] ?? '—') . ') · งวดก่อน ' . (string) ($kpi['prev_value_label'] ?? '-') . (!empty($kpi['sample_label']) ? ' · ' . (string) $kpi['sample_label'] : ''),
+                // การ์ดนี้เทียบสองงวด จึงต้องบอกฐานของงวดก่อนด้วย ไม่งั้น "งวดก่อน 4.0" แยกไม่ออกว่ามาจาก 40 รีวิวหรือรีวิวเดียว
+                'meta' => (string) ($kpi['delta_label'] ?? '—') . ' (' . (string) ($kpi['pct_label'] ?? '—') . ') · งวดก่อน ' . (string) ($kpi['prev_value_label'] ?? '-')
+                    . (!empty($kpi['prev_sample_label']) ? ' (' . (string) $kpi['prev_sample_label'] . ')' : '')
+                    . (!empty($kpi['sample_label']) ? ' · ' . (string) $kpi['sample_label'] : ''),
                 'tone' => (string) ($kpi['tone'] ?? 'default'),
             ]) ?>
         <?php endforeach; ?>

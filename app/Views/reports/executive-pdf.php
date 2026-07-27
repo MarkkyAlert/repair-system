@@ -49,7 +49,8 @@
         <div class="kpi-item <?= e((string) ($kpi['tone'] ?? 'default')) ?>">
             <div class="kpi-title"><?= e((string) ($kpi['label'] ?? '-')) ?></div>
             <div class="kpi-value"><?= e((string) ($kpi['value_label'] ?? '-')) ?></div>
-            <div class="kpi-delta"><?= e((string) ($kpi['delta_label'] ?? '—')) ?> (<?= e((string) ($kpi['pct_label'] ?? '—')) ?>) · งวดก่อน <?= e((string) ($kpi['prev_value_label'] ?? '-')) ?><?php if (!empty($kpi['sample_label'])): ?> · <?= e((string) $kpi['sample_label']) ?><?php endif; ?></div>
+            <?php // เหมือนหน้าจอ: บอกฐานของทั้งสองงวด ไฟล์ที่ส่งต่อให้ผู้บริหารต้องเทียบสองงวดได้อย่างเป็นธรรม ?>
+            <div class="kpi-delta"><?= e((string) ($kpi['delta_label'] ?? '—')) ?> (<?= e((string) ($kpi['pct_label'] ?? '—')) ?>) · งวดก่อน <?= e((string) ($kpi['prev_value_label'] ?? '-')) ?><?php if (!empty($kpi['prev_sample_label'])): ?> (<?= e((string) $kpi['prev_sample_label']) ?>)<?php endif; ?><?php if (!empty($kpi['sample_label'])): ?> · <?= e((string) $kpi['sample_label']) ?><?php endif; ?></div>
         </div>
     <?php endforeach; ?>
 </div>

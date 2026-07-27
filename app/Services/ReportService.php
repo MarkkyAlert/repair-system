@@ -1657,6 +1657,8 @@ class ReportService
         $tRating = (float) ($thisSum['avg_rating'] ?? 0);
         $pRating = (float) ($prevSum['avg_rating'] ?? 0);
         $tRatingCount = (int) ($thisSum['rating_count'] ?? 0);
+        // การ์ดนี้เชิญให้เทียบสองงวด จึงต้องบอกฐานของทั้งสองงวด ไม่งั้น "งวดก่อน 4.0" จะแยกไม่ออกว่ามาจาก 40 รีวิวหรือรีวิวเดียว
+        $pRatingCount = (int) ($prevSum['rating_count'] ?? 0);
 
         $kpis = [
             $this->execKpiCard('แจ้งซ่อมทั้งหมด', $tTotal, $pTotal, 'neutral', 0, '', (string) $tTotal),
@@ -1669,7 +1671,19 @@ class ReportService
             // MTTR/คะแนน เป็น avg → การมีอยู่ = มีงานปิด/มีรีวิวจริงไหม (base count) ไม่ใช่ค่า avg>0 —
             // งานปิด <1 นาที (MTTR 0.0) ยังต้องนับว่ามีข้อมูล ไม่งั้นเดลต้าหาย/โชว์ '-' ทั้งที่มีงาน
             $this->execKpiCard('เวลาซ่อมเฉลี่ย (ชม.)', $tMttr, $pMttr, 'down_good', 1, '', $tMttrBase > 0 ? number_format($tMttr, 1) : '-', $tMttrBase > 0, $pMttrBase > 0),
-            $this->execKpiCard('คะแนนเฉลี่ย', $tRating, $pRating, 'up_good', 1, '', $tRating > 0 ? number_format($tRating, 1) : '-', $tRating > 0, $pRating > 0, $tRatingCount > 0 ? 'จาก ' . number_format($tRatingCount) . ' รีวิว' : null),
+            $this->execKpiCard(
+                'คะแนนเฉลี่ย',
+                $tRating,
+                $pRating,
+                'up_good',
+                1,
+                '',
+                $tRating > 0 ? number_format($tRating, 1) : '-',
+                $tRating > 0,
+                $pRating > 0,
+                $tRatingCount > 0 ? 'จาก ' . number_format($tRatingCount) . ' รีวิว' : null,
+                $pRatingCount > 0 ? 'จาก ' . number_format($pRatingCount) . ' รีวิว' : null
+            ),
         ];
 
         $filterData = $this->buildFilterData($normalizedFilters, $reference);
@@ -1768,7 +1782,7 @@ class ReportService
     /**
      * การ์ด KPI 1 ตัว: value งวดนี้ + delta/pct เทียบงวดก่อน + tone ตามทิศที่ "ดี" (up_good/down_good/neutral).
      */
-    private function execKpiCard(string $label, float $thisVal, float $prevVal, string $goodDir, int $decimals, string $unit, string $valueLabel, bool $thisHasData = true, bool $prevHasData = true, ?string $sampleLabel = null): array
+    private function execKpiCard(string $label, float $thisVal, float $prevVal, string $goodDir, int $decimals, string $unit, string $valueLabel, bool $thisHasData = true, bool $prevHasData = true, ?string $sampleLabel = null, ?string $prevSampleLabel = null): array
     {
         // งวดก่อนไม่มี base (rate/avg ที่ตัวหารเป็น 0) → prev = "-" ไม่ใช่ 0.0 ปลอม. count ส่ง prevHasData
         // เป็น true เสมอ (0 คือค่าจริง) จึงยังเป็นตัวเลข. single source → หน้าจอ + CSV/XLSX/PDF อ่านค่านี้เหมือนกัน.
@@ -1784,12 +1798,12 @@ class ReportService
         // งวดปัจจุบันไม่มี base (rate/avg ที่ตัวหารเป็น 0) → ห้ามปั้นค่า 0% หรือเดลต้าหลอก.
         // ต่างจาก count ที่ 0 คือค่าจริง — ตัว count ส่ง hasData=true เสมอ. sample_label = ฐานที่ค่าตั้งอยู่.
         if (!$thisHasData) {
-            return ['label' => $label, 'value_label' => '-', 'prev_value_label' => $prevLabel, 'value_export' => $valueExport, 'prev_value_export' => $prevExport, 'delta_label' => '—', 'pct_label' => '—', 'tone' => 'default', 'sample_label' => $sampleLabel];
+            return ['label' => $label, 'value_label' => '-', 'prev_value_label' => $prevLabel, 'value_export' => $valueExport, 'prev_value_export' => $prevExport, 'delta_label' => '—', 'pct_label' => '—', 'tone' => 'default', 'sample_label' => $sampleLabel, 'prev_sample_label' => $prevSampleLabel];
         }
 
         // งวดก่อนไม่มี base → เทียบไม่ได้: โชว์ค่างวดนี้ แต่ไม่ปั้นเดลต้า/ทิศ (เลียนแบบ trendMetricCard).
         if (!$prevHasData) {
-            return ['label' => $label, 'value_label' => $valueLabel, 'prev_value_label' => $prevLabel, 'value_export' => $valueExport, 'prev_value_export' => $prevExport, 'delta_label' => '—', 'pct_label' => '—', 'tone' => 'default', 'sample_label' => $sampleLabel];
+            return ['label' => $label, 'value_label' => $valueLabel, 'prev_value_label' => $prevLabel, 'value_export' => $valueExport, 'prev_value_export' => $prevExport, 'delta_label' => '—', 'pct_label' => '—', 'tone' => 'default', 'sample_label' => $sampleLabel, 'prev_sample_label' => $prevSampleLabel];
         }
 
         $delta = round($thisVal - $prevVal, $decimals);
@@ -1811,19 +1825,21 @@ class ReportService
             'pct_label' => $pct === null ? '—' : ($pct > 0 ? '+' : '') . number_format($pct, 1) . '%',
             'tone' => $tone,
             'sample_label' => $sampleLabel,
+            'prev_sample_label' => $prevSampleLabel,
         ];
     }
 
     private function execExportHeaders(): array
     {
-        return ['KPI', 'งวดนี้', 'งวดก่อน', 'เปลี่ยนแปลง', '%เปลี่ยน', 'ฐานตัวอย่าง'];
+        return ['KPI', 'งวดนี้', 'งวดก่อน', 'เปลี่ยนแปลง', '%เปลี่ยน', 'ฐานตัวอย่าง', 'ฐานตัวอย่าง (งวดก่อน)'];
     }
 
     private function execExportRow(array $kpi): array
     {
-        // 'ฐานตัวอย่าง' = sample_label (เช่น "จาก N รีวิว") ให้ export ตรงกับจอ/PDF ; KPI อื่นเว้นว่าง.
+        // 'ฐานตัวอย่าง' = sample_label (เช่น จาก N รีวิว) ให้ export ตรงกับจอ/PDF ; ต้องมีของงวดก่อนด้วย เพราะการ์ด
+        // แสดงคะแนนสองงวดเทียบกัน ; KPI อื่นเว้นว่าง
         // value/prev = ค่า export ที่กำหนด type แล้ว เพื่อให้ KPI แบบนับจำนวนเป็นตัวเลขจริงใน Excel ไม่ใช่ text.
-        return [$kpi['label'], $kpi['value_export'] ?? $kpi['value_label'], $kpi['prev_value_export'] ?? $kpi['prev_value_label'], $kpi['delta_label'], $kpi['pct_label'], (string) ($kpi['sample_label'] ?? '')];
+        return [$kpi['label'], $kpi['value_export'] ?? $kpi['value_label'], $kpi['prev_value_export'] ?? $kpi['prev_value_label'], $kpi['delta_label'], $kpi['pct_label'], (string) ($kpi['sample_label'] ?? ''), (string) ($kpi['prev_sample_label'] ?? '')];
     }
 
     public function exportExecutiveSummaryCsv(array $viewer, array $filters = []): array
