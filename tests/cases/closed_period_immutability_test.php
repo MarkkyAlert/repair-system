@@ -7,17 +7,26 @@ use App\Services\ReportService;
 use App\Services\TicketService;
 use App\Services\TicketWorkflowService;
 
-// AN-01 round 4 (2026-07-26) — the behavioural net that replaces pattern-scanning.
+// AN-01 rounds 4-5 (2026-07-26) — a PAIR of nets, because neither one is sufficient alone.
 //
-// Three separate reviews found three separate ways a closed period could rewrite itself, and each time the
-// text-scanning guard missed it because it was looking for a shape rather than an outcome: first a NOW() in SQL,
-// then a time() one layer up, then a due date from the wrong cycle (no clock involved at all), then an
-// achievement recorded after the period closed. Scanning for clock APIs can never be complete — `time ()`,
-// `strtotime('now')`, `date('U')`, `NOW() > x` and a wrong-cycle timestamp all slip through any grep.
+// Five reviews found five ways a closed period could report wrongly, and a text-scanning guard missed most of
+// them because it looked for a shape rather than an outcome: a NOW() in SQL, a time() one layer up, a due date
+// from the wrong cycle (no clock at all), an achievement recorded after the cutoff, and a status filter reading
+// today. Measured against 8 mutations the scanner caught 2 and this snapshot test caught 3 — so neither is a
+// backstop on its own, and saying otherwise (as an earlier version of this comment did) just stops people
+// looking.
 //
-// So this test asserts the PROPERTY instead of the implementation: photograph a closed period's report — header
-// AND every detail row — then drive real workflow actions after that period ended, and demand the photograph is
-// unchanged. It cannot be defeated by choosing a different API, because it never looks at the code.
+//   SNAPSHOT (first test) catches "changed retroactively": photograph a closed period, drive real workflow
+//   actions after it, demand the photograph is identical. Blind by construction to a number that was already
+//   wrong in the first photograph and stays wrong.
+//
+//   RECONCILIATION (second test) catches "constantly wrong": feed data whose correct answer is known by hand and
+//   assert the ABSOLUTE values. This exists because an independent review defeated the snapshot test with exactly
+//   that — removing `achieved_at <= cutoff` for work finished after the period but before its deadline slipped
+//   past the snapshot AND the whole 676-test suite, since both photographs were equally wrong.
+//
+// Together they cover both failure directions. Neither reads the source, so a regression cannot hide by using a
+// different clock API — or none at all.
 
 function cpi_pdo(): PDO
 {
@@ -135,13 +144,84 @@ test('closed period(immutability): later workflow actions cannot change a finish
         assert_same(
             $before,
             $after,
-            'the closed period must report exactly what it reported before — accepting late, reopening and '
-            . 'cancelling all happened AFTER it ended and cannot reach back into it'
+            'the closed period must report exactly what it reported before — accepting late, resolving and reopening '
+            . 'all happened AFTER it ended and cannot reach back into it'
         );
     } finally {
         foreach ($ids as $id) {
             $pdo->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
         }
+        $pdo->prepare('DELETE FROM departments WHERE id = ?')->execute([$deptId]);
+    }
+});
+
+// The snapshot test above compares BEFORE against AFTER, so by construction it can only catch a number that
+// CHANGES. A value that is wrong in the very first photograph — and stays wrong — passes it happily. An
+// independent review demonstrated exactly that: removing the repository's `achieved_at <= cutoff` guard for work
+// finished AFTER the period but BEFORE its deadline slipped past the snapshot test and the whole 676-test suite,
+// because both photographs were equally wrong.
+//
+// This is the other half of the pair: feed data whose correct answer is known by hand, and assert the ABSOLUTE
+// numbers rather than their stability. Snapshot catches "changed retroactively"; reconciliation catches
+// "constantly wrong". Neither subsumes the other.
+test('closed period(reconciliation): work finished after the cutoff but before its deadline is not counted in the old period', function (): void {
+    $svc = tvm_container()->get(ReportService::class);
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $pdo = cpi_pdo();
+    $sfx = bin2hex(random_bytes(4));
+
+    $pdo->prepare('INSERT INTO departments (code, name, is_active, created_at, updated_at) VALUES (?, ?, 1, NOW(), NOW())')
+        ->execute(["CPIR-$sfx", "CpiRecDept-$sfx"]);
+    $deptId = (int) $pdo->lastInsertId();
+    $locationId = (int) $pdo->query('SELECT id FROM locations LIMIT 1')->fetchColumn();
+    $catId = (int) $pdo->query('SELECT id FROM ticket_categories LIMIT 1')->fetchColumn();
+    $priId = (int) $pdo->query('SELECT id FROM priorities LIMIT 1')->fetchColumn();
+
+    $monthStart = new DateTimeImmutable(date('Y-m-01', strtotime('-6 months')));
+    $monthEnd = $monthStart->modify('last day of this month');
+    $filters = [
+        'from_date' => $monthStart->format('Y-m-d'),
+        'to_date' => $monthEnd->format('Y-m-d'),
+        'department_id' => $deptId,
+    ];
+
+    try {
+        // Known-answer fixture. Requested inside the closed month; its deadline lands a fortnight AFTER the month
+        // ended, and the work was actually finished a week after the month ended — late relative to the period,
+        // but comfortably WITHIN its own deadline.
+        $requested = $monthStart->modify('+25 days')->format('Y-m-d H:i:s');
+        $target = $monthEnd->modify('+14 days')->format('Y-m-d H:i:s');
+        $achieved = $monthEnd->modify('+7 days')->format('Y-m-d H:i:s');
+
+        $pdo->prepare(
+            'INSERT INTO tickets (ticket_no, title, description, requester_id, requester_department_id, location_id,
+                ticket_category_id, priority_id, status, approval_status, requested_at, response_due_at,
+                resolution_due_at, first_response_at, created_at, updated_at)
+             VALUES (?, ?, "x", 1, ?, ?, ?, ?, "in_progress", "approved", ?, ?, ?, ?, NOW(), NOW())'
+        )->execute(["CPIR-$sfx", 'reconciliation', $deptId, $locationId, $catId, $priId, $requested, $target, $target, $achieved]);
+        $ticketId = (int) $pdo->lastInsertId();
+        $pdo->prepare("INSERT INTO ticket_sla_tracks (ticket_id, metric_type, cycle, target_at, achieved_at, status, created_at)
+                       VALUES (?, 'response', 1, ?, ?, 'met', ?)")->execute([$ticketId, $target, $achieved, $requested]);
+
+        // THE KNOWN ANSWER, worked out by hand: as of the last day of that month the deadline had not arrived and
+        // nothing had been achieved yet. So the period has NOTHING to judge — no met, no breach, no percentage.
+        $panel = $svc->getReportPageData($admin, $filters)['slaCompliance']['overall']['response'] ?? [];
+        assert_same(0, (int) ($panel['met'] ?? -1), 'the achievement happened after the period, so it cannot be a met inside it');
+        assert_same(0, (int) ($panel['breached'] ?? -1), 'and the deadline had not passed either, so it is not a breach');
+        assert_same('-', (string) ($panel['pct_label'] ?? ''), 'nothing was decided in that month, so there is no percentage to show');
+
+        // the detail row must tell the same story
+        $row = null;
+        foreach (($svc->getReportPageData($admin, $filters)['rows'] ?? []) as $candidate) {
+            if ((string) $candidate['ticket_no'] === "CPIR-$sfx") {
+                $row = $candidate;
+            }
+        }
+        assert_true($row !== null, 'the ticket is listed in that month');
+        assert_same('รอตอบรับ', (string) $row['sla_label'], 'as of the period end it was simply still waiting');
+        assert_same('ไม่ใช่', (string) $row['sla_overdue_label'], 'and certainly not overdue');
+    } finally {
+        $pdo->prepare('DELETE FROM tickets WHERE ticket_no = ?')->execute(["CPIR-$sfx"]);
         $pdo->prepare('DELETE FROM departments WHERE id = ?')->execute([$deptId]);
     }
 });
