@@ -266,7 +266,8 @@ test('sla breach: same ticket is grouped correctly under different dimensions', 
 
 test('sla breach: ticket with no department is bucketed as ไม่ระบุแผนก', function (): void {
     $rid = bin2hex(random_bytes(4));
-    [$catId, $locId] = slab_dims($rid);
+    // เคสนี้ไม่ได้ใช้แผนก แต่ slab_dims สร้างไว้ให้เสมอ ต้องรับมาลบด้วย ไม่งั้นค้างใน DB ทดสอบรอบละ 1 แถว
+    [$catId, $locId, $deptId] = slab_dims($rid);
     $ticketId = 0;
 
     try {
@@ -282,7 +283,22 @@ test('sla breach: ticket with no department is bucketed as ไม่ระบุ
         assert_true($row !== null, 'null-department tickets bucket under ไม่ระบุแผนก');
         assert_true($row['total_breached'] >= 1, 'the null-dept breach is counted there');
     } finally {
-        slab_cleanup($ticketId, $catId, $locId, 0);
+        slab_cleanup($ticketId, $catId, $locId, $deptId);
+    }
+});
+
+// เทสต์นี้ต้องอยู่ท้ายไฟล์: ทุกเคสข้างบนล้างของตัวเองใน finally แล้ว ถ้ายังเหลือแปลว่ามีเคสไหนลืมล้าง
+// ที่ต้องมีเพราะของค้างสะสมเงียบ ๆ ทีละแถว จนตัวเลือก "แผนก" ในหน้ารายงานมีขยะปนอยู่หลายร้อยรายการ
+test('sla breach: this file leaves no fixtures behind in the test database', function (): void {
+    $orphans = [
+        'departments' => "SELECT COUNT(*) FROM departments WHERE name LIKE 'SLAB Dept%'",
+        'locations' => "SELECT COUNT(*) FROM locations WHERE name LIKE 'SLAB Loc%'",
+        'ticket_categories' => "SELECT COUNT(*) FROM ticket_categories WHERE name LIKE 'SLAB Cat%'",
+        'tickets' => "SELECT COUNT(*) FROM tickets WHERE ticket_no LIKE 'SLABT-%'",
+    ];
+
+    foreach ($orphans as $table => $sql) {
+        assert_same(0, (int) slab_pdo()->query($sql)->fetchColumn(), "$table: SLAB fixtures must be cleaned up by the case that made them");
     }
 });
 
