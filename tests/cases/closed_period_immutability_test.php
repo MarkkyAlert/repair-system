@@ -25,8 +25,15 @@ use App\Services\TicketWorkflowService;
 //   that — removing `achieved_at <= cutoff` for work finished after the period but before its deadline slipped
 //   past the snapshot AND the whole 676-test suite, since both photographs were equally wrong.
 //
-// Together they cover both failure directions. Neither reads the source, so a regression cannot hide by using a
-// different clock API — or none at all.
+// Neither reads the source, so a regression cannot hide by using a different clock API — or none at all.
+//
+// THE LIMIT, because the previous wording ("covers both failure directions") read as a completeness claim and is
+// not one: a net only guards the OUTPUTS ITS FIXTURE ACTUALLY CALLS. The two tests above call /reports
+// (getReportPageData). A review mutated the SLA-breach page's own query and all 679 tests stayed green, because
+// nothing here reached getSlaBreachReportPage. The third test closes that specific page. Every other report page
+// — trend, technician, hotspot, CSAT, backlog, asset — still has no known-answer period fixture, so a
+// period-freeze regression written directly into one of those queries would not be caught here. Adding a page to
+// this file is the cheap fix when that matters; assuming the file already covers it is not.
 
 function cpi_pdo(): PDO
 {
@@ -223,5 +230,71 @@ test('closed period(reconciliation): work finished after the cutoff but before i
     } finally {
         $pdo->prepare('DELETE FROM tickets WHERE ticket_no = ?')->execute(["CPIR-$sfx"]);
         $pdo->prepare('DELETE FROM departments WHERE id = ?')->execute([$deptId]);
+    }
+});
+
+// AN-01 round 6 (2026-07-26) — the pair above still had a hole, and it was a coverage hole rather than a logic
+// one: both nets exercise /reports (getReportPageData). An independent review mutated the SLA-BREACH page's own
+// query so work finished after the period counted back into it, and every one of the 679 tests stayed green,
+// because no known-answer fixture ever reached getSlaBreachReportPage.
+//
+// A net only guards the outputs its fixture actually calls. This adds the same known-answer reconciliation on
+// that page directly. Production was never wrong here — this closes the door before someone walks through it.
+test('sla-breach(reconciliation): work finished after the cutoff is not counted back into the closed period', function (): void {
+    $svc = tvm_container()->get(ReportService::class);
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $pdo = cpi_pdo();
+    $sfx = bin2hex(random_bytes(4));
+
+    $pdo->prepare('INSERT INTO locations (code, name, is_active, created_at, updated_at) VALUES (?, ?, 1, NOW(), NOW())')
+        ->execute(["CPIB-$sfx", "CpiBreachLoc-$sfx"]);
+    $locationId = (int) $pdo->lastInsertId();
+    $catId = (int) $pdo->query('SELECT id FROM ticket_categories LIMIT 1')->fetchColumn();
+    $priId = (int) $pdo->query('SELECT id FROM priorities LIMIT 1')->fetchColumn();
+
+    $monthStart = new DateTimeImmutable(date('Y-m-01', strtotime('-6 months')));
+    $monthEnd = $monthStart->modify('last day of this month');
+    $filters = [
+        'from_date' => $monthStart->format('Y-m-d'),
+        'to_date' => $monthEnd->format('Y-m-d'),
+        'dimension' => 'location',
+    ];
+
+    try {
+        // Same known-answer shape as the /reports fixture: requested inside the month, deadline a fortnight AFTER
+        // it ended, work actually finished a week after it ended — on time for its own deadline, but outside the
+        // period entirely. As of the last day of that month there was nothing to judge.
+        $requested = $monthStart->modify('+25 days')->format('Y-m-d H:i:s');
+        $target = $monthEnd->modify('+14 days')->format('Y-m-d H:i:s');
+        $achieved = $monthEnd->modify('+7 days')->format('Y-m-d H:i:s');
+
+        $pdo->prepare(
+            'INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id,
+                priority_id, status, approval_status, requested_at, resolution_due_at, resolved_at, created_at, updated_at)
+             VALUES (?, ?, "x", 1, ?, ?, ?, "completed", "approved", ?, ?, ?, NOW(), NOW())'
+        )->execute(["CPIB-$sfx", 'breach reconciliation', $locationId, $catId, $priId, $requested, $target, $achieved]);
+        $ticketId = (int) $pdo->lastInsertId();
+        $pdo->prepare("INSERT INTO ticket_sla_tracks (ticket_id, metric_type, cycle, target_at, achieved_at, status, created_at)
+                       VALUES (?, 'resolution', 1, ?, ?, 'met', ?)")->execute([$ticketId, $target, $achieved, $requested]);
+
+        $page = $svc->getSlaBreachReportPage($admin, $filters);
+        $row = null;
+        foreach (($page['rows'] ?? []) as $candidate) {
+            if ((string) ($candidate['label'] ?? '') === "CpiBreachLoc-$sfx") {
+                $row = $candidate;
+            }
+        }
+
+        // THE KNOWN ANSWER: the area has no decided SLA in that month at all — not a met, not a breach, so the
+        // page has no rate to quote. This is the assertion the mutation broke: it turned the after-period
+        // achievement into a met of 1 and the rate into 0.0%.
+        assert_same(0, (int) ($page['summary']['total_breached'] ?? -1), 'the deadline had not passed, so nothing breached');
+        assert_same('-', (string) ($page['summary']['breach_rate_label'] ?? ''), 'nothing was decided, so there is no rate — not 0.0%');
+        assert_true($row !== null, 'the area is listed for that month');
+        assert_same(0, (int) ($row['total_met'] ?? -1), 'an achievement recorded after the period is not a met inside it');
+        assert_same(0, (int) ($row['total_breached'] ?? -1), 'and it is not a breach either');
+    } finally {
+        $pdo->prepare('DELETE FROM tickets WHERE ticket_no = ?')->execute(["CPIB-$sfx"]);
+        $pdo->prepare('DELETE FROM locations WHERE id = ?')->execute([$locationId]);
     }
 });
