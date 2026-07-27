@@ -60,11 +60,12 @@
         <div class="summary-delta">เทียบงวดก่อน <?= e((string) ($summary['mttr']['delta_label'] ?? '—')) ?></div>
     </div>
     <div class="summary-item">
-        <?php $trendPdfRatingCount = (int) ($summary['csat']['sample_count'] ?? 0); ?>
+        <?php $trendPdfRatingCount = (int) ($summary['csat']['sample_count'] ?? 0);
+              $trendPdfPrevRatingCount = (int) ($summary['csat']['prev_sample_count'] ?? 0); ?>
         <div class="summary-title">คะแนนเฉลี่ย (งวดล่าสุด)</div>
         <div class="summary-value"><?= e((string) ($summary['csat']['value'] ?? '-')) ?></div>
         <?php // ไฟล์ที่ส่งต่อต้องพก sample size ไปด้วยเหมือนหน้าจอ ?>
-        <div class="summary-delta">เทียบงวดก่อน <?= e((string) ($summary['csat']['delta_label'] ?? '—')) ?><?= $trendPdfRatingCount > 0 ? e(' · จาก ' . number_format($trendPdfRatingCount) . ' รีวิว') : '' ?></div>
+        <div class="summary-delta">เทียบงวดก่อน <?= e((string) ($summary['csat']['delta_label'] ?? '—')) ?><?= $trendPdfPrevRatingCount > 0 ? e(' (จาก ' . number_format($trendPdfPrevRatingCount) . ' รีวิว)') : '' ?><?= $trendPdfRatingCount > 0 ? e(' · จาก ' . number_format($trendPdfRatingCount) . ' รีวิว') : '' ?></div>
     </div>
 </div>
 

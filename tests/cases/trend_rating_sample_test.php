@@ -137,3 +137,68 @@ test('trend rating(wiring): the chart script consumes the sample_counts the back
         'the counts are attached to the tooltip, not merely parsed and dropped'
     );
 });
+
+// AN-02 round 5 (2026-07-26): the trend card compares two periods' scores but shipped the review count of only
+// the LATEST one, so "คะแนนเฉลี่ย 5.00 · เทียบงวดก่อน +1.00" hid that the 4.00 it was measured against came from
+// three reviews and the 5.00 from one. Every other trend surface (chart, table, CSV/XLSX) already carried both
+// counts — only the card and its PDF twin dropped the previous period.
+test('trend rating: the card and its PDF name the review count of BOTH periods, not just the latest', function (): void {
+    $svc = tvm_container()->get(ReportService::class);
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $pdo = trs_pdo();
+    $sfx = bin2hex(random_bytes(4));
+
+    $pdo->prepare('INSERT INTO departments (code, name, is_active, created_at, updated_at) VALUES (?, ?, 1, NOW(), NOW())')
+        ->execute(["TRSP-$sfx", "TrsPrevDept-$sfx"]);
+    $deptId = (int) $pdo->lastInsertId();
+    $locationId = (int) $pdo->query('SELECT id FROM locations LIMIT 1')->fetchColumn();
+    $catId = (int) $pdo->query('SELECT id FROM ticket_categories LIMIT 1')->fetchColumn();
+    $priId = (int) $pdo->query('SELECT id FROM priorities LIMIT 1')->fetchColumn();
+
+    $rate = static function (string $no, string $when, int $score) use ($pdo, $deptId, $locationId, $catId, $priId): void {
+        $pdo->prepare(
+            'INSERT INTO tickets (ticket_no, title, description, requester_id, requester_department_id, location_id,
+                ticket_category_id, priority_id, assigned_technician_id, status, approval_status, requested_at,
+                resolved_at, completed_at, created_at, updated_at)
+             VALUES (?, ?, "x", 1, ?, ?, ?, ?, 3, "completed", "approved", ?, ?, ?, NOW(), NOW())'
+        )->execute([$no, 'trend prev', $deptId, $locationId, $catId, $priId, $when, $when, $when]);
+        $ticketId = (int) $pdo->lastInsertId();
+        $pdo->prepare("INSERT INTO ticket_activity_logs (ticket_id, actor_id, action, from_status, to_status, created_at)
+                       VALUES (?, 3, 'ticket_resolved', 'in_progress', 'resolved', ?)")->execute([$ticketId, $when]);
+        $pdo->prepare('INSERT INTO ticket_ratings (ticket_id, requester_id, technician_id, cycle, score, feedback, created_at, updated_at)
+                       VALUES (?, 1, 3, 1, ?, "x", ?, ?)')->execute([$ticketId, $score, $when, $when]);
+    };
+
+    $filters = [
+        'granularity' => 'month',
+        'from_date' => date('Y-m-01', strtotime('-1 month')),
+        'to_date' => date('Y-m-d'),
+        'department_id' => $deptId,
+    ];
+
+    try {
+        // known answer: previous month 3 reviews averaging 4, this month a single 5
+        $prevWhen = date('Y-m-05 10:00:00', strtotime('-1 month'));
+        foreach ([1, 2, 3] as $i) {
+            $rate("TRSP-$sfx-P$i", $prevWhen, 4);
+        }
+        $rate("TRSP-$sfx-C1", date('Y-m-05 10:00:00'), 5);
+
+        $page = $svc->getTicketTrendReportPage($admin, $filters);
+        assert_same(1, (int) ($page['summary']['csat']['sample_count'] ?? -1), 'latest period base');
+        assert_same(
+            3,
+            (int) ($page['summary']['csat']['prev_sample_count'] ?? -1),
+            'the card must also carry the previous period base — the delta is meaningless without both'
+        );
+
+        // and it must reach the reader, not just the payload
+        $html = View::capture('reports/trend', $page);
+        assert_contains_str('จาก 3 รีวิว', $html, 'the trend page prints the previous period base');
+        $pdf = (string) ($svc->exportTicketTrendPdf($admin, $filters)['content'] ?? '');
+        assert_contains_str('จาก 3 รีวิว', (new Parser())->parseContent($pdf)->getText(), 'and so does the trend PDF');
+    } finally {
+        $pdo->prepare('DELETE FROM tickets WHERE ticket_no LIKE ?')->execute(["TRSP-$sfx-%"]);
+        $pdo->prepare('DELETE FROM departments WHERE id = ?')->execute([$deptId]);
+    }
+});

@@ -1380,15 +1380,15 @@ class ReportService
             'created' => $this->trendMetricCard((string) (($last['created'] ?? 0)), $last['created'] ?? null, $prev['created'] ?? null, 'neutral', 0),
             'sla' => $this->trendMetricCard((string) ($last['sla_pct_label'] ?? '-'), $last['sla_pct'] ?? null, $prev['sla_pct'] ?? null, 'up_good', 1, '%'),
             'mttr' => $this->trendMetricCard((string) ($last['mttr_hours_label'] ?? '-'), $last['mttr_hours'] ?? null, $prev['mttr_hours'] ?? null, 'down_good', 1, ' ชม.'),
-            'csat' => $this->trendMetricCard((string) ($last['csat_label'] ?? '-'), $last['csat'] ?? null, $prev['csat'] ?? null, 'up_good', 2, '', (int) ($last['rating_count'] ?? 0)),
+            'csat' => $this->trendMetricCard((string) ($last['csat_label'] ?? '-'), $last['csat'] ?? null, $prev['csat'] ?? null, 'up_good', 2, '', (int) ($last['rating_count'] ?? 0), (int) ($prev['rating_count'] ?? 0)),
         ];
     }
 
     /** @param int|null $sampleCount ฐานของค่าเฉลี่ย (เช่นจำนวนรีวิว) — การ์ดที่เป็น avg ต้องบอก sample size */
-    private function trendMetricCard(string $valueLabel, mixed $last, mixed $prev, string $goodDir, int $decimals, string $unit = '', ?int $sampleCount = null): array
+    private function trendMetricCard(string $valueLabel, mixed $last, mixed $prev, string $goodDir, int $decimals, string $unit = '', ?int $sampleCount = null, ?int $prevSampleCount = null): array
     {
         if ($last === null || $prev === null) {
-            return ['value' => $valueLabel, 'delta_label' => '—', 'tone' => 'default', 'sample_count' => $sampleCount];
+            return ['value' => $valueLabel, 'delta_label' => '—', 'tone' => 'default', 'sample_count' => $sampleCount, 'prev_sample_count' => $prevSampleCount];
         }
         $delta = round((float) $last - (float) $prev, $decimals);
         $sign = $delta > 0 ? '+' : '';
@@ -1404,6 +1404,7 @@ class ReportService
             'delta_label' => $delta === 0.0 ? 'เท่าเดิม' : $sign . number_format($delta, $decimals) . $unit,
             'tone' => $tone,
             'sample_count' => $sampleCount,
+            'prev_sample_count' => $prevSampleCount,
         ];
     }
 
