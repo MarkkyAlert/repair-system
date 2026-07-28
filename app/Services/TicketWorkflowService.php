@@ -63,6 +63,7 @@ class TicketWorkflowService
         }
 
         $note = trim((string) ($input['note'] ?? ''));
+        require_max_bytes($note, self::MAX_TEXT_BYTES, 'หมายเหตุอนุมัติ');
         // หัวหน้างานที่อนุมัติกลายเป็นเจ้าของงาน (รับแจ้งเตือน + เห็นในหน้า "งานของฉัน"); admin อนุมัติเป็น fallback
         // จึงปล่อยงานไว้ไม่มีเจ้าของ ให้หัวหน้างานคนไหนก็ยังหยิบไปจัดการต่อได้
         $managerId = (string) ($viewer['role'] ?? '') === 'manager' ? (int) ($viewer['id'] ?? 0) : null;

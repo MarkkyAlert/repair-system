@@ -230,11 +230,13 @@ class ReferenceDataService
         // ยาวเกินจะได้ข้อความแจ้งอ่านง่าย ไม่ใช่ DB error ดิบ ๆ ตอนเปิด strict-mode.
         require_max_length($code, 50, 'รหัส' . $label);
         require_max_length($name, $nameMax, 'ชื่อ' . $label);
+        $description = trim((string) ($input['description'] ?? ''));
+        require_max_bytes($description, 65535, 'คำอธิบาย' . $label);
 
         return [
             'code' => $code,
             'name' => $name,
-            'description' => trim((string) ($input['description'] ?? '')),
+            'description' => $description,
             'is_active' => truthy_input($input['is_active'] ?? '0'),
         ];
     }

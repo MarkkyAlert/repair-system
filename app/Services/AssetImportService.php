@@ -60,6 +60,7 @@ class AssetImportService
             $assetCode = strtoupper(trim((string) ($row['asset_code'] ?? '')));
             $name = trim((string) ($row['name'] ?? ''));
             $status = strtolower(trim((string) ($row['status'] ?? 'active'))) ?: 'active';
+            $notes = trim((string) ($row['notes'] ?? ''));
 
             if ($assetCode === '' || $name === '') {
                 $errors[] = 'asset_code และ name จำเป็นต้องมี';
@@ -77,6 +78,9 @@ class AssetImportService
                 if (mb_strlen(trim((string) ($row[$field] ?? ''))) > $limit) {
                     $errors[] = $field . ' ยาวเกิน ' . $limit . ' ตัวอักษร';
                 }
+            }
+            if (strlen($notes) > 65535) {
+                $errors[] = 'notes ยาวเกิน 65,535 ไบต์';
             }
             if ($assetCode !== '' && isset($seenCodes[$assetCode])) {
                 $errors[] = 'asset_code ซ้ำกับแถวอื่นในไฟล์';
@@ -151,7 +155,7 @@ class AssetImportService
                 'purchase_date' => $purchaseDate,
                 'warranty_expires_at' => $warrantyExpiresAt,
                 'status' => $status,
-                'notes' => trim((string) ($row['notes'] ?? '')),
+                'notes' => $notes,
             ];
         }
 

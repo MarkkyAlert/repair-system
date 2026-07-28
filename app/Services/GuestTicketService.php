@@ -255,6 +255,7 @@ class GuestTicketService
 
     public function rejectRequest(int $requestId, array $viewer, string $note): void
     {
+        require_max_bytes($note, 65535, 'เหตุผลการปฏิเสธ');
         // ใช้ lock ตัวเดียวกับ convert → reject กับ convert เลยทำทีละคน (กัน reject แทรกกลางระหว่าง
         // ตอน convert เช็ค status กับตอน claimAndLink ซึ่งเคยเป็นต้นตอ orphan ticket)
         $this->requests->acquireConvertLock($requestId);

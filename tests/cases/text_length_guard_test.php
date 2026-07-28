@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 use App\Services\AssetService;
+use App\Services\EmailTemplateService;
+use App\Services\GuestTicketService;
+use App\Services\ReferenceDataService;
 use App\Services\TicketWorkflowService;
 
 // Pre-ship sweep M-1: the free-text fields that land in TEXT columns (65,535 BYTES) were validated only for
@@ -16,6 +19,12 @@ use App\Services\TicketWorkflowService;
 function tlg_thai(int $chars): string
 {
     return str_repeat('ก', $chars);
+}
+
+/** Exactly one byte beyond TEXT capacity, using 4-byte UTF-8 code points. */
+function tlg_one_byte_over(): string
+{
+    return str_repeat("\u{1F600}", 16384);
 }
 
 test('M-1(helper): require_max_bytes counts BYTES, closing the gap a character cap leaves open for Thai', function (): void {
@@ -110,4 +119,109 @@ test('M-1: AssetService rejects over-long notes with a friendly error, not a DB 
 
     assert_true($threw instanceof DomainException, 'over-long asset notes must be a friendly DomainException, not a PDOException (got ' . ($threw ? get_class($threw) : 'nothing — the asset was created!') . ')');
     assert_contains_str('ยาวเกิน', (string) $threw->getMessage(), 'the message must name the too-long field');
+});
+
+test('M-1b: approval note rejects a 65,536-byte value before the ticket transition writes', function (): void {
+    $id = wf_drive_to_status('pending_approval');
+    $before = wf_transition_snapshot($id);
+    $error = null;
+
+    try {
+        try {
+            wf_service()->approveTicket(
+                $id,
+                ['id' => 4, 'role' => 'admin'],
+                ['note' => tlg_one_byte_over()]
+            );
+        } catch (Throwable $exception) {
+            $error = $exception;
+        }
+
+        assert_true($error instanceof DomainException, 'approval note must fail cleanly before strict DB overflow (got ' . ($error ? get_class($error) : 'nothing') . ')');
+        assert_contains_str('ยาวเกิน', $error->getMessage(), 'approval note names the length problem');
+        assert_same($before, wf_transition_snapshot($id), 'approval overflow leaves ticket and side effects unchanged');
+    } finally {
+        wf_cleanup($id);
+    }
+});
+
+test('M-1b: guest-request rejection note rejects a 65,536-byte value and keeps the request new', function (): void {
+    $id = gc_insert_request();
+    $error = null;
+
+    try {
+        try {
+            tvm_container()->get(GuestTicketService::class)->rejectRequest(
+                $id,
+                ['id' => 4, 'role' => 'admin'],
+                tlg_one_byte_over()
+            );
+        } catch (Throwable $exception) {
+            $error = $exception;
+        }
+
+        assert_true($error instanceof DomainException, 'guest rejection note must fail cleanly (got ' . ($error ? get_class($error) : 'nothing') . ')');
+        assert_contains_str('ยาวเกิน', $error->getMessage(), 'guest rejection note names the length problem');
+        assert_same('new', gc_request_status($id), 'the rejected request is not partially changed');
+    } finally {
+        gc_cleanup($id, []);
+    }
+});
+
+test('M-1b: master-data descriptions reject over-capacity bytes before any admin row is written', function (): void {
+    $pdo = tvm_container()->get(PDO::class);
+    $code = 'TLGD-' . strtoupper(bin2hex(random_bytes(4)));
+    $error = null;
+
+    try {
+        try {
+            tvm_container()->get(ReferenceDataService::class)->createDepartment(
+                ['id' => 4, 'role' => 'admin'],
+                ['code' => $code, 'name' => 'Text guard department', 'description' => tlg_one_byte_over(), 'is_active' => '1']
+            );
+        } catch (Throwable $exception) {
+            $error = $exception;
+        }
+
+        assert_true($error instanceof DomainException, 'master description must fail cleanly (got ' . ($error ? get_class($error) : 'nothing') . ')');
+        assert_contains_str('ยาวเกิน', $error->getMessage(), 'master description names the length problem');
+        $stmt = $pdo->prepare('SELECT COUNT(*) FROM departments WHERE code = ?');
+        $stmt->execute([$code]);
+        assert_same(0, (int) $stmt->fetchColumn(), 'no department is inserted');
+    } finally {
+        $pdo->prepare('DELETE FROM departments WHERE code = ?')->execute([$code]);
+    }
+});
+
+test('M-1b: email-template TEXT fields reject over-capacity bytes atomically', function (): void {
+    $service = tvm_container()->get(EmailTemplateService::class);
+    $repo = etpl_repo();
+    $key = 'system_announcement';
+    $before = $repo->getByKey($key);
+    $error = null;
+
+    try {
+        $service->saveOverrides($key, [
+            'heading' => tlg_one_byte_over(),
+            'intro' => 'unchanged',
+            'footer_note' => 'unchanged',
+        ], 4);
+    } catch (Throwable $exception) {
+        $error = $exception;
+    }
+
+    assert_true($error instanceof DomainException, 'email template must fail cleanly (got ' . ($error ? get_class($error) : 'nothing') . ')');
+    assert_contains_str('ยาวเกิน', $error->getMessage(), 'email template names the length problem');
+    assert_same($before, $repo->getByKey($key), 'no template field changes when one field is over capacity');
+});
+
+test('M-1b: CSV asset import marks over-capacity notes invalid during preview, before execute', function (): void {
+    $ref = ai_ref();
+    $result = ai_service()->validateRows([
+        ai_raw($ref, ['notes' => tlg_one_byte_over()]),
+    ]);
+
+    assert_same(0, count($result['valid']), 'over-capacity notes must not reach executeImport');
+    assert_same(1, count($result['invalid']), 'the preview identifies the bad row');
+    assert_true(ai_has_error($result['invalid'][0], 'notes'), 'the row explains that notes is too long');
 });

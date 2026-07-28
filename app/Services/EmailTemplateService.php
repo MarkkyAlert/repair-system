@@ -92,7 +92,9 @@ class EmailTemplateService
         // ล้มกลางคันแล้ว template อัปเดตค้างครึ่ง ๆ เช่น subject ใหม่แต่ body ยังเป็นอันเก่า.
         $fieldValues = [];
         foreach ($meta['fields'] as $fieldKey) {
-            $fieldValues[$fieldKey] = trim((string) ($input[$fieldKey] ?? ''));
+            $value = trim((string) ($input[$fieldKey] ?? ''));
+            require_max_bytes($value, 65535, 'ข้อความแม่แบบ ' . $fieldKey);
+            $fieldValues[$fieldKey] = $value;
         }
         $this->templates->upsertFields($templateKey, $fieldValues, $editorId);
 
