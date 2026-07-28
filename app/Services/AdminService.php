@@ -303,11 +303,16 @@ class AdminService
 
             $categoryId = (int) ($matches[1] ?? 0);
             $payload = json_decode((string) ($setting['setting_value'] ?? ''), true);
+            // คีย์ที่ "ไม่มี" แปลว่าหมวดนี้ไม่ override metric นั้น (สืบทอดจาก priority) ต้องคงความว่างไว้
+            // ห้ามยุบเป็น 0 เพราะ 0 มีความหมายว่า "ปิด SLA" — ถ้ายุบ ฟอร์มจะโชว์ 0 แล้วการกดบันทึกจะ
+            // เปลี่ยนการสืบทอดให้กลายเป็นการปิด SLA โดยที่แอดมินไม่ได้ตั้งใจ
+            $responseMinutes = isset($payload['response_minutes']) ? max(0, (int) $payload['response_minutes']) : null;
+            $resolutionMinutes = isset($payload['resolution_minutes']) ? max(0, (int) $payload['resolution_minutes']) : null;
             $map[$categoryId] = [
-                'response_minutes' => max(0, (int) ($payload['response_minutes'] ?? 0)),
-                'resolution_minutes' => max(0, (int) ($payload['resolution_minutes'] ?? 0)),
-                'response_hours' => round(max(0, (int) ($payload['response_minutes'] ?? 0)) / 60, 2),
-                'resolution_hours' => round(max(0, (int) ($payload['resolution_minutes'] ?? 0)) / 60, 2),
+                'response_minutes' => $responseMinutes,
+                'resolution_minutes' => $resolutionMinutes,
+                'response_hours' => $responseMinutes === null ? '' : round($responseMinutes / 60, 2),
+                'resolution_hours' => $resolutionMinutes === null ? '' : round($resolutionMinutes / 60, 2),
             ];
         }
 

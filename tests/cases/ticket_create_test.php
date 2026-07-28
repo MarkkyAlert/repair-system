@@ -390,3 +390,168 @@ test('ticket numbering: past 9999 the next number is 10001, not a duplicate (str
         }
     }
 });
+
+// ── H-2: ฟอร์มหมวดงานต้องพูดตรงกับ runtime ──
+// runtime ถือว่า 0 = ปิด SLA (B4 ข้างบน, เจ้าของตัดสินแล้ว) แต่ฟอร์มเดิมส่ง 0 มาเป็นค่าเริ่มต้นพร้อมข้อความว่า
+// "ใส่ 0 เพื่อให้ใช้ SLA จาก priority" ซึ่งตรงข้ามกัน ผลคือแค่เพิ่มหมวดโดยไม่แตะช่อง SLA — หรือแค่เปลี่ยนชื่อ
+// หมวดที่ไม่เคยตั้ง override — ก็ปิด SLA ของหมวดนั้นถาวร งานหายจากรายงาน SLA ทุกฉบับโดยไม่มีสัญญาณเตือน
+// ตอนนี้: เว้นว่าง = สืบทอดจาก priority (ไม่เขียนคีย์), 0 = ปิด SLA (เขียน 0 ตรง ๆ)
+function tc_category_sla_setting(int $categoryId): ?array
+{
+    $raw = tc_pdo()->query("SELECT setting_value FROM system_settings WHERE setting_key = 'category_sla_$categoryId'")->fetchColumn();
+    if ($raw === false) {
+        return null;
+    }
+
+    return json_decode((string) $raw, true) ?: [];
+}
+
+test('ticketCreate H-2: a category saved with the SLA boxes left BLANK inherits the priority SLA', function (): void {
+    $ref = tc_ref();
+    $pdo = tc_pdo();
+    $rid = bin2hex(random_bytes(3));
+    $refData = tvm_container()->get(App\Services\ReferenceDataService::class);
+    $refData->createTicketCategory(['id' => 4, 'role' => 'admin'], [
+        'code' => "H2C-$rid",
+        'name' => "H2 Cat $rid",
+        'sort_order' => 1,
+        'is_active' => '1',
+        'response_hours' => '',   // ตรงกับที่ฟอร์มส่งเมื่อแอดมินไม่แตะช่อง SLA
+        'resolution_hours' => '',
+    ]);
+    $catId = (int) $pdo->query("SELECT id FROM ticket_categories WHERE code = " . $pdo->quote("H2C-$rid"))->fetchColumn();
+
+    $ticketId = 0;
+    try {
+        assert_same([], tc_category_sla_setting($catId) ?? [], 'a blank SLA box writes no override at all, so priority still applies');
+
+        $ticketId = tc_service()->createTicket(tc_requester(), tc_valid_input($ref, ['ticket_category_id' => $catId]), []);
+        $row = $pdo->query("SELECT response_due_at, resolution_due_at FROM tickets WHERE id = {$ticketId}")->fetch(PDO::FETCH_ASSOC);
+        assert_true($row['response_due_at'] !== null, 'a blank category SLA inherits the priority response deadline');
+        assert_true($row['resolution_due_at'] !== null, 'a blank category SLA inherits the priority resolution deadline');
+        assert_same(2, (int) $pdo->query("SELECT COUNT(*) FROM ticket_sla_tracks WHERE ticket_id = {$ticketId}")->fetchColumn(), 'both SLA tracks are seeded, so the ticket is visible to the SLA reports');
+    } finally {
+        if ($ticketId > 0) {
+            tc_cleanup($ticketId);
+        }
+        $pdo->prepare('DELETE FROM system_settings WHERE setting_key = ?')->execute(['category_sla_' . $catId]);
+        $pdo->prepare('DELETE FROM ticket_categories WHERE id = ?')->execute([$catId]);
+    }
+});
+
+test('ticketCreate H-2: renaming a category that never had an SLA override does not switch its SLA off', function (): void {
+    $ref = tc_ref();
+    $pdo = tc_pdo();
+    $rid = bin2hex(random_bytes(3));
+    // a category with NO category_sla_* row — exactly how every seeded category ships
+    $pdo->prepare('INSERT INTO ticket_categories (code, name, sort_order, is_active, created_at, updated_at) VALUES (?, ?, 1, 1, NOW(), NOW())')
+        ->execute(["H2R-$rid", "H2 Rename $rid"]);
+    $catId = (int) $pdo->lastInsertId();
+
+    $ticketId = 0;
+    try {
+        // the admin opens the edit form and changes only the NAME. buildAdminData prefills the SLA boxes from the
+        // stored override; with none stored they must arrive blank, so saving cannot silently mean "0 = off".
+        $prefill = tvm_container()->get(App\Services\AdminService::class)->getAdminPageData(['id' => 4, 'role' => 'admin'])['categorySla'][$catId] ?? null;
+        assert_true($prefill === null, 'a category with no override contributes no prefill row at all');
+
+        tvm_container()->get(App\Services\ReferenceDataService::class)->updateTicketCategory($catId, ['id' => 4, 'role' => 'admin'], [
+            'code' => "H2R-$rid",
+            'name' => "H2 Renamed $rid",
+            'sort_order' => 1,
+            'is_active' => '1',
+            'response_hours' => '',   // what the (now blank) form posts back
+            'resolution_hours' => '',
+        ]);
+
+        $ticketId = tc_service()->createTicket(tc_requester(), tc_valid_input($ref, ['ticket_category_id' => $catId]), []);
+        assert_true(
+            $pdo->query("SELECT response_due_at FROM tickets WHERE id = {$ticketId}")->fetchColumn() !== null,
+            'a name-only edit must not turn the SLA of that category off'
+        );
+    } finally {
+        if ($ticketId > 0) {
+            tc_cleanup($ticketId);
+        }
+        $pdo->prepare('DELETE FROM system_settings WHERE setting_key = ?')->execute(['category_sla_' . $catId]);
+        $pdo->prepare('DELETE FROM ticket_categories WHERE id = ?')->execute([$catId]);
+    }
+});
+
+test('ticketCreate H-2: an explicit 0 still disables SLA (the B4 rule is unchanged)', function (): void {
+    $ref = tc_ref();
+    $pdo = tc_pdo();
+    $rid = bin2hex(random_bytes(3));
+    tvm_container()->get(App\Services\ReferenceDataService::class)->createTicketCategory(['id' => 4, 'role' => 'admin'], [
+        'code' => "H2Z-$rid",
+        'name' => "H2 Zero $rid",
+        'sort_order' => 1,
+        'is_active' => '1',
+        'response_hours' => '0',   // แอดมินตั้งใจพิมพ์ 0 = ปิด SLA
+        'resolution_hours' => '0',
+    ]);
+    $catId = (int) $pdo->query("SELECT id FROM ticket_categories WHERE code = " . $pdo->quote("H2Z-$rid"))->fetchColumn();
+
+    $ticketId = 0;
+    try {
+        assert_same(
+            ['response_minutes' => 0, 'resolution_minutes' => 0],
+            tc_category_sla_setting($catId),
+            'a typed 0 is stored as a real override meaning "off"'
+        );
+
+        $ticketId = tc_service()->createTicket(tc_requester(), tc_valid_input($ref, ['ticket_category_id' => $catId]), []);
+        $row = $pdo->query("SELECT response_due_at, resolution_due_at FROM tickets WHERE id = {$ticketId}")->fetch(PDO::FETCH_ASSOC);
+        assert_true($row['response_due_at'] === null, '0 still means no response SLA');
+        assert_true($row['resolution_due_at'] === null, '0 still means no resolution SLA');
+        assert_same(0, (int) $pdo->query("SELECT COUNT(*) FROM ticket_sla_tracks WHERE ticket_id = {$ticketId}")->fetchColumn(), '0 still creates no SLA track');
+    } finally {
+        if ($ticketId > 0) {
+            tc_cleanup($ticketId);
+        }
+        $pdo->prepare('DELETE FROM system_settings WHERE setting_key = ?')->execute(['category_sla_' . $catId]);
+        $pdo->prepare('DELETE FROM ticket_categories WHERE id = ?')->execute([$catId]);
+    }
+});
+
+test('ticketCreate H-2: a category can override ONE metric and inherit the other (partial override)', function (): void {
+    $ref = tc_ref();
+    $pdo = tc_pdo();
+    $rid = bin2hex(random_bytes(3));
+    tvm_container()->get(App\Services\ReferenceDataService::class)->createTicketCategory(['id' => 4, 'role' => 'admin'], [
+        'code' => "H2P-$rid",
+        'name' => "H2 Partial $rid",
+        'sort_order' => 1,
+        'is_active' => '1',
+        'response_hours' => '2',  // override เฉพาะเวลาตอบรับ
+        'resolution_hours' => '', // เวลาแก้ไขปล่อยให้สืบทอดจาก priority
+    ]);
+    $catId = (int) $pdo->query("SELECT id FROM ticket_categories WHERE code = " . $pdo->quote("H2P-$rid"))->fetchColumn();
+
+    $ticketId = 0;
+    try {
+        assert_same(['response_minutes' => 120], tc_category_sla_setting($catId), 'only the metric the admin filled in is stored');
+
+        // the admin screen must show the untouched box as BLANK, not as 0 — rendering 0 would mean the next
+        // save silently turns the inherited resolution SLA off
+        $prefill = tvm_container()->get(App\Services\AdminService::class)->getAdminPageData(['id' => 4, 'role' => 'admin'])['categorySla'][$catId] ?? [];
+        assert_same(2.0, (float) $prefill['response_hours'], 'the overridden metric shows its own value');
+        assert_same('', (string) $prefill['resolution_hours'], 'the inherited metric shows blank, never 0');
+
+        $ticketId = tc_service()->createTicket(tc_requester(), tc_valid_input($ref, ['ticket_category_id' => $catId]), []);
+        $row = $pdo->query("SELECT response_due_at, resolution_due_at, requested_at FROM tickets WHERE id = {$ticketId}")->fetch(PDO::FETCH_ASSOC);
+        assert_same(
+            120,
+            (int) round((strtotime((string) $row['response_due_at']) - strtotime((string) $row['requested_at'])) / 60),
+            'the response deadline uses the category override (2h)'
+        );
+        assert_true($row['resolution_due_at'] !== null, 'the resolution deadline is still inherited from the priority');
+        assert_same(2, (int) $pdo->query("SELECT COUNT(*) FROM ticket_sla_tracks WHERE ticket_id = {$ticketId}")->fetchColumn(), 'both metrics still produce a track');
+    } finally {
+        if ($ticketId > 0) {
+            tc_cleanup($ticketId);
+        }
+        $pdo->prepare('DELETE FROM system_settings WHERE setting_key = ?')->execute(['category_sla_' . $catId]);
+        $pdo->prepare('DELETE FROM ticket_categories WHERE id = ?')->execute([$catId]);
+    }
+});

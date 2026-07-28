@@ -256,21 +256,34 @@ class ReferenceDataService
         ]);
     }
 
+    /**
+     * แปลงช่อง SLA ของหมวดเป็น JSON override. มีสามความหมายที่ต้องแยกให้ขาด:
+     *   เว้นว่าง = ไม่ override → "ไม่เขียนคีย์นั้นเลย" ให้ตกไปใช้ SLA ของ priority (TicketService ใช้ ?? ซึ่ง
+     *              ทำงานเฉพาะตอนคีย์หายหรือเป็น null — ถ้าเขียน 0 ลงไปมันจะชนะ priority แล้วปิด SLA แทน)
+     *   0        = ตั้งใจปิด SLA ของ metric นั้น (ไม่มีกำหนดเวลา ไม่สร้าง track)
+     *   ตัวเลข   = ใช้ค่านั้นแทน priority
+     * ใช้ strict_float ค่าที่ไม่ใช่ตัวเลขอย่าง "abc" จะถูกปฏิเสธ ไม่ใช่แอบแปลงเป็น SLA 0 นาทีเงียบ ๆ.
+     * เดิมค่าติดลบจะถูกบีบเป็น 0 เงียบ ๆ ตอนนี้ปฏิเสธเลย. is_numeric() ยังรับ "1e999"
+     * (→ INF → (int) 0 นาที) และค่าที่ล้น INT UNSIGNED ด้วย สองอันนี้ถูกดักไว้ข้างล่าง.
+     */
     private function encodeSlaPayload(array $input): string
     {
-        // ใช้ strict_float ค่าที่ไม่ใช่ตัวเลขอย่าง "abc" จะถูกปฏิเสธ ไม่ใช่แอบแปลงเป็น SLA 0 นาทีเงียบ ๆ.
-        // เดิมค่าติดลบจะถูกบีบเป็น 0 เงียบ ๆ ตอนนี้ปฏิเสธเลย. is_numeric() ยังรับ "1e999"
-        // (→ INF → (int) 0 นาที) และค่าที่ล้น INT UNSIGNED ด้วย สองอันนี้ถูกดักไว้ข้างล่าง.
-        $responseHours = strict_float($input['response_hours'] ?? null, 'เวลาตอบรับ (SLA) ');
-        $resolutionHours = strict_float($input['resolution_hours'] ?? null, 'เวลาแก้ไข (SLA) ');
-        if ($responseHours < 0 || $resolutionHours < 0) {
-            throw new DomainException('เวลา SLA ต้องไม่ติดลบ');
+        $payload = [];
+        foreach ([['response_hours', 'response_minutes', 'เวลาตอบรับ (SLA) '], ['resolution_hours', 'resolution_minutes', 'เวลาแก้ไข (SLA) ']] as [$inputKey, $payloadKey, $label]) {
+            $raw = $input[$inputKey] ?? null;
+            if ($raw === null || trim((string) $raw) === '') {
+                continue; // เว้นว่าง = สืบทอดจาก priority ต้องไม่เขียนคีย์ทิ้งไว้
+            }
+
+            $hours = strict_float($raw, $label);
+            if ($hours < 0) {
+                throw new DomainException('เวลา SLA ต้องไม่ติดลบ');
+            }
+
+            $payload[$payloadKey] = $this->slaMinutes($hours, $label);
         }
 
-        return json_encode([
-            'response_minutes' => $this->slaMinutes($responseHours, 'เวลาตอบรับ (SLA) '),
-            'resolution_minutes' => $this->slaMinutes($resolutionHours, 'เวลาแก้ไข (SLA) '),
-        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '{}';
+        return json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '{}';
     }
 
     /**

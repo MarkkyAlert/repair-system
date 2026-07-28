@@ -41,13 +41,13 @@
                     <div class="content-grid">
                         <div class="field-group">
                             <label class="field-label" for="new_cat_resp">เวลาตอบกลับ (ชม.)</label>
-                            <input id="new_cat_resp" class="input" type="number" min="0" step="0.25" name="response_hours" value="0">
-                            <p class="field-hint">ใส่ 0 เพื่อให้ระบบใช้ SLA จาก priority ตามปกติ</p>
+                            <input id="new_cat_resp" class="input" type="number" min="0" step="0.25" name="response_hours" value="">
+                            <p class="field-hint">เว้นว่าง = ใช้ SLA จาก priority · ใส่ 0 = ปิด SLA ของหมวดนี้</p>
                         </div>
                         <div class="field-group">
                             <label class="field-label" for="new_cat_reso">เวลาแก้ไข (ชม.)</label>
-                            <input id="new_cat_reso" class="input" type="number" min="0" step="0.25" name="resolution_hours" value="0">
-                            <p class="field-hint">ใส่ 0 เพื่อให้ระบบใช้ SLA จาก priority ตามปกติ</p>
+                            <input id="new_cat_reso" class="input" type="number" min="0" step="0.25" name="resolution_hours" value="">
+                            <p class="field-hint">เว้นว่าง = ใช้ SLA จาก priority · ใส่ 0 = ปิด SLA ของหมวดนี้</p>
                         </div>
                     </div>
                     <label class="checkbox-row">
@@ -70,13 +70,25 @@
             <div class="stack-md">
                 <?php foreach (($categories ?? []) as $category): ?>
                     <?php $catId = (int) ($category['id'] ?? 0); ?>
-                    <?php $sla = $categorySla[$catId] ?? ['response_hours' => 0, 'resolution_hours' => 0]; ?>
+                    <?php // หมวดที่ไม่เคยตั้ง override ต้อง prefill เป็นค่าว่าง ไม่ใช่ 0 — ไม่งั้นแค่กดบันทึกตอนเปลี่ยนชื่อ
+                          // ก็เท่ากับส่ง 0 ไปปิด SLA ของหมวดนั้นถาวร ?>
+                    <?php $sla = $categorySla[$catId] ?? ['response_hours' => '', 'resolution_hours' => '']; ?>
                     <details class="collapsible">
                         <summary class="collapsible-summary">
                             <span class="metric-icon metric-icon-sm"><?= lucide('tag', 'h-4 w-4') ?></span>
                             <div class="collapsible-summary-main">
                                 <span class="collapsible-title"><?= e((string) ($category['name'] ?? '-')) ?></span>
-                                <span class="collapsible-subtitle"><?= e((string) ($category['code'] ?? '-')) ?> · ตอบใน <?= e((string) ($sla['response_hours'] ?? 0)) ?> ชม. · แก้ใน <?= e((string) ($sla['resolution_hours'] ?? 0)) ?> ชม.</span>
+                                <?php
+                                    // สรุป SLA ของหมวด: ว่าง = สืบทอดจาก priority, 0 = ปิด, มีเลข = ใช้เลขนั้น
+                                    $slaSummary = static function ($hours): string {
+                                        if ($hours === '' || $hours === null) {
+                                            return 'ตาม priority';
+                                        }
+
+                                        return (float) $hours <= 0 ? 'ปิด SLA' : $hours . ' ชม.';
+                                    };
+                                ?>
+                                <span class="collapsible-subtitle"><?= e((string) ($category['code'] ?? '-')) ?> · ตอบ <?= e($slaSummary($sla['response_hours'] ?? '')) ?> · แก้ <?= e($slaSummary($sla['resolution_hours'] ?? '')) ?></span>
                             </div>
                             <div class="collapsible-meta">
                                 <span class="badge badge-<?= !empty($category['is_active']) ? 'success' : 'default' ?>"><?= !empty($category['is_active']) ? 'เปิดใช้งาน' : 'ปิดใช้งาน' ?></span>
@@ -109,13 +121,13 @@
                                 <div class="content-grid">
                                     <div class="field-group">
                                         <label class="field-label" for="cat_resp_<?= $catId ?>">เวลาตอบกลับ (ชม.)</label>
-                                        <input id="cat_resp_<?= $catId ?>" class="input" type="number" min="0" step="0.25" name="response_hours" value="<?= e((string) ($sla['response_hours'] ?? 0)) ?>">
-                                        <p class="field-hint">ระยะเวลาสูงสุดที่ช่างต้องตอบรับงาน</p>
+                                        <input id="cat_resp_<?= $catId ?>" class="input" type="number" min="0" step="0.25" name="response_hours" value="<?= e((string) ($sla['response_hours'] ?? '')) ?>">
+                                        <p class="field-hint">ระยะเวลาสูงสุดที่ช่างต้องตอบรับงาน · เว้นว่าง = ใช้ SLA จาก priority · 0 = ปิด SLA</p>
                                     </div>
                                     <div class="field-group">
                                         <label class="field-label" for="cat_reso_<?= $catId ?>">เวลาแก้ไข (ชม.)</label>
-                                        <input id="cat_reso_<?= $catId ?>" class="input" type="number" min="0" step="0.25" name="resolution_hours" value="<?= e((string) ($sla['resolution_hours'] ?? 0)) ?>">
-                                        <p class="field-hint">ระยะเวลาสูงสุดที่งานต้องแก้เสร็จ</p>
+                                        <input id="cat_reso_<?= $catId ?>" class="input" type="number" min="0" step="0.25" name="resolution_hours" value="<?= e((string) ($sla['resolution_hours'] ?? '')) ?>">
+                                        <p class="field-hint">ระยะเวลาสูงสุดที่งานต้องแก้เสร็จ · เว้นว่าง = ใช้ SLA จาก priority · 0 = ปิด SLA</p>
                                     </div>
                                 </div>
                                 <label class="checkbox-row">
