@@ -89,29 +89,48 @@ class EmailQueueRepository
         $columns = 'to_email, to_name, subject, body_html, body_text, payload, status, attempts, max_attempts, error_message, available_at, sent_at, failed_at, created_at, updated_at';
         $tuple = '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
 
-        foreach (array_chunk($payloads, 100) as $chunk) {
-            $rows = implode(', ', array_fill(0, count($chunk), $tuple));
-            $params = [];
-            foreach ($chunk as $payload) {
-                $params[] = (string) ($payload['to_email'] ?? '');
-                $params[] = (string) ($payload['to_name'] ?? '');
-                $params[] = (string) ($payload['subject'] ?? '');
-                $params[] = $payload['body_html'] ?? null;
-                $params[] = $payload['body_text'] ?? null;
-                $params[] = is_array($payload['payload'] ?? null)
-                    ? json_encode($payload['payload'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
-                    : ($payload['payload'] ?? null);
-                $params[] = 'queued';
-                $params[] = 0;
-                $params[] = max(1, (int) ($payload['max_attempts'] ?? 3));
-                $params[] = null;
-                $params[] = (string) ($payload['available_at'] ?? $now);
-                $params[] = null;
-                $params[] = null;
-                $params[] = $now;
-                $params[] = $now;
+        // ครอบทุก chunk ด้วย transaction เดียว: ถ้า chunk ที่ 2 ล้ม chunk แรก (100 แถว) ต้อง rollback ไปด้วย — ไม่งั้น
+        // ผู้เรียกมองว่า "เข้าคิวไม่สำเร็จ" (จับ exception, รายงาน 0) แต่มี 100 แถวค้างในคิวจริงส่งจริง = ส่งซ้ำครึ่ง ๆ
+        // เปิด/ปิดเองเฉพาะเมื่อยังไม่มีใครครอบอยู่ (ผู้เรียกที่ครอบ tx ใหญ่มาแล้วให้ rollback ของเขาครอบแทน)
+        $ownTransaction = !$this->db->inTransaction();
+        if ($ownTransaction) {
+            $this->db->beginTransaction();
+        }
+
+        try {
+            foreach (array_chunk($payloads, 100) as $chunk) {
+                $rows = implode(', ', array_fill(0, count($chunk), $tuple));
+                $params = [];
+                foreach ($chunk as $payload) {
+                    $params[] = (string) ($payload['to_email'] ?? '');
+                    $params[] = (string) ($payload['to_name'] ?? '');
+                    $params[] = (string) ($payload['subject'] ?? '');
+                    $params[] = $payload['body_html'] ?? null;
+                    $params[] = $payload['body_text'] ?? null;
+                    $params[] = is_array($payload['payload'] ?? null)
+                        ? json_encode($payload['payload'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                        : ($payload['payload'] ?? null);
+                    $params[] = 'queued';
+                    $params[] = 0;
+                    $params[] = max(1, (int) ($payload['max_attempts'] ?? 3));
+                    $params[] = null;
+                    $params[] = (string) ($payload['available_at'] ?? $now);
+                    $params[] = null;
+                    $params[] = null;
+                    $params[] = $now;
+                    $params[] = $now;
+                }
+                $this->db->prepare("INSERT INTO email_queue ($columns) VALUES $rows")->execute($params);
             }
-            $this->db->prepare("INSERT INTO email_queue ($columns) VALUES $rows")->execute($params);
+
+            if ($ownTransaction) {
+                $this->db->commit();
+            }
+        } catch (\Throwable $exception) {
+            if ($ownTransaction && $this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw $exception;
         }
     }
 
