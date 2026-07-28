@@ -20,26 +20,34 @@ class EmailQueueService
 
     public function queueTicketEventEmails(array $context, array $recipientIds, string $eventType, string $title, string $message): void
     {
+        // เข้าคิวทีเดียวด้วย INSERT หลาย row (enqueueMany) แทน 1 INSERT ต่อผู้รับ — งาน 1 ใบใน org ที่มีผู้อนุมัติ M คน
+        // เดิมยิง 1+M query ต่อการสร้าง/เปลี่ยนสถานะ/คอมเมนต์หนึ่งครั้ง (ฝั่ง in-app batch อยู่แล้ว ฝั่งอีเมลเพิ่งตามมา)
+        $payloads = [];
         foreach ($this->users->findActiveUsersByIds($recipientIds) as $recipient) {
             $email = $this->templates->buildTicketEvent($context, $recipient, $eventType, $title, $message);
-            $this->enqueueForRecipient($recipient, $email);
+            $payloads[] = $this->recipientPayload($recipient, $email);
         }
+        $this->queue->enqueueMany($payloads);
     }
 
     public function queueCommentEventEmails(array $context, array $recipientIds, int $commentId, bool $isInternal, string $body, string $action, string $title, string $message): void
     {
+        $payloads = [];
         foreach ($this->users->findActiveUsersByIds($recipientIds) as $recipient) {
             $email = $this->templates->buildCommentEvent($context, $recipient, $commentId, $isInternal, $body, $action, $title, $message);
-            $this->enqueueForRecipient($recipient, $email);
+            $payloads[] = $this->recipientPayload($recipient, $email);
         }
+        $this->queue->enqueueMany($payloads);
     }
 
     public function queueSlaBreachedEmails(array $context, array $recipientIds, string $metricType, string $title, string $message): void
     {
+        $payloads = [];
         foreach ($this->users->findActiveUsersByIds($recipientIds) as $recipient) {
             $email = $this->templates->buildSlaBreached($context, $recipient, $metricType, $title, $message);
-            $this->enqueueForRecipient($recipient, $email);
+            $payloads[] = $this->recipientPayload($recipient, $email);
         }
+        $this->queue->enqueueMany($payloads);
     }
 
     public function queueSystemAnnouncementEmails(array $recipientIds, string $title, string $message): void
@@ -183,7 +191,13 @@ class EmailQueueService
 
     private function enqueueForRecipient(array $recipient, array $email): void
     {
-        $this->queue->enqueue([
+        $this->queue->enqueue($this->recipientPayload($recipient, $email));
+    }
+
+    /** @return array<string, mixed> แถว email_queue หนึ่งรายการ — รูปแบบเดียวใช้ได้ทั้ง enqueue เดี่ยวและ enqueueMany */
+    private function recipientPayload(array $recipient, array $email): array
+    {
+        return [
             'to_email' => (string) ($recipient['email'] ?? ''),
             'to_name' => (string) ($recipient['full_name'] ?? ''),
             'subject' => (string) ($email['subject'] ?? ''),
@@ -191,6 +205,6 @@ class EmailQueueService
             'body_text' => (string) ($email['body_text'] ?? ''),
             'payload' => $email['payload'] ?? null,
             'max_attempts' => 3,
-        ]);
+        ];
     }
 }
