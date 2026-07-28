@@ -144,3 +144,9 @@ jobs:
       # Final step: run the PHP suite. run.php exits 1 on any failure, which fails the job.
       - name: Run test suite
         run: php tests/run.php
+
+      # Re-run in a randomized order to catch tests that silently depend on the order they run in
+      # (a hidden shared-state leak passes in the fixed order but fails when shuffled). The seed is printed
+      # so a red run is reproducible with TEST_SEED=<n>.
+      - name: Run test suite (randomized order)
+        run: TEST_SHUFFLE=1 php tests/run.php

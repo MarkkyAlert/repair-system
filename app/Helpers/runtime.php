@@ -426,7 +426,14 @@ function normalize_date_range(string $fromRaw, string $toRaw): array
 
 function request(): ?Request
 {
-    $resolved = app(Request::class);
+    // request() ประกาศคืน ?Request: ในบริบทที่ไม่มี HTTP request (cron/CLI ที่เขียน audit log, หรือช่วงก่อน
+    // bootstrap ผูก Request) การ resolve จาก container จะ throw เพราะ Request auto-wire ไม่ได้ (ต้องมี method/path/
+    // query/input/server) — คืน null แทนที่จะโยน ให้ผู้เรียกอย่าง AuditLogger fallback ไป $_SERVER ได้ตามสัญญา
+    try {
+        $resolved = app(Request::class);
+    } catch (\Throwable) {
+        return null;
+    }
 
     return $resolved instanceof Request ? $resolved : null;
 }

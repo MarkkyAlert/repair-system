@@ -29,9 +29,30 @@ foreach (glob(__DIR__ . '/cases/*.php') as $case) {
     require $case;
 }
 
+// สุ่มลำดับการรันเมื่อ TEST_SHUFFLE=1 (ตั้ง TEST_SEED เพื่อทำซ้ำได้) — เผยจุดที่เทสต์แอบพึ่งสถานะจากเทสต์ก่อนหน้า
+// (ผลเขียวลวงที่หายไปเมื่อรันเดี่ยว/สลับลำดับ). ฟังก์ชัน/ helper ถูก require ครบก่อนแล้ว การสลับกระทบแค่ "ลำดับรัน"
+if (getenv('TEST_SHUFFLE') === '1') {
+    $seed = (int) (getenv('TEST_SEED') ?: random_int(1, PHP_INT_MAX));
+    mt_srand($seed);
+    $order = $GLOBALS['__tests'];
+    for ($i = count($order) - 1; $i > 0; $i--) {
+        $j = mt_rand(0, $i);
+        [$order[$i], $order[$j]] = [$order[$j], $order[$i]];
+    }
+    $GLOBALS['__tests'] = $order;
+    echo "[shuffled test order · TEST_SEED=$seed]\n";
+}
+
 $pass = 0;
 $failures = [];
+// กัน "ผลเขียวลวง" จากการสืบทอด Request: เทสต์บางตัวผูก Request::capture() ลง container แล้วไม่ล้าง เทสต์ถัดไป
+// ที่เขียน audit เลยได้ Request ของคนก่อนแบบเงียบ ๆ. ลบ binding ก่อนทุกเทสต์ = แต่ละเทสต์ต้องผูกเอง/พึ่ง fallback เอง
+$requestReset = new ReflectionProperty($GLOBALS['__container'], 'instances');
+$requestReset->setAccessible(true);
 foreach ($GLOBALS['__tests'] as [$name, $fn]) {
+    $bound = $requestReset->getValue($GLOBALS['__container']);
+    unset($bound[App\Core\Request::class]);
+    $requestReset->setValue($GLOBALS['__container'], $bound);
     try {
         $fn();
         $pass++;
