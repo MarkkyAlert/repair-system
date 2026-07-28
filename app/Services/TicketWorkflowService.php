@@ -28,6 +28,7 @@ class TicketWorkflowService
         private TicketReadRepository $reads,
         private NotificationService $notifications,
         private TicketPolicy $policy,
+        private AuditLogger $audit,
     ) {
     }
 
@@ -348,6 +349,16 @@ class TicketWorkflowService
             (string) ($ticket['status'] ?? 'resolved'),
             true
         );
+
+        // การปิดงานแทนคนอื่นคือการใช้อำนาจพิเศษของ admin จึงต้องตามรอยได้จาก audit log ส่วนกลาง
+        // ไม่ใช่ซ่อนอยู่ในประวัติของตั๋วรายใบเท่านั้น (ผู้ตรวจสอบดูจากหน้า Audit Log ไม่ได้ไล่เปิดตั๋วทีละใบ).
+        // เขียนหลัง transaction commit แล้ว และ AuditLogger กลืน exception ให้เอง — audit ที่ล้ม
+        // ต้องไม่ทำให้งานที่ปิดสำเร็จแล้วกลายเป็น error ในสายตาผู้ใช้.
+        $this->audit->record($viewer, 'ticket.completed_on_behalf', 'ticket', $ticketId, [
+            'requester_id' => (int) ($ticket['requester_id'] ?? 0),
+            'reason' => $note,
+        ]);
+
         $this->notifications->notifyTicketEvent($ticketId, 'ticket.completed', (int) ($viewer['id'] ?? 0));
     }
 

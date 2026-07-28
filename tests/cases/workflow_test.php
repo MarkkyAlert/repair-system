@@ -1441,6 +1441,7 @@ test('workflow H-3: an admin can close a resolved ticket on behalf of a requeste
             'no satisfaction score is invented on the requester behalf — CSAT must stay the customer voice'
         );
     } finally {
+        wf_pdo()->prepare("DELETE FROM audit_logs WHERE entity_type = 'ticket' AND entity_id = ?")->execute([$id]);
         wf_cleanup($id);
     }
 });
@@ -1492,6 +1493,55 @@ test('workflow H-3: closing on behalf is admin-only — manager and technician a
             'technician close on behalf'
         );
     } finally {
+        wf_cleanup($id);
+    }
+});
+
+// H3-AUDIT-01: การปิดงานแทนคนอื่นคือการใช้อำนาจพิเศษของแอดมิน ผู้ตรวจสอบต้องเห็นได้จากหน้า Audit Log
+// ส่วนกลาง ไม่ใช่ต้องไล่เปิดตั๋วทีละใบเพื่อดูประวัติในตั๋ว (ประวัติในตั๋วมีอยู่แล้ว แต่คนละที่กัน).
+test('workflow H-3: closing on behalf is recorded in the CENTRAL audit log, not only in the ticket history', function (): void {
+    $id = wf_drive_to_status('resolved');
+    $pdo = wf_pdo();
+
+    try {
+        wf_service()->completeResolvedTicket($id, ['id' => 4, 'role' => 'admin'], [
+            'closure_note' => 'ผู้แจ้งย้ายหน่วยงาน ไม่มีผู้ยืนยัน',
+        ]);
+
+        $rows = $pdo->query(
+            "SELECT user_id, action, entity_type, context FROM audit_logs
+             WHERE entity_type = 'ticket' AND entity_id = $id AND action = 'ticket.completed_on_behalf'"
+        )->fetchAll(PDO::FETCH_ASSOC);
+
+        assert_count(1, $rows, 'an auditor reading the central audit log finds exactly one record of this special power being used');
+        assert_same(4, (int) $rows[0]['user_id'], 'the audit record names the admin who did it');
+        assert_contains_str('ย้ายหน่วยงาน', (string) $rows[0]['context'], 'the reason is carried into the audit record');
+        assert_contains_str('requester_id', (string) $rows[0]['context'], 'the audit record says whose ticket was closed');
+    } finally {
+        $pdo->prepare("DELETE FROM audit_logs WHERE entity_type = 'ticket' AND entity_id = ?")->execute([$id]);
+        wf_cleanup($id);
+    }
+});
+
+test('workflow H-3: a failing audit write does not undo a closure that already succeeded', function (): void {
+    $id = wf_drive_to_status('resolved');
+    $pdo = wf_pdo();
+
+    try {
+        // the audit table is unusable for the duration of the call (renamed out from under it)
+        $pdo->exec('RENAME TABLE audit_logs TO audit_logs_wf_offline');
+        try {
+            wf_service()->completeResolvedTicket($id, ['id' => 4, 'role' => 'admin'], [
+                'closure_note' => 'ปิดแทนตอน audit ใช้ไม่ได้',
+            ]);
+        } finally {
+            $pdo->exec('RENAME TABLE audit_logs_wf_offline TO audit_logs');
+        }
+
+        assert_same('completed', (string) wf_state($id)['status'], 'the ticket is still closed — audit is secondary, the closure is the primary outcome');
+        assert_contains_str('ผู้ดูแลระบบยืนยันปิดงานแทนผู้แจ้ง', wf_completed_log($id), 'the ticket history still records who closed it');
+    } finally {
+        $pdo->prepare("DELETE FROM audit_logs WHERE entity_type = 'ticket' AND entity_id = ?")->execute([$id]);
         wf_cleanup($id);
     }
 });

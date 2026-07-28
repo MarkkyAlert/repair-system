@@ -733,6 +733,8 @@ test('adminUser H-3: an admin can finish a departed staff ticket and then close 
     } finally {
         if ($ticketId > 0) {
             $pdo->prepare("DELETE FROM notifications WHERE related_type = 'ticket' AND related_id = ?")->execute([$ticketId]);
+            // close-on-behalf writes a central audit row against the TICKET, not the user
+            $pdo->prepare('DELETE FROM audit_logs WHERE entity_type = "ticket" AND entity_id = ?')->execute([$ticketId]);
             $pdo->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
         }
         $pdo->prepare('DELETE FROM audit_logs WHERE entity_type = "user" AND entity_id = ?')->execute([$leaverId]);
