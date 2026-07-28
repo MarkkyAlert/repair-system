@@ -87,6 +87,10 @@ test('query-count(dashboard): getDashboardData stays bounded as tickets grow (no
             $insert->execute(['DQGUARD-' . $i . '-' . bin2hex(random_bytes(3)), $states[$i % 5]]);
         }
 
+        // Warm process-wide caches first (setting() memoizes per key), so the measured count is the dashboard's own
+        // query load, not a cold cache when this test happens to run first under a shuffled order.
+        tvm_container()->get(TicketService::class)->getDashboardData(qc_admin(), []);
+
         $n = count_queries(function (): void {
             tvm_container()->get(TicketService::class)->getDashboardData(qc_admin(), []);
         });

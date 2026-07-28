@@ -126,6 +126,10 @@ test('sla(fixture): drain pre-existing overdue SLA tracks to a known baseline', 
 test('sla: a notify failure is counted as notify_failed, NOT as notified (error-review F3)', function (): void {
     $userId = sla_seed_user();
     $ticketId = sla_seed_ticket($userId);
+    // Drain any pre-existing overdue tracks FIRST (with the real service), so the processed/notify counts below
+    // reflect only THIS test's track — otherwise a track another test left pending would inflate them under a
+    // shuffled run order. Seed the track under test AFTER the drain so the drain does not consume it.
+    sla_service()->processOverdueBreaches();
     $trackId = sla_seed_track($ticketId, 'resolution', -3600); // 1 hour overdue
 
     try {
@@ -171,6 +175,7 @@ test('sla (F1): a SWALLOWED in-app dispatch failure is counted as notify_failed 
     // failure was counted as a success. Drive the REAL NotificationService with only its repository throwing.
     $userId = sla_seed_user();
     $ticketId = sla_seed_ticket($userId);
+    sla_service()->processOverdueBreaches(); // drain pre-existing overdue first (see note above) — order-safe count
     $trackId = sla_seed_track($ticketId, 'resolution', -3600);
 
     try {
@@ -210,6 +215,7 @@ test('sla (O1): an email-only recipient whose email fails is counted as notify_f
     // as success. Now every channel with recipients must deliver.
     $userId = sla_seed_user();
     $ticketId = sla_seed_ticket($userId);
+    sla_service()->processOverdueBreaches(); // drain pre-existing overdue first (see note above) — order-safe count
     $trackId = sla_seed_track($ticketId, 'resolution', -3600);
     sla_pdo()->prepare("INSERT INTO notification_preferences (user_id, notification_type, channel, is_enabled) VALUES (?, 'sla_breached', 'in_app', 0)")->execute([$userId]);
 
@@ -253,6 +259,7 @@ test('sla (O1): an email-only recipient whose email fails is counted as notify_f
 test('sla: an overdue pending track is marked breached (status + breached_at) and counted', function (): void {
     $userId = sla_seed_user();
     $ticketId = sla_seed_ticket($userId);
+    sla_service()->processOverdueBreaches(); // drain pre-existing overdue first (see note above) — order-safe count
     $trackId = sla_seed_track($ticketId, 'resolution', -3600); // 1 hour overdue
     try {
         $result = sla_service()->processOverdueBreaches();
@@ -287,6 +294,7 @@ test('sla: a breach notifies the ticket recipients (a notification row is writte
 test('sla(idempotency): a second run breaches nothing new and does NOT notify again', function (): void {
     $userId = sla_seed_user();
     $ticketId = sla_seed_ticket($userId);
+    sla_service()->processOverdueBreaches(); // drain pre-existing overdue first (see note above) — order-safe count
     $trackId = sla_seed_track($ticketId, 'resolution', -7200);
     try {
         $first = sla_service()->processOverdueBreaches();
@@ -306,6 +314,7 @@ test('sla(idempotency): a second run breaches nothing new and does NOT notify ag
 test('sla: a pending track that is not yet due is left untouched (not breached, not notified)', function (): void {
     $userId = sla_seed_user();
     $ticketId = sla_seed_ticket($userId);
+    sla_service()->processOverdueBreaches(); // drain pre-existing overdue first (see note above) — order-safe count
     $trackId = sla_seed_track($ticketId, 'resolution', 3600); // due in 1 hour → NOT overdue
     try {
         $result = sla_service()->processOverdueBreaches();
@@ -324,6 +333,7 @@ test('sla: several overdue tracks are all processed and each is notified once', 
     $userId = sla_seed_user();
     $ticketIds = [];
     try {
+        sla_service()->processOverdueBreaches(); // drain pre-existing overdue first (see note above) — order-safe count
         for ($i = 0; $i < 3; $i++) {
             $ticketId = sla_seed_ticket($userId);
             sla_seed_track($ticketId, 'resolution', -600 * ($i + 1));
