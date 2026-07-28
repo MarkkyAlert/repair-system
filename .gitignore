@@ -23,3 +23,9 @@
 /e2e/blob-report/
 /e2e/.auth/
 /e2e/.cache/
+
+# Local QA/review artifact output (dated review reports, run logs, screenshots) — not source or test code
+/tests/api/
+/tests/ux/
+/tests/a11y/
+/tests/template-refactor/
