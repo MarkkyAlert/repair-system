@@ -7,7 +7,7 @@ $dimensionLabel = (string) ($filters['dimensionLabel'] ?? 'ระดับคว
     <?= render_partial('partials/components/page-header', [
         'eyebrow' => 'ข้อมูลเพื่อการตัดสินใจ',
         'title' => 'วิเคราะห์ SLA เกินกำหนด',
-        'description' => 'ดูว่า SLA เกินกำหนดกระจุกตรงไหน แยกตอบรับ/แก้ไข เพื่อหาคอขวดจริง',
+        'description' => 'นับระดับรายการ SLA: หนึ่งใบงานมีรายการตอบรับและรายการแก้ไข แยกดูเพื่อหาคอขวดจริง',
     ]) ?>
 
     <div class="action-bar">
@@ -87,9 +87,9 @@ $dimensionLabel = (string) ($filters['dimensionLabel'] ?? 'ระดับคว
 
     <div class="stat-grid stat-grid-4 report-stat-scroll">
         <?= render_partial('partials/components/card', [
-            'title' => 'เกินกำหนดทั้งหมด',
+            'title' => 'รายการ SLA เกินทั้งหมด',
             'value' => (string) ($summary['total_breached'] ?? 0),
-            'meta' => 'จำนวนครั้งที่ SLA เกิน (ตอบรับ + แก้ไข)',
+            'meta' => 'นับแต่ละรายการตอบรับ/แก้ไขแยกกัน',
             'tone' => 'danger',
         ]) ?>
         <?= render_partial('partials/components/card', [
@@ -105,9 +105,9 @@ $dimensionLabel = (string) ($filters['dimensionLabel'] ?? 'ระดับคว
             'tone' => 'warning',
         ]) ?>
         <?= render_partial('partials/components/card', [
-            'title' => '%เกินโดยรวม',
+            'title' => '%รายการ SLA ที่เกิน',
             'value' => (string) ($summary['breach_rate_label'] ?? '-'),
-            'meta' => 'สัดส่วนที่เกินจากงานที่วัดผลแล้ว',
+            'meta' => 'สัดส่วนจากรายการ SLA ที่ตัดสินผลแล้ว',
             'tone' => (string) ($summary['breach_tone'] ?? 'default'),
         ]) ?>
     </div>
@@ -184,11 +184,11 @@ $dimensionLabel = (string) ($filters['dimensionLabel'] ?? 'ระดับคว
                     <thead>
                     <tr>
                         <th data-sort-col="0"><?= e($dimensionLabel) ?></th>
-                        <th data-sort-col="1" data-sort-type="number">ตอบรับ เกิน</th>
-                        <th data-sort-col="2" data-sort-type="number">แก้ไข เกิน</th>
-                        <th data-sort-col="3" data-sort-type="number">เกินรวม</th>
-                        <th data-sort-col="4" data-sort-type="number">ทันกำหนด</th>
-                        <th data-sort-col="5" data-sort-type="number">%เกิน</th>
+                        <th data-sort-col="1" data-sort-type="number">รายการตอบรับเกิน</th>
+                        <th data-sort-col="2" data-sort-type="number">รายการแก้ไขเกิน</th>
+                        <th data-sort-col="3" data-sort-type="number">รายการเกินรวม</th>
+                        <th data-sort-col="4" data-sort-type="number">รายการทันกำหนด</th>
+                        <th data-sort-col="5" data-sort-type="number">%รายการเกิน</th>
                     </tr>
                     </thead>
                     <tbody>

@@ -48,7 +48,7 @@
 
 <div class="stack summary-grid">
     <div class="summary-item">
-        <div class="summary-title">เกินกำหนดทั้งหมด</div>
+        <div class="summary-title">รายการ SLA เกินทั้งหมด</div>
         <div class="summary-value"><?= e((string) ($summary['total_breached'] ?? 0)) ?></div>
     </div>
     <div class="summary-item">
@@ -60,7 +60,7 @@
         <div class="summary-value"><?= e((string) ($summary['resolution_breached'] ?? 0)) ?></div>
     </div>
     <div class="summary-item">
-        <div class="summary-title">%เกินโดยรวม</div>
+        <div class="summary-title">%รายการ SLA ที่เกิน</div>
         <div class="summary-value"><?= e((string) ($summary['breach_rate_label'] ?? '-')) ?></div>
     </div>
 </div>
@@ -69,11 +69,11 @@
     <thead>
     <tr>
         <th><?= e((string) ($dimensionLabel ?? 'ระดับความสำคัญ')) ?></th>
-        <th class="num">ตอบรับ เกิน</th>
-        <th class="num">แก้ไข เกิน</th>
-        <th class="num">เกินรวม</th>
-        <th class="num">ทันกำหนด</th>
-        <th class="num">%เกิน</th>
+        <th class="num">รายการตอบรับเกิน</th>
+        <th class="num">รายการแก้ไขเกิน</th>
+        <th class="num">รายการเกินรวม</th>
+        <th class="num">รายการทันกำหนด</th>
+        <th class="num">%รายการเกิน</th>
     </tr>
     </thead>
     <tbody>

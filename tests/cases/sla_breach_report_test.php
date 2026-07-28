@@ -130,7 +130,7 @@ test('sla breach: CSV export cells reconcile with the on-screen row, no format/r
         }
         assert_true($exportRow !== null, 'the same category appears as a CSV row');
 
-        // cell-by-cell: each CSV column === the exact value the screen row shows (headers: dim, ตอบรับเกิน, แก้ไขเกิน, เกินรวม, ทันกำหนด, %เกิน)
+        // cell-by-cell: each CSV column === the exact value the screen row shows (headers name the SLA-item unit explicitly)
         assert_same((string) $screen['response']['breached'], $exportRow[1], 'CSV ตอบรับเกิน = screen');
         assert_same((string) $screen['resolution']['breached'], $exportRow[2], 'CSV แก้ไขเกิน = screen');
         assert_same((string) $screen['total_breached'], $exportRow[3], 'CSV เกินรวม = screen total_breached');
@@ -321,7 +321,7 @@ test('sla breach: export xlsx (1 sheet + dimension header) / pdf %PDF- / csv hea
 
         $csv = (string) slab_service()->exportSlaBreachCsv($admin, ['dimension' => 'location'])['content'];
         assert_true(str_contains($csv, 'สถานที่'), 'csv first header reflects the location dimension');
-        assert_true(str_contains($csv, '%เกิน'), 'csv carries the breach-rate column');
+        assert_true(str_contains($csv, '%รายการเกิน'), 'csv carries the explicitly item-level breach-rate column');
     } finally {
         @unlink($tmp);
         slab_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);

@@ -1050,7 +1050,7 @@ class ReportService
     {
         return [
             $this->hotspotDimensionLabel($dimension), 'คะแนนพื้นที่', 'เหตุผล', 'แจ้งซ่อม', 'งานค้าง',
-            'เกิน SLA', '%เกิน SLA', 'เวลาซ่อมเฉลี่ย (ชม.)', 'ชม.แรงงาน',
+            'งานเกิน SLA', '%งานเกิน SLA', 'เวลาซ่อมเฉลี่ย (ชม.)', 'ชม.แรงงาน',
         ];
     }
 
@@ -2962,7 +2962,7 @@ class ReportService
 
     private function slaBreachExportHeaders(string $dimension): array
     {
-        return [$this->slaBreachDimensionLabel($dimension), 'ตอบรับ เกิน', 'แก้ไข เกิน', 'เกินรวม', 'ทันกำหนด', '%เกิน'];
+        return [$this->slaBreachDimensionLabel($dimension), 'รายการตอบรับเกิน', 'รายการแก้ไขเกิน', 'รายการเกินรวม', 'รายการทันกำหนด', '%รายการเกิน'];
     }
 
     private function slaBreachExportRow(array $row): array

@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Core\View;
+use Smalot\PdfParser\Parser;
+
 // Pre-ship sweep M-4 / LM-5: the Problem-Hotspot page and the SLA-Breach page BOTH show a "%เกิน SLA"-style figure,
 // but they measure at different granularities ON PURPOSE:
 //   * Hotspot  = JOB level  — a ticket counts as overdue if ANY of its SLA cycles breached (owner decision BI-C1:
@@ -93,4 +96,43 @@ test('reports(LM-5): the Trend page labels its SLA metric as resolution-only, cl
     assert_contains_str('เฉพาะงานที่ปิดจริงในงวดนั้น', $trend, 'the trend page explains the metric only counts work closed in the period');
     // and it names why it can diverge from the compliance page
     assert_contains_str('วิเคราะห์ SLA เกินกำหนด', $trend, 'the caption points the reader at the page it may differ from');
+});
+
+test('reports(M-4): web, PDF and CSV labels disclose job-level vs SLA-item-level counting', function (): void {
+    $service = slab_service();
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $pdo = slab_pdo();
+    $jobFloor = (int) $pdo->query('SELECT COALESCE(MAX(id), 0) FROM export_jobs')->fetchColumn();
+
+    try {
+        $hotspotPage = $service->getProblemHotspotReportPage($admin, ['dimension' => 'department']);
+        $hotspotHtml = View::capture('reports/problem-hotspot', $hotspotPage);
+        assert_contains_str('ระดับใบงาน', $hotspotHtml, 'Hotspot web labels its SLA rate as job-level');
+        assert_contains_str('%งานเกิน SLA', $hotspotHtml, 'Hotspot web names the counted unit');
+
+        $hotspotPdf = (string) ($service->exportProblemHotspotPdf($admin, ['dimension' => 'department'])['content'] ?? '');
+        assert_contains_str(
+            'ระดับใบงาน',
+            (new Parser())->parseContent($hotspotPdf)->getText(),
+            'Hotspot PDF labels its SLA rate as job-level'
+        );
+        $hotspotCsv = (string) ($service->exportProblemHotspotCsv($admin, ['dimension' => 'department'])['content'] ?? '');
+        assert_contains_str('%งานเกิน SLA', $hotspotCsv, 'Hotspot CSV names the counted unit');
+
+        $breachPage = $service->getSlaBreachReportPage($admin, ['dimension' => 'department']);
+        $breachHtml = View::capture('reports/sla-breach', $breachPage);
+        assert_contains_str('ระดับรายการ SLA', $breachHtml, 'SLA-breach web labels its unit as individual SLA items');
+        assert_contains_str('%รายการ SLA ที่เกิน', $breachHtml, 'SLA-breach web names the counted unit');
+
+        $breachPdf = (string) ($service->exportSlaBreachPdf($admin, ['dimension' => 'department'])['content'] ?? '');
+        assert_contains_str(
+            'รายการ SLA เกินทั้งหมด',
+            (new Parser())->parseContent($breachPdf)->getText(),
+            'SLA-breach PDF names the counted unit'
+        );
+        $breachCsv = (string) ($service->exportSlaBreachCsv($admin, ['dimension' => 'department'])['content'] ?? '');
+        assert_contains_str('%รายการเกิน', $breachCsv, 'SLA-breach CSV names the counted unit');
+    } finally {
+        $pdo->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$jobFloor]);
+    }
 });

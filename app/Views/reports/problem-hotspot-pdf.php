@@ -56,7 +56,7 @@
         <div class="summary-value"><?= e((string) ($summary['total_tickets'] ?? 0)) ?></div>
     </div>
     <div class="summary-item">
-        <div class="summary-title">เกิน SLA รวม</div>
+        <div class="summary-title">งานเกิน SLA รวม (ระดับใบงาน)</div>
         <div class="summary-value"><?= e((string) ($summary['total_overdue'] ?? 0)) ?></div>
     </div>
     <div class="summary-item">
@@ -72,8 +72,8 @@
         <th>คะแนนพื้นที่</th>
         <th class="num">แจ้งซ่อม</th>
         <th class="num">งานค้าง</th>
-        <th class="num">เกิน SLA</th>
-        <th class="num">%เกิน SLA</th>
+        <th class="num">งานเกิน SLA</th>
+        <th class="num">%งานเกิน SLA</th>
         <th class="num">เวลาซ่อมเฉลี่ย (ชม.)</th>
         <th class="num">ชม.แรงงาน</th>
     </tr>

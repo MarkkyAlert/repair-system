@@ -83,9 +83,9 @@ $dimensionLabel = (string) ($filters['dimensionLabel'] ?? 'แผนก');
             'tone' => 'default',
         ]) ?>
         <?= render_partial('partials/components/card', [
-            'title' => 'เกิน SLA รวม',
+            'title' => 'งานเกิน SLA รวม',
             'value' => (string) ($summary['total_overdue'] ?? 0),
-            'meta' => 'งานค้างที่เลยกำหนด SLA',
+            'meta' => 'นับระดับใบงาน: 1 ใบนับครั้งเดียว',
             'tone' => 'warning',
         ]) ?>
         <?= render_partial('partials/components/card', [
@@ -154,7 +154,7 @@ $dimensionLabel = (string) ($filters['dimensionLabel'] ?? 'แผนก');
         <div class="panel-head">
             <div>
                 <h2 class="panel-title">จัดอันดับพื้นที่ปัญหา แยกตาม<?= e($dimensionLabel) ?></h2>
-                <p class="field-hint">คะแนนพื้นที่ประเมินจาก ปริมาณแจ้งซ่อม · %เกิน SLA · ชม.แรงงาน · เวลาซ่อมเฉลี่ย — "พื้นที่ปัญหา" ถูกจัดขึ้นบนสุด</p>
+                <p class="field-hint">คะแนนพื้นที่ประเมินจาก ปริมาณแจ้งซ่อม · %งานเกิน SLA (ระดับใบงาน) · ชม.แรงงาน · เวลาซ่อมเฉลี่ย — "พื้นที่ปัญหา" ถูกจัดขึ้นบนสุด</p>
             </div>
             <?php if (!empty($rows)): ?>
                 <span class="badge badge-default"><?= e((string) count($rows)) ?> รายการ</span>
@@ -171,8 +171,8 @@ $dimensionLabel = (string) ($filters['dimensionLabel'] ?? 'แผนก');
                         <th data-sort-col="1">คะแนนพื้นที่</th>
                         <th data-sort-col="2" data-sort-type="number">แจ้งซ่อม</th>
                         <th data-sort-col="3" data-sort-type="number">งานค้าง</th>
-                        <th data-sort-col="4" data-sort-type="number">เกิน SLA</th>
-                        <th data-sort-col="5" data-sort-type="number">%เกิน SLA</th>
+                        <th data-sort-col="4" data-sort-type="number">งานเกิน SLA</th>
+                        <th data-sort-col="5" data-sort-type="number">%งานเกิน SLA</th>
                         <th data-sort-col="6" data-sort-type="number">เวลาซ่อมเฉลี่ย (ชม.)</th>
                         <th data-sort-col="7" data-sort-type="number">ชม.แรงงาน</th>
                     </tr>
