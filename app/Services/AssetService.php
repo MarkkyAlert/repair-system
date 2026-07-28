@@ -295,6 +295,7 @@ class AssetService
         }
 
         $this->assets->touchScanToken($token);
+        // อ่านซ้ำหลัง touch เพื่อดึง last_scanned_at ที่เพิ่งเขียน (บรรทัดล่างส่งค่านี้ออกไปแสดงผล) — อย่าตัดทิ้งเพราะนึกว่าซ้ำกับด้านบน.
         $asset = $this->assets->findActiveAssetByToken($token);
         if ($asset === null) {
             return null;

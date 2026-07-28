@@ -128,6 +128,7 @@ $tabUrl = static function (string $status): string {
                                 <?php endif; ?>
                             </td>
                             <td data-label="การจัดการ">
+                                <?php // ปุ่มลองส่งใหม่โผล่เฉพาะสถานะปลายทางที่ requeue ได้จริง — เหตุผลอยู่ที่ EmailQueueRepository::requeueForRetry ?>
                                 <?php if (in_array($jobStatus, ['failed', 'sent'], true)): ?>
                                     <form method="post" action="<?= e(url('/admin/email-queue/' . (int) $job['id'] . '/retry')) ?>">
                                         <?= csrf_field() ?>

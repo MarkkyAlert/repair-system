@@ -130,10 +130,6 @@ class MailerService
         }
     }
 
-    /**
-     * ลบ password-reset token ออกจากข้อความที่กำลังจะถูก log: token เป็น segment หนึ่งของ path
-     * (/reset-password/<token>?email=...) และในบาง flow ก็เป็น query parameter token= ด้วย.
-     */
     /** ปิดบัง (mask) email สำหรับ log บน production: เก็บอักษรตัวแรกของ local + โดเมนไว้ ซ่อนที่เหลือ (a***@example.com). */
     public static function maskEmail(string $email): string
     {
@@ -161,6 +157,10 @@ class MailerService
         return '***' . substr($digits, -4);
     }
 
+    /**
+     * ลบ password-reset token ออกจากข้อความที่กำลังจะถูก log: token เป็น segment หนึ่งของ path
+     * (/reset-password/<token>?email=...) และในบาง flow ก็เป็น query parameter token= ด้วย.
+     */
     public static function redactSecrets(string $text): string
     {
         $text = preg_replace('#(/reset-password/)[^/?"\'\s\\\\]+#', '${1}[REDACTED]', $text) ?? $text;

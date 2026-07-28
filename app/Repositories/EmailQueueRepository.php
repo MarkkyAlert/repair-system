@@ -340,6 +340,9 @@ class EmailQueueRepository
     public function requeueForRetry(int $emailId): bool
     {
         $now = date('Y-m-d H:i:s');
+        // รีคิวได้เฉพาะสถานะปลายทาง: failed = ลองส่งใหม่หลังส่งพัง, sent = ตั้งใจส่งซ้ำเมลที่ส่งสำเร็จไปแล้ว.
+        // ตัด queued/processing ออกเพราะ worker กำลังถืองานนั้นอยู่ ถ้า requeue จะกลายเป็นส่งซ้ำ/แข่งกันเอง.
+        // รีเซ็ต attempts=0 + ล้าง sent_at/failed_at/error_message ให้แถวกลับไปเป็น job ใหม่ที่สะอาด.
         $stmt = $this->db->prepare(
             "UPDATE email_queue
              SET status = 'queued',
