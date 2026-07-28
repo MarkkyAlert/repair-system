@@ -469,6 +469,8 @@ class AssetService
         require_max_length($brand, 100, 'ยี่ห้อ');
         require_max_length($model, 100, 'รุ่น');
         require_max_length($vendor, 150, 'ผู้จำหน่าย');
+        // notes เป็นคอลัมน์ TEXT (65,535 ไบต์) จึงกันเป็น "ไบต์" ไม่ใช่ตัวอักษร (ไทย 1 ตัว = 3 ไบต์)
+        require_max_bytes($notes, 65535, 'หมายเหตุ');
 
         if (!in_array($status, asset_status_values(), true)) {
             throw new DomainException('สถานะของ Asset ไม่ถูกต้อง');

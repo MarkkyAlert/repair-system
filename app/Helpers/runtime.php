@@ -313,6 +313,18 @@ function require_max_length(string $value, int $max, string $label): void
     }
 }
 
+/**
+ * ปฏิเสธค่าที่ยาวเกินความจุ "ไบต์" ของคอลัมน์ (เช่น TEXT = 65,535 ไบต์) — คู่กับ require_max_length แต่คนละหน่วย
+ * TEXT จำกัดเป็นไบต์ ไม่ใช่ตัวอักษร และภาษาไทย 1 ตัว = 3 ไบต์ ใน utf8mb4 การนับตัวอักษรจึงปล่อยให้ล้นได้ (เช่น
+ * 30,000 ตัวไทย = 90,000 ไบต์ เกิน TEXT ทั้งที่ยังไม่ถึง 65,535 "ตัว") strlen นับไบต์ตรงกับหน่วยที่ MySQL ใช้วัด TEXT
+ */
+function require_max_bytes(string $value, int $max, string $label): void
+{
+    if (strlen($value) > $max) {
+        throw new \DomainException($label . 'ยาวเกินกำหนด (ไม่เกิน ' . number_format($max) . ' ไบต์)');
+    }
+}
+
 /** รหัสผ่านขั้นต่ำ 8 ตัวอักษร โดยนับอักขระ Unicode ไม่ใช่จำนวนไบต์ UTF-8 */
 function password_has_minimum_length(string $password): bool
 {

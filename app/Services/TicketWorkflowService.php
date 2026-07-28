@@ -19,6 +19,10 @@ class TicketWorkflowService
     // (สูงสุด ~4.29 พันล้าน); ยอดสะสมข้ามรอบ reopen ยังบวกต่อได้ตามปกติ แค่ต่อครั้งห้ามเกินหนึ่งวันทำงาน
     private const MAX_LABOR_MINUTES_PER_RESOLVE = 1440;
 
+    // ความจุคอลัมน์ TEXT = 65,535 ไบต์ ทุกช่องข้อความยาว (สรุปผล/หมายเหตุ/เหตุผล) ลงคอลัมน์ TEXT จึงต้องกันเป็น "ไบต์"
+    // ไม่ใช่ตัวอักษร มิฉะนั้นข้อความไทยยาว ๆ (paste log) จะทำ INSERT ล้ม strict mode = 500 + ข้อมูลที่พิมพ์หาย
+    private const MAX_TEXT_BYTES = 65535;
+
     public function __construct(
         private TicketRepository $tickets,
         private TicketReadRepository $reads,
@@ -136,6 +140,7 @@ class TicketWorkflowService
         if ($note === '') {
             throw new DomainException('กรุณาระบุเหตุผลในการปฏิเสธรายการนี้');
         }
+        require_max_bytes($note, self::MAX_TEXT_BYTES, 'เหตุผลการปฏิเสธ');
 
         $this->tickets->rejectTicket($ticketId, (int) ($viewer['id'] ?? 0), $note, (string) ($ticket['status'] ?? 'pending_approval'));
         $this->notifications->notifyTicketEvent($ticketId, 'ticket.rejected', (int) ($viewer['id'] ?? 0));
@@ -173,6 +178,7 @@ class TicketWorkflowService
         if (in_array((string) ($ticket['status'] ?? ''), ['accepted', 'in_progress'], true) && $instructions === '') {
             throw new DomainException('กรุณาระบุเหตุผลในการย้ายงานที่ช่างรับไปแล้ว');
         }
+        require_max_bytes($instructions, self::MAX_TEXT_BYTES, 'คำสั่ง/เหตุผลการมอบหมาย');
 
         $this->tickets->assignTechnician(
             $ticketId,
@@ -244,6 +250,8 @@ class TicketWorkflowService
         if ($diagnosisSummary === '' || $resolutionSummary === '') {
             throw new DomainException('กรุณากรอกผลการวิเคราะห์และวิธีแก้ไขให้ครบถ้วน');
         }
+        require_max_bytes($diagnosisSummary, self::MAX_TEXT_BYTES, 'ผลการวิเคราะห์');
+        require_max_bytes($resolutionSummary, self::MAX_TEXT_BYTES, 'วิธีแก้ไข');
 
         if ($laborMinutes < 0) {
             throw new DomainException('จำนวนเวลาที่ใช้ต้องเป็นตัวเลขศูนย์หรือมากกว่า');
@@ -285,6 +293,8 @@ class TicketWorkflowService
         if ($score < 1 || $score > 5) {
             throw new DomainException('กรุณาให้คะแนนความพึงพอใจตั้งแต่ 1 ถึง 5');
         }
+        require_max_bytes($closureNote, self::MAX_TEXT_BYTES, 'หมายเหตุปิดงาน');
+        require_max_bytes($feedback, self::MAX_TEXT_BYTES, 'ความคิดเห็น');
 
         $this->tickets->completeResolvedTicket(
             $ticketId,
@@ -349,6 +359,7 @@ class TicketWorkflowService
         if ($note === '') {
             throw new DomainException('กรุณาระบุเหตุผลในการยกเลิก Ticket');
         }
+        require_max_bytes($note, self::MAX_TEXT_BYTES, 'เหตุผลการยกเลิก');
 
         $this->tickets->cancelTicket(
             $ticketId,
