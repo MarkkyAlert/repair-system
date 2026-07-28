@@ -1229,13 +1229,18 @@ class TicketRepository
         $datePart = date('Ymd', strtotime($requestedAt) ?: time());
         $prefix = setting('ticket_prefix', 'MT') . '-' . $datePart . '-';
 
+        // FOR UPDATE = อ่านแบบ "สด" (current read) ไม่อ่านจาก snapshot ของ REPEATABLE READ. จำเป็นเพราะเส้นทาง
+        // guest→ticket เปิด transaction ครอบ createTicket มาก่อน snapshot จึงถูกตรึงตั้งแต่ก่อนจับ named lock —
+        // ถ้าอ่านแบบ snapshot จะมองไม่เห็นใบที่ session อื่น commit ระหว่างรอ lock แล้วออกเลขซ้ำจน INSERT ล้ม UNIQUE.
+        // (เส้นทางสร้างงานปกติจับ lock ก่อน beginTransaction อยู่แล้ว จึงไม่กระทบ — FOR UPDATE แค่กันเคส nested ให้ครบ)
         // เรียงตามความยาวก่อน แล้วค่อยตามตัวอักษร — กันเคสเลขลำดับเกิน 9999 (10000) ที่ string sort จะจัดผิด
         $stmt = $this->db->prepare(
             'SELECT ticket_no
              FROM tickets
              WHERE ticket_no LIKE :ticket_prefix
              ORDER BY LENGTH(ticket_no) DESC, ticket_no DESC
-             LIMIT 1'
+             LIMIT 1
+             FOR UPDATE'
         );
         $stmt->execute(['ticket_prefix' => $prefix . '%']);
 
