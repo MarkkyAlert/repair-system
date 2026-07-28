@@ -1355,7 +1355,7 @@ class ReportService
                 ],
                 'has_data' => $hasVolume($created) || $hasVolume($resolved),
             ],
-            'trendSla' => ['label' => 'SLA ตรงเวลา %', 'labels' => $labels, 'data' => $sla, 'has_data' => $hasSeries($sla)],
+            'trendSla' => ['label' => 'SLA แก้ไขตรงเวลา %', 'labels' => $labels, 'data' => $sla, 'has_data' => $hasSeries($sla)],
             'trendMttr' => ['label' => 'เวลาซ่อมเฉลี่ย (ชม.)', 'labels' => $labels, 'data' => $mttr, 'has_data' => $hasSeries($mttr)],
             // sample_counts = จำนวนรีวิวต่องวด ส่งขนานไปกับค่าเฉลี่ย ให้จุดบนกราฟอ่านได้ว่ามาจากกี่รีวิว
             'trendCsat' => ['label' => 'คะแนนเฉลี่ย', 'labels' => $labels, 'data' => $csat, 'sample_counts' => array_map(static fn (array $p): int => (int) ($p['rating_count'] ?? 0), $periods), 'has_data' => $hasSeries($csat)],
@@ -1519,7 +1519,7 @@ class ReportService
 
     private function trendExportHeaders(): array
     {
-        return ['ช่วงเวลา', 'แจ้งซ่อม', 'ปิดงาน', 'สุทธิ', 'SLA ตรงเวลา', 'งาน SLA', 'เวลาซ่อมเฉลี่ย (ชม.)', 'คะแนนเฉลี่ย', 'จำนวนรีวิว'];
+        return ['ช่วงเวลา', 'แจ้งซ่อม', 'ปิดงาน', 'สุทธิ', 'SLA แก้ไขตรงเวลา', 'งาน SLA', 'เวลาซ่อมเฉลี่ย (ชม.)', 'คะแนนเฉลี่ย', 'จำนวนรีวิว'];
     }
 
     private function trendExportRow(array $period): array

@@ -99,7 +99,7 @@ $chartCard = static function (array $chart, string $key, string $title) use ($ch
             'tone' => (string) ($summary['created']['tone'] ?? 'default'),
         ]) ?>
         <?= render_partial('partials/components/card', [
-            'title' => 'SLA ตรงเวลา (งวดล่าสุด)',
+            'title' => 'SLA แก้ไขตรงเวลา (งวดล่าสุด)',
             'value' => (string) ($summary['sla']['value'] ?? '-'),
             'meta' => 'เทียบงวดก่อน ' . (string) ($summary['sla']['delta_label'] ?? '—'),
             'tone' => (string) ($summary['sla']['tone'] ?? 'default'),
@@ -126,10 +126,15 @@ $chartCard = static function (array $chart, string $key, string $title) use ($ch
 
     <div class="dashboard-chart-grid">
         <?= $chartCard($charts['trendVolume'] ?? [], 'trendVolume', 'ปริมาณงาน: แจ้ง vs ปิด') ?>
-        <?= $chartCard($charts['trendSla'] ?? [], 'trendSla', 'SLA ตรงเวลา (%)') ?>
+        <?= $chartCard($charts['trendSla'] ?? [], 'trendSla', 'SLA แก้ไขตรงเวลา (%)') ?>
         <?= $chartCard($charts['trendMttr'] ?? [], 'trendMttr', 'เวลาซ่อมเฉลี่ย (ชม.)') ?>
         <?= $chartCard($charts['trendCsat'] ?? [], 'trendCsat', 'คะแนนความพึงพอใจ') ?>
     </div>
+
+    <p class="field-hint">
+        “SLA แก้ไขตรงเวลา” นับ<strong>เฉพาะงานที่ปิดจริงในงวดนั้น</strong> และดูเฉพาะ SLA รอบ “แก้ไข” — ไม่รวมงานที่ยังเปิดค้างเกินกำหนด
+        และไม่รวม SLA รอบ “ตอบรับ” จึงอาจสูงกว่าตัวเลขในหน้า “วิเคราะห์ SLA เกินกำหนด” ที่รวมทั้งงานค้างและทั้งสองรอบ — เป็นคนละมุมโดยตั้งใจ
+    </p>
 
     <?php if (!empty($periods)): ?>
     <div class="action-bar report-export-bar">
@@ -202,7 +207,7 @@ $chartCard = static function (array $chart, string $key, string $title) use ($ch
                         <th data-sort-col="1" data-sort-type="number">แจ้งซ่อม</th>
                         <th data-sort-col="2" data-sort-type="number">ปิดงาน</th>
                         <th data-sort-col="3" data-sort-type="number">สุทธิ</th>
-                        <th data-sort-col="4" data-sort-type="number">SLA ตรงเวลา</th>
+                        <th data-sort-col="4" data-sort-type="number">SLA แก้ไขตรงเวลา</th>
                         <th data-sort-col="5" data-sort-type="number">เวลาซ่อมเฉลี่ย (ชม.)</th>
                         <th data-sort-col="6" data-sort-type="number">คะแนนเฉลี่ย</th>
                     </tr>

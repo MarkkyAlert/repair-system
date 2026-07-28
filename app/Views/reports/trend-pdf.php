@@ -50,7 +50,7 @@
         <div class="summary-delta">เทียบงวดก่อน <?= e((string) ($summary['created']['delta_label'] ?? '—')) ?></div>
     </div>
     <div class="summary-item">
-        <div class="summary-title">SLA ตรงเวลา (งวดล่าสุด)</div>
+        <div class="summary-title">SLA แก้ไขตรงเวลา (งวดล่าสุด)</div>
         <div class="summary-value"><?= e((string) ($summary['sla']['value'] ?? '-')) ?></div>
         <div class="summary-delta">เทียบงวดก่อน <?= e((string) ($summary['sla']['delta_label'] ?? '—')) ?></div>
     </div>
@@ -76,7 +76,7 @@
         <th class="num">แจ้งซ่อม</th>
         <th class="num">ปิดงาน</th>
         <th class="num">สุทธิ</th>
-        <th class="num">SLA ตรงเวลา</th>
+        <th class="num">SLA แก้ไขตรงเวลา</th>
         <th class="num">เวลาซ่อมเฉลี่ย (ชม.)</th>
         <th class="num">คะแนนเฉลี่ย</th>
     </tr>
