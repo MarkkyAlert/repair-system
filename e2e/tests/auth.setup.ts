@@ -11,6 +11,7 @@ fs.mkdirSync(authDir, { recursive: true });
 
 const accounts: Record<string, { login: string; password: string }> = {
   requester: { login: 'requester', password: 'requester123' },
+  manager: { login: 'manager', password: 'manager123' },
   admin: { login: 'admin', password: 'admin12345' },
   technician: { login: 'technician', password: 'tech12345' },
 };

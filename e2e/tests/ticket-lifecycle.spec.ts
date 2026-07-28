@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import path from 'node:path';
+import { mysqlInt, mysqlRows, mysqlValue } from '../helpers/db';
 import { expectNoMissingIcons } from '../helpers/icons';
 
 // Golden path C — one full ticket lifecycle through the real UI, across roles:
@@ -36,6 +37,12 @@ test('golden path C — full ticket lifecycle across roles', async ({ browser })
     await expect(rp).toHaveURL(/\/tickets\/\d+/);
     const ticketId = rp.url().match(/\/tickets\/(\d+)/)![1];
     await expect(rp.getByText('รออนุมัติ').first()).toBeVisible(); // pending_approval
+    expect(
+      mysqlValue(
+        `SELECT CONCAT(t.status, '|', u.username) FROM tickets t ` +
+          `INNER JOIN users u ON u.id = t.requester_id WHERE t.id = ${ticketId}`
+      )
+    ).toBe('pending_approval|requester');
 
     // 2) admin approves --------------------------------------------------------------
     const ap = await admin.newPage();
@@ -45,7 +52,8 @@ test('golden path C — full ticket lifecycle across roles', async ({ browser })
     await expect(ap.locator('#action-assign')).toBeVisible(); // approved → assign form appears
 
     // 3) admin assigns the technician ------------------------------------------------
-    await ap.selectOption('#action-assign select[name="technician_id"]', { index: 1 });
+    const technicianId = mysqlValue("SELECT id FROM users WHERE username = 'technician'");
+    await ap.selectOption('#action-assign select[name="technician_id"]', technicianId);
     await ap.fill('#action-assign textarea[name="instructions"]', 'E2E assign');
     await ap.getByRole('button', { name: 'มอบหมายงานให้ช่าง' }).click();
     await expect(ap.getByText('มอบหมายแล้ว').first()).toBeVisible(); // assigned
@@ -71,8 +79,46 @@ test('golden path C — full ticket lifecycle across roles', async ({ browser })
     await expectNoMissingIcons(rp2); // resolved ticket: requester sees complete + reopen (rotate-ccw) actions
     await rp2.locator('#action-complete label[for="star5"]').click(); // custom star widget: radios are hidden, click the label
     await rp2.fill('#action-complete textarea[name="closure_note"]', 'E2E closure');
+    await rp2.fill('#action-complete textarea[name="feedback"]', 'E2E feedback');
     await rp2.getByRole('button', { name: 'ยืนยันปิดงานและส่งคะแนน' }).click();
     await expect(rp2.getByText('เสร็จสิ้น').first()).toBeVisible(); // completed
+
+    // Destination evidence: UI state survives reload and every material write reached the real DB.
+    await rp2.reload();
+    await expect(rp2.getByText('เสร็จสิ้น').first()).toBeVisible();
+    await expect(rp2.getByText('E2E closure', { exact: true })).toBeVisible();
+    await expect(rp2.getByText('E2E feedback', { exact: true })).toBeVisible();
+
+    expect(mysqlRows(`SELECT status, closure_note FROM tickets WHERE id = ${ticketId}`)).toEqual([
+      ['completed', 'E2E closure'],
+    ]);
+    expect(
+      mysqlRows(
+        `SELECT status, labor_minutes, diagnosis_summary, resolution_summary ` +
+          `FROM work_orders WHERE ticket_id = ${ticketId}`
+      )
+    ).toEqual([['completed', '30', 'E2E diagnosis', 'E2E resolution']]);
+    expect(mysqlRows(`SELECT score, feedback FROM ticket_ratings WHERE ticket_id = ${ticketId}`)).toEqual([
+      ['5', 'E2E feedback'],
+    ]);
+
+    const actions = mysqlRows(
+      `SELECT action FROM ticket_activity_logs WHERE ticket_id = ${ticketId} ORDER BY id`
+    ).map(([action]) => action);
+    expect(actions).toEqual(
+      expect.arrayContaining([
+        'ticket_submitted',
+        'ticket_approved',
+        'technician_assigned',
+        'work_accepted',
+        'work_started',
+        'ticket_resolved',
+        'ticket_completed',
+      ])
+    );
+    expect(
+      mysqlInt(`SELECT COUNT(*) FROM notifications WHERE related_type = 'ticket' AND related_id = ${ticketId}`)
+    ).toBeGreaterThan(0);
   } finally {
     await requester.close();
     await admin.close();
