@@ -22,6 +22,18 @@ test('query-count(email): ticket-event emails are one batched insert — extra r
     $baseline = (int) $pdo->query('SELECT COALESCE(MAX(id), 0) FROM email_queue')->fetchColumn();
 
     try {
+        // setting() caches branding values process-wide. Warm that cache explicitly so this test measures only
+        // recipient fan-out and stays valid when run alone; previously the full suite happened to warm it first,
+        // while an isolated run reported a misleading -3 delta.
+        tvm_container()->get(EmailQueueService::class)->queueTicketEventEmails(
+            $context,
+            [reset($active)],
+            'ticket.approved',
+            'warmup',
+            'warmup'
+        );
+        $pdo->prepare('DELETE FROM email_queue WHERE id > ?')->execute([$baseline]);
+
         // Resolve the service INSIDE the callback so it binds to the swapped CountingPdo (services are transient).
         $few = count_queries(function () use ($context, $small): void {
             tvm_container()->get(EmailQueueService::class)->queueTicketEventEmails($context, $small, 'ticket.approved', 't', 'm');
