@@ -920,6 +920,8 @@ class TicketService
         $canResolve = $technicianCanAct && $this->policy->canResolveTechnicianWork($ticket, $viewer);
         $requesterCanAct = $this->policy->canRequesterManageClosure($ticket, $viewer);
         $canComplete = $requesterCanAct && $this->policy->canRequesterCompleteTicket($ticket, $viewer);
+        // แอดมินปิดแทนผู้แจ้งที่ไม่กลับมายืนยัน — เฉพาะตอนที่ตัวเองไม่ใช่ผู้แจ้ง (ถ้าเป็นผู้แจ้งก็ใช้ปุ่มปกติ)
+        $canCloseOnBehalf = !$requesterCanAct && $this->policy->canAdminCompleteOnBehalf($ticket, $viewer);
         $canReopen = $requesterCanAct && $this->policy->canRequesterReopenTicket($ticket, $viewer);
         $canCancel = $requesterCanAct && $this->policy->canRequesterCancelTicket($ticket, $viewer);
         $canDuplicate = $this->policy->canDuplicateTicket($ticket, $viewer);
@@ -936,6 +938,7 @@ class TicketService
             'canResolve' => $canResolve,
             'requesterCanAct' => $requesterCanAct,
             'canComplete' => $canComplete,
+            'canCloseOnBehalf' => $canCloseOnBehalf,
             'canReopen' => $canReopen,
             'canCancel' => $canCancel,
             'canDuplicate' => $canDuplicate,

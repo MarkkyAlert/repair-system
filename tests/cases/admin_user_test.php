@@ -658,3 +658,84 @@ test('audit(R7-F4): a failing audit-log insert is best-effort — record() does 
     }
     assert_false($threw, 'a failed audit insert is swallowed (logged), never surfaced to the caller');
 });
+
+// ── H-3: ทางตันตอนพนักงานลาออก ──
+// กฎสองข้อที่แต่ละข้อถูกต้องในตัวเอง มาชนกันจนตัน: (1) งาน resolved มีแต่ผู้แจ้งเท่านั้นที่ยืนยันปิดได้
+// (2) ผู้ใช้ที่ยังมีงานค้าง — ซึ่งจงใจนับ resolved ด้วย — ปิดบัญชีไม่ได้. พอผู้แจ้งลาออก คนเดียวที่ปลดล็อกได้
+// คือคนที่ไม่อยู่แล้ว: ปิดงานก็ไม่ได้ ปิดบัญชีก็ไม่ได้ ต้องไปแก้ฐานข้อมูลมือเปล่า. เทสต์นี้ไล่ทั้งวงจร
+// ว่าทางออกที่เจ้าของเลือก (แอดมินปิดแทนได้) ทำให้ตันหายจริง โดยที่ด่านกันปิดบัญชีเดิมยังทำงานอยู่.
+test('adminUser H-3: an admin can finish a departed staff ticket and then close their account (deadlock is gone)', function (): void {
+    au_bind_request();
+    $pdo = au_pdo();
+    $sfx = bin2hex(random_bytes(4));
+    $wf = tvm_container()->get(TicketWorkflowService::class);
+    $tickets = tvm_container()->get(TicketService::class);
+    $ref = tvm_container()->get(TicketReadRepository::class)->getCreateFormReferenceData();
+
+    $pdo->prepare(
+        'INSERT INTO users (username, password_hash, full_name, email, role, is_active, created_at, updated_at)
+         VALUES (?, ?, ?, ?, "requester", 1, NOW(), NOW())'
+    )->execute(["leaver_$sfx", password_hash('x', PASSWORD_DEFAULT), 'Departing Staff', "leaver_$sfx@example.com"]);
+    $leaverId = (int) $pdo->lastInsertId();
+    $leaver = ['id' => $leaverId, 'role' => 'requester'];
+    $ticketId = 0;
+
+    $deactivate = static function () use ($leaverId, $pdo): void {
+        au_service()->updateUser($leaverId, au_admin(), [
+            'full_name' => 'Departing Staff',
+            'email' => (string) $pdo->query("SELECT email FROM users WHERE id = $leaverId")->fetchColumn(),
+            'phone' => '',
+            'role' => 'requester',
+            'department_id' => 0,
+            'is_active' => '0',
+            'original_version' => (int) $pdo->query("SELECT version FROM users WHERE id = $leaverId")->fetchColumn(),
+        ]);
+    };
+
+    try {
+        // the departing person files a ticket and a technician finishes the work
+        $ticketId = $tickets->createTicket($leaver, [
+            'submission_token' => bin2hex(random_bytes(32)),
+            'title' => "H3 leaver $sfx",
+            'description' => 'x',
+            'priority_id' => (int) $ref['priorities'][0]['id'],
+            'ticket_category_id' => (int) $ref['categories'][0]['id'],
+            'location_id' => (int) $ref['locations'][0]['id'],
+            'impact_level' => 'medium',
+            'urgency_level' => 'medium',
+        ], []);
+        $wf->approveTicket($ticketId, au_admin(), ['note' => '']);
+        $wf->assignTechnician($ticketId, au_admin(), ['technician_id' => 3, 'instructions' => '']);
+        $wf->acceptAssignedWork($ticketId, ['id' => 3, 'role' => 'technician'], ['accept_note' => '']);
+        $wf->resolveAssignedWork($ticketId, ['id' => 3, 'role' => 'technician'], [
+            'diagnosis_summary' => 'd', 'resolution_summary' => 'r', 'labor_minutes' => 5,
+        ]);
+        assert_same('resolved', (string) $pdo->query("SELECT status FROM tickets WHERE id = $ticketId")->fetchColumn(), 'sanity: the work is done and waiting on the requester');
+
+        // …and then leaves without confirming. The account cannot be closed while that ticket is open —
+        // this guard is correct and must stay.
+        $blocked = false;
+        try {
+            $deactivate();
+        } catch (DomainException $e) {
+            $blocked = true;
+            assert_contains_str('ยังมี Ticket ที่เป็นผู้แจ้ง', $e->getMessage(), 'the open-ticket guard is what refuses');
+        }
+        assert_true($blocked, 'a requester with an unconfirmed ticket still cannot be deactivated');
+
+        // the admin closes it on their behalf…
+        $wf->completeResolvedTicket($ticketId, au_admin(), ['closure_note' => "ผู้แจ้งลาออก ($sfx)"]);
+        assert_same('completed', (string) $pdo->query("SELECT status FROM tickets WHERE id = $ticketId")->fetchColumn(), 'the abandoned ticket reaches a terminal status');
+
+        // …and the account can now be closed. Before this fix both steps were impossible: deadlock.
+        $deactivate();
+        assert_same(0, (int) $pdo->query("SELECT is_active FROM users WHERE id = $leaverId")->fetchColumn(), 'the departed account can finally be deactivated');
+    } finally {
+        if ($ticketId > 0) {
+            $pdo->prepare("DELETE FROM notifications WHERE related_type = 'ticket' AND related_id = ?")->execute([$ticketId]);
+            $pdo->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+        }
+        $pdo->prepare('DELETE FROM audit_logs WHERE entity_type = "user" AND entity_id = ?')->execute([$leaverId]);
+        $pdo->prepare('DELETE FROM users WHERE id = ?')->execute([$leaverId]);
+    }
+});

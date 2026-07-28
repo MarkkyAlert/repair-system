@@ -281,6 +281,18 @@ class TicketWorkflowService
      */
     public function completeResolvedTicket(int $ticketId, array $viewer, array $input): void
     {
+        // แอดมินปิดแทนผู้แจ้งที่ไม่กลับมายืนยัน (คนละเส้นทางกับผู้แจ้งกดเอง: ไม่บังคับคะแนน และไม่บันทึก
+        // คะแนนใด ๆ — ดู closeOnBehalfOfRequester). ตรวจก่อนด่านของผู้แจ้ง เพราะแอดมินไม่ใช่เจ้าของงาน
+        // จึงไม่ผ่าน requireRequesterTicket.
+        $adminTicket = $this->reads->findVisibleTicketById($ticketId, $viewer);
+        if ($adminTicket !== null
+            && !$this->policy->canRequesterManageClosure($adminTicket, $viewer)
+            && $this->policy->canAdminCompleteOnBehalf($adminTicket, $viewer)) {
+            $this->closeOnBehalfOfRequester($ticketId, $viewer, $adminTicket, $input);
+
+            return;
+        }
+
         $ticket = $this->requireRequesterTicket($ticketId, $viewer);
 
         if (!$this->policy->canRequesterCompleteTicket($ticket, $viewer)) {
@@ -305,6 +317,36 @@ class TicketWorkflowService
             $score,
             $feedback,
             (string) ($ticket['status'] ?? 'resolved')
+        );
+        $this->notifications->notifyTicketEvent($ticketId, 'ticket.completed', (int) ($viewer['id'] ?? 0));
+    }
+
+    /**
+     * แอดมินปิดงานที่ซ่อมเสร็จแล้วแทนผู้แจ้งที่ไม่กลับมายืนยัน (resolved → completed).
+     * ต่างจากผู้แจ้งกดเองสองเรื่อง:
+     *  - ต้องระบุเหตุผล (ไปอยู่ใน activity log) แทนที่จะเป็นหมายเหตุปิดงานแบบไม่บังคับ
+     *  - ไม่บันทึกคะแนนความพึงพอใจเลย. CSAT คือเสียงของผู้แจ้ง ถ้าให้แอดมินกรอกแทนก็เท่ากับปลอมข้อมูล
+     *    ความพึงพอใจ — งานที่ปิดแทนจึงไม่ถูกนับเป็นฐานของ CSAT (ตรงกับหลัก "ไม่มีข้อมูล ≠ ศูนย์" ของรายงาน)
+     * @param array<string, mixed> $input ต้องมี 'closure_note' (เหตุผลที่ปิดแทน, ห้ามว่าง)
+     * @throws DomainException เมื่อไม่ได้ระบุเหตุผล
+     */
+    private function closeOnBehalfOfRequester(int $ticketId, array $viewer, array $ticket, array $input): void
+    {
+        $note = trim((string) ($input['closure_note'] ?? ''));
+        if ($note === '') {
+            throw new DomainException('กรุณาระบุเหตุผลที่ปิดงานแทนผู้แจ้ง (เช่น ผู้แจ้งลาออก/ไม่ตอบกลับ)');
+        }
+        require_max_bytes($note, self::MAX_TEXT_BYTES, 'เหตุผลที่ปิดงานแทนผู้แจ้ง');
+
+        $this->tickets->completeResolvedTicket(
+            $ticketId,
+            (int) ($viewer['id'] ?? 0),
+            isset($ticket['assigned_technician_id']) ? (int) $ticket['assigned_technician_id'] : null,
+            $note,
+            null, // ไม่บันทึกคะแนน — ดูเหตุผลใน docblock
+            '',
+            (string) ($ticket['status'] ?? 'resolved'),
+            true
         );
         $this->notifications->notifyTicketEvent($ticketId, 'ticket.completed', (int) ($viewer['id'] ?? 0));
     }

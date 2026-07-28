@@ -836,13 +836,25 @@ class TicketRepository
      * @throws DomainException เมื่อสถานะถูกเปลี่ยนหรือผู้ทำไม่ใช่ requester (re-check ใต้ lock ไม่ผ่าน)
      * @throws Throwable เมื่อ write ใด ๆ ล้มเหลว (rollback tx ก่อน rethrow)
      */
-    public function completeResolvedTicket(int $ticketId, int $actorId, ?int $technicianId, string $closureNote, int $score, string $feedback, string $currentStatus): void
+    /**
+     * @param int|null $score คะแนน 1–5 ของผู้แจ้ง; null = ปิดแทนโดยแอดมิน (ไม่บันทึก rating)
+     * @param bool $onBehalfByAdmin true = แอดมินปิดแทนผู้แจ้ง — ข้ามการตรวจว่าผู้ทำเป็น requester
+     *                              (สิทธิ์ตรวจแล้วที่ TicketPolicy::canAdminCompleteOnBehalf) ส่วนการตรวจ
+     *                              สถานะใต้ lock ยังเหมือนเดิมทุกประการ
+     */
+    public function completeResolvedTicket(int $ticketId, int $actorId, ?int $technicianId, string $closureNote, ?int $score, string $feedback, string $currentStatus, bool $onBehalfByAdmin = false): void
     {
         $completedAt = date('Y-m-d H:i:s');
 
         try {
             $this->db->beginTransaction();
-            $this->lockTicketForTransition($ticketId, ['resolved'], 'approved', 'requester_id', $actorId);
+            $this->lockTicketForTransition(
+                $ticketId,
+                ['resolved'],
+                'approved',
+                $onBehalfByAdmin ? null : 'requester_id',
+                $onBehalfByAdmin ? null : $actorId
+            );
 
             $ticketStmt = $this->db->prepare(
                 'UPDATE tickets
@@ -860,15 +872,20 @@ class TicketRepository
                 'ticket_id' => $ticketId,
             ]);
 
-            $this->upsertTicketRating($ticketId, $actorId, $technicianId, $score, $feedback, $completedAt);
+            if ($onBehalfByAdmin) {
+                // ไม่บันทึก rating: คะแนนความพึงพอใจต้องมาจากผู้แจ้งเท่านั้น งานที่ปิดแทนจึงไม่เข้าฐาน CSAT
+                $details = 'ผู้ดูแลระบบยืนยันปิดงานแทนผู้แจ้ง | เหตุผล: ' . $closureNote;
+            } else {
+                $this->upsertTicketRating($ticketId, $actorId, $technicianId, (int) $score, $feedback, $completedAt);
 
-            $details = 'ผู้แจ้งยืนยันผลการดำเนินงาน';
-            if ($closureNote !== '') {
-                $details .= ' | หมายเหตุปิดงาน: ' . $closureNote;
-            }
-            $details .= ' | คะแนนความพึงพอใจ: ' . $score . '/5';
-            if ($feedback !== '') {
-                $details .= ' | ความเห็น: ' . $feedback;
+                $details = 'ผู้แจ้งยืนยันผลการดำเนินงาน';
+                if ($closureNote !== '') {
+                    $details .= ' | หมายเหตุปิดงาน: ' . $closureNote;
+                }
+                $details .= ' | คะแนนความพึงพอใจ: ' . $score . '/5';
+                if ($feedback !== '') {
+                    $details .= ' | ความเห็น: ' . $feedback;
+                }
             }
 
             $this->insertActivityLog($ticketId, $actorId, 'ticket_completed', $currentStatus, 'completed', $details);

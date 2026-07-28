@@ -1410,3 +1410,88 @@ test('workflow(reassign): a response nobody has answered yet still resets for th
         wf_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$spare]);
     }
 });
+
+// ── H-3: ทางตัน "ปิดงานไม่ได้ × ปิดบัญชีไม่ได้" ──
+// งาน resolved เดิมมีแต่ผู้แจ้งเท่านั้นที่ยืนยันปิดได้ และผู้ใช้ที่ยังมีงานค้าง (resolved นับเป็นค้าง) ก็ปิดบัญชี
+// ไม่ได้ พอพนักงานลาออกจึงตัน: คนเดียวที่ปิดงานได้คือคนที่ไม่อยู่แล้ว บัญชีเลยค้างเปิดตลอดกาลและงานค้าง
+// ถาวรจนตัวเลขงานค้างเพี้ยน. เจ้าของตัดสินให้แอดมินปิดแทนได้ โดยต้องมีเหตุผลและบันทึกใน activity log.
+function wf_completed_log(int $ticketId): string
+{
+    return (string) (wf_pdo()->query(
+        "SELECT details FROM ticket_activity_logs
+         WHERE ticket_id = $ticketId AND action = 'ticket_completed' ORDER BY id DESC LIMIT 1"
+    )->fetchColumn() ?: '');
+}
+
+test('workflow H-3: an admin can close a resolved ticket on behalf of a requester who has left, and it is logged as such', function (): void {
+    $id = wf_drive_to_status('resolved');
+
+    try {
+        wf_service()->completeResolvedTicket($id, ['id' => 4, 'role' => 'admin'], [
+            'closure_note' => 'ผู้แจ้งลาออกแล้ว ไม่มีผู้ยืนยัน',
+        ]);
+
+        assert_same('completed', (string) wf_state($id)['status'], 'the abandoned ticket can finally be closed');
+        $log = wf_completed_log($id);
+        assert_contains_str('ผู้ดูแลระบบยืนยันปิดงานแทนผู้แจ้ง', $log, 'the log says an admin closed it, not that the requester confirmed');
+        assert_contains_str('ผู้แจ้งลาออกแล้ว', $log, 'the admin reason is preserved in the audit trail');
+        assert_same(
+            0,
+            (int) wf_pdo()->query("SELECT COUNT(*) FROM ticket_ratings WHERE ticket_id = $id")->fetchColumn(),
+            'no satisfaction score is invented on the requester behalf — CSAT must stay the customer voice'
+        );
+    } finally {
+        wf_cleanup($id);
+    }
+});
+
+test('workflow H-3: closing on behalf requires a reason', function (): void {
+    $id = wf_drive_to_status('resolved');
+
+    try {
+        wf_reject(
+            fn () => wf_service()->completeResolvedTicket($id, ['id' => 4, 'role' => 'admin'], ['closure_note' => '']),
+            $id,
+            'admin close without a reason'
+        );
+    } finally {
+        wf_cleanup($id);
+    }
+});
+
+test('workflow H-3: the requester still closes their own ticket normally, with the rating recorded', function (): void {
+    $id = wf_drive_to_status('resolved');
+
+    try {
+        wf_service()->completeResolvedTicket($id, ['id' => 1, 'role' => 'requester'], [
+            'score' => 4,
+            'closure_note' => 'เรียบร้อยดี',
+            'feedback' => 'ขอบคุณครับ',
+        ]);
+
+        assert_same('completed', (string) wf_state($id)['status'], 'the normal closure path is untouched');
+        assert_same(4, (int) wf_pdo()->query("SELECT score FROM ticket_ratings WHERE ticket_id = $id")->fetchColumn(), 'the requester rating is still recorded');
+        assert_contains_str('ผู้แจ้งยืนยันผลการดำเนินงาน', wf_completed_log($id), 'the log still credits the requester when they confirm it themselves');
+    } finally {
+        wf_cleanup($id);
+    }
+});
+
+test('workflow H-3: closing on behalf is admin-only — manager and technician are still refused', function (): void {
+    $id = wf_drive_to_status('resolved');
+
+    try {
+        wf_reject(
+            fn () => wf_service()->completeResolvedTicket($id, ['id' => 2, 'role' => 'manager'], ['closure_note' => 'ปิดแทน']),
+            $id,
+            'manager close on behalf'
+        );
+        wf_reject(
+            fn () => wf_service()->completeResolvedTicket($id, ['id' => 3, 'role' => 'technician'], ['closure_note' => 'ปิดแทน']),
+            $id,
+            'technician close on behalf'
+        );
+    } finally {
+        wf_cleanup($id);
+    }
+});

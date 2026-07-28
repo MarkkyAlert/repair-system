@@ -442,12 +442,13 @@ if (!empty($workflow['canReview'])) {
         </section>
     <?php endif; ?>
 
-    <!-- การยืนยันของผู้แจ้ง -->
-    <?php if (!empty($workflow['requesterCanAct'])): ?>
+    <!-- การยืนยันของผู้แจ้ง (หรือแอดมินปิดแทนเมื่อผู้แจ้งไม่กลับมายืนยันแล้ว) -->
+    <?php if (!empty($workflow['requesterCanAct']) || !empty($workflow['canCloseOnBehalf'])): ?>
+        <?php $isOnBehalfOnly = empty($workflow['requesterCanAct']); ?>
         <section class="panel-card stack-md">
             <div class="panel-head">
-                <h2 class="panel-title">การดำเนินการของผู้แจ้ง</h2>
-                <span class="badge badge-info">ผู้แจ้ง</span>
+                <h2 class="panel-title"><?= $isOnBehalfOnly ? 'การดำเนินการแทนผู้แจ้ง' : 'การดำเนินการของผู้แจ้ง' ?></h2>
+                <span class="badge badge-info"><?= $isOnBehalfOnly ? 'ผู้ดูแลระบบ' : 'ผู้แจ้ง' ?></span>
             </div>
 
             <?php if (!empty($workflow['canCancel'])): ?>
@@ -509,7 +510,25 @@ if (!empty($workflow['canReview'])) {
                 </form>
             <?php endif; ?>
 
-            <?php if (empty($workflow['canComplete']) && empty($workflow['canReopen']) && empty($workflow['canCancel'])): ?>
+            <?php if (!empty($workflow['canCloseOnBehalf'])): ?>
+                <form method="post" action="<?= e(url('/tickets/' . $ticket['id'] . '/complete')) ?>" class="action-form action-form-info" id="action-close-on-behalf">
+                    <?= csrf_field() ?>
+                    <div class="action-form-head">
+                        <span class="action-form-icon tone-info"><?= lucide('shield-check', 'h-5 w-5') ?></span>
+                        <div>
+                            <h3>ปิดงานแทนผู้แจ้ง</h3>
+                            <p>ใช้เมื่อผู้แจ้งไม่กลับมายืนยันแล้ว เช่น ลาออกหรือย้ายหน่วยงาน · ระบบจะบันทึกว่าปิดโดยผู้ดูแลระบบ และไม่บันทึกคะแนนความพึงพอใจ</p>
+                        </div>
+                    </div>
+                    <div class="field-group">
+                        <label for="close_on_behalf_note" class="field-label">เหตุผลที่ปิดแทน <span class="required">*</span></label>
+                        <textarea id="close_on_behalf_note" name="closure_note" class="input" rows="3" required placeholder="เช่น ผู้แจ้งลาออกแล้ว ติดต่อไม่ได้"><?= e((string) ($workflow['defaults']['closure_note'] ?? '')) ?></textarea>
+                    </div>
+                    <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ปิดงานแทนผู้แจ้ง', 'variant' => 'secondary', 'icon' => 'shield-check']) ?>
+                </form>
+            <?php endif; ?>
+
+            <?php if (empty($workflow['canComplete']) && empty($workflow['canReopen']) && empty($workflow['canCancel']) && empty($workflow['canCloseOnBehalf'])): ?>
                 <?= render_partial('partials/components/empty-state', [
                     'icon' => 'clipboard-list',
                     'title' => 'ยังไม่ถึงขั้นตอนของผู้แจ้ง',

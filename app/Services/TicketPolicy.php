@@ -89,6 +89,20 @@ class TicketPolicy
             && (string) ($ticket['status'] ?? '') === 'resolved';
     }
 
+    /**
+     * แอดมินปิดงานแทนผู้แจ้งที่ไม่กลับมายืนยันแล้ว (เช่น ลาออก/ย้ายหน่วยงาน).
+     * ปกติงานสถานะ resolved มีแต่ผู้แจ้งเท่านั้นที่ปิดได้ แต่ผู้ใช้ที่ยังมีงานค้างก็ปิดบัญชีไม่ได้เช่นกัน
+     * (AdminRepository::updateUser) — พอคนลาออกจึงเกิดทางตัน: ปิดงานก็ไม่ได้ ปิดบัญชีก็ไม่ได้
+     * งานค้างเป็น resolved ถาวรและดันตัวเลขงานค้างเพี้ยนไปเรื่อย ๆ. ทางออกนี้ให้แอดมิน (เท่านั้น) ปิดให้จบได้
+     * โดยบันทึก activity log ว่าเป็นการปิดแทน ไม่ใช่ผู้แจ้งกดเอง.
+     */
+    public function canAdminCompleteOnBehalf(array $ticket, array $viewer): bool
+    {
+        return (string) ($viewer['role'] ?? Role::GUEST) === Role::ADMIN
+            && (string) ($ticket['approval_status'] ?? '') === 'approved'
+            && (string) ($ticket['status'] ?? '') === 'resolved';
+    }
+
     public function canRequesterReopenTicket(array $ticket, array $viewer): bool
     {
         // มีแต่ ticket สถานะ resolved (รอการยืนยัน) เท่านั้นที่ส่งกลับไปทำใหม่ได้. ticket ที่ completed แล้วถือเป็น
