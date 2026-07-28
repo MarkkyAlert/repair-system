@@ -25,6 +25,15 @@ foreach (['email_queue', 'login_attempts', 'export_jobs'] as $volatileLogTable) 
     $GLOBALS['__container']->get(PDO::class)->exec("DELETE FROM {$volatileLogTable}");
 }
 
+// Warm the per-process setting() cache once. setting() memoizes each key on first read, so a query-count test
+// that runs before anything warmed a key would see one extra query per key and read high — making those counts
+// depend on run order. Warming every existing key up front makes the counts stable no matter the order (matching
+// the warm cache the fixed order happened to provide). Only real keys are warmed; tests that write new keys still
+// query for them.
+foreach ($GLOBALS['__container']->get(App\Repositories\SettingsRepository::class)->all() as $settingRow) {
+    setting((string) ($settingRow['setting_key'] ?? ''));
+}
+
 foreach (glob(__DIR__ . '/cases/*.php') as $case) {
     require $case;
 }

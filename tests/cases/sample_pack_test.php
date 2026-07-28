@@ -70,6 +70,7 @@ test('query-count(sample pack): each report is collected once, not once per form
     $baselineId = (int) sp_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM export_jobs')->fetchColumn();
 
     try {
+        sp_service()->generateSamplePack($admin); // warm caches (settings + absent-key misses) so the count is order-safe
         $queries = count_queries(fn () => sp_service()->generateSamplePack($admin));
         assert_true($queries <= 26, "sample pack must collect data once per report, not per format (got $queries, was ~42)");
     } finally {

@@ -81,6 +81,10 @@ function with_failing_pdo(string $failOnSql, callable $fn, int $skip = 0): void
     try {
         $fn();
     } finally {
+        // A failure injected mid-createTicket can leave the disposable connection holding the ticket-number
+        // GET_LOCK (the nested path relies on the connection ending to release it). Release it before discarding
+        // the connection, or the next test's createTicket blocks on GET_LOCK. See test_release_stale_named_locks.
+        test_release_stale_named_locks($failing);
         $container->instance(PDO::class, $original); // restore for every other test
     }
 }

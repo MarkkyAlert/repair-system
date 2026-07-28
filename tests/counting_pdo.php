@@ -62,6 +62,27 @@ class CountingPdo extends PDO
     }
 }
 
+/**
+ * Release the per-day named locks (ticket-number-YYYYMMDD / work-order-number-YYYYMMDD) a disposable test
+ * connection may still hold. createTicket's nested path — a caller owning the transaction (guest-convert) — skips
+ * releaseNamedLock and relies on the CONNECTION ENDING to auto-release the GET_LOCK. That is true in a web request
+ * but not for a swapped test connection that a cached service keeps alive: it goes on holding the lock and blocks
+ * the next test's GET_LOCK ("ระบบกำลังสร้างเลข Ticket"). MariaDB 10.4 has no RELEASE_ALL_LOCKS, so release the known
+ * names for a small date window. RELEASE_LOCK on a lock this connection does not hold is a harmless no-op.
+ */
+function test_release_stale_named_locks(PDO $connection): void
+{
+    foreach (['ticket-number-', 'work-order-number-'] as $prefix) {
+        for ($day = -1; $day <= 1; $day++) {
+            try {
+                $connection->prepare('SELECT RELEASE_LOCK(?)')->execute([$prefix . date('Ymd', strtotime("{$day} day"))]);
+            } catch (\Throwable) {
+                // best-effort cleanup
+            }
+        }
+    }
+}
+
 /** Run $fn with the container PDO swapped for a fresh CountingPdo; return the number of queries it issued. */
 function count_queries(callable $fn): int
 {
@@ -89,6 +110,7 @@ function count_queries(callable $fn): int
 
         return $counting->count;
     } finally {
+        test_release_stale_named_locks($counting); // don't let a lock on the disposable connection block later tests
         $container->instance(PDO::class, $original);
     }
 }
