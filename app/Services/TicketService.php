@@ -10,6 +10,11 @@ use DomainException;
 use PDO;
 use Throwable;
 
+/**
+ * ตัวประสานงานฝั่ง ticket ที่ controller เรียกใช้ — สร้างงานใหม่ (เป็นเจ้าของ transaction ครอบทั้งการ INSERT และงาน
+ * ที่เกี่ยวข้อง) และประกอบ view-model ของหน้ารายละเอียด/คิว. การเปลี่ยนสถานะตามวงจรชีวิตแยกไปอยู่
+ * TicketWorkflowService ส่วนการอ่านตามสิทธิ์อยู่ TicketReadRepository.
+ */
 class TicketService
 {
     public function __construct(

@@ -145,7 +145,7 @@ function intended_path(): string
 
 function sanitize_return_path(string $path): string
 {
-    // Control bytes make PHP reject the Location header entirely, leaving successful actions without a redirect.
+    // control byte จะทำให้ PHP ปฏิเสธ header Location ทั้งอัน งานที่สำเร็จแล้วเลยค้างอยู่โดยไม่ถูก redirect ต่อ.
     if (preg_match('/[\x00-\x1F\x7F]/', $path) === 1) {
         return '/dashboard';
     }

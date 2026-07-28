@@ -66,8 +66,8 @@ if (!is_dir($backupDir) && !mkdir($backupDir, 0775, true) && !is_dir($backupDir)
 
 $timeoutSeconds = max(1, (int) env('BACKUP_TIMEOUT_SECONDS', 900));
 if (!$dryRun) {
-    // "e" sets close-on-exec: mysqldump and any descendants cannot inherit this lock if the worker kills them.
-    // Keep the handle alive through dump + rotation + heartbeat so two live workers never write the same filename.
+    // flag "e" คือ close-on-exec: mysqldump และโปรเซสลูกหลานของมันจะไม่สืบทอด lock นี้ไป ถ้า worker สั่ง kill ทิ้ง.
+    // ถือ handle ไว้ตลอดตั้งแต่ dump + หมุนไฟล์เก่า + heartbeat เพื่อไม่ให้ worker สองตัวเขียนไฟล์ชื่อเดียวกันชนกัน.
     $lockHandle = @fopen($backupDir . '/.backup.lock', 'ce');
     if (!is_resource($lockHandle)) {
         fwrite(STDERR, 'Cannot open the backup process lock.' . PHP_EOL);

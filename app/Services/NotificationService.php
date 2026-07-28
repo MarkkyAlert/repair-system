@@ -10,6 +10,10 @@ use App\Repositories\UserRepository;
 use DomainException;
 use Throwable;
 
+/**
+ * ศูนย์กลางการแจ้งเตือน — ยิงเหตุการณ์ของ ticket ออกทั้งช่องทางในแอปและอีเมล ตามการตั้งค่าของผู้รับแต่ละคน
+ * (เคารพ notification_preferences). ช่องทางหนึ่งล้มเหลวถูกนับเป็น notify_failed โดยไม่ทำให้งานหลักที่กำลังทำอยู่ล้ม.
+ */
 class NotificationService
 {
     public const NOTIFICATION_TYPES = [

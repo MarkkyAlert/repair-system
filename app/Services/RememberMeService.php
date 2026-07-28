@@ -7,6 +7,10 @@ use App\Core\AuthManager;
 use App\Core\Session;
 use App\Repositories\UserRepository;
 
+/**
+ * วงจรชีวิตของ "จดจำการเข้าสู่ระบบ" (remember-me) — ออก/ตรวจ/เพิกถอน token ที่เก็บเป็น sha256 hash ในตาราง users
+ * และผูกกับคุกกี้. ใช้คู่กับ AuthService ตอนล็อกอิน เปลี่ยนรหัสผ่าน และออกจากระบบ.
+ */
 class RememberMeService
 {
     public const COOKIE_NAME = 'remember_me';

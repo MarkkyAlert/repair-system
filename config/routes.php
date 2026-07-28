@@ -22,6 +22,7 @@ use App\Core\Router;
 use App\Core\Response;
 
 return static function (Router $router): void {
+    // ── ติดตั้งครั้งแรก + ยืนยันตัวตน (เข้าสู่ระบบ / ลืม–รีเซ็ต–เปลี่ยนรหัส) + โปรไฟล์และการตั้งค่าแจ้งเตือนของตัวเอง ──
     $router->get('/setup', [SetupController::class, 'show']);
     $router->post('/setup', [SetupController::class, 'execute']);
     $router->get('/', [AuthController::class, 'home']);
@@ -42,12 +43,14 @@ return static function (Router $router): void {
     $router->post('/profile/notifications', [AuthController::class, 'updateNotificationPreferences']);
     $router->post('/profile/security/revoke-remember-me', [AuthController::class, 'revokeRememberMe']);
     $router->get('/branding/logo', [BrandingController::class, 'showLogo']);
+    // ── แดชบอร์ด + การแจ้งเตือนในแอป ──
     $router->get('/dashboard', [DashboardController::class, 'index']);
     $router->get('/notifications', [NotificationsController::class, 'index']);
     $router->get('/notifications/feed', [NotificationsController::class, 'feed']);
     $router->post('/notifications/read-all', [NotificationsController::class, 'readAll']);
     $router->post('/notifications/ticket/{ticketId}/read', [NotificationsController::class, 'readTicket']);
     $router->post('/notifications/{notificationId}/read', [NotificationsController::class, 'read']);
+    // ── หลังบ้านผู้ดูแลระบบ: สำรองข้อมูล / ผู้ใช้ / ข้อมูลหลัก (แผนก-หมวด-สถานที่-ความสำคัญ) / อีเมล / ตั้งค่า ──
     $router->get('/admin', [AdminController::class, 'index']);
     $router->post('/admin/backup/download', [AdminController::class, 'downloadBackup']);
     $router->post('/admin/users', [AdminController::class, 'createUser']);
@@ -85,6 +88,7 @@ return static function (Router $router): void {
     $router->post('/admin/settings/logo', [AdminController::class, 'updateLogo']);
     $router->post('/admin/setup-checklist/dismiss', [AdminController::class, 'dismissSetupChecklist']);
     $router->post('/admin/demo-data/load', [AdminController::class, 'loadDemoData']);
+    // ── รายงานและการส่งออก (หน้าจอ + ส่งออก CSV / Excel / PDF ต่อรายงาน) ──
     $router->get('/reports', [ReportsController::class, 'index']);
     $router->get('/reports/guide', [ReportsController::class, 'guide']);
     $router->post('/reports/sample-pack', [ReportsController::class, 'samplePack']);
@@ -127,7 +131,9 @@ return static function (Router $router): void {
     $router->post('/reports/csat/export/csv', [ReportsController::class, 'exportCsatCsv']);
     $router->post('/reports/csat/export/excel', [ReportsController::class, 'exportCsatExcel']);
     $router->post('/reports/csat/export/pdf', [ReportsController::class, 'exportCsatPdf']);
+    // ── ไฟล์แนบของ ticket ──
     $router->get('/attachments/{attachmentId}', [AttachmentsController::class, 'show']);
+    // ── ทะเบียนทรัพย์สิน + QR (เส้นทางเก่า /assets ชี้ทางไป /asset-registry) ──
     $router->get('/assets', static fn () => Response::redirect('/asset-registry', 301));
     $router->get('/asset-registry', [AssetsController::class, 'index']);
     $router->get('/asset-registry/create', [AssetsController::class, 'create']);
@@ -144,15 +150,18 @@ return static function (Router $router): void {
     $router->post('/asset-registry/{assetId}/qr/regenerate', [AssetsController::class, 'regenerateQr']);
     $router->get('/asset-registry/{assetId}/qr.png', [AssetsController::class, 'qrPng']);
     $router->get('/asset-registry/{assetId}', [AssetsController::class, 'show']);
+    // ── สาธารณะ ไม่ต้องล็อกอิน: สแกน QR แจ้งซ่อม + ติดตามสถานะงาน ──
     $router->get('/scan/{token}', [ScanController::class, 'show']);
     $router->get('/scan/{token}/report', [ScanController::class, 'showReport']);
     $router->post('/scan/{token}/report', [ScanController::class, 'submitReport']);
     $router->get('/track', [GuestStatusController::class, 'form']);
     $router->post('/track', [GuestStatusController::class, 'lookup']);
+    // ── ผู้ดูแล: กล่องคำขอจาก guest (อนุมัติแปลงเป็นงาน / ปฏิเสธ) ──
     $router->get('/admin/guest-requests', [GuestRequestController::class, 'index']);
     $router->get('/admin/guest-requests/state', [GuestRequestController::class, 'state']);
     $router->post('/admin/guest-requests/{requestId}/convert', [GuestRequestController::class, 'convert']);
     $router->post('/admin/guest-requests/{requestId}/reject', [GuestRequestController::class, 'reject']);
+    // ── งานแจ้งซ่อม: คิว / สร้าง / เปลี่ยนสถานะตามวงจรชีวิต / คอมเมนต์ / พิมพ์ (เส้นทาง {ticketId} ตายตัวมาก่อน wildcard ตัวจับทั้งหมดท้ายสุด) ──
     $router->get('/tickets', [TicketsController::class, 'index']);
     $router->get('/tickets/state', [TicketsController::class, 'queueState']);
     $router->get('/tickets/create', [TicketsController::class, 'create']);

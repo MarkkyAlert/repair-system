@@ -347,8 +347,8 @@ class DemoDataService
             $firstResolvedAt = $reopen ? date('Y-m-d H:i:s', $reqTs + 4 * 3600) : $resolvedAt;
             $reopenedAt = $reopen ? date('Y-m-d H:i:s', $reqTs + 12 * 3600) : null;
 
-            // Reopen starts a new reporting cycle. Current ticket/work-order fields describe that latest cycle,
-            // while the first cycle remains frozen in SLA/activity history.
+            // การเปิดงานซ้ำเริ่มรอบรายงานใหม่. ฟิลด์ปัจจุบันของ ticket/work-order สะท้อนรอบล่าสุด
+            // ส่วนรอบแรกถูกแช่แข็งไว้ในประวัติ SLA/activity.
             $assignedAt = $reopen ? $reopenedAt : $initialAssignedAt;
             $firstResponseAt = $reopen ? date('Y-m-d H:i:s', $reqTs + 12 * 3600 + 5 * 60) : $initialResponseAt;
             $startedAt = $reopen ? date('Y-m-d H:i:s', $reqTs + 12 * 3600 + 10 * 60) : $initialStartedAt;
@@ -438,7 +438,7 @@ class DemoDataService
                 );
             }
 
-            // First lifecycle cycle.
+            // รอบแรกของวงจรชีวิตงาน
             $this->seedSlaCycle($ticketId, 'response', $initialResponseDue, $initialResponseAt, 1);
             $this->seedSlaCycle($ticketId, 'resolution', $initialResolutionDue, $firstResolvedAt, 1);
             $this->tickets->createSeedActivityLog($ticketId, $createdByUserId, 'technician_assigned', 'approved', 'assigned', (string) $initialAssignedAt);

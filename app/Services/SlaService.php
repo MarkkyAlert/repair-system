@@ -8,6 +8,10 @@ use App\Repositories\TicketReadRepository;
 use App\Repositories\TicketRepository;
 use Throwable;
 
+/**
+ * งานเบื้องหลังที่กวาด SLA track ซึ่งเลยกำหนดแล้วแต่ยัง pending ให้กลายเป็น breached แล้วยิงแจ้งเตือนครั้งเดียวต่อรอบ
+ * — idempotent: รันซ้ำจะไม่ breach หรือแจ้งซ้ำ. เรียกจากงานตามเวลา (bin/check-overdue-tickets.php) ไม่ใช่ตอน request.
+ */
 class SlaService
 {
     public function __construct(

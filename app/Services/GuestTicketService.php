@@ -10,6 +10,10 @@ use PDO;
 use RuntimeException;
 use Throwable;
 
+/**
+ * คำขอแจ้งซ่อมจาก guest (สแกน QR โดยไม่ต้องล็อกอิน) — รับคำขอ, หน้าจัดการของผู้ดูแล, และการ "แปลง" คำขอที่อนุมัติ
+ * ให้กลายเป็น ticket จริงในทรานแซกชันเดียว (สร้าง ticket + ผูกกลับไปที่คำขอเดิม).
+ */
 class GuestTicketService
 {
     private const RATE_LIMIT_MAX = 3;

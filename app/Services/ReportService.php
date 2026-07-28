@@ -11,6 +11,11 @@ use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use RuntimeException;
 
+/**
+ * เครื่องมือประกอบรายงานและส่งออกทั้งหมด (ภาพรวม/สรุปผู้บริหาร/SLA/ผลงานช่าง/พื้นที่ปัญหา/แนวโน้ม/CSAT/งานเปิดซ้ำ/
+ * งานค้าง/สุขภาพทรัพย์สิน) — อ่านข้อมูลผ่าน ReportRepository แล้วคำนวณ %/ค่าเฉลี่ย/โทนสี. กติกา "ตัดยอดตามช่วงเวลา
+ * ที่เลือก (as-of) ไม่ใช่เวลาปัจจุบัน" และการกันหารด้วยศูนย์อยู่ในชั้นนี้ ; การเขียนไฟล์ส่งออกผ่าน ReportExporter.
+ */
 class ReportService
 {
     public function __construct(

@@ -8,6 +8,11 @@ use PDO;
 use RuntimeException;
 use Throwable;
 
+/**
+ * ชั้นข้อมูลฝั่ง "เขียน" ของ ticket — สร้างงาน, อนุมัติ/ปฏิเสธ, มอบหมายช่าง, รับ/เริ่ม/สรุปผล, ปิด/เปิดซ้ำ/ยกเลิก
+ * รวมถึงสร้าง work order และ SLA track. เป็นเจ้าของ transaction ตอนสร้างงาน และถือ named lock ต่อวันเพื่อออกเลข
+ * ticket ไม่ให้ซ้ำ. ส่วนการ "อ่าน" ที่กรองตามสิทธิ์การมองเห็นแยกไปอยู่ TicketReadRepository.
+ */
 class TicketRepository
 {
     public function __construct(private PDO $db)
@@ -91,9 +96,8 @@ class TicketRepository
                 $this->db->beginTransaction();
             }
 
-            // Serialize with AdminRepository::updateUser(): without this under-lock recheck, an admin could
-            // deactivate a requester after the form passed auth but before this INSERT, leaving a new open
-            // ticket owned by an inactive account.
+            // เข้าคิวชนกับ AdminRepository::updateUser(): ถ้าไม่ recheck ใต้ lock ตรงนี้ แอดมินอาจปิดบัญชีผู้แจ้ง
+            // หลังฟอร์มผ่าน auth แล้วแต่ยังไม่ทัน INSERT ทำให้ได้ ticket เปิดใหม่ที่เจ้าของเป็นบัญชีที่ถูกปิดไปแล้ว.
             $requesterStmt = $this->db->prepare(
                 'SELECT is_active
                  FROM users
@@ -290,9 +294,9 @@ class TicketRepository
         try {
             $this->db->beginTransaction();
 
-            // Serialize with AdminRepository::updateUser(): a manager request may have passed middleware just
-            // before an admin deactivated/demoted that account. Recheck under the same user-row lock used by
-            // updateUser so an inactive/non-manager account can never become the live ticket owner.
+            // เข้าคิวชนกับ AdminRepository::updateUser(): คำขอของ manager อาจผ่าน middleware มาแล้วพอดีก่อนที่แอดมิน
+            // จะปิดหรือลดสิทธิ์บัญชีนั้น. จึง recheck ใต้ lock แถว user ตัวเดียวกับที่ updateUser ใช้ เพื่อไม่ให้บัญชีที่
+            // ถูกปิดหรือไม่ใช่ manager แล้วกลายเป็นเจ้าของงานตัวจริงได้.
             if ($managerId !== null) {
                 $managerStmt = $this->db->prepare(
                     'SELECT role, is_active
