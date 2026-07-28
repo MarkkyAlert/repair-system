@@ -1556,6 +1556,11 @@ class TicketRepository
     /**
      * reset แถว SLA ของ cycle ล่าสุดกลับเป็น pending (ยังอยู่ใน cycle เดิม — ใช้ตอน reassign ที่ทำให้ response
      * ของช่างคนก่อนใช้ไม่ได้ แต่ไม่เริ่ม cycle ใหม่ของ lifecycle ส่วน reopen จะ append cycle แทน)
+     *
+     * reset ได้เฉพาะแถวที่ยัง pending เท่านั้น (AND status = 'pending'): ผลที่ตัดสินไปแล้วอย่าง met/breached
+     * คือประวัติของงวดที่รายงานไปแล้ว ห้ามแก้ทับ — ตรงกับสัญญาใน database/schema.sql ที่ว่ารอบเก่านิ่งถาวร
+     * และตรงกับ reopen ที่เลือก append cycle ใหม่แทนการทับของเดิม. ถ้าทับ ช่างคนเก่าที่ตอบทันเวลาจะกลายเป็น
+     * ตอบไม่ทันย้อนหลัง แล้ว cron ก็จะยิง breach ซ้ำให้อีกใบ.
      */
     private function resetSlaTrack(int $ticketId, string $metricType, string $targetAt): void
     {
@@ -1569,7 +1574,8 @@ class TicketRepository
                  achieved_at = NULL,
                  breached_at = NULL,
                  status = :status
-             WHERE ticket_id = :ticket_id AND metric_type = :metric_type AND cycle = :cycle'
+             WHERE ticket_id = :ticket_id AND metric_type = :metric_type AND cycle = :cycle
+               AND status = :pending_only'
         );
         $stmt->execute([
             'target_at' => $targetAt,
@@ -1577,6 +1583,7 @@ class TicketRepository
             'ticket_id' => $ticketId,
             'metric_type' => $metricType,
             'cycle' => $cycle,
+            'pending_only' => 'pending',
         ]);
     }
 

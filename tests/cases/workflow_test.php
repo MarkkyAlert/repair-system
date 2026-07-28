@@ -1339,3 +1339,74 @@ test('workflow(matrix): bulk approve is partial-per-item and matches all 10 sour
         }
     }
 });
+
+// ── H-1: การย้ายงานต้องไม่ลบผล SLA ที่ตัดสินไปแล้ว ──
+// reassign เรียก resetSlaTrack เพื่อให้ช่างคนใหม่เริ่มจาก pending. เดิมมันเขียนทับแถวเดิมทั้งหมด แปลว่า
+// response ที่ช่างคนเก่าตอบทันเวลา (met) ถูกลบกลับเป็น pending — งานที่ทันกลายเป็นเกิน SLA ย้อนหลัง,
+// รายงานงวดที่ปิดไปแล้วเปลี่ยนค่า, แล้ว cron ก็ยิง breach ซ้ำอีกใบ. ผลที่ตัดสินแล้วต้องนิ่ง
+// (เหมือน reopen ที่ append cycle ใหม่แทนการทับของเดิม) ส่วนงานที่ยังไม่มีใครตอบยังต้องย้ายได้ปกติ.
+function wf_response_track(int $ticketId): array
+{
+    return wf_pdo()->query(
+        "SELECT status, achieved_at FROM ticket_sla_tracks
+         WHERE ticket_id = $ticketId AND metric_type = 'response' ORDER BY cycle DESC LIMIT 1"
+    )->fetch(PDO::FETCH_ASSOC) ?: [];
+}
+
+function wf_spare_technician(string $suffix): int
+{
+    $pdo = wf_pdo();
+    $pdo->prepare(
+        'INSERT INTO users (username, password_hash, full_name, email, role, is_active, created_at, updated_at)
+         VALUES (?, ?, ?, ?, "technician", 1, NOW(), NOW())'
+    )->execute(["wfspare_$suffix", password_hash('x', PASSWORD_DEFAULT), "WF Spare $suffix", "wfspare_$suffix@x.test"]);
+
+    return (int) $pdo->lastInsertId();
+}
+
+test('workflow(reassign): a response SLA the previous technician already MET survives the reassign', function (): void {
+    $sfx = bin2hex(random_bytes(4));
+    $id = wf_drive_to_status('accepted');
+    $spare = wf_spare_technician($sfx);
+
+    try {
+        $before = wf_response_track($id);
+        assert_same('met', (string) ($before['status'] ?? ''), 'sanity: accepting inside the window records the response as met');
+        assert_true(($before['achieved_at'] ?? null) !== null, 'sanity: the achievement time is recorded');
+
+        wf_service()->assignTechnician($id, ['id' => 4, 'role' => 'admin'], [
+            'technician_id' => $spare,
+            'instructions' => 'ช่างเดิมลาป่วย',
+        ]);
+
+        $after = wf_response_track($id);
+        assert_same('met', (string) ($after['status'] ?? ''), 'a response that already happened stays met after the work moves to another technician');
+        assert_same((string) $before['achieved_at'], (string) ($after['achieved_at'] ?? ''), 'the time it was achieved is history and must not be rewritten');
+        assert_same($spare, (int) wf_state($id)['assigned_technician_id'], 'the reassign itself still works');
+    } finally {
+        wf_cleanup($id);
+        wf_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$spare]);
+    }
+});
+
+test('workflow(reassign): a response nobody has answered yet still resets for the new technician', function (): void {
+    $sfx = bin2hex(random_bytes(4));
+    $id = wf_drive_to_status('assigned'); // assigned but never accepted → response still pending
+    $spare = wf_spare_technician($sfx);
+
+    try {
+        assert_same('pending', (string) (wf_response_track($id)['status'] ?? ''), 'sanity: nobody has responded yet');
+
+        wf_service()->assignTechnician($id, ['id' => 4, 'role' => 'admin'], [
+            'technician_id' => $spare,
+            'instructions' => '',
+        ]);
+
+        $after = wf_response_track($id);
+        assert_same('pending', (string) ($after['status'] ?? ''), 'an unanswered response stays pending so the new technician still owes one');
+        assert_true(($after['achieved_at'] ?? null) === null, 'an unanswered response has no achievement time');
+    } finally {
+        wf_cleanup($id);
+        wf_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$spare]);
+    }
+});

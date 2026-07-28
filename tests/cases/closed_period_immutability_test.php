@@ -111,7 +111,7 @@ test('closed period(immutability): later workflow actions cannot change a finish
     try {
         // Two tickets created through the REAL flow, then back-dated into the closed period along with the SLA
         // rows the flow produced, so the period contains genuine history rather than hand-written rows.
-        foreach (['A', 'B'] as $tag) {
+        foreach (['A', 'B', 'C'] as $tag) {
             $id = $tickets->createTicket($requester, [
                 'submission_token' => bin2hex(random_bytes(32)),
                 'title' => "cpi-$tag",
@@ -124,6 +124,11 @@ test('closed period(immutability): later workflow actions cannot change a finish
             ], []);
             $wf->approveTicket($id, $admin, ['note' => '']);
             $wf->assignTechnician($id, $admin, ['technician_id' => 3, 'instructions' => '']);
+            if ($tag === 'C') {
+                // C's technician answers INSIDE the period, so the period closes holding a settled "met"
+                // verdict. That is the shape that exposes a later reassign rewriting decided history.
+                $wf->acceptAssignedWork($id, $tech, ['accept_note' => '']);
+            }
             $ids[$tag] = $id;
 
             $inPeriod = $monthStart->modify('+3 days')->format('Y-m-d H:i:s');
@@ -133,15 +138,27 @@ test('closed period(immutability): later workflow actions cannot change a finish
             $due = $tag === 'A'
                 ? $monthEnd->modify('+20 days')->format('Y-m-d H:i:s')
                 : $monthStart->modify('+4 days')->format('Y-m-d H:i:s');
+            $achievedInPeriod = $monthStart->modify('+3 days +1 hour')->format('Y-m-d H:i:s');
             $pdo->prepare('UPDATE tickets SET requester_department_id = ?, requested_at = ?, response_due_at = ?, resolution_due_at = ? WHERE id = ?')
                 ->execute([$deptId, $inPeriod, $due, $due, $id]);
             $pdo->prepare('UPDATE ticket_sla_tracks SET created_at = ?, target_at = ? WHERE ticket_id = ?')
                 ->execute([$inPeriod, $due, $id]);
             $pdo->prepare('UPDATE ticket_activity_logs SET created_at = ? WHERE ticket_id = ?')->execute([$inPeriod, $id]);
+            if ($tag === 'C') {
+                // drag the achievement back inside the period too, so the whole verdict belongs to the closed month
+                $pdo->prepare("UPDATE ticket_sla_tracks SET achieved_at = ? WHERE ticket_id = ? AND metric_type = 'response'")
+                    ->execute([$achievedInPeriod, $id]);
+                $pdo->prepare('UPDATE tickets SET first_response_at = ? WHERE id = ?')->execute([$achievedInPeriod, $id]);
+            }
         }
 
         $before = cpi_snapshot($filters);
-        assert_same(2, $before['summary']['total'], 'sanity: the closed period contains both tickets');
+        assert_same(3, $before['summary']['total'], 'sanity: the closed period contains all three tickets');
+        assert_same(
+            'met',
+            (string) $pdo->query("SELECT status FROM ticket_sla_tracks WHERE ticket_id = {$ids['C']} AND metric_type = 'response'")->fetchColumn(),
+            'sanity: C closed the period holding a settled met response'
+        );
         // Pin the two starting verdicts. If a future edit makes them identical the test would still "pass" while
         // having stopped discriminating, so the shapes themselves are asserted up front.
         $slaBefore = array_column($before['rows'], 'sla');
@@ -161,18 +178,31 @@ test('closed period(immutability): later workflow actions cannot change a finish
         $wf->startAssignedWork($ids['B'], $tech, ['start_note' => '']);
         $wf->resolveAssignedWork($ids['B'], $tech, ['diagnosis_summary' => 'd', 'resolution_summary' => 'r', 'labor_minutes' => '5']);
         $wf->reopenTicket($ids['B'], $requester, ['reopen_note' => 'ยังไม่หาย']);
+        // (4) ticket C is handed to a different technician months later. The reassign resets the response SLA so the
+        //     new technician owes a fresh one — but C's response was already ANSWERED and settled inside the closed
+        //     period, and that verdict is history. Rewriting it would turn an on-time answer into a breach months
+        //     after the fact, and re-arm the overdue cron to raise a second breach for the same metric.
+        $pdo->prepare(
+            'INSERT INTO users (username, password_hash, full_name, email, role, is_active, created_at, updated_at)
+             VALUES (?, ?, ?, ?, "technician", 1, NOW(), NOW())'
+        )->execute(["cpitech_$sfx", password_hash('x', PASSWORD_DEFAULT), "CpiTech $sfx", "cpitech_$sfx@x.test"]);
+        $spareTechId = (int) $pdo->lastInsertId();
+        $wf->assignTechnician($ids['C'], $admin, ['technician_id' => $spareTechId, 'instructions' => 'ช่างเดิมลาออก']);
 
         $after = cpi_snapshot($filters);
 
         assert_same(
             $before,
             $after,
-            'the closed period must report exactly what it reported before — accepting late, resolving and reopening '
-            . 'all happened AFTER it ended and cannot reach back into it'
+            'the closed period must report exactly what it reported before — accepting late, resolving, reopening '
+            . 'and reassigning all happened AFTER it ended and cannot reach back into it'
         );
     } finally {
         foreach ($ids as $id) {
             $pdo->prepare('DELETE FROM tickets WHERE id = ?')->execute([$id]);
+        }
+        if (isset($spareTechId)) {
+            $pdo->prepare('DELETE FROM users WHERE id = ?')->execute([$spareTechId]);
         }
         $pdo->prepare('DELETE FROM departments WHERE id = ?')->execute([$deptId]);
     }
