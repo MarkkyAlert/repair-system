@@ -185,3 +185,99 @@ test('reopen(integrity): a resolved ticket whose active technician was DEMOTED r
         rit_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$formerTech]);
     }
 });
+
+// ── B-3: งานที่ซ่อมไปแล้วต้องไม่จบด้วย "ยกเลิก" ──
+// สองกฎที่ถูกแยกกัน มาต่อกันเป็นทางที่ไม่ควรมี: resolved → เปิดซ้ำตอนช่างเดิมถูกปิดบัญชี (งานเด้งกลับเป็น approved
+// เพราะไม่มีช่าง) → ผู้แจ้งกดยกเลิกได้เพราะ approved อยู่ในสถานะที่ยกเลิกได้. ผลคือทรัพย์สินตัวนั้นเสียจริง ซ่อมจริง
+// แต่ประวัติหายจากรายงานความน่าเชื่อถือ (cancelled ถูกตัดออกจากฐาน) ขณะที่ชั่วโมงแรงงานยังถูกนับ = สองรายงานขัดกัน
+test('reopen B-3: a ticket that was already repaired cannot be cancelled away', function (): void {
+    $pdo = rit_pdo();
+    $wf = tvm_container()->get(App\Services\TicketWorkflowService::class);
+    $tickets = tvm_container()->get(App\Services\TicketService::class);
+    $reads = tvm_container()->get(App\Repositories\TicketReadRepository::class);
+    $ref = $reads->getCreateFormReferenceData();
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $tech = ['id' => 3, 'role' => 'technician'];
+    $requester = ['id' => 1, 'role' => 'requester'];
+    $ticketId = 0;
+
+    try {
+        $ticketId = $tickets->createTicket($requester, [
+            'submission_token' => bin2hex(random_bytes(32)),
+            'title' => 'B-3 cancel after work',
+            'description' => 'x',
+            'priority_id' => (int) $ref['priorities'][0]['id'],
+            'ticket_category_id' => (int) $ref['categories'][0]['id'],
+            'location_id' => (int) $ref['locations'][0]['id'],
+            'impact_level' => 'medium',
+            'urgency_level' => 'medium',
+        ], []);
+        $wf->approveTicket($ticketId, $admin, ['note' => '']);
+        $wf->assignTechnician($ticketId, $admin, ['technician_id' => 3, 'instructions' => '']);
+        $wf->acceptAssignedWork($ticketId, $tech, ['accept_note' => '']);
+        $wf->resolveAssignedWork($ticketId, $tech, ['diagnosis_summary' => 'd', 'resolution_summary' => 'r', 'labor_minutes' => 45]);
+
+        // ช่างถูกปิดบัญชี แล้วผู้แจ้งเปิดงานซ้ำ → งานเด้งกลับเป็น approved (ไม่มีช่าง)
+        $pdo->prepare('UPDATE users SET is_active = 0 WHERE id = 3')->execute();
+        $wf->reopenTicket($ticketId, $requester, ['reopen_note' => 'ยังไม่หาย']);
+        $pdo->prepare('UPDATE users SET is_active = 1 WHERE id = 3')->execute();
+        assert_same('approved', (string) $pdo->query("SELECT status FROM tickets WHERE id = $ticketId")->fetchColumn(), 'sanity: it lands back in the shared queue');
+
+        $threw = false;
+        try {
+            $wf->cancelTicket($ticketId, $requester, ['cancel_note' => 'ไม่เอาแล้ว']);
+        } catch (DomainException $e) {
+            $threw = true;
+            assert_contains_str('สรุปผลไปแล้ว', $e->getMessage(), 'the requester is told why, and what to do instead');
+        }
+        assert_true($threw, 'a repair that actually happened cannot be erased by cancelling');
+        assert_same('approved', (string) $pdo->query("SELECT status FROM tickets WHERE id = $ticketId")->fetchColumn(), 'the ticket keeps a status that preserves its history');
+
+        // และหน้าจอต้องไม่โชว์ฟอร์มยกเลิกให้กรอกจนเสร็จแล้วค่อยเด้ง error
+        $detail = $tickets->getTicketDetailData($ticketId, $requester, []);
+        assert_false((bool) $detail['workflow']['canCancel'], 'the cancel form is hidden, matching what the service allows');
+
+        // ไม่ได้ทำให้ค้างตลอดกาล — หัวหน้ามอบหมายช่างใหม่แล้วเดินต่อได้ตามปกติ
+        $wf->assignTechnician($ticketId, $admin, ['technician_id' => 3, 'instructions' => 'ให้ช่างคนใหม่ทำต่อ']);
+        assert_same('assigned', (string) $pdo->query("SELECT status FROM tickets WHERE id = $ticketId")->fetchColumn(), 'the ticket still has a way forward');
+    } finally {
+        $pdo->prepare('UPDATE users SET is_active = 1 WHERE id = 3')->execute();
+        if ($ticketId > 0) {
+            $pdo->prepare("DELETE FROM notifications WHERE related_type = 'ticket' AND related_id = ?")->execute([$ticketId]);
+            $pdo->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+        }
+    }
+});
+
+test('reopen B-3: a ticket nobody has worked on yet is still cancellable', function (): void {
+    $pdo = rit_pdo();
+    $wf = tvm_container()->get(App\Services\TicketWorkflowService::class);
+    $tickets = tvm_container()->get(App\Services\TicketService::class);
+    $ref = tvm_container()->get(App\Repositories\TicketReadRepository::class)->getCreateFormReferenceData();
+    $requester = ['id' => 1, 'role' => 'requester'];
+    $ticketId = 0;
+
+    try {
+        $ticketId = $tickets->createTicket($requester, [
+            'submission_token' => bin2hex(random_bytes(32)),
+            'title' => 'B-3 plain cancel',
+            'description' => 'x',
+            'priority_id' => (int) $ref['priorities'][0]['id'],
+            'ticket_category_id' => (int) $ref['categories'][0]['id'],
+            'location_id' => (int) $ref['locations'][0]['id'],
+            'impact_level' => 'medium',
+            'urgency_level' => 'medium',
+        ], []);
+
+        $detail = $tickets->getTicketDetailData($ticketId, $requester, []);
+        assert_true((bool) $detail['workflow']['canCancel'], 'the ordinary cancel is still offered — the guard is not over-broad');
+
+        $wf->cancelTicket($ticketId, $requester, ['cancel_note' => 'แจ้งผิด']);
+        assert_same('cancelled', (string) $pdo->query("SELECT status FROM tickets WHERE id = $ticketId")->fetchColumn(), 'and it still works');
+    } finally {
+        if ($ticketId > 0) {
+            $pdo->prepare("DELETE FROM notifications WHERE related_type = 'ticket' AND related_id = ?")->execute([$ticketId]);
+            $pdo->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+        }
+    }
+});

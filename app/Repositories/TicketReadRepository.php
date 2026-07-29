@@ -869,6 +869,25 @@ class TicketReadRepository
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
+    /**
+     * เคยมีช่างสรุปผลการซ่อมของ ticket ใบนี้ไปแล้วหรือยัง (เคยไปถึงสถานะ resolved อย่างน้อยหนึ่งครั้ง).
+     *
+     * อ่านจาก activity log เพราะเป็นร่องรอยเดียวที่ถาวรจริง: tickets.resolved_at ถูกล้างตอนเปิดงานซ้ำ ส่วน
+     * labor_minutes เป็น 0 ได้ถ้างานจบเร็วมาก — สองอันนั้นจึงตอบไม่ได้ว่าเคยมีการซ่อมเกิดขึ้นไหม แต่ log ไม่เคยถูกลบ
+     */
+    public function hasReportedWork(int $ticketId): bool
+    {
+        $stmt = $this->db->prepare(
+            "SELECT EXISTS(
+                SELECT 1 FROM ticket_activity_logs
+                WHERE ticket_id = :ticket_id AND action = 'ticket_resolved'
+             )"
+        );
+        $stmt->execute(['ticket_id' => $ticketId]);
+
+        return (bool) $stmt->fetchColumn();
+    }
+
     public function findActiveApproverIds(): array
     {
         $stmt = $this->db->query(

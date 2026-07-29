@@ -923,7 +923,11 @@ class TicketService
         // แอดมินปิดแทนผู้แจ้งที่ไม่กลับมายืนยัน — เฉพาะตอนที่ตัวเองไม่ใช่ผู้แจ้ง (ถ้าเป็นผู้แจ้งก็ใช้ปุ่มปกติ)
         $canCloseOnBehalf = !$requesterCanAct && $this->policy->canAdminCompleteOnBehalf($ticket, $viewer);
         $canReopen = $requesterCanAct && $this->policy->canRequesterReopenTicket($ticket, $viewer);
-        $canCancel = $requesterCanAct && $this->policy->canRequesterCancelTicket($ticket, $viewer);
+        // งานที่เคยถูกซ่อมและสรุปผลไปแล้วยกเลิกไม่ได้ (ดู TicketWorkflowService::cancelTicket) — ซ่อนฟอร์มให้ตรงกัน
+        // ไม่ใช่ให้กรอกเหตุผลจนเสร็จแล้วค่อยเด้ง error
+        $canCancel = $requesterCanAct
+            && $this->policy->canRequesterCancelTicket($ticket, $viewer)
+            && !$this->reads->hasReportedWork((int) ($ticket['id'] ?? 0));
         $canDuplicate = $this->policy->canDuplicateTicket($ticket, $viewer);
         $canComment = (int) ($viewer['id'] ?? 0) > 0;
         $canUseInternalComment = (string) ($viewer['role'] ?? 'guest') !== 'requester';
