@@ -544,3 +544,70 @@ test('comment(R5-4): an internal note stays internal on edit even when is_intern
         cm_cleanup($ticketId);
     }
 });
+
+// ── M-4: payload ของการแก้ inline ต้องคืน version ใหม่ ──
+// ฟอร์มพก original_version ไว้เป็น optimistic lock และถูก stamp ตอน render หน้าเพียงครั้งเดียว. พอแก้สำเร็จ
+// แถวใน DB ขยับเป็น version+1 แต่ payload เดิมไม่ได้บอกเลขใหม่กลับมา ฟอร์มจึงยังถือเลขเก่า → แก้ครั้งที่สอง
+// (ยังไม่ได้ refresh หน้า) โดนตีกลับว่า "ถูกแก้ไขโดยผู้ใช้อื่นแล้ว" ทั้งที่เป็นคนเดิมแก้ต่อของตัวเอง
+test('comment M-4: a successful inline edit returns the new version, so a second edit is not a false conflict', function (): void {
+    $ticketId = cm_seed_ticket();
+    [$commentId, $version] = cm_seed_comment($ticketId, cm_owner()['id']);
+
+    try {
+        $payload = cm_service()->updateComment($ticketId, $commentId, cm_owner(), [
+            'body' => 'แก้ครั้งแรก',
+            'submission_token' => cm_token(),
+            'original_version' => $version,
+        ]);
+
+        assert_same($version + 1, (int) ($payload['version'] ?? 0), 'the response carries the version the row now holds');
+        assert_same(cm_version($commentId), (int) ($payload['version'] ?? 0), 'and it matches the database');
+
+        // แก้ครั้งที่สองโดยใช้เลขที่เพิ่งได้กลับมา (คือสิ่งที่หน้าเว็บทำหลัง fix) ต้องผ่าน
+        cm_service()->updateComment($ticketId, $commentId, cm_owner(), [
+            'body' => 'แก้ครั้งที่สอง',
+            'submission_token' => cm_token(),
+            'original_version' => (int) $payload['version'],
+        ]);
+        assert_same('แก้ครั้งที่สอง', cm_body($commentId), 'the second edit lands instead of being rejected as someone else’s change');
+    } finally {
+        cm_cleanup($ticketId);
+    }
+});
+
+test('comment M-4: a genuine concurrent edit is still rejected', function (): void {
+    $ticketId = cm_seed_ticket();
+    [$commentId, $version] = cm_seed_comment($ticketId, cm_owner()['id']);
+
+    try {
+        // คนแรกบันทึกไปแล้ว
+        cm_service()->updateComment($ticketId, $commentId, cm_owner(), [
+            'body' => 'ของคนแรก',
+            'submission_token' => cm_token(),
+            'original_version' => $version,
+        ]);
+
+        // คนที่สองยังถือเลขเก่าจากหน้าที่เปิดค้างไว้ ต้องโดนกัน ไม่ใช่เขียนทับเงียบ ๆ
+        $threw = false;
+        try {
+            cm_service()->updateComment($ticketId, $commentId, cm_owner(), [
+                'body' => 'ของคนที่สอง',
+                'submission_token' => cm_token(),
+                'original_version' => $version,
+            ]);
+        } catch (DomainException $e) {
+            $threw = true;
+            assert_contains_str('ผู้ใช้อื่น', $e->getMessage(), 'and is told someone else got there first');
+        }
+        assert_true($threw, 'a stale version from another tab is still refused — the lock is not weakened');
+        assert_same('ของคนแรก', cm_body($commentId), 'the first writer’s text survives');
+    } finally {
+        cm_cleanup($ticketId);
+    }
+});
+
+test('comment M-4: the inline editor writes the returned version back into the form', function (): void {
+    $js = (string) file_get_contents(BASE_PATH . '/public/assets/js/ticket-detail.js');
+    assert_contains_str('original_version', $js, 'the editor knows about the lock field');
+    assert_contains_str('.version', $js, 'and reads the version the server returned');
+});

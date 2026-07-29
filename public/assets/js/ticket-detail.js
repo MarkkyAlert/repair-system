@@ -66,6 +66,11 @@ if (typeof window.__handleInlineCommentSave !== 'function') {
                 }
                 if (body) { body.textContent = String((data.comment || {}).body || ''); }
                 if (textarea instanceof HTMLTextAreaElement) { textarea.value = String((data.comment || {}).body || ''); }
+                // เลื่อน optimistic lock ของฟอร์มไปเป็นเลขใหม่ที่เพิ่งบันทึก ไม่งั้นการแก้ครั้งถัดไปจะส่งเลขเดิม
+                // ที่ถูกใช้ไปแล้ว แล้วโดนตีกลับว่า "คนอื่นแก้ไปแล้ว" ทั้งที่เป็นคนเดิมแก้ต่อเอง
+                var versionField = form.querySelector('[name="original_version"]');
+                var nextVersion = (data.comment || {}).version;
+                if (versionField && nextVersion) { versionField.value = String(nextVersion); }
                 if (badgeRoot) {
                     let badge = badgeRoot.querySelector('.badge');
                     if (!badge) { badge = document.createElement('span'); badgeRoot.appendChild(badge); }

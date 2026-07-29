@@ -114,6 +114,10 @@ class CommentService
             'id' => $commentId,
             'body' => $body,
             'is_internal' => $isInternal,
+            // คืนเลข version ใหม่ไปด้วย ฝั่งหน้าเว็บจะได้เอาไปใส่ในฟอร์มสำหรับการแก้ครั้งถัดไป. ถ้าไม่คืน
+            // ฟอร์มจะยังถือเลขเดิมที่ถูกใช้ไปแล้ว พอแก้ครั้งที่สองจะโดน optimistic lock ตีกลับว่า "คนอื่นแก้ไปแล้ว"
+            // ทั้งที่ไม่มีใครมายุ่ง. updateComment ผ่านมาได้แปลว่า version ตรงกับที่ส่งไป ค่าใหม่จึงเป็น +1 เสมอ
+            'version' => $originalVersion + 1,
             'visibility_label' => $isInternal ? 'Internal' : 'Public',
             'visibility_tone' => $isInternal ? 'warning' : 'default',
         ];
