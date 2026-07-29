@@ -57,8 +57,12 @@ test('admin user CRUD: create persists, and a stale second tab cannot overwrite 
 
     await formB.locator('input[name="full_name"]').fill(`E2E User ${stamp} B`);
     await formB.getByRole('button', { name: 'บันทึกการเปลี่ยนแปลง' }).click();
+    // B-9: the rejection also quotes what tab A actually saved, so tab B can see the value it would
+    // clobber before deciding to save again — not just "someone edited this, refresh".
     await expect(
-      pageB.getByText('ข้อมูลผู้ใช้ถูกแก้ไขโดยผู้ใช้อื่นแล้ว กรุณารีเฟรชหน้าแล้วลองอีกครั้ง')
+      pageB.getByText(
+        `ข้อมูลผู้ใช้ถูกแก้ไขโดยผู้ใช้อื่นแล้ว ตอนนี้ในระบบเป็น ชื่อ “E2E User ${stamp} A” กรุณารีเฟรชหน้าเพื่อดูของล่าสุดก่อนบันทึกทับ`
+      )
     ).toBeVisible();
 
     expect(mysqlRows(`SELECT full_name, version FROM users WHERE id = ${Number(userId)}`)).toEqual([
