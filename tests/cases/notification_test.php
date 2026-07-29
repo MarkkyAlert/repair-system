@@ -455,3 +455,51 @@ test('notify(R6-B3): muting the own-approved FYI no longer silences the approval
         nt_cleanup([], [$mgr]);
     }
 });
+
+// ── B-1: งานที่ไม่มีหัวหน้าเจ้าของต้องไม่เงียบหายไปจากคิวส่วนกลาง ──
+// admin อนุมัติงานจะปล่อย assigned_manager_id เป็น NULL โดยตั้งใจ (คิวส่วนกลาง หัวหน้าคนไหนก็หยิบต่อได้)
+// แต่ผู้รับแจ้งเตือนฝั่งหัวหน้าถูกส่งเป็น id 0 แล้วโดนตัวกรองตัดทิ้ง = งานเดินจนจบวงจรโดยไม่มีหัวหน้าคนไหนรู้เลย
+// ใช้กติกาเดียวกับ ticket.cancelled ที่ทำถูกอยู่แล้ว: ไม่มีเจ้าของ = แจ้งผู้อนุมัติที่ยัง active ทุกคน
+test('notify B-1: an unowned ticket reaches the shared approver queue instead of nobody', function (): void {
+    $requesterId = nt_seed_user('requester');
+    $technicianId = nt_seed_user('technician');
+    $managerId = nt_seed_user('manager');
+    $ticketId = nt_seed_ticket($requesterId, null, $technicianId); // admin approved it → no manager owner
+    $approvers = tvm_container()->get(App\Repositories\TicketReadRepository::class)->findActiveApproverIds();
+
+    try {
+        foreach (['ticket.accepted', 'ticket.started', 'ticket.resolved', 'ticket.reopened', 'ticket.completed'] as $event) {
+            nt_service()->notifyTicketEvent($ticketId, $event, $technicianId);
+            $recipients = nt_recipients_of(nt_last_notif_id($ticketId));
+            assert_true($recipients !== [], "$event on an unowned ticket reaches someone");
+            assert_true(
+                array_intersect($approvers, $recipients) !== [],
+                "$event reaches the shared approver queue — otherwise no manager ever learns the ticket moved"
+            );
+            assert_true(in_array($managerId, $recipients, true), "$event reaches the newly seeded manager too (they are an active approver)");
+        }
+    } finally {
+        nt_cleanup([$ticketId], [$requesterId, $technicianId, $managerId]);
+    }
+});
+
+test('notify B-1: a ticket that HAS a manager owner still notifies only that manager', function (): void {
+    $requesterId = nt_seed_user('requester');
+    $technicianId = nt_seed_user('technician');
+    $ownerId = nt_seed_user('manager');
+    $otherManagerId = nt_seed_user('manager');
+    $ticketId = nt_seed_ticket($requesterId, $ownerId, $technicianId);
+
+    try {
+        nt_service()->notifyTicketEvent($ticketId, 'ticket.resolved', $technicianId);
+        $recipients = nt_recipients_of(nt_last_notif_id($ticketId));
+
+        assert_true(in_array($ownerId, $recipients, true), 'the owning manager is notified');
+        assert_true(
+            !in_array($otherManagerId, $recipients, true),
+            'an unrelated manager is NOT spammed — owned tickets stay targeted, the fallback is only for unowned ones'
+        );
+    } finally {
+        nt_cleanup([$ticketId], [$requesterId, $technicianId, $ownerId, $otherManagerId]);
+    }
+});

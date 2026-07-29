@@ -202,27 +202,27 @@ class NotificationService
             'ticket.accepted' => [
                 'ช่างรับงานแล้ว',
                 'Ticket ' . (string) ($context['ticket_no'] ?? '-') . ' ถูกช่างรับงานเรียบร้อยแล้ว',
-                [(int) ($context['requester_id'] ?? 0), (int) ($context['assigned_manager_id'] ?? 0)],
+                array_merge([(int) ($context['requester_id'] ?? 0)], $this->managerRecipients($context)),
             ],
             'ticket.started' => [
                 'เริ่มดำเนินงานแล้ว',
                 'Ticket ' . (string) ($context['ticket_no'] ?? '-') . ' อยู่ระหว่างดำเนินงาน',
-                [(int) ($context['requester_id'] ?? 0), (int) ($context['assigned_manager_id'] ?? 0)],
+                array_merge([(int) ($context['requester_id'] ?? 0)], $this->managerRecipients($context)),
             ],
             'ticket.resolved' => [
                 'งานถูกสรุปเป็น Resolved',
                 'Ticket ' . (string) ($context['ticket_no'] ?? '-') . ' ถูกสรุปผลการซ่อมแล้ว รอผู้แจ้งยืนยัน',
-                [(int) ($context['requester_id'] ?? 0), (int) ($context['assigned_manager_id'] ?? 0)],
+                array_merge([(int) ($context['requester_id'] ?? 0)], $this->managerRecipients($context)),
             ],
             'ticket.completed' => [
                 'งานถูกยืนยันปิดแล้ว',
                 'Ticket ' . (string) ($context['ticket_no'] ?? '-') . ' ถูกผู้แจ้งยืนยันปิดงานเรียบร้อยแล้ว',
-                [(int) ($context['assigned_technician_id'] ?? 0), (int) ($context['assigned_manager_id'] ?? 0)],
+                array_merge([(int) ($context['assigned_technician_id'] ?? 0)], $this->managerRecipients($context)),
             ],
             'ticket.reopened' => [
                 'มีการส่งงานกลับไปแก้ไขซ้ำ',
                 'Ticket ' . (string) ($context['ticket_no'] ?? '-') . ' ถูกผู้แจ้งส่งกลับไปดำเนินการซ้ำแล้ว',
-                [(int) ($context['assigned_technician_id'] ?? 0), (int) ($context['assigned_manager_id'] ?? 0)],
+                array_merge([(int) ($context['assigned_technician_id'] ?? 0)], $this->managerRecipients($context)),
             ],
             'ticket.cancelled' => [
                 'Ticket ถูกยกเลิก',
@@ -511,6 +511,24 @@ class NotificationService
 
             return false;
         }
+    }
+
+    /**
+     * ผู้รับฝั่งหัวหน้างานของ ticket ใบหนึ่ง: หัวหน้าเจ้าของงานถ้ามี ถ้าไม่มีก็กระจายให้ผู้อนุมัติที่ยัง active ทุกคน.
+     *
+     * งานที่ "ไม่มีหัวหน้าเจ้าของ" ไม่ใช่เคสหายาก — admin อนุมัติเมื่อไหร่ก็ปล่อยงานไว้ในคิวส่วนกลางโดยตั้งใจ
+     * (assigned_manager_id = NULL เพื่อให้หัวหน้าคนไหนก็หยิบต่อได้). ถ้าส่งแจ้งเตือนไปที่ id 0 เฉย ๆ ตัวกรอง
+     * ผู้รับจะตัดทิ้ง แปลว่างานพวกนั้นเดินจนจบวงจรโดยไม่มีหัวหน้าคนไหนรู้เรื่องเลยสักคน. ใช้กติกาเดียวกับ
+     * ticket.cancelled ที่ทำแบบนี้อยู่แล้ว: ไม่มีเจ้าของ = แจ้งผู้อนุมัติทุกคน (คิวส่วนกลางต้องเห็นได้จริง)
+     *
+     * @param array<string, mixed> $context
+     * @return list<int>
+     */
+    private function managerRecipients(array $context): array
+    {
+        $managerId = (int) ($context['assigned_manager_id'] ?? 0);
+
+        return $managerId > 0 ? [$managerId] : $this->reads->findActiveApproverIds();
     }
 
     private function filterRecipientIds(array $recipientIds, int $actorId): array
