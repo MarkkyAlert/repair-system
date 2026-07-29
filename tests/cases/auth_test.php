@@ -759,25 +759,117 @@ test('auth(idle) M-9: a background poll does not extend the session, but a real 
     }
 });
 
-test('auth(idle) M-9: every live-poll endpoint opts out of extending the session', function (): void {
-    // source-lock: a new poll endpoint added later must make the same choice deliberately
-    $pollActions = [
-        ['app/Controllers/NotificationsController.php', 'feed'],
+// M-9 (รอบสอง): จัดหมวดตาม "ตัวคำขอ" ไม่ใช่ "ปลายทาง" — endpoint เดียวกันถูกเรียกได้ทั้งจากคนกดและจากตัวจับเวลา
+// รอบแรกผมปิดที่ปลายทางล้วน ๆ เลยจัดผิดไปสองจุด: ฟีดกระดิ่งถูกปิดตายทั้งที่คนกดกระดิ่งเองก็มาทางนี้ (คนเพิ่งใช้งาน
+// แต่ไม่ถูกนับ อาจโดนเตะออก) ส่วนหน้า /tickets กลับต่ออายุให้ทุกครั้งที่ระบบดึงซ้ำเองตอนมีงานใหม่จากคนอื่น
+// (เครื่องที่ถูกทิ้งไว้เลยไม่มีวันหมดอายุ ถ้าที่ทำงานมีคนแจ้งงานเรื่อย ๆ)
+function auth_idle_touch_probe(array $server): bool
+{
+    $u = auth_seed_user();
+    $auth = tvm_container()->get(App\Core\AuthManager::class);
+    $savedActivity = $_SESSION['_last_activity'] ?? null;
+    $savedServer = $_SERVER;
+
+    try {
+        $auth->login($u);
+        $walkedAwayAt = time() - 59 * 60;
+        $_SESSION['_last_activity'] = $walkedAwayAt;
+        $_SERVER = array_merge($_SERVER, $server);
+
+        App\Middleware\AuthMiddleware::handle();
+
+        return (int) $_SESSION['_last_activity'] > $walkedAwayAt;
+    } finally {
+        $_SERVER = $savedServer;
+        $auth->logout();
+        if ($savedActivity === null) {
+            unset($_SESSION['_last_activity']);
+        } else {
+            $_SESSION['_last_activity'] = $savedActivity;
+        }
+        auth_cleanup($u['id']);
+    }
+}
+
+test('auth(idle) M-9A: a request the user actually made refreshes the clock; the same endpoint on a timer does not', function (): void {
+    assert_true(
+        auth_idle_touch_probe([]),
+        'a request with no background marker is a real user action (opening the bell, loading a page) and counts as activity'
+    );
+    assert_false(
+        auth_idle_touch_probe(['HTTP_X_BACKGROUND_REFRESH' => '1']),
+        'the same endpoint hit by a timer is marked background and must not count as activity'
+    );
+});
+
+test('auth(idle) M-9: the notification feed lets the request decide, so opening the bell counts as activity', function (): void {
+    // ปลายทางนี้รับทั้งคนกดและตัวจับเวลา ห้ามบังคับ touchActivity: false ตายตัว ไม่งั้นคนที่เพิ่งกดดูแจ้งเตือน
+    // จะไม่ถูกนับว่าใช้งานอยู่ แล้วอาจโดน logout ทั้งที่เพิ่งกดไปเมื่อกี้
+    $source = (string) file_get_contents(BASE_PATH . '/app/Controllers/NotificationsController.php');
+    $pos = strpos($source, 'function feed(');
+    assert_true($pos !== false, 'the feed action exists');
+    assert_true(
+        !str_contains(substr($source, $pos, 320), 'touchActivity: false'),
+        'the bell feed must not hard-code "never count as activity" — a user opening it is real usage'
+    );
+});
+
+test('auth(idle) M-9: endpoints that only ever poll refuse to extend the session regardless of the request', function (): void {
+    // ปลายทางที่ไม่มีทางถูกคนเรียกเองยังบังคับที่ฝั่ง server เหมือนเดิม ไม่ต้องเชื่อธงจาก client
+    $pollOnly = [
         ['app/Controllers/TicketsController.php', 'queueState'],
         ['app/Controllers/TicketsController.php', 'state'],
         ['app/Controllers/TicketsController.php', 'commentsFeed'],
         ['app/Controllers/GuestRequestController.php', 'state'],
     ];
 
-    foreach ($pollActions as [$file, $method]) {
+    foreach ($pollOnly as [$file, $method]) {
         $source = (string) file_get_contents(BASE_PATH . '/' . $file);
         $pos = strpos($source, 'function ' . $method . '(');
         assert_true($pos !== false, "$file::$method exists");
-        $body = substr($source, $pos, 260);
         assert_contains_str(
             'touchActivity: false',
-            $body,
-            "$file::$method is a background poll and must not refresh the idle clock"
+            substr($source, $pos, 260),
+            "$file::$method exists only to be polled and must never refresh the idle clock"
         );
     }
+});
+
+/** เนื้อของฟังก์ชัน JS หนึ่งตัว (ตั้งแต่บรรทัดประกาศ ถึงก่อนฟังก์ชันถัดไป) — ตัดตามขอบฟังก์ชันไม่ใช่จำนวนไบต์
+ *  เพราะคอมเมนต์ไทยกินไบต์ละ 3 ตัวอักษร หน้าต่างแบบนับไบต์เลยพลาดโค้ดที่อยู่ถัดลงไปได้ */
+function auth_js_function_body(string $source, string $needle): string
+{
+    $start = strpos($source, $needle);
+    if ($start === false) {
+        return '';
+    }
+    $next = strpos($source, "\n    function ", $start + strlen($needle));
+
+    return $next === false ? substr($source, $start) : substr($source, $start, $next - $start);
+}
+
+test('auth(idle) M-9B: every background fetch in the front-end marks itself, and user actions do not', function (): void {
+    $app = (string) file_get_contents(BASE_PATH . '/public/assets/js/app.js');
+    $detail = (string) file_get_contents(BASE_PATH . '/public/assets/js/ticket-detail.js');
+
+    // การดึงหน้าคิวซ้ำเองตอนมีงานใหม่เข้ามา = เบื้องหลัง (คนอื่นแจ้งงาน ไม่ใช่เจ้าของหน้าจอทำอะไร)
+    $autoRefresh = auth_js_function_body($app, 'function autoRefresh(');
+    assert_true($autoRefresh !== '', 'the queue auto-refresh exists');
+    assert_contains_str(
+        "'X-Background-Refresh': '1'",
+        $autoRefresh,
+        'the queue auto-refresh is a background fetch — otherwise other people filing tickets keeps an abandoned screen logged in'
+    );
+
+    // ส่วนการกดค้นหา/กรอง/เปลี่ยนหน้า = คนทำเอง ต้องไม่ติดธง
+    $navigate = auth_js_function_body($app, 'function navigate(');
+    assert_true($navigate !== '', 'the in-place navigation exists');
+    assert_true(
+        !str_contains($navigate, 'X-Background-Refresh'),
+        'searching, filtering and paging are things the user did and must keep counting as activity'
+    );
+
+    // ตัว poll ทั้งหมดติดธงครบ
+    assert_same(2, substr_count($detail, "'X-Background-Refresh': '1'"), 'both ticket-detail polls mark themselves as background');
+    assert_true(substr_count($app, "'X-Background-Refresh': '1'") >= 3, 'the bell poll, the generic live poll and the queue poll all mark themselves');
 });

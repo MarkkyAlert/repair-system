@@ -41,11 +41,13 @@ class NotificationsController
     }
 
     /**
-     * ข้อมูลกระดิ่งแจ้งเตือนแบบสด (GET, ต้องล็อกอิน) สำหรับ poll — คืน JSON จาก NotificationService::getFeedData (ไม่เขียน DB).
+     * ข้อมูลกระดิ่งแจ้งเตือนแบบสด (GET, ต้องล็อกอิน) — คืน JSON จาก NotificationService::getFeedData (ไม่เขียน DB).
+     * ปลายทางนี้ถูกเรียกสองแบบ: ผู้ใช้กดกระดิ่งเปิดดูเอง (= ใช้งานจริง ต้องต่ออายุ session) กับตัวจับเวลาที่ยิงเองทุก
+     * 30 วิ (= ไม่ใช่การใช้งาน ห้ามต่ออายุ) จึงไม่บังคับค่าตายตัว ปล่อยให้ตัดสินจากธงที่ JS ติดมาเฉพาะรอบอัตโนมัติ.
      */
     public function feed(): void
     {
-        AuthMiddleware::handle(null, touchActivity: false); // background poll ไม่ต่ออายุ session
+        AuthMiddleware::handle();
 
         $viewer = auth()->user() ?? [];
         Response::json($this->notifications->getFeedData($viewer));

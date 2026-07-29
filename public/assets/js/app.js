@@ -733,7 +733,9 @@ document.addEventListener('DOMContentLoaded', () => {
       count.classList.toggle('is-hidden', nextCount <= 0);
     };
 
-    const refreshFeed = async () => {
+    // isBackground = รอบที่ตัวจับเวลา/การกลับมาโฟกัสแท็บยิงเอง ไม่ใช่คนกด — ติดธงไปให้ server รู้ว่าอย่าต่ออายุ session
+    // (ถ้าคนกดกระดิ่งเองถือเป็นการใช้งานจริง ต้องไม่ติดธง ไม่งั้นคนที่เพิ่งเปิดดูแจ้งเตือนอาจโดนเตะออกทั้งที่เพิ่งใช้งาน)
+    const refreshFeed = async (isBackground = false) => {
       if (!feedUrl) {
         return;
       }
@@ -743,10 +745,13 @@ document.addEventListener('DOMContentLoaded', () => {
           list.innerHTML = buildSkeletonMarkup();
         }
 
+        const headers = { Accept: 'application/json' };
+        if (isBackground) {
+          headers['X-Background-Refresh'] = '1';
+        }
+
         const response = await fetch(feedUrl, {
-          headers: {
-            Accept: 'application/json',
-          },
+          headers,
           credentials: 'same-origin',
         });
 
@@ -803,14 +808,15 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       // Poll เฉพาะตอน tab แสดงอยู่ (ประหยัด request ตอน background) + refresh ทันทีเมื่อกลับมา focus
+      // ทั้งสองทางนี้ระบบยิงเอง ไม่ใช่คนกด จึงส่งเป็น background: ไม่ต่ออายุ session
       window.setInterval(function () {
         if (!document.hidden) {
-          refreshFeed();
+          refreshFeed(true);
         }
       }, 30000);
       document.addEventListener('visibilitychange', function () {
         if (!document.hidden) {
-          refreshFeed();
+          refreshFeed(true);
         }
       });
     }
@@ -1268,7 +1274,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
       var check = function () {
         if (notified || document.hidden) return;
-        fetch(url, { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+        fetch(url, {
+          headers: { Accept: 'application/json', 'X-Background-Refresh': '1' },
+          credentials: 'same-origin',
+        })
           .then(function (r) { return r.ok ? r.json() : null; })
           .then(function (data) {
             if (!data) return;
@@ -1395,7 +1404,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function autoRefresh(newMax) {
       if (busy) return;
       busy = true;
-      fetch(window.location.href, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+      // ดึงหน้าเดิมซ้ำเบื้องหลังเพราะมีงานใหม่เข้าคิว (คนอื่นแจ้งเข้ามา) ไม่ใช่เจ้าของหน้าจอเป็นคนสั่ง — ติดธง
+      // background ไปด้วย ไม่งั้นงานที่คนอื่นแจ้งจะคอยต่ออายุ session ให้เครื่องที่ถูกทิ้งไว้เฉย ๆ ไปเรื่อย ๆ
+      fetch(window.location.href, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-Background-Refresh': '1' },
+        credentials: 'same-origin',
+      })
         .then(function (r) { return r.ok ? r.text() : null; })
         .then(function (html) {
           if (!html) return;
@@ -1414,7 +1428,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     var check = function () {
       if (document.hidden || !stateUrl) return;
-      fetch(stateUrl, { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+      fetch(stateUrl, {
+        headers: { Accept: 'application/json', 'X-Background-Refresh': '1' },
+        credentials: 'same-origin',
+      })
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (data) {
           if (!data) return;

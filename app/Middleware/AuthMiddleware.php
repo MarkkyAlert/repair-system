@@ -10,14 +10,19 @@ use App\Services\RememberMeService;
 class AuthMiddleware
 {
     /**
-     * @param bool $touchActivity false = คำขอนี้เป็น background poll ไม่ใช่การใช้งานของคน จึงไม่ต่ออายุ session.
-     *                            หน้าเว็บยิง poll เองทุก 20–30 วินาที (กระดิ่งแจ้งเตือน/สถานะ ticket/คอมเมนต์)
-     *                            ถ้านับ poll เป็น activity ด้วย session จะถูกต่ออายุราว 120 ครั้งต่อชั่วโมง แปลว่า
-     *                            idle timeout 60 นาทีไม่มีวันทำงานตราบใดที่แท็บยังเปิดค้างไว้ — ซึ่งคือสถานการณ์
-     *                            "ลุกจากเครื่องโดยไม่ล็อกหน้าจอ" ที่ timeout ตั้งใจจะกันพอดี. poll ยังต้องยืนยันตัวตน
-     *                            ตามปกติ และยังโดน idle timeout เตะออกเหมือนเดิม แค่ไม่เลื่อนนาฬิกาให้.
+     * ต่ออายุ session เฉพาะสิ่งที่ "คนตั้งใจทำ" เท่านั้น. หน้าเว็บยิงคำขอเบื้องหลังเองทุก 20–30 วินาที (กระดิ่งแจ้งเตือน /
+     * สถานะ ticket / คอมเมนต์ / ดึงรายการคิวใหม่มาสลับ) ถ้านับพวกนี้เป็น activity ด้วย session จะถูกต่ออายุราว
+     * 120 ครั้งต่อชั่วโมง แปลว่า idle timeout ไม่มีวันทำงานตราบใดที่แท็บยังเปิดค้าง — ซึ่งคือสถานการณ์ "ลุกจากเครื่อง
+     * โดยไม่ล็อกหน้าจอ" ที่ timeout ตั้งใจจะกันพอดี.
+     *
+     * @param bool|null $touchActivity null = ตัดสินจากตัวคำขอ (มีธง background refresh ไหม) — ใช้กับ endpoint ที่
+     *                                 คนเรียกเองก็ได้ ตัวจับเวลาเรียกก็ได้ เช่นหน้า /tickets หรือฟีดกระดิ่งที่ผู้ใช้กดดู
+     *                                 เอง (กด = ใช้งานจริง ต้องต่ออายุ / ตัวจับเวลา = ไม่ต่อ).
+     *                                 false = บังคับไม่ต่ออายุ ใช้กับ endpoint ที่มีไว้ poll ล้วน ๆ ไม่ต้องเชื่อธงจาก client.
+     *                                 คำขอเบื้องหลังยังต้องยืนยันตัวตนตามปกติ และยังโดน idle timeout เตะออกเหมือนเดิม
+     *                                 แค่ไม่เลื่อนนาฬิกาให้.
      */
-    public static function handle(?string $returnTo = null, bool $touchActivity = true): void
+    public static function handle(?string $returnTo = null, ?bool $touchActivity = null): void
     {
         $auth = auth();
 
@@ -50,7 +55,7 @@ class AuthMiddleware
         }
 
         if ($auth->refresh()) {
-            if ($touchActivity) {
+            if ($touchActivity ?? !request_is_background_refresh()) {
                 Session::touchActivity();
             }
 

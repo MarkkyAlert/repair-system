@@ -130,7 +130,10 @@ if (typeof window.__handleInlineCommentSave !== 'function') {
 
     var check = function () {
       if (notified || document.hidden) { return; }
-      fetch(url, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
+      fetch(url, {
+        headers: { 'Accept': 'application/json', 'X-Background-Refresh': '1' },
+        credentials: 'same-origin',
+      })
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (data) {
           if (!data) { return; }
@@ -171,7 +174,10 @@ if (typeof window.__handleInlineCommentSave !== 'function') {
 
     var check = function () {
       if (document.hidden) { return; }
-      fetch(feedUrl + '?after=' + latestId, { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+      fetch(feedUrl + '?after=' + latestId, {
+        headers: { Accept: 'application/json', 'X-Background-Refresh': '1' },
+        credentials: 'same-origin',
+      })
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (data) {
           if (!data || !data.count || !data.html) { return; }
