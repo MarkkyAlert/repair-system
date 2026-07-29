@@ -176,16 +176,26 @@ class CommentRepository
             return;
         }
 
-        $existsStmt = $this->db->prepare('SELECT version FROM ticket_comments WHERE id = :comment_id LIMIT 1');
+        // อ่านค่าปัจจุบันมาด้วย ไม่ใช่แค่ version: ตอนตีกลับจะได้บอกไปเลยว่าข้อความในระบบตอนนี้เป็นอะไร
+        // ผู้ใช้จะได้เห็นของอีกคนก่อนตัดสินใจว่าจะพิมพ์ทับหรือไม่
+        $existsStmt = $this->db->prepare('SELECT version, body, is_internal FROM ticket_comments WHERE id = :comment_id LIMIT 1');
         $existsStmt->execute(['comment_id' => $commentId]);
-        $currentVersion = $existsStmt->fetchColumn();
+        $current = $existsStmt->fetch(PDO::FETCH_ASSOC) ?: null;
 
-        if ($currentVersion === false) {
+        if ($current === null) {
             throw new DomainException('ไม่พบ comment ที่ต้องการแก้ไข');
         }
 
-        if ((int) $currentVersion !== $originalVersion) {
-            throw new DomainException('Comment ถูกแก้ไขโดยผู้ใช้อื่นแล้ว กรุณารีเฟรชหน้าแล้วลองอีกครั้ง');
+        if ((int) $current['version'] !== $originalVersion) {
+            $changed = [];
+            if ((string) $current['body'] !== $body) {
+                $changed['ข้อความ'] = (string) $current['body'];
+            }
+            if ((bool) $current['is_internal'] !== $isInternal) {
+                $changed['การมองเห็น'] = comment_visibility_label_th((bool) $current['is_internal']);
+            }
+
+            throw new DomainException(optimistic_lock_message('Comment ถูกแก้ไขโดยผู้ใช้อื่นแล้ว', $changed));
         }
     }
 

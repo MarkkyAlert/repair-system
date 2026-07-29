@@ -477,12 +477,59 @@ class AssetRepository
             return;
         }
 
-        $currentStmt = $this->db->prepare('SELECT version FROM assets WHERE id = :asset_id LIMIT 1');
+        // ดึงค่าปัจจุบันของช่องที่คนอ่านรู้เรื่อง (ผู้ถือครอง/ที่ตั้งต้อง join เอาชื่อมา ไม่งั้นได้แค่เลข id)
+        // เพื่อบอกในข้อความตีกลับว่าอีกคนเปลี่ยนอะไรไว้ — เป็น query ในทางที่ error แล้วเท่านั้น
+        $currentStmt = $this->db->prepare(
+            'SELECT a.version, a.name, a.asset_code, a.serial_number, a.status,
+                    a.custodian_user_id, a.location_id,
+                    u.full_name AS custodian_name, l.name AS location_name
+             FROM assets a
+             LEFT JOIN users u ON u.id = a.custodian_user_id
+             LEFT JOIN locations l ON l.id = a.location_id
+             WHERE a.id = :asset_id
+             LIMIT 1'
+        );
         $currentStmt->execute(['asset_id' => $assetId]);
-        $currentVersion = $currentStmt->fetchColumn();
-        if ($currentVersion === false || (int) $currentVersion !== (int) ($payload['original_version'] ?? 0)) {
-            throw new DomainException('ข้อมูล Asset ถูกแก้ไขโดยผู้ใช้อื่นแล้ว กรุณารีเฟรชหน้าแล้วลองอีกครั้ง');
+        $current = $currentStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        if ($current === null || (int) $current['version'] !== (int) ($payload['original_version'] ?? 0)) {
+            throw new DomainException(optimistic_lock_message(
+                'ข้อมูล Asset ถูกแก้ไขโดยผู้ใช้อื่นแล้ว',
+                $current === null ? [] : $this->changedAssetFields($payload, $current)
+            ));
         }
+    }
+
+    /**
+     * เทียบสิ่งที่ผู้ใช้เพิ่งกดบันทึกกับแถวปัจจุบัน แล้วคืนเฉพาะช่องที่ค่าไม่ตรงกัน (ป้ายไทย => ค่าปัจจุบัน).
+     * ไล่ตามลำดับความสำคัญ: ช่องที่คนดูแล asset สนใจก่อน เพราะข้อความจะโชว์แค่ 3 ช่องแรก
+     *
+     * @param array<string,mixed> $payload ค่าที่ส่งมาจากฟอร์ม
+     * @param array<string,mixed> $current แถวปัจจุบัน (join ชื่อผู้ถือครอง/ที่ตั้งมาแล้ว)
+     * @return array<string,string>
+     */
+    private function changedAssetFields(array $payload, array $current): array
+    {
+        $changed = [];
+        if ((string) $current['status'] !== (string) ($payload['status'] ?? '')) {
+            $changed['สถานะ'] = asset_status_label_th((string) $current['status']);
+        }
+        if ((string) $current['name'] !== (string) ($payload['name'] ?? '')) {
+            $changed['ชื่อ'] = (string) $current['name'];
+        }
+        if ((int) $current['custodian_user_id'] !== (int) ($payload['custodian_user_id'] ?? 0)) {
+            $changed['ผู้ถือครอง'] = (string) ($current['custodian_name'] ?? '');
+        }
+        if ((int) $current['location_id'] !== (int) ($payload['location_id'] ?? 0)) {
+            $changed['ที่ตั้ง'] = (string) ($current['location_name'] ?? '');
+        }
+        if ((string) $current['asset_code'] !== (string) ($payload['asset_code'] ?? '')) {
+            $changed['รหัส'] = (string) $current['asset_code'];
+        }
+        if ((string) ($current['serial_number'] ?? '') !== (string) ($payload['serial_number'] ?? '')) {
+            $changed['S/N'] = (string) ($current['serial_number'] ?? '');
+        }
+
+        return $changed;
     }
 
     public function regenerateQrToken(int $assetId, ?int $generatedBy = null): string

@@ -308,3 +308,75 @@ if (!function_exists('comment_visibility_tone')) {
         return $isInternal ? 'warning' : 'default';
     }
 }
+
+if (!function_exists('optimistic_lock_message')) {
+    /**
+     * ข้อความตอนแก้ชนกัน (optimistic lock ตีกลับ) — บอกด้วยว่า "ตอนนี้ในระบบเป็นค่าอะไร".
+     * เดิมบอกแค่ว่ามีคนแก้ไปแล้วให้รีเฟรช ผู้ใช้จึงต้องรีเฟรชแล้วไล่หาเองว่าอะไรเปลี่ยน และถ้ามองไม่ออกก็
+     * กดบันทึกทับงานของอีกคนไปเลย. ตัวข้อความจะพูดเฉพาะช่องที่ค่าต่างจากที่เพิ่งกดส่งมา สูงสุด 3 ช่อง
+     * (พอให้ตัดสินใจได้ ไม่ต้องทำหน้าเทียบ diff เต็ม ๆ) เพราะข้อความนี้ไปโผล่ใน toast บรรทัดเดียว
+     *
+     * @param string $lead ประโยคนำของแต่ละที่ เช่น 'ข้อมูล Asset ถูกแก้ไขโดยผู้ใช้อื่นแล้ว'
+     * @param array<string,string> $currentValues ป้ายช่อง => ค่าที่อยู่ในระบบตอนนี้ (เฉพาะช่องที่ต่างจากที่ส่งมา)
+     */
+    function optimistic_lock_message(string $lead, array $currentValues = []): string
+    {
+        $parts = [];
+        foreach ($currentValues as $label => $value) {
+            $value = trim((string) $value);
+            if ($value === '') {
+                $value = 'ไม่ระบุ';
+            }
+            if (mb_strlen($value) > 40) {
+                $value = mb_substr($value, 0, 40) . '…';
+            }
+            $parts[] = $label . ' “' . $value . '”';
+            if (count($parts) >= 3) {
+                break;
+            }
+        }
+
+        // อ่านค่าปัจจุบันไม่ได้ (แถวเพิ่งถูกลบ) หรือค่าที่ต่างกันอยู่นอกช่องที่โชว์ได้ → ใช้ข้อความเดิม
+        if ($parts === []) {
+            return $lead . ' กรุณารีเฟรชหน้าแล้วลองอีกครั้ง';
+        }
+
+        return $lead . ' ตอนนี้ในระบบเป็น ' . implode(' · ', $parts)
+            . ' กรุณารีเฟรชหน้าเพื่อดูของล่าสุดก่อนบันทึกทับ';
+    }
+}
+
+if (!function_exists('user_changed_fields')) {
+    /**
+     * เทียบฟอร์มผู้ใช้ที่เพิ่งกดบันทึกกับแถวปัจจุบัน คืนเฉพาะช่องที่ต่างกัน (ป้ายไทย => ค่าปัจจุบัน)
+     * ใช้ร่วมกันสองทาง เพราะหน้าโปรไฟล์กับหน้าแก้ผู้ใช้ของ admin เขียนแถว users แถวเดียวกันและใช้ version ชุดเดียวกัน
+     * ช่องไหนฟอร์มไม่ได้ส่งมา (โปรไฟล์ไม่มี role/สถานะบัญชี) จะข้ามไป ไม่ใช่นับว่าถูกเปลี่ยน
+     *
+     * @param array<string,mixed> $submitted
+     * @param array<string,mixed> $current
+     * @return array<string,string>
+     */
+    function user_changed_fields(array $submitted, array $current): array
+    {
+        $changed = [];
+
+        if (array_key_exists('role', $submitted) && (string) ($current['role'] ?? '') !== (string) $submitted['role']) {
+            $changed['บทบาท'] = role_label_th((string) ($current['role'] ?? ''));
+        }
+
+        if (array_key_exists('is_active', $submitted) && (bool) ($current['is_active'] ?? false) !== (bool) $submitted['is_active']) {
+            $changed['สถานะบัญชี'] = (bool) $current['is_active'] ? 'เปิดใช้งาน' : 'ปิดใช้งาน';
+        }
+
+        foreach (['full_name' => 'ชื่อ', 'email' => 'อีเมล', 'phone' => 'เบอร์โทร'] as $key => $label) {
+            if (!array_key_exists($key, $submitted)) {
+                continue;
+            }
+            if ((string) ($current[$key] ?? '') !== (string) $submitted[$key]) {
+                $changed[$label] = (string) ($current[$key] ?? '');
+            }
+        }
+
+        return $changed;
+    }
+}

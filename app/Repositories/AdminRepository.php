@@ -184,8 +184,10 @@ class AdminRepository
         try {
             $this->db->beginTransaction();
 
+            // ดึง full_name/email/phone มาด้วย (แถวถูก lock อยู่แล้ว ไม่ได้เพิ่ม query) เผื่อต้องบอกผู้ใช้ตอนแก้ชนกัน
+            // ว่าอีกคนตั้งค่าอะไรไว้ ก่อนจะกดบันทึกทับ
             $userStmt = $this->db->prepare(
-                'SELECT id, role, is_active
+                'SELECT id, role, is_active, full_name, email, phone
                  FROM users
                  WHERE id = :id
                  LIMIT 1
@@ -269,7 +271,10 @@ class AdminRepository
             // แถวถูก lock ด้วย FOR UPDATE ไปแล้วข้างบน จึงมีอยู่แน่ ๆ — ถ้าไม่มีแถวไหนถูกเปลี่ยน แปลว่าติดที่เงื่อนไข version
             // อย่างเดียว → ฟอร์มที่ส่งมาสร้างจากค่าเก่า ให้ปฏิเสธ อย่าเขียนทับ
             if ($stmt->rowCount() === 0) {
-                throw new DomainException('ข้อมูลผู้ใช้ถูกแก้ไขโดยผู้ใช้อื่นแล้ว กรุณารีเฟรชหน้าแล้วลองอีกครั้ง');
+                throw new DomainException(optimistic_lock_message(
+                    'ข้อมูลผู้ใช้ถูกแก้ไขโดยผู้ใช้อื่นแล้ว',
+                    user_changed_fields($payload, $current)
+                ));
             }
 
             $this->db->commit();

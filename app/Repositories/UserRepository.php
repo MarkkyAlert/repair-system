@@ -367,7 +367,19 @@ class UserRepository
         }
 
         if ($stmt->rowCount() === 0) {
-            throw new DomainException('ข้อมูลโปรไฟล์ถูกแก้ไขจากอุปกรณ์อื่นแล้ว กรุณารีเฟรชหน้าแล้วลองอีกครั้ง');
+            // บอกด้วยว่าตอนนี้ในระบบเป็นค่าอะไร (แท็บอื่นของเจ้าตัวเอง หรือ admin เพิ่งแก้ไป) ก่อนจะบันทึกทับ
+            $currentStmt = $this->db->prepare('SELECT full_name, email, phone FROM users WHERE id = :id LIMIT 1');
+            $currentStmt->execute(['id' => $userId]);
+            $current = $currentStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+
+            throw new DomainException(optimistic_lock_message(
+                'ข้อมูลโปรไฟล์ถูกแก้ไขจากอุปกรณ์อื่นแล้ว',
+                $current === [] ? [] : user_changed_fields([
+                    'full_name' => (string) ($data['full_name'] ?? ''),
+                    'email' => (string) ($data['email'] ?? ''),
+                    'phone' => (string) ($data['phone'] ?? ''),
+                ], $current)
+            ));
         }
 
         return true;

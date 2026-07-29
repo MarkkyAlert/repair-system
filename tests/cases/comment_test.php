@@ -245,7 +245,12 @@ test('comment(concurrency): a stale version is rejected (optimistic lock) and do
             cm_service()->updateComment($ticketId, $cId, cm_owner(), ['body' => 'my late edit', 'original_version' => $staleVersion]);
         } catch (DomainException $e) {
             $threw = true;
-            assert_same('Comment ถูกแก้ไขโดยผู้ใช้อื่นแล้ว กรุณารีเฟรชหน้าแล้วลองอีกครั้ง', $e->getMessage());
+            // B-9: the rejection must also quote what is stored NOW, so the editor can see the other person's
+            // text before deciding to retype over it (a bare "someone edited this, refresh" made them refresh
+            // and hunt for the difference — or just overwrite it).
+            assert_contains_str('Comment ถูกแก้ไขโดยผู้ใช้อื่นแล้ว', $e->getMessage(), 'it still says a conflict happened');
+            assert_contains_str('edited by someone else', $e->getMessage(), 'it quotes the text that is stored right now');
+            assert_contains_str('ก่อนบันทึกทับ', $e->getMessage(), 'and still tells the user to look before overwriting');
         }
         assert_true($threw, 'a stale version must be rejected (lost update prevented)');
         assert_same('edited by someone else', cm_body($cId), 'the late edit did NOT overwrite the concurrent edit');
@@ -281,7 +286,8 @@ test('comment(concurrency): two same-second edits from the same loaded version �
             cm_service()->updateComment($ticketId, $cId, cm_owner(), ['body' => 'edit B', 'original_version' => $loadedVersion]);
         } catch (DomainException $e) {
             $threw = true;
-            assert_same('Comment ถูกแก้ไขโดยผู้ใช้อื่นแล้ว กรุณารีเฟรชหน้าแล้วลองอีกครั้ง', $e->getMessage());
+            assert_contains_str('Comment ถูกแก้ไขโดยผู้ใช้อื่นแล้ว', $e->getMessage());
+            assert_contains_str('edit A', $e->getMessage(), "B is shown A's stored text, not just told to refresh");
         }
         assert_true($threw, 'the same-second second edit is rejected (the version bumped, unlike a per-second timestamp)');
         assert_same('edit A', cm_body($cId), "A's edit is preserved — B did not overwrite it within the same second");
