@@ -658,3 +658,70 @@ test('comment M-5: the inline edit response uses the same Thai labels the page r
         cm_cleanup($ticketId);
     }
 });
+
+// ── B-7: ส่งคอมเมนต์ซ้ำแล้วแนบไฟล์เพิ่ม ต้องไม่บอกว่าสำเร็จทั้งที่ไฟล์หาย ──
+// token เดิม = ไม่สร้าง comment ซ้ำ (ถูกต้อง) แต่ไฟล์ที่แนบมารอบที่สองอยู่ใน if ($created) จึงถูกทิ้งเงียบ ๆ
+// ทั้งที่ผ่านการตรวจไฟล์มาแล้ว — ผู้ใช้เห็นข้อความ "บันทึกเรียบร้อย" แล้วเข้าใจว่าไฟล์แนบไปด้วย
+function cm_fake_upload(): array
+{
+    $tmp = tempnam(sys_get_temp_dir(), 'cmb7_');
+    // PNG 1x1 ของจริง — ตัวตรวจไฟล์อ่านชนิดจากเนื้อไฟล์ (finfo) ไม่ใช่จากนามสกุล
+    file_put_contents($tmp, (string) base64_decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="));
+    return [
+        'name' => ['shot.png'],
+        'type' => ['image/png'],
+        'tmp_name' => [$tmp],
+        'error' => [UPLOAD_ERR_OK],
+        'size' => [(int) filesize($tmp)],
+    ];
+}
+
+test('comment B-7: a resubmit carrying new files says so instead of reporting a false success', function (): void {
+    $ticketId = cm_seed_ticket();
+    $token = cm_token();
+    $upload = cm_fake_upload();
+
+    try {
+        // ส่งครั้งแรก (ไม่มีไฟล์) — comment ถูกสร้าง
+        cm_service()->createComment($ticketId, cm_owner(), ['body' => 'ข้อความแรก', 'submission_token' => $token], []);
+        $countAfterFirst = (int) cm_pdo()->query("SELECT COUNT(*) FROM ticket_comments WHERE ticket_id = $ticketId")->fetchColumn();
+        assert_same(1, $countAfterFirst, 'sanity: one comment exists');
+
+        // ส่งซ้ำด้วย token เดิม คราวนี้แนบไฟล์มาด้วย
+        $threw = false;
+        try {
+            cm_service()->createComment($ticketId, cm_owner(), ['body' => 'ข้อความแรก', 'submission_token' => $token], $upload);
+        } catch (DomainException $e) {
+            $threw = true;
+            assert_contains_str('บันทึกไปแล้ว', $e->getMessage(), 'the user is told the message was already saved');
+            assert_contains_str('ไฟล์แนบ', $e->getMessage(), 'and that the files from this attempt were NOT added');
+        }
+        assert_true($threw, 'a resubmit that would silently drop files must not report success');
+
+        assert_same(1, (int) cm_pdo()->query("SELECT COUNT(*) FROM ticket_comments WHERE ticket_id = $ticketId")->fetchColumn(), 'still no duplicate comment');
+        assert_same(0, (int) cm_pdo()->query("SELECT COUNT(*) FROM ticket_attachments WHERE ticket_id = $ticketId")->fetchColumn(), 'and nothing half-attached');
+    } finally {
+        foreach ($upload['tmp_name'] as $tmp) {
+            @unlink($tmp);
+        }
+        cm_cleanup($ticketId);
+    }
+});
+
+test('comment B-7: a plain double-click with no files stays a silent success', function (): void {
+    $ticketId = cm_seed_ticket();
+    $token = cm_token();
+
+    try {
+        cm_service()->createComment($ticketId, cm_owner(), ['body' => 'กดรัว', 'submission_token' => $token], []);
+        cm_service()->createComment($ticketId, cm_owner(), ['body' => 'กดรัว', 'submission_token' => $token], []);
+
+        assert_same(
+            1,
+            (int) cm_pdo()->query("SELECT COUNT(*) FROM ticket_comments WHERE ticket_id = $ticketId")->fetchColumn(),
+            'the ordinary double-submit is still deduped quietly — no scary error for the common case'
+        );
+    } finally {
+        cm_cleanup($ticketId);
+    }
+});
