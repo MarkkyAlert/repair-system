@@ -50,7 +50,7 @@ class GuestRequestController
      */
     public function state(): void
     {
-        AuthMiddleware::handle();
+        AuthMiddleware::handle(null, touchActivity: false); // background poll ไม่ต่ออายุ session
         $viewer = auth()->user() ?? [];
         require_role($viewer, ['manager', 'admin'], 'หน้านี้สงวนสำหรับผู้จัดการหรือผู้ดูแลระบบเท่านั้น');
 

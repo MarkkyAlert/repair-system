@@ -9,7 +9,15 @@ use App\Services\RememberMeService;
 
 class AuthMiddleware
 {
-    public static function handle(?string $returnTo = null): void
+    /**
+     * @param bool $touchActivity false = คำขอนี้เป็น background poll ไม่ใช่การใช้งานของคน จึงไม่ต่ออายุ session.
+     *                            หน้าเว็บยิง poll เองทุก 20–30 วินาที (กระดิ่งแจ้งเตือน/สถานะ ticket/คอมเมนต์)
+     *                            ถ้านับ poll เป็น activity ด้วย session จะถูกต่ออายุราว 120 ครั้งต่อชั่วโมง แปลว่า
+     *                            idle timeout 60 นาทีไม่มีวันทำงานตราบใดที่แท็บยังเปิดค้างไว้ — ซึ่งคือสถานการณ์
+     *                            "ลุกจากเครื่องโดยไม่ล็อกหน้าจอ" ที่ timeout ตั้งใจจะกันพอดี. poll ยังต้องยืนยันตัวตน
+     *                            ตามปกติ และยังโดน idle timeout เตะออกเหมือนเดิม แค่ไม่เลื่อนนาฬิกาให้.
+     */
+    public static function handle(?string $returnTo = null, bool $touchActivity = true): void
     {
         $auth = auth();
 
@@ -42,7 +50,10 @@ class AuthMiddleware
         }
 
         if ($auth->refresh()) {
-            Session::touchActivity();
+            if ($touchActivity) {
+                Session::touchActivity();
+            }
+
             return;
         }
 

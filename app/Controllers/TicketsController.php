@@ -333,7 +333,7 @@ class TicketsController
      */
     public function queueState(): void
     {
-        AuthMiddleware::handle();
+        AuthMiddleware::handle(null, touchActivity: false); // background poll ไม่ต่ออายุ session
         $viewer = auth()->user() ?? [];
 
         Response::json(['max_id' => $this->tickets->getQueueMaxVisibleId($viewer)]);
@@ -345,7 +345,7 @@ class TicketsController
      */
     public function state(string $ticketId): void
     {
-        AuthMiddleware::handle();
+        AuthMiddleware::handle(null, touchActivity: false); // background poll ไม่ต่ออายุ session
         $viewer = auth()->user() ?? [];
 
         $state = $this->tickets->getTicketLiveState((int) $ticketId, $viewer);
@@ -362,7 +362,7 @@ class TicketsController
      */
     public function commentsFeed(string $ticketId): void
     {
-        AuthMiddleware::handle();
+        AuthMiddleware::handle(null, touchActivity: false); // background poll ไม่ต่ออายุ session
         $viewer = auth()->user() ?? [];
         $after = max(0, (int) (request()?->query['after'] ?? 0));
 

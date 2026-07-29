@@ -709,3 +709,75 @@ test('auth(reset): POST /reset-password is rate-limited per IP before the bcrypt
         }
     }
 });
+
+// ── M-9: background poll ต้องไม่ต่ออายุ session ──
+// หน้าเว็บยิง poll เองทุก 20–30 วิ (กระดิ่งแจ้งเตือน / สถานะ ticket / คอมเมนต์) ทุกครั้งที่ยิงมันวิ่งผ่าน
+// AuthMiddleware ซึ่งเดิม touchActivity() ทุกกรณี = เลื่อนนาฬิกา idle ให้ราว 120 ครั้ง/ชม. แปลว่า idle timeout
+// 60 นาทีไม่มีวันทำงานตราบใดที่แท็บยังเปิดค้าง — ซึ่งคือเคส "ลุกจากเครื่องไม่ล็อกจอ" ที่ timeout ตั้งใจกันพอดี.
+// ตอนนี้ poll ยังต้องยืนยันตัวตนและยังโดน timeout เตะออกเหมือนเดิม แค่ไม่เลื่อนนาฬิกาให้.
+test('auth(idle) M-9: a background poll does not extend the session, but a real user action does', function (): void {
+    $u = auth_seed_user();
+    $auth = tvm_container()->get(App\Core\AuthManager::class);
+    $savedActivity = $_SESSION['_last_activity'] ?? null;
+
+    try {
+        $auth->login($u);
+
+        // the person walked away 59 minutes ago; the tab is still open and polling
+        $walkedAwayAt = time() - 59 * 60;
+        $_SESSION['_last_activity'] = $walkedAwayAt;
+
+        App\Middleware\AuthMiddleware::handle(null, touchActivity: false);
+        assert_same(
+            $walkedAwayAt,
+            (int) $_SESSION['_last_activity'],
+            'a background poll must not push the idle clock forward — otherwise the timeout can never fire on an open tab'
+        );
+        assert_true(
+            App\Core\Session::isIdleExpired(58),
+            'the session is still counting down to its deadline; the poll did not rescue it'
+        );
+
+        // …and a REAL action (opening a page, submitting a form) still counts as activity
+        App\Middleware\AuthMiddleware::handle();
+        assert_true(
+            (int) $_SESSION['_last_activity'] > $walkedAwayAt,
+            'a real user action refreshes the idle clock'
+        );
+        assert_false(
+            App\Core\Session::isIdleExpired(60),
+            'someone actively working is never logged out mid-task'
+        );
+    } finally {
+        $auth->logout();
+        if ($savedActivity === null) {
+            unset($_SESSION['_last_activity']);
+        } else {
+            $_SESSION['_last_activity'] = $savedActivity;
+        }
+        auth_cleanup($u['id']);
+    }
+});
+
+test('auth(idle) M-9: every live-poll endpoint opts out of extending the session', function (): void {
+    // source-lock: a new poll endpoint added later must make the same choice deliberately
+    $pollActions = [
+        ['app/Controllers/NotificationsController.php', 'feed'],
+        ['app/Controllers/TicketsController.php', 'queueState'],
+        ['app/Controllers/TicketsController.php', 'state'],
+        ['app/Controllers/TicketsController.php', 'commentsFeed'],
+        ['app/Controllers/GuestRequestController.php', 'state'],
+    ];
+
+    foreach ($pollActions as [$file, $method]) {
+        $source = (string) file_get_contents(BASE_PATH . '/' . $file);
+        $pos = strpos($source, 'function ' . $method . '(');
+        assert_true($pos !== false, "$file::$method exists");
+        $body = substr($source, $pos, 260);
+        assert_contains_str(
+            'touchActivity: false',
+            $body,
+            "$file::$method is a background poll and must not refresh the idle clock"
+        );
+    }
+});

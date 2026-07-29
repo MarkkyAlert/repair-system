@@ -45,7 +45,7 @@ class NotificationsController
      */
     public function feed(): void
     {
-        AuthMiddleware::handle();
+        AuthMiddleware::handle(null, touchActivity: false); // background poll ไม่ต่ออายุ session
 
         $viewer = auth()->user() ?? [];
         Response::json($this->notifications->getFeedData($viewer));
