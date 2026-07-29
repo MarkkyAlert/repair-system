@@ -51,9 +51,17 @@ class AssetImportService
             array_map(static fn (array $r): string => strtolower(trim((string) ($r['custodian_username'] ?? ''))), $rows)
         );
 
+        // ของที่ชนกับ "ของเดิมในระบบ" ต้องบอกตั้งแต่หน้า preview เหมือนตัวนำเข้าผู้ใช้ ไม่ใช่ปล่อยผ่านไปตายตอน
+        // INSERT แล้วรายงานรวม ๆ ว่าข้ามไปกี่แถว — คิวรีเดียวทั้งไฟล์ ไม่ใช่ต่อแถว
+        $existing = $this->assets->existingCodesAndSerials(
+            array_map(static fn (array $r): string => (string) ($r['asset_code'] ?? ''), $rows),
+            array_map(static fn (array $r): string => (string) ($r['serial_number'] ?? ''), $rows)
+        );
+
         $valid = [];
         $invalid = [];
         $seenCodes = [];
+        $seenSerials = [];
 
         foreach ($rows as $row) {
             $errors = [];
@@ -82,8 +90,20 @@ class AssetImportService
             if (strlen($notes) > 65535) {
                 $errors[] = 'notes ยาวเกิน 65,535 ไบต์';
             }
+            // serial_number ก็เป็นคอลัมน์ UNIQUE เหมือน asset_code จึงต้องกันซ้ำทั้งสองแกน ทั้งซ้ำกันเองในไฟล์
+            // และซ้ำกับของที่มีอยู่แล้ว (เดิมเช็คแค่ asset_code ซ้ำในไฟล์ อีกสามกรณีหลุดไปตายตอน INSERT)
+            $serialNumber = trim((string) ($row['serial_number'] ?? ''));
             if ($assetCode !== '' && isset($seenCodes[$assetCode])) {
                 $errors[] = 'asset_code ซ้ำกับแถวอื่นในไฟล์';
+            }
+            if ($serialNumber !== '' && isset($seenSerials[$serialNumber])) {
+                $errors[] = 'serial_number ซ้ำกับแถวอื่นในไฟล์';
+            }
+            if ($assetCode !== '' && isset($existing['codes'][$assetCode])) {
+                $errors[] = 'asset_code "' . $assetCode . '" มีอยู่ในระบบแล้ว';
+            }
+            if ($serialNumber !== '' && isset($existing['serials'][$serialNumber])) {
+                $errors[] = 'serial_number "' . $serialNumber . '" มีอยู่ในระบบแล้ว';
             }
             if (!in_array($status, asset_status_values(), true)) {
                 $errors[] = 'status ต้องเป็นหนึ่งใน: ' . implode(', ', asset_status_values());
@@ -140,11 +160,14 @@ class AssetImportService
             }
 
             $seenCodes[$assetCode] = true;
+            if ($serialNumber !== '') {
+                $seenSerials[$serialNumber] = true;
+            }
             $valid[] = [
                 'line' => (int) ($row['_line'] ?? 0),
                 'asset_code' => $assetCode,
                 'name' => $name,
-                'serial_number' => trim((string) ($row['serial_number'] ?? '')),
+                'serial_number' => $serialNumber,
                 'asset_category_id' => (int) $categoryId,
                 'department_id' => $departmentId !== null ? (int) $departmentId : null,
                 'location_id' => (int) $locationId,

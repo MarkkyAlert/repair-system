@@ -390,12 +390,8 @@ class AssetsController
             $result = $this->importer->executeImport($validRows, $viewer);
             Session::forget('asset_import_batch');
 
-            $skipped = count($result['skipped'] ?? []);
-            $summary = 'นำเข้า ' . (int) $result['imported'] . ' รายการ';
-            if ($skipped > 0) {
-                $summary .= ' · ข้าม ' . $skipped . ' รายการ (อาจซ้ำหรือผิดพลาด)';
-            }
-            flash('success', $summary);
+            [$tone, $summary] = self::summarizeAssetImport($result);
+            flash($tone, $summary);
         } catch (\PDOException $__infra) {
             throw $__infra; // error ระดับ infra ปล่อยให้ตัวจัดการ error ส่วนกลาง log แล้วส่ง 500 กลาง ๆ ไม่ให้ SQL หลุดออกไป
         } catch (DomainException|RuntimeException $exception) {
@@ -407,6 +403,47 @@ class AssetsController
         }
 
         Response::redirect('/asset-registry');
+    }
+
+    /**
+     * สรุปผลการนำเข้าทรัพย์สินเป็น [โทน, ข้อความ] สำหรับ flash.
+     * executeImport เก็บเหตุผลรายแถวไว้ให้แล้ว (บรรทัด + รหัส + สาเหตุ) แต่เดิมตัว controller ทิ้งทั้งหมด
+     * แล้วบอกแค่ "ข้าม n รายการ (อาจซ้ำหรือผิดพลาด)" — ผู้ดูแลที่นำเข้าไฟล์ 300 แถวจึงไม่รู้ว่าแถวไหนไม่เข้า
+     * และเพราะอะไร ต้องไปไล่เทียบเอง. แยกเป็นเมธอดเพราะ importExecute จบด้วย redirect (exit) ทดสอบตรง ๆ ไม่ได้.
+     *
+     * @param array{imported?: int, skipped?: list<array{line?: int, asset_code?: string, reason?: string}>} $result
+     * @return array{0: string, 1: string}
+     */
+    protected static function summarizeAssetImport(array $result): array
+    {
+        $imported = (int) ($result['imported'] ?? 0);
+        $skipped = $result['skipped'] ?? [];
+        $summary = 'นำเข้า ' . $imported . ' รายการ';
+
+        if ($skipped !== []) {
+            $summary .= ' · ข้าม ' . count($skipped) . ' รายการ';
+            // โชว์รายแถวจริง ๆ (จำกัด 5 แถวแรกไม่ให้ข้อความยาวเกินอ่าน) แล้วบอกว่ายังเหลืออีกกี่แถว
+            $details = [];
+            foreach (array_slice($skipped, 0, 5) as $row) {
+                $line = (int) ($row['line'] ?? 0);
+                $code = trim((string) ($row['asset_code'] ?? ''));
+                $reason = trim((string) ($row['reason'] ?? ''));
+                $label = $line > 0 ? 'บรรทัด ' . $line : 'ไม่ทราบบรรทัด';
+                if ($code !== '') {
+                    $label .= ' (' . $code . ')';
+                }
+                $details[] = $reason !== '' ? $label . ': ' . $reason : $label;
+            }
+            if ($details !== []) {
+                $summary .= ' — ' . implode(' · ', $details);
+                if (count($skipped) > 5) {
+                    $summary .= ' · และอีก ' . (count($skipped) - 5) . ' แถว';
+                }
+            }
+        }
+
+        // ไม่มีอะไรเข้าเลยแต่มีของถูกข้าม = ล้มเหลว ห้ามขึ้นเขียวให้เข้าใจผิดว่านำเข้าสำเร็จ
+        return [$imported > 0 || $skipped === [] ? 'success' : 'error', $summary];
     }
 
     /**

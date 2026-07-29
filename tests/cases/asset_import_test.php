@@ -436,3 +436,101 @@ test('import(R6-B1): a row referencing an ARCHIVED category code re-imports, not
         ai_pdo()->prepare('DELETE FROM asset_categories WHERE id = ?')->execute([$catId]);
     }
 });
+
+// ── M-7: preview ต้องจับของซ้ำให้ครบ 4 แกน + เหตุผลรายแถวต้องถึงมือแอดมิน ──
+// เดิมเช็คแค่ "asset_code ซ้ำกันเองในไฟล์" อีกสามกรณี (serial ซ้ำในไฟล์, asset_code/serial ชนของเดิมในระบบ)
+// หลุด preview ไปตายตอน INSERT แล้วสรุปรวม ๆ ว่า "ข้าม n รายการ (อาจซ้ำหรือผิดพลาด)" — ตัวนำเข้าผู้ใช้
+// ตรวจครบทั้งในไฟล์และในฐานข้อมูลอยู่แล้ว ตัวนำเข้าทรัพย์สินควรเทียบเท่า
+test('assetImport M-7: two rows sharing a serial_number — the second is flagged (serial is UNIQUE too)', function (): void {
+    $ref = ai_ref();
+    $serial = 'SNDUP-' . strtoupper(bin2hex(random_bytes(3)));
+    $result = ai_service()->validateRows([
+        ai_raw($ref, ['_line' => 2, 'asset_code' => 'M7A-' . bin2hex(random_bytes(3)), 'serial_number' => $serial]),
+        ai_raw($ref, ['_line' => 3, 'asset_code' => 'M7B-' . bin2hex(random_bytes(3)), 'serial_number' => $serial]),
+    ]);
+
+    assert_same(1, count($result['valid']), 'only the first row survives');
+    assert_true(ai_has_error(ai_invalid_for($result, 3), 'serial_number ซ้ำกับแถวอื่น'), 'the second says the serial clashes with another row in the file');
+});
+
+test('assetImport M-7: a blank serial_number on many rows is not treated as a duplicate', function (): void {
+    $ref = ai_ref();
+    $result = ai_service()->validateRows([
+        ai_raw($ref, ['_line' => 2, 'asset_code' => 'M7N1-' . bin2hex(random_bytes(3)), 'serial_number' => '']),
+        ai_raw($ref, ['_line' => 3, 'asset_code' => 'M7N2-' . bin2hex(random_bytes(3)), 'serial_number' => '']),
+        ai_raw($ref, ['_line' => 4, 'asset_code' => 'M7N3-' . bin2hex(random_bytes(3)), 'serial_number' => '']),
+    ]);
+
+    assert_same(3, count($result['valid']), 'assets without a serial are all importable — the guard is not over-broad');
+});
+
+test('assetImport M-7: rows clashing with data already in the system are caught in the PREVIEW', function (): void {
+    $ref = ai_ref();
+    $code = 'M7EXIST-' . strtoupper(bin2hex(random_bytes(3)));
+    $serial = 'M7SN-' . strtoupper(bin2hex(random_bytes(3)));
+    ai_seed_asset($code, $ref);
+    ai_pdo()->prepare('UPDATE assets SET serial_number = ? WHERE asset_code = ?')->execute([$serial, $code]);
+
+    try {
+        $result = ai_service()->validateRows([
+            ai_raw($ref, ['_line' => 2, 'asset_code' => $code, 'serial_number' => '']),
+            ai_raw($ref, ['_line' => 3, 'asset_code' => 'M7NEW-' . bin2hex(random_bytes(3)), 'serial_number' => $serial]),
+        ]);
+
+        assert_same(0, count($result['valid']), 'neither row is presented as ready to import');
+        assert_true(ai_has_error(ai_invalid_for($result, 2), 'มีอยู่ในระบบแล้ว'), 'an existing asset_code is reported before anything is written');
+        assert_true(ai_has_error(ai_invalid_for($result, 3), 'มีอยู่ในระบบแล้ว'), 'so is an existing serial_number');
+    } finally {
+        ai_delete_assets([$code]);
+    }
+});
+
+test('assetImport M-7: the existing-row lookup is one batched query, not one per row', function (): void {
+    $ref = ai_ref();
+    $rows = [];
+    foreach (range(2, 11) as $line) {
+        $rows[] = ai_raw($ref, ['_line' => $line, 'asset_code' => 'M7Q' . $line . '-' . bin2hex(random_bytes(3))]);
+    }
+
+    $one = count_queries(static fn () => ai_service()->validateRows([$rows[0]]));
+    $ten = count_queries(static fn () => ai_service()->validateRows($rows));
+    assert_same($one, $ten, 'validating ten rows costs the same number of queries as one — the lookup is batched, not per row');
+});
+
+test('assetImport M-7: the admin is told which rows were skipped and why', function (): void {
+    $spy = new class () extends App\Controllers\AssetsController {
+        public function __construct()
+        {
+        }
+
+        /** @param array{imported?: int, skipped?: list<array{line?: int, asset_code?: string, reason?: string}>} $result */
+        public static function summarize(array $result): array
+        {
+            return self::summarizeAssetImport($result);
+        }
+    };
+
+    [$tone, $message] = $spy::summarize([
+        'imported' => 2,
+        'skipped' => [
+            ['line' => 7, 'asset_code' => 'AST-007', 'reason' => 'asset_code หรือ serial_number ซ้ำกับข้อมูลที่มีอยู่'],
+        ],
+    ]);
+    assert_same('success', $tone, 'some rows did import');
+    assert_contains_str('นำเข้า 2 รายการ', $message, 'the imported count is stated');
+    assert_contains_str('บรรทัด 7', $message, 'the admin is told WHICH row failed');
+    assert_contains_str('AST-007', $message, 'and which asset it was');
+    assert_contains_str('ซ้ำกับข้อมูลที่มีอยู่', $message, 'and the real reason, not a vague "maybe duplicate"');
+
+    // ไม่เข้าสักแถว = ล้มเหลว ห้ามขึ้นเขียว
+    [$failTone, $failMessage] = $spy::summarize([
+        'imported' => 0,
+        'skipped' => [['line' => 2, 'asset_code' => 'A', 'reason' => 'ซ้ำ']],
+    ]);
+    assert_same('error', $failTone, 'importing nothing is not a success');
+    assert_true(!str_contains($failMessage, 'อาจซ้ำหรือผิดพลาด'), 'the old guessed wording is gone');
+
+    [$cleanTone, $cleanMessage] = $spy::summarize(['imported' => 5, 'skipped' => []]);
+    assert_same('success', $cleanTone, 'a clean import is still a success');
+    assert_same('นำเข้า 5 รายการ', $cleanMessage, 'and says nothing about skips');
+});

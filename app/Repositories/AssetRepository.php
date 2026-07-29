@@ -268,6 +268,59 @@ class AssetRepository
         ];
     }
 
+    /**
+     * asset_code / serial_number ที่ "มีอยู่ในระบบแล้ว" จากชุดที่ไฟล์ import ส่งมา — คิวรีเดียวทั้งไฟล์
+     * (แบบเดียวกับ UserRepository::existingLoginsAndEmails) เพื่อให้หน้า preview บอกได้ตั้งแต่ก่อนเขียนจริงว่า
+     * แถวไหนจะชนของเดิม แทนที่จะปล่อยไปตายตอน INSERT แล้วรายงานรวม ๆ ว่า "ข้าม n รายการ"
+     *
+     * @param list<string> $assetCodes
+     * @param list<string> $serials
+     * @return array{codes: array<string, true>, serials: array<string, true>}
+     */
+    public function existingCodesAndSerials(array $assetCodes, array $serials): array
+    {
+        $normalize = static fn (array $values, callable $case): array => array_values(array_unique(array_filter(
+            array_map(static fn ($v): string => $case(trim((string) $v)), $values),
+            static fn (string $v): bool => $v !== ''
+        )));
+        $assetCodes = $normalize($assetCodes, static fn (string $v): string => strtoupper($v));
+        $serials = $normalize($serials, static fn (string $v): string => $v);
+
+        $found = ['codes' => [], 'serials' => []];
+        if ($assetCodes === [] && $serials === []) {
+            return $found;
+        }
+
+        // collation utf8mb4_unicode_ci เทียบแบบไม่สนตัวพิมพ์อยู่แล้ว จึงไม่ห่อ LOWER()/UPPER() ในเงื่อนไข
+        // (index uq_assets_asset_code / uq_assets_serial_number จะได้ยังถูกใช้)
+        $conditions = [];
+        $params = [];
+        if ($assetCodes !== []) {
+            $conditions[] = 'asset_code IN (' . implode(',', array_fill(0, count($assetCodes), '?')) . ')';
+            $params = array_merge($params, $assetCodes);
+        }
+        if ($serials !== []) {
+            $conditions[] = 'serial_number IN (' . implode(',', array_fill(0, count($serials), '?')) . ')';
+            $params = array_merge($params, $serials);
+        }
+
+        $stmt = $this->db->prepare('SELECT asset_code, serial_number FROM assets WHERE ' . implode(' OR ', $conditions));
+        $stmt->execute($params);
+
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $code = strtoupper(trim((string) ($row['asset_code'] ?? '')));
+            $serial = trim((string) ($row['serial_number'] ?? ''));
+            if ($code !== '') {
+                $found['codes'][$code] = true;
+            }
+            if ($serial !== '') {
+                $found['serials'][$serial] = true;
+            }
+        }
+
+        return $found;
+    }
+
     private function translateAssetUniqueViolation(Throwable $exception): void
     {
         if (!is_duplicate_key_error($exception)) {
