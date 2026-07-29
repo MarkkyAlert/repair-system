@@ -18,20 +18,25 @@ class ReportRepository
     {
     }
 
+    /**
+     * ตัวเลือกของตัวกรองรายงาน — จงใจ "ไม่กรอง is_active" ทุกมิติ.
+     *
+     * รายงานคือประวัติ: แถวของแผนก/หมวดที่ปิดใช้งานไปแล้วยังโผล่ในผลลัพธ์อยู่ (ตัว query ของแถวไม่เคยกรอง
+     * is_active) ถ้าตัวกรองซ่อนมันไว้ ผู้จัดการจะเห็นตัวเลขแต่กดเจาะดูไม่ได้ = ข้อมูลที่มองเห็นแต่เข้าไม่ถึง.
+     * ส่งคอลัมน์ is_active กลับไปด้วยให้หน้าจอติดป้าย "ปิดใช้งาน" กำกับได้ ผู้ใช้จะได้ไม่เผลอเลือกไปตั้งค่างานใหม่
+     */
     public function getFilterReferenceData(): array
     {
         $departments = $this->db->query(
-            'SELECT id, name
+            'SELECT id, name, is_active
              FROM departments
-             WHERE is_active = 1
-             ORDER BY name ASC, id ASC'
+             ORDER BY is_active DESC, name ASC, id ASC'
         )->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
         $categories = $this->db->query(
-            'SELECT id, name
+            'SELECT id, name, is_active
              FROM ticket_categories
-             WHERE is_active = 1
-             ORDER BY sort_order ASC, name ASC, id ASC'
+             ORDER BY is_active DESC, sort_order ASC, name ASC, id ASC'
         )->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
         return [
@@ -697,20 +702,23 @@ class ReportRepository
     /** dropdown filter ของ SLA Breach Report — แผนก + หมวดหมู่ + priority + สถานที่. */
     public function getSlaBreachReferenceData(): array
     {
+        // ทั้งสี่มิติต้องใช้กติกาเดียวกัน: ไม่กรอง is_active + ส่งธงกลับไปให้ติดป้าย (ดู getFilterReferenceData).
+        // เดิมหน้าเดียวกันนี้กรอง department/category แต่ไม่กรอง priority/location — เลือกสถานที่ที่เลิกใช้แล้วได้
+        // แต่เลือกแผนกที่ปิดไปแล้วไม่ได้ ทั้งที่แถวของทั้งคู่ก็ยังโผล่ในรายงานเหมือนกัน
         $departments = $this->db->query(
-            'SELECT id, name FROM departments WHERE is_active = 1 ORDER BY name ASC, id ASC'
+            'SELECT id, name, is_active FROM departments ORDER BY is_active DESC, name ASC, id ASC'
         )->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
         $categories = $this->db->query(
-            'SELECT id, name FROM ticket_categories WHERE is_active = 1 ORDER BY sort_order ASC, name ASC, id ASC'
+            'SELECT id, name, is_active FROM ticket_categories ORDER BY is_active DESC, sort_order ASC, name ASC, id ASC'
         )->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
         $priorities = $this->db->query(
-            'SELECT id, name FROM priorities ORDER BY level DESC, id ASC'
+            'SELECT id, name, is_active FROM priorities ORDER BY is_active DESC, level DESC, id ASC'
         )->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
         $locations = $this->db->query(
-            'SELECT id, name FROM locations ORDER BY name ASC, id ASC'
+            'SELECT id, name, is_active FROM locations ORDER BY is_active DESC, name ASC, id ASC'
         )->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
         return [

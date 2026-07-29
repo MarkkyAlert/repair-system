@@ -2867,6 +2867,28 @@ class ReportService
     }
 
     /** ป้ายไทยของหัวคอลัมน์มิติ (ใช้ทั้งตาราง/หัว export/PDF). */
+    /**
+     * ตัวเลือก dropdown ของตัวกรองรายงาน (single source ของทุกมิติ: แผนก/หมวด/ความสำคัญ/สถานที่).
+     *
+     * ตัวเลือกที่ถูกปิดใช้งานยังต้องเลือกได้ เพราะแถวของมันยังโผล่ในผลลัพธ์รายงานอยู่ (รายงานคือประวัติ) —
+     * ถ้าซ่อนไว้ ผู้จัดการจะเห็นตัวเลขแต่กดเจาะดูไม่ได้. ติดป้าย "ปิดใช้งาน" กำกับด้วยข้อความเดียวกับฟอร์มแก้ไข
+     * ทรัพย์สินที่ทำ pattern นี้ไว้ก่อนแล้ว จะได้ไม่มีใครเผลอเลือกไปใช้กับงานใหม่
+     *
+     * @param array<int, array<string, mixed>> $rows
+     * @return list<array{value: string, label: string}>
+     */
+    private static function filterOptions(array $rows, string $allLabel): array
+    {
+        return array_merge(
+            [['value' => '', 'label' => $allLabel]],
+            array_map(static fn (array $row): array => [
+                'value' => (string) ($row['id'] ?? 0),
+                'label' => (string) ($row['name'] ?? '-')
+                    . (array_key_exists('is_active', $row) && !$row['is_active'] ? ' — ปิดใช้งาน' : ''),
+            ], $rows)
+        );
+    }
+
     private function slaBreachDimensionLabel(string $dimension): string
     {
         return match ($dimension) {
@@ -2894,13 +2916,7 @@ class ReportService
 
     private function buildSlaBreachFilterData(array $filters, array $reference): array
     {
-        $option = static fn (array $rows, string $allLabel): array => array_merge(
-            [['value' => '', 'label' => $allLabel]],
-            array_map(static fn (array $row): array => [
-                'value' => (string) ($row['id'] ?? 0),
-                'label' => (string) ($row['name'] ?? '-'),
-            ], $rows)
-        );
+        $option = static fn (array $rows, string $allLabel): array => self::filterOptions($rows, $allLabel);
 
         $queryFilters = array_filter([
             'from_date' => (string) ($filters['from_date'] ?? ''),
@@ -3474,18 +3490,8 @@ class ReportService
                 'category_id' => (string) ($filters['category_id'] ?? ''),
                 'status' => (string) ($filters['status'] ?? ''),
             ],
-            'departmentOptions' => array_merge([
-                ['value' => '', 'label' => 'ทุกแผนก'],
-            ], array_map(fn (array $row): array => [
-                'value' => (string) ($row['id'] ?? 0),
-                'label' => (string) ($row['name'] ?? '-'),
-            ], $reference['departments'] ?? [])),
-            'categoryOptions' => array_merge([
-                ['value' => '', 'label' => 'ทุกหมวด'],
-            ], array_map(fn (array $row): array => [
-                'value' => (string) ($row['id'] ?? 0),
-                'label' => (string) ($row['name'] ?? '-'),
-            ], $reference['categories'] ?? [])),
+            'departmentOptions' => self::filterOptions($reference['departments'] ?? [], 'ทุกแผนก'),
+            'categoryOptions' => self::filterOptions($reference['categories'] ?? [], 'ทุกหมวด'),
             'statusOptions' => ticket_status_options(true),
             'active_count' => $this->countActiveFilters($filters),
             'query_string' => http_build_query($queryFilters),

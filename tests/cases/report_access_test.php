@@ -65,3 +65,84 @@ test('reports: exports do not error when the filter matches no data', function (
         ras_pdo()->prepare('DELETE FROM export_jobs WHERE id > ?')->execute([$baselineJobId]);
     }
 });
+
+// ── B-4: ตัวกรองรายงานต้องเข้าถึงทุกอย่างที่รายงานแสดงได้ ──
+// แถวของรายงานไม่เคยกรอง is_active (รายงานคือประวัติ) แต่ dropdown กรองแผนก/หมวดออก = เห็นตัวเลขแต่กดเจาะดูไม่ได้
+// และหน้าเดียวกันยังไม่สม่ำเสมอ: priority/location เลือกของที่ปิดใช้งานได้ แต่ department/category เลือกไม่ได้
+function ra_option_values(array $options): array
+{
+    return array_map(static fn (array $o): string => (string) $o['value'], $options);
+}
+
+test('reports B-4: a deactivated dimension is still selectable in every filter, and labelled', function (): void {
+    $pdo = tvm_container()->get(PDO::class);
+    $sfx = strtoupper(bin2hex(random_bytes(3)));
+    $made = [];
+
+    $pdo->prepare('INSERT INTO departments (code, name, is_active, created_at, updated_at) VALUES (?, ?, 0, NOW(), NOW())')->execute(["B4D-$sfx", "B4 Dept $sfx"]);
+    $made['department'] = (int) $pdo->lastInsertId();
+    $pdo->prepare('INSERT INTO ticket_categories (code, name, sort_order, is_active, created_at, updated_at) VALUES (?, ?, 95, 0, NOW(), NOW())')->execute(["B4C-$sfx", "B4 Cat $sfx"]);
+    $made['category'] = (int) $pdo->lastInsertId();
+    $pdo->prepare('INSERT INTO locations (code, name, is_active, created_at, updated_at) VALUES (?, ?, 0, NOW(), NOW())')->execute(["B4L-$sfx", "B4 Loc $sfx"]);
+    $made['location'] = (int) $pdo->lastInsertId();
+    $pdo->prepare('INSERT INTO priorities (code, name, level, sort_order, response_time_minutes, resolution_time_minutes, is_active, created_at, updated_at)
+                   VALUES (?, ?, (SELECT COALESCE(MAX(level),0)+1 FROM (SELECT level FROM priorities) p), 95, 60, 240, 0, NOW(), NOW())')->execute(["B4P-$sfx", "B4 Prio $sfx"]);
+    $made['priority'] = (int) $pdo->lastInsertId();
+
+    try {
+        $filters = tvm_container()->get(App\Services\ReportService::class)
+            ->getSlaBreachReportPage(['id' => 4, 'role' => 'admin'], [])['filters'];
+
+        foreach (['department' => 'departmentOptions', 'category' => 'categoryOptions', 'priority' => 'priorityOptions', 'location' => 'locationOptions'] as $dim => $key) {
+            $values = ra_option_values($filters[$key]);
+            assert_true(
+                in_array((string) $made[$dim], $values, true),
+                "a deactivated $dim can still be selected — the report shows its rows, so the filter must reach them"
+            );
+            $label = '';
+            foreach ($filters[$key] as $option) {
+                if ((string) $option['value'] === (string) $made[$dim]) {
+                    $label = (string) $option['label'];
+                }
+            }
+            assert_contains_str('ปิดใช้งาน', $label, "the deactivated $dim is labelled so nobody picks it for new work by mistake");
+        }
+    } finally {
+        $pdo->prepare('DELETE FROM departments WHERE id = ?')->execute([$made['department']]);
+        $pdo->prepare('DELETE FROM ticket_categories WHERE id = ?')->execute([$made['category']]);
+        $pdo->prepare('DELETE FROM locations WHERE id = ?')->execute([$made['location']]);
+        $pdo->prepare('DELETE FROM priorities WHERE id = ?')->execute([$made['priority']]);
+    }
+});
+test('reports B-4: the deactivated label matches the database exactly, in both directions', function (): void {
+    $pdo = tvm_container()->get(PDO::class);
+    $filters = tvm_container()->get(App\Services\ReportService::class)
+        ->getSlaBreachReportPage(['id' => 4, 'role' => 'admin'], [])['filters'];
+
+    $tables = [
+        'departmentOptions' => 'departments',
+        'categoryOptions' => 'ticket_categories',
+        'priorityOptions' => 'priorities',
+        'locationOptions' => 'locations',
+    ];
+
+    foreach ($tables as $key => $table) {
+        $active = [];
+        foreach ($pdo->query("SELECT id, is_active FROM $table")->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $active[(int) $row['id']] = (bool) $row['is_active'];
+        }
+
+        foreach ($filters[$key] as $option) {
+            $id = (int) $option['value'];
+            if ($id <= 0) {
+                continue; // the "all" entry
+            }
+            $labelled = str_contains((string) $option['label'], 'ปิดใช้งาน');
+            assert_same(
+                !($active[$id] ?? true),
+                $labelled,
+                "$key #$id: the deactivated label appears exactly when the row is deactivated — never on an active one"
+            );
+        }
+    }
+});
