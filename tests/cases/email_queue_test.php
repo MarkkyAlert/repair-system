@@ -182,3 +182,63 @@ test('emailQueue(concurrency): a stale worker cannot clobber a row another worke
         eq_delete($id);
     }
 });
+
+// ── M-3: จ๊อบที่ทำ worker ตาย ต้องมีสถานะจบ ไม่ใช่วนหยิบซ้ำตลอดกาล ──
+// เพดาน max_attempts เดิมบังคับอยู่ใน catch ของ service เท่านั้น ความล้มเหลวที่ "ฆ่าโปรเซส" (OOM จาก body ใหญ่ /
+// fatal ในตัวส่งเมล / SMTP ค้างจนหมดเวลา) จึงไม่มีวันไปถึง catch นั้น: แถวค้างเป็น processing → หมดเวลา → ถูกหยิบ
+// ซ้ำ → ตายอีก วนไม่จบและ attempts บวกไม่หยุด. attempts เป็น TINYINT UNSIGNED (สูงสุด 255) พอชนเพดาน UPDATE
+// ของทั้ง batch จะ error ใน strict mode = แถวเสียแถวเดียวทำให้ทั้งคิวส่งเมลไม่ออกอีกเลย
+test('emailQueue M-3: a crashed job that already burned its attempts is not re-claimed forever', function (): void {
+    $stale = date('Y-m-d H:i:s', time() - 7200); // ค้างมา 2 ชม.
+    $poison = eq_seed(['status' => 'processing', 'attempts' => 3, 'max_attempts' => 3, 'updated_at' => $stale]);
+
+    try {
+        $claimed = eq_repo()->claimDueEmails(100, date('Y-m-d H:i:s', time() - 3600));
+        assert_true(!in_array($poison, eq_claimed_ids($claimed), true), 'a job at its attempt cap is not picked up again');
+
+        $row = eq_row($poison);
+        assert_same('failed', (string) $row['status'], 'it reaches a terminal status instead of looping');
+        assert_contains_str('หยุดส่งอัตโนมัติ', (string) $row['error_message'], 'and says why, so the admin can see it in the failed tab');
+        assert_same(3, (int) $row['attempts'], 'giving up does not inflate the attempt count further');
+    } finally {
+        eq_delete($poison);
+    }
+});
+
+test('emailQueue M-3: a crashed job still under its cap IS retried, and the admin can rescue a given-up one', function (): void {
+    $stale = date('Y-m-d H:i:s', time() - 7200);
+    $retryable = eq_seed(['status' => 'processing', 'attempts' => 1, 'max_attempts' => 3, 'updated_at' => $stale]);
+    $poison = eq_seed(['status' => 'processing', 'attempts' => 3, 'max_attempts' => 3, 'updated_at' => $stale]);
+
+    try {
+        $claimed = eq_repo()->claimDueEmails(100, date('Y-m-d H:i:s', time() - 3600));
+        assert_true(in_array($retryable, eq_claimed_ids($claimed), true), 'a stale job below the cap is still retried — the fix is not over-broad');
+        assert_same(2, (int) eq_row($retryable)['attempts'], 'and its attempt count advances normally');
+
+        // the given-up one is now in the failed tab, where the existing admin retry button reaches it
+        assert_same('failed', (string) eq_row($poison)['status'], 'the capped job is failed, not queued');
+        assert_true(eq_repo()->requeueForRetry($poison), 'an admin can still manually retry it');
+        assert_same('queued', (string) eq_row($poison)['status'], 'a manual retry puts it back in the queue');
+        assert_same(0, (int) eq_row($poison)['attempts'], 'with a clean slate');
+    } finally {
+        eq_delete($retryable);
+        eq_delete($poison);
+    }
+});
+
+test('emailQueue M-3: one poisoned row does not block the healthy mail behind it', function (): void {
+    $stale = date('Y-m-d H:i:s', time() - 7200);
+    $poison = eq_seed(['status' => 'processing', 'attempts' => 3, 'max_attempts' => 3, 'updated_at' => $stale]);
+    $healthyA = eq_seed();
+    $healthyB = eq_seed();
+
+    try {
+        $ids = eq_claimed_ids(eq_repo()->claimDueEmails(100, date('Y-m-d H:i:s', time() - 3600)));
+        assert_true(in_array($healthyA, $ids, true) && in_array($healthyB, $ids, true), 'normal queued mail still goes out');
+        assert_true(!in_array($poison, $ids, true), 'the poisoned row is simply skipped');
+    } finally {
+        eq_delete($poison);
+        eq_delete($healthyA);
+        eq_delete($healthyB);
+    }
+});

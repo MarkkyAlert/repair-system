@@ -143,12 +143,34 @@ class EmailQueueRepository
         try {
             $this->db->beginTransaction();
 
+            // ปิดจ๊อบที่ "ทำ worker ตาย" ให้จบก่อน. เพดาน max_attempts เดิมบังคับอยู่ใน catch ของ service เท่านั้น
+            // แปลว่าความล้มเหลวที่ฆ่าโปรเซสทั้งตัว (OOM จาก body ใหญ่ / fatal ในตัวส่งเมล / SMTP ค้างจนหมดเวลา)
+            // ไม่มีวันไปถึง catch นั้น แถวจึงค้างเป็น processing รอหมดเวลาแล้วถูกหยิบซ้ำ นับ attempts เพิ่มไป
+            // เรื่อย ๆ ไม่มีสถานะจบ. attempts เป็น TINYINT UNSIGNED (สูงสุด 255) พอชนเพดาน UPDATE ของทั้ง batch
+            // จะ error ใน strict mode = แถวเสียแถวเดียวทำให้ทั้งคิวส่งเมลไม่ออกอีกเลย. ปิดให้เป็น failed
+            // ตั้งแต่รอบแรกที่รู้ว่าเกินเพดาน แล้วแอดมินค่อยกด "ลองส่งใหม่" เองได้จากแท็บที่ล้มเหลว
+            $giveUp = $this->db->prepare(
+                "UPDATE email_queue
+                 SET status = 'failed',
+                     failed_at = :failed_at,
+                     error_message = 'หยุดส่งอัตโนมัติ: ทำงานไม่สำเร็จครบจำนวนครั้งที่กำหนด (โปรเซสอาจหยุดกลางคัน)',
+                     updated_at = :give_up_updated_at
+                 WHERE status = 'processing'
+                   AND updated_at <= :give_up_expired_before
+                   AND attempts >= max_attempts"
+            );
+            $giveUp->execute([
+                'failed_at' => $claimedAt,
+                'give_up_updated_at' => $claimedAt,
+                'give_up_expired_before' => $processingExpiredBefore,
+            ]);
+
             $stmt = $this->db->prepare(
                 "SELECT id, to_email, to_name, subject, body_html, body_text, payload, status, attempts, max_attempts, error_message, available_at, sent_at, failed_at, created_at, updated_at
                  FROM email_queue
                  WHERE (
                      (status = 'queued' AND available_at <= :available_at)
-                     OR (status = 'processing' AND updated_at <= :processing_expired_before)
+                     OR (status = 'processing' AND updated_at <= :processing_expired_before AND attempts < max_attempts)
                  )
                  ORDER BY available_at ASC, id ASC
                  LIMIT $limit
