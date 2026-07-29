@@ -238,11 +238,13 @@ class AssetService
             $sheet = $spreadsheet->getActiveSheet();
             $sheet->setTitle('ทะเบียนทรัพย์สิน');
 
-            $column = 'A';
-            foreach ($headers as $header) {
+            // เดินคอลัมน์ด้วยเลข index แล้วแปลงเป็นตัวอักษร แบบเดียวกับ loop ข้อมูลข้างล่าง — ห้ามใช้ $column++
+            // บนสตริง: PHP 8.5 ประกาศว่า deprecated แล้ว notice จะถูกพ่นออก output ก่อน header ของไฟล์
+            // ทำให้ .xlsx ที่ดาวน์โหลดไปมีข้อความปนหัวไฟล์จนเปิดไม่ขึ้น (composer.json รองรับ ^8.1 ไม่มีเพดานบน)
+            foreach (array_values($headers) as $headerIndex => $header) {
+                $column = Coordinate::stringFromColumnIndex($headerIndex + 1);
                 $sheet->setCellValue($column . '1', $header);
                 $sheet->getColumnDimension($column)->setAutoSize(true);
-                $column++;
             }
 
             $rowNumber = 2;
