@@ -1545,3 +1545,64 @@ test('workflow H-3: a failing audit write does not undo a closure that already s
         wf_cleanup($id);
     }
 });
+
+// ── M-8: bulk approve ที่ล้มต้องไม่ขึ้นข้อความ "สำเร็จ" สีเขียว ──
+// เดิม controller ขึ้นสีเขียวเสมอ แล้วเดาเหตุผลเองว่า "สถานะอาจเปลี่ยนไปแล้ว" ทั้งที่ service คืนเหตุผลจริง
+// รายใบมาให้แล้ว. เคสที่เจ็บสุดคือ manager กด "เลือกทั้งหน้า" ในคิวรออนุมัติที่มีใบที่ตัวเองเป็นผู้แจ้งปนอยู่ —
+// แยกหน้าที่กันตรวจสอบบล็อกไว้ กดกี่ครั้งก็ไม่ผ่าน แต่หน้าจอบอกว่าสำเร็จ ผู้ใช้เลยกดวนไม่จบ
+function wf_bulk_flash(array $result): array
+{
+    $spy = new class () extends App\Controllers\TicketsController {
+        public function __construct()
+        {
+        }
+
+        /** @param array{approved?: int, failed?: list<array{ticket_id?: int, reason?: string}>} $result */
+        public static function summarize(array $result): array
+        {
+            return self::summarizeBulkApprove($result);
+        }
+    };
+
+    return $spy::summarize($result);
+}
+
+test('workflow M-8: a bulk approve where every item failed is reported as an error with the real reason', function (): void {
+    [$tone, $message] = wf_bulk_flash([
+        'approved' => 0,
+        'failed' => [
+            ['ticket_id' => 1, 'reason' => 'ไม่สามารถอนุมัติคำขอที่คุณเป็นผู้แจ้งเองได้ กรุณาให้ผู้จัดการหรือผู้ดูแลระบบท่านอื่นอนุมัติ'],
+            ['ticket_id' => 2, 'reason' => 'ไม่สามารถอนุมัติคำขอที่คุณเป็นผู้แจ้งเองได้ กรุณาให้ผู้จัดการหรือผู้ดูแลระบบท่านอื่นอนุมัติ'],
+        ],
+    ]);
+
+    assert_same('error', $tone, 'nothing was approved, so this must not be a green success toast');
+    assert_contains_str('ไม่มีรายการใดถูก Approve', $message, 'the message says plainly that nothing went through');
+    assert_contains_str('ผู้แจ้งเองได้', $message, 'the REAL reason from the service is shown, not a guess about the status');
+    assert_true(!str_contains($message, 'สถานะอาจเปลี่ยนไปแล้ว'), 'the fabricated status guess is gone');
+});
+
+test('workflow M-8: a partial bulk approve reports both sides separately', function (): void {
+    [$tone, $message] = wf_bulk_flash([
+        'approved' => 3,
+        'failed' => [['ticket_id' => 9, 'reason' => 'รายการนี้ไม่อยู่ในสถานะที่อนุมัติได้']],
+    ]);
+
+    assert_same('success', $tone, 'some items did go through');
+    assert_contains_str('Approve สำเร็จ 3 รายการ', $message, 'the successful count is stated');
+    assert_contains_str('ล้มเหลว 1 รายการ', $message, 'the failed count is stated separately');
+    assert_contains_str('ไม่อยู่ในสถานะที่อนุมัติได้', $message, 'with its real reason');
+});
+
+test('workflow M-8: many identical failures collapse to one reason, and a clean run stays clean', function (): void {
+    $failed = [];
+    foreach (range(1, 50) as $i) {
+        $failed[] = ['ticket_id' => $i, 'reason' => 'รายการนี้ไม่อยู่ในสถานะที่อนุมัติได้'];
+    }
+    [, $message] = wf_bulk_flash(['approved' => 0, 'failed' => $failed]);
+    assert_same(1, substr_count($message, 'ไม่อยู่ในสถานะที่อนุมัติได้'), '50 identical reasons are shown once, not 50 times');
+
+    [$okTone, $okMessage] = wf_bulk_flash(['approved' => 5, 'failed' => []]);
+    assert_same('success', $okTone, 'a fully successful bulk approve is still a success');
+    assert_same('Approve สำเร็จ 5 รายการ', $okMessage, 'and says nothing about failures');
+});

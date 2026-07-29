@@ -147,12 +147,8 @@ class TicketsController
             $ids = array_filter(array_map('trim', explode(',', $raw)), static fn (string $v): bool => $v !== '' && ctype_digit($v));
             $result = $this->workflow->bulkApproveTickets($ids, $viewer);
 
-            $message = 'Approve สำเร็จ ' . (int) $result['approved'] . ' รายการ';
-            $failedCount = count($result['failed'] ?? []);
-            if ($failedCount > 0) {
-                $message .= ' · ล้มเหลว ' . $failedCount . ' รายการ (สถานะอาจเปลี่ยนไปแล้ว)';
-            }
-            flash('success', $message);
+            [$tone, $message] = self::summarizeBulkApprove($result);
+            flash($tone, $message);
         } catch (\PDOException $__infra) {
             throw $__infra; // error ระดับ infra ปล่อยให้ตัวจัดการ error ส่วนกลาง log แล้วส่ง 500 กลาง ๆ ไม่ให้ SQL หลุดออกไป
         } catch (DomainException|RuntimeException $exception) {
@@ -160,6 +156,43 @@ class TicketsController
         }
 
         Response::redirect('/tickets?status=pending_approval');
+    }
+
+    /**
+     * สรุปผล bulk approve เป็น [โทน, ข้อความ] สำหรับ flash.
+     * แยกออกมาเป็นเมธอดเพราะ bulkApprove จบด้วย redirect (exit) เลยทดสอบผลลัพธ์ตรง ๆ ไม่ได้.
+     *
+     * สองเรื่องที่ต้องไม่พลาด: (1) ถ้าไม่สำเร็จสักใบห้ามขึ้นสีเขียว ผู้ใช้จะนึกว่าอนุมัติไปแล้วทั้งที่ยังไม่มีอะไรเกิดขึ้น
+     * (2) ต้องบอกเหตุผล "จริง" ที่ service คืนมารายใบ ไม่ใช่เดาว่าสถานะเปลี่ยนไปแล้ว — เหตุที่เจอบ่อยคือ manager
+     * กด approve ใบที่ตัวเองเป็นผู้แจ้ง (แยกหน้าที่กันตรวจสอบ) ซึ่งกดกี่ครั้งก็ไม่มีวันผ่าน ถ้าไม่บอกตรง ๆ ก็จะกดวนอยู่อย่างนั้น.
+     *
+     * @param array{approved?: int, failed?: list<array{ticket_id?: int, reason?: string}>} $result
+     * @return array{0: string, 1: string}
+     */
+    protected static function summarizeBulkApprove(array $result): array
+    {
+        $approved = (int) ($result['approved'] ?? 0);
+        $failed = $result['failed'] ?? [];
+        $failedCount = count($failed);
+
+        $message = $approved > 0 ? 'Approve สำเร็จ ' . $approved . ' รายการ' : 'ไม่มีรายการใดถูก Approve';
+
+        if ($failedCount > 0) {
+            $message .= ' · ล้มเหลว ' . $failedCount . ' รายการ';
+            // ยุบเหตุผลที่ซ้ำกันให้เหลือชุดเดียว ไม่งั้นเลือก 50 ใบที่ล้มด้วยเหตุเดียวกันจะได้ข้อความยาวเป็นหางว่าว
+            $reasons = array_values(array_unique(array_filter(array_map(
+                static fn (array $item): string => trim((string) ($item['reason'] ?? '')),
+                $failed
+            ))));
+            if ($reasons !== []) {
+                $message .= ': ' . implode(' · ', array_slice($reasons, 0, 3));
+                if (count($reasons) > 3) {
+                    $message .= ' · (และอีก ' . (count($reasons) - 3) . ' สาเหตุ)';
+                }
+            }
+        }
+
+        return [$approved > 0 ? 'success' : 'error', $message];
     }
 
     public function approve(string $ticketId): void
