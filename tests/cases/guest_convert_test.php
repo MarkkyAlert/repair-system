@@ -334,3 +334,67 @@ test('guest convert B3: a moved scanned asset still converts, keeps the asset li
         $pdo->prepare('DELETE FROM locations WHERE id = ?')->execute([$loc2]);
     }
 });
+
+// ── M-1: ลบสถานที่ทิ้งไม่ได้ถ้ายังมีคำขอ guest ค้างอยู่ ──
+// FK ของ guest_ticket_requests.location_id เป็น ON DELETE SET NULL (ไม่ใช่ RESTRICT แบบ assets/tickets ที่ DB
+// กันให้เอง) ด่าน "กำลังใช้งาน" เดิมจึงเช็คแค่ assets กับ tickets แล้วปล่อยให้ลบได้ → location_id ของคำขอถูกล้าง
+// เงียบ ๆ → คำขอนั้นแปลงเป็น ticket ไม่ได้อีกเลย เพราะฟอร์มแปลงไม่มีช่องให้เลือกสถานที่ใหม่ เหลือแค่กดปฏิเสธทิ้ง
+function gc_seed_location(string $suffix): int
+{
+    gc_pdo()->prepare('INSERT INTO locations (code, name, is_active, created_at, updated_at) VALUES (?, ?, 1, NOW(), NOW())')
+        ->execute(["GCLOC-$suffix", "GC Location $suffix"]);
+
+    return (int) gc_pdo()->lastInsertId();
+}
+
+test('guest convert M-1: a location a pending guest request points at cannot be deleted', function (): void {
+    $sfx = bin2hex(random_bytes(4));
+    $locationId = gc_seed_location($sfx);
+    $requestId = gc_insert_request(['location_id' => $locationId, 'status' => 'new']);
+    $admin = tvm_container()->get(App\Services\ReferenceDataService::class);
+
+    try {
+        $threw = false;
+        try {
+            $admin->deleteLocation($locationId, ['id' => 4, 'role' => 'admin']);
+        } catch (DomainException $e) {
+            $threw = true;
+            assert_contains_str('ถูกใช้งานแล้ว', $e->getMessage(), 'the admin is told why it cannot go');
+        }
+        assert_true($threw, 'deleting a location that a pending guest request depends on is refused');
+
+        assert_same(
+            1,
+            (int) gc_pdo()->query("SELECT COUNT(*) FROM locations WHERE id = $locationId")->fetchColumn(),
+            'the location survives'
+        );
+        assert_same(
+            $locationId,
+            (int) gc_pdo()->query("SELECT location_id FROM guest_ticket_requests WHERE id = $requestId")->fetchColumn(),
+            'and the request still knows where the problem is, so it can still be converted'
+        );
+    } finally {
+        gc_cleanup($requestId, []);
+        gc_pdo()->prepare('DELETE FROM locations WHERE id = ?')->execute([$locationId]);
+    }
+});
+
+test('guest convert M-1: a location nothing depends on is still deletable', function (): void {
+    $sfx = bin2hex(random_bytes(4));
+    $locationId = gc_seed_location($sfx);
+    // คำขอที่จบงานไปแล้ว (ปฏิเสธ) ไม่ควรขวางการล้างข้อมูลเก่า
+    $requestId = gc_insert_request(['location_id' => $locationId, 'status' => 'rejected']);
+    $admin = tvm_container()->get(App\Services\ReferenceDataService::class);
+
+    try {
+        $admin->deleteLocation($locationId, ['id' => 4, 'role' => 'admin']);
+        assert_same(
+            0,
+            (int) gc_pdo()->query("SELECT COUNT(*) FROM locations WHERE id = $locationId")->fetchColumn(),
+            'an unused location can still be removed — the guard is not over-broad'
+        );
+    } finally {
+        gc_cleanup($requestId, []);
+        gc_pdo()->prepare('DELETE FROM locations WHERE id = ?')->execute([$locationId]);
+    }
+});

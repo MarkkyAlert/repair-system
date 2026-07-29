@@ -777,14 +777,22 @@ class AdminRepository
 
     private function locationInUse(int $locationId): bool
     {
+        // คำขอจาก guest ที่ยังไม่ถูกจัดการ (status 'new') ต้องนับว่า "กำลังใช้งาน" ด้วย: FK ของมันเป็น
+        // ON DELETE SET NULL (ต่างจาก assets/tickets ที่เป็น RESTRICT แล้ว DB กันให้เอง) การลบสถานที่จึงไม่ error
+        // แต่ไปล้าง location_id ของคำขอเงียบ ๆ แล้วคำขอนั้นจะแปลงเป็น ticket ไม่ได้อีกเลย — ฟอร์มแปลงไม่มีช่องให้
+        // เลือกสถานที่ใหม่ เหลือทางเดียวคือกดปฏิเสธทิ้ง ทั้งที่เป็นคำขอที่ถูกต้อง.
+        // นับเฉพาะ 'new' เพราะคำขอที่แปลง/ปฏิเสธไปแล้วจบงานของมันแล้ว (ticket ที่แปลงออกมาถือ location ของตัวเอง)
+        // ไม่ควรค้างขวางการล้างสถานที่เก่าไปตลอด
         $stmt = $this->db->prepare(
-            'SELECT
+            "SELECT
                 EXISTS(SELECT 1 FROM assets WHERE location_id = :asset_location_id)
-                OR EXISTS(SELECT 1 FROM tickets WHERE location_id = :ticket_location_id)'
+                OR EXISTS(SELECT 1 FROM tickets WHERE location_id = :ticket_location_id)
+                OR EXISTS(SELECT 1 FROM guest_ticket_requests WHERE location_id = :guest_location_id AND status = 'new')"
         );
         $stmt->execute([
             'asset_location_id' => $locationId,
             'ticket_location_id' => $locationId,
+            'guest_location_id' => $locationId,
         ]);
 
         return (bool) $stmt->fetchColumn();
