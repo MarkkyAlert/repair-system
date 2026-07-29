@@ -580,8 +580,15 @@ class AssetRepository
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
-    public function findActiveAssetByToken(string $token): ?array
+    /**
+     * @param bool $reportableOnly true = เฉพาะทรัพย์สินที่ยังรับแจ้งซ่อมได้ (active/maintenance) — ใช้ตอน guest
+     *                             ส่งคำขอจริง. false = เจอทุกสถานะ ใช้ตอน "แสดงผลหน้าสแกน" เพราะทรัพย์สินที่
+     *                             ปลดระวางแล้วก็ยังต้องสแกนเพื่อตรวจนับได้ ต้องขึ้นว่าปลดระวางแล้ว ไม่ใช่ 404
+     *                             ที่ทำให้คนสแกนนึกว่าสติกเกอร์เสียหรือระบบล่ม
+     */
+    public function findActiveAssetByToken(string $token, bool $reportableOnly = true): ?array
     {
+        $statusCondition = $reportableOnly ? " AND a.status IN ('active', 'maintenance')" : '';
         $stmt = $this->db->prepare(
             "SELECT
                 a.id,
@@ -602,9 +609,8 @@ class AssetRepository
              INNER JOIN assets a ON a.id = qr.asset_id
              INNER JOIN asset_categories ac ON ac.id = a.asset_category_id
              INNER JOIN locations l ON l.id = a.location_id
-             WHERE qr.token = :token AND qr.is_active = 1
-               AND a.status IN ('active', 'maintenance')
-             LIMIT 1"
+             WHERE qr.token = :token AND qr.is_active = 1" . $statusCondition . '
+             LIMIT 1'
         );
         $stmt->execute(['token' => $token]);
 

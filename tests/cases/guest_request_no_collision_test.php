@@ -31,7 +31,7 @@ function grnc_service(GuestTicketRequestRepository $requests): GuestTicketServic
     $c = tvm_container();
     $pdo = $c->get(PDO::class);
     $assets = new class ($pdo) extends AssetRepository {
-        public function findActiveAssetByToken(string $token): ?array
+        public function findActiveAssetByToken(string $token, bool $reportableOnly = true): ?array
         {
             return ['id' => 1, 'location_id' => 1]; // any scanned QR resolves to a real asset
         }

@@ -45,3 +45,76 @@ test('scan(privacy): a guest scan hides the serial; an authorized scan shows it'
         ssp_pdo()->prepare('DELETE FROM assets WHERE id = ?')->execute([$assetId]);
     }
 });
+
+// ── B-6: ทรัพย์สินที่ปลดระวางแล้วต้องสแกนดูได้ แต่แจ้งซ่อมไม่ได้ ──
+// เดิม query ของหน้าสแกนกรอง status IN (active, maintenance) ทรัพย์สินที่ปลดระวาง/จำหน่ายจึงได้ 404 ทั้งที่
+// สติกเกอร์ QR ยังติดอยู่บนของจริง — คนที่เดินตรวจนับจะนึกว่าสติกเกอร์เสียหรือระบบล่ม. ขณะเดียวกันหน้ารายละเอียด
+// ก็ยังโชว์ปุ่ม "แจ้งปัญหา" ให้ ซึ่งพาไปหน้าสร้าง ticket ที่ไม่มีทรัพย์สินตัวนี้ในรายการเลือก = ได้ ticket ที่ไม่ผูก
+// กับทรัพย์สินแบบเงียบ ๆ
+test('scan B-6: a retired asset still scans (for stock-taking) but is not reportable', function (): void {
+    $repo = tvm_container()->get(AssetRepository::class);
+    $svc = tvm_container()->get(AssetService::class);
+    $ref = $repo->getAssetFormReferenceData();
+    $code = 'B6R-' . strtoupper(bin2hex(random_bytes(3)));
+
+    ssp_pdo()->prepare("INSERT INTO assets (asset_code, name, asset_category_id, location_id, status, created_at, updated_at) VALUES (?, 'B6 Retired', ?, ?, 'active', NOW(), NOW())")
+        ->execute([$code, (int) $ref['categories'][0]['id'], (int) $ref['locations'][0]['id']]);
+    $assetId = (int) ssp_pdo()->lastInsertId();
+
+    try {
+        $token = $repo->regenerateQrToken($assetId, null);
+
+        $live = $svc->getScanData($token, false);
+        assert_true((bool) $live['is_reportable'], 'sanity: an active asset is reportable');
+
+        foreach (['retired', 'disposed'] as $status) {
+            ssp_pdo()->prepare('UPDATE assets SET status = ? WHERE id = ?')->execute([$status, $assetId]);
+            $scan = $svc->getScanData($token, false);
+
+            assert_true($scan !== null, "a $status asset still resolves — the sticker on the shelf must not 404");
+            assert_same('B6 Retired', (string) $scan['asset']['name'], "and still identifies itself so it can be counted");
+            assert_false((bool) $scan['is_reportable'], "but a $status asset cannot be reported against");
+            assert_contains_str(
+                asset_status_label_th($status),
+                (string) $scan['asset']['status'],
+                'the scan says plainly what state it is in'
+            );
+        }
+    } finally {
+        ssp_pdo()->prepare('DELETE FROM asset_qr_tokens WHERE asset_id = ?')->execute([$assetId]);
+        ssp_pdo()->prepare('DELETE FROM assets WHERE id = ?')->execute([$assetId]);
+    }
+});
+
+test('scan B-6: a guest still cannot FILE a request against a retired asset', function (): void {
+    $repo = tvm_container()->get(AssetRepository::class);
+    $guests = tvm_container()->get(App\Services\GuestTicketService::class);
+    $ref = $repo->getAssetFormReferenceData();
+    $code = 'B6G-' . strtoupper(bin2hex(random_bytes(3)));
+
+    ssp_pdo()->prepare("INSERT INTO assets (asset_code, name, asset_category_id, location_id, status, created_at, updated_at) VALUES (?, 'B6 Guest', ?, ?, 'retired', NOW(), NOW())")
+        ->execute([$code, (int) $ref['categories'][0]['id'], (int) $ref['locations'][0]['id']]);
+    $assetId = (int) ssp_pdo()->lastInsertId();
+
+    try {
+        $token = $repo->regenerateQrToken($assetId, null);
+
+        $threw = false;
+        try {
+            $guests->submitGuestRequest($token, [
+                'guest_name' => 'ผู้สแกน',
+                'guest_email' => 'b6@example.com',
+                'title' => 'ลองแจ้งของที่ปลดระวาง',
+                'description' => 'x',
+                'form_token' => bin2hex(random_bytes(32)),
+            ], '203.0.113.66');
+        } catch (DomainException) {
+            $threw = true;
+        }
+        assert_true($threw, 'viewing is allowed, but actually filing against a retired asset is still refused — the submit path is unchanged');
+    } finally {
+        ssp_pdo()->prepare('DELETE FROM guest_ticket_requests WHERE asset_id = ?')->execute([$assetId]);
+        ssp_pdo()->prepare('DELETE FROM asset_qr_tokens WHERE asset_id = ?')->execute([$assetId]);
+        ssp_pdo()->prepare('DELETE FROM assets WHERE id = ?')->execute([$assetId]);
+    }
+});

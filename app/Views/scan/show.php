@@ -35,7 +35,12 @@
             <div class="panel-head">
                 <h2 class="panel-title">ขั้นตอนถัดไป</h2>
             </div>
-            <?php if (!empty($isAuthenticated)): ?>
+            <?php if (empty($isReportable)): ?>
+                <?php // ทรัพย์สินที่ปลดระวาง/จำหน่ายแล้ว: ยังสแกนดูข้อมูลเพื่อตรวจนับได้ แต่รับแจ้งซ่อมไม่ได้แล้ว
+                      // ต้องบอกให้ชัดตรงนี้ ไม่ใช่ปล่อยให้กดปุ่มไปแล้วได้ ticket ที่ไม่ผูกกับทรัพย์สินแบบเงียบ ๆ ?>
+                <p class="body-text">ทรัพย์สินนี้ถูก<?= e((string) ($asset['status'] ?? '')) ?>แล้ว จึงไม่เปิดรับแจ้งซ่อม</p>
+                <p class="helper-text">สแกนดูข้อมูลเพื่อตรวจนับได้ตามปกติ · หากพบว่าข้อมูลไม่ถูกต้อง กรุณาแจ้งผู้ดูแลระบบ</p>
+            <?php elseif (!empty($isAuthenticated)): ?>
                 <p class="body-text">ระบบจะเติมค่าทรัพย์สินและสถานที่ให้ในหน้าแจ้งซ่อมใหม่</p>
                 <?= render_partial('partials/components/button', ['label' => 'แจ้งปัญหาจากทรัพย์สินนี้', 'variant' => 'primary', 'href' => $ticketCreatePath, 'icon' => 'arrow-right']) ?>
             <?php else: ?>

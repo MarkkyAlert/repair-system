@@ -45,6 +45,7 @@ class ScanController
             'guestReportPath' => '/scan/' . rawurlencode($token) . '/report',
             'isAuthenticated' => auth()->check(),
             'showSerial' => $showSerial,
+            'isReportable' => (bool) ($data['is_reportable'] ?? true),
         ], $layout);
     }
 

@@ -291,14 +291,14 @@ class AssetService
             return null;
         }
 
-        $asset = $this->assets->findActiveAssetByToken($token);
+        $asset = $this->assets->findActiveAssetByToken($token, false);
         if ($asset === null) {
             return null;
         }
 
         $this->assets->touchScanToken($token);
         // อ่านซ้ำหลัง touch เพื่อดึง last_scanned_at ที่เพิ่งเขียน (บรรทัดล่างส่งค่านี้ออกไปแสดงผล) — อย่าตัดทิ้งเพราะนึกว่าซ้ำกับด้านบน.
-        $asset = $this->assets->findActiveAssetByToken($token);
+        $asset = $this->assets->findActiveAssetByToken($token, false);
         if ($asset === null) {
             return null;
         }
@@ -319,6 +319,9 @@ class AssetService
                 'notes' => (string) ($asset['notes'] ?? ''),
                 'last_scanned_at' => $this->formatDateTime($asset['last_scanned_at'] ?? null),
             ],
+            // ทรัพย์สินที่ปลดระวาง/จำหน่ายแล้วยังสแกนดูได้ (ใช้ตรวจนับของ) แต่รับแจ้งซ่อมไม่ได้ — ฟอร์มสร้าง ticket
+            // ไม่มีมันอยู่ในรายการเลือกด้วยซ้ำ กดปุ่มไปก็จะได้ ticket ที่ไม่ผูกกับทรัพย์สินแบบเงียบ ๆ
+            'is_reportable' => in_array((string) ($asset['status'] ?? ''), ['active', 'maintenance'], true),
             'ticket_create_path' => '/tickets/create?asset_id=' . (int) ($asset['id'] ?? 0),
             'login_path' => '/login?return=' . rawurlencode('/tickets/create?asset_id=' . (int) ($asset['id'] ?? 0)),
         ];
