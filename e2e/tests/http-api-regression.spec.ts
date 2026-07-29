@@ -266,7 +266,12 @@ async function loginContext(
   });
   expect(response.status).toBe(302);
   expect(locationOf(response)).toBe('/dashboard');
-  return { context, csrf };
+  // A successful login deliberately discards the token minted before authentication (AuthService::attemptLogin,
+  // mirroring logout), so the pre-auth value cannot guard authenticated writes. Read the session's new token
+  // from an authenticated page — reusing the pre-login one would now be silently rejected on every POST.
+  const authenticatedCsrf = await csrfFrom(runner, context, '/dashboard');
+  expect(authenticatedCsrf).not.toBe(csrf);
+  return { context, csrf: authenticatedCsrf };
 }
 
 test('HTTP API regression matrix: routing, auth, CSRF, validation, permission, IDOR, upload and cleanup', async () => {
