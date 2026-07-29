@@ -20,11 +20,18 @@ test('demo-load(integrity): generated lifecycle, work order, SLA, approval, hist
 
         $result = $container->get(DemoDataService::class)->load(4);
         assert_same(20, (int) ($result['tickets'] ?? 0), 'the real demo operation created its complete ticket pack');
+        // B-5 (owner decision): the demo pack may only contain states a buyer's own users can actually reach.
+        // Nothing in the application writes 'closed' — it is a deliberately retained future terminal (the commit
+        // that dropped on_hold kept it on purpose), so seeding it showed buyers a status they could never
+        // reproduce. The enum and the terminal-status sets are untouched; the demo simply ends at completed.
+        assert_same(
+            0,
+            (int) $database->query("SELECT COUNT(*) FROM tickets WHERE status = 'closed'")->fetchColumn(),
+            'the demo pack contains no ticket in a state the application cannot produce'
+        );
         assert_true(
-            (int) $database->query(
-                "SELECT COUNT(*) FROM tickets WHERE status = 'closed' AND closed_at IS NOT NULL"
-            )->fetchColumn() > 0,
-            'the real demo operation intentionally exercises closed history with its own closed_at'
+            (int) $database->query("SELECT COUNT(*) FROM tickets WHERE status = 'completed' AND completed_at IS NOT NULL")->fetchColumn() > 0,
+            'finished work is still represented — it just ends at completed, which the real flow does reach'
         );
 
         $timestampViolations = (int) $database->query(

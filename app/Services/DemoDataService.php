@@ -296,17 +296,19 @@ class DemoDataService
         // spec ต่อ ticket (กระจายให้ทุกรายงานดูเต็ม): [title, daysAgo, status, cat, loc, pri, asset, techIdx,
         //   labor(min), rating[score,fb]|null, resolveHours|null (null=ยังไม่ปิด), reopen]. breach = resolveHours > 8.
         $specs = [
-            // ── ปิดงานแล้ว (resolved/completed/closed) ── มีคะแนน/แรงงาน/SLA/บางตัว breach+reopen
-            ['เครื่องพิมพ์ HR ไม่พิมพ์งาน', 84, 'closed', 'HARDWARE', 'OFFICE-1F', 'MEDIUM', 'PRT-001', 0, 45, [5, 'ช่างมาไว แก้จบในครั้งเดียว ประทับใจมาก'], 3, false],
+            // ── ปิดงานแล้ว (resolved/completed) ── มีคะแนน/แรงงาน/SLA/บางตัว breach+reopen
+            // ไม่ใช้สถานะ closed ในข้อมูลตัวอย่าง: ไม่มี flow ไหนพาไปถึงได้ ผู้ซื้อ template จึงจะเห็นสถานะที่ผู้ใช้
+            // ของตัวเองสร้างไม่ได้ (ตัว enum ยังเก็บไว้ตามที่ตัดสินใจไว้ เผื่อทำฟีเจอร์ปิดถาวรในอนาคต)
+            ['เครื่องพิมพ์ HR ไม่พิมพ์งาน', 84, 'completed', 'HARDWARE', 'OFFICE-1F', 'MEDIUM', 'PRT-001', 0, 45, [5, 'ช่างมาไว แก้จบในครั้งเดียว ประทับใจมาก'], 3, false],
             ['จอคอมการเงินกระพริบถี่', 78, 'completed', 'HARDWARE', 'OFFICE-2F', 'HIGH', 'PC-001', 1, 90, [4, 'โดยรวมดี แต่รอชิ้นส่วนนานไปหน่อย'], 20, false],
-            ['แอร์ห้องประชุมใหญ่ไม่เย็น', 70, 'closed', 'ELECTRICAL', 'MEETING', 'HIGH', 'AC-001', 2, 180, [3, 'เย็นแล้วแต่ใช้เวลานาน'], 30, false],
+            ['แอร์ห้องประชุมใหญ่ไม่เย็น', 70, 'completed', 'ELECTRICAL', 'MEETING', 'HIGH', 'AC-001', 2, 180, [3, 'เย็นแล้วแต่ใช้เวลานาน'], 30, false],
             ['ไฟห้องเก็บของดับทั้งห้อง', 63, 'resolved', 'ELECTRICAL', 'WAREHOUSE', 'LOW', 'LGT-001', 0, 25, [5, 'รวดเร็วมากครับ'], 2, false],
             ['เมาส์และคีย์บอร์ดฝ่าย IT พัง', 58, 'completed', 'HARDWARE', 'OFFICE-1F', 'LOW', 'PC-002', 1, 15, [4, 'เรียบร้อยดี'], 1, false],
             ['เซิร์ฟเวอร์ช้าผิดปกติทั้งวัน', 52, 'completed', 'SOFTWARE', 'SERVER', 'URGENT', 'SRV-001', 2, 240, [2, 'แก้ช้ามาก งานสะดุดทั้งวัน ต้องตามหลายรอบ'], 48, true],
-            ['เครื่องพิมพ์ชั้น 2 กระดาษติดบ่อย', 45, 'closed', 'HARDWARE', 'OFFICE-2F', 'MEDIUM', 'PRT-002', 0, 60, [1, 'เปิดซ้ำหลายรอบยังไม่หายขาด ผิดหวัง'], 36, true],
+            ['เครื่องพิมพ์ชั้น 2 กระดาษติดบ่อย', 45, 'completed', 'HARDWARE', 'OFFICE-2F', 'MEDIUM', 'PRT-002', 0, 60, [1, 'เปิดซ้ำหลายรอบยังไม่หายขาด ผิดหวัง'], 36, true],
             ['ติดตั้งโปรแกรมบัญชีเวอร์ชันใหม่', 38, 'completed', 'SOFTWARE', 'OFFICE-1F', 'MEDIUM', 'PC-001', 1, 120, [5, 'ติดตั้งเรียบร้อย สอนใช้งานด้วย ดีมาก'], 5, false],
             ['แอร์โรงอาหารมีเสียงดัง', 30, 'resolved', 'ELECTRICAL', 'MEETING', 'MEDIUM', 'AC-002', 2, 75, null, 6, false],
-            ['สายแลนหลุดห้องประชุมย่อย', 2, 'closed', 'HARDWARE', 'MEETING', 'LOW', 'PC-002', 0, 20, [4, 'ok ครับ'], 2, false],
+            ['สายแลนหลุดห้องประชุมย่อย', 2, 'completed', 'HARDWARE', 'MEETING', 'LOW', 'PC-002', 0, 20, [4, 'ok ครับ'], 2, false],
             ['จอมอนิเตอร์ห้องเซิร์ฟเวอร์ไม่ติด', 4, 'completed', 'HARDWARE', 'SERVER', 'HIGH', 'SRV-001', 1, 50, [3, 'พอใช้ได้'], 4, false],
             ['ไฟออฟฟิศชั้น 1 บางดวงดับ', 6, 'resolved', 'ELECTRICAL', 'OFFICE-1F', 'LOW', 'LGT-001', 2, 30, null, 3, false],
             // ── งานค้าง (backlog) ── ยังไม่ปิด อายุหลากหลาย (2 ตัวเกิน 30 วัน)
