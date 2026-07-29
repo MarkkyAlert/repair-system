@@ -262,6 +262,47 @@ class NotificationService
         }
     }
 
+    /**
+     * บอกช่างที่ "ถูกย้ายงานออก" ว่างานไม่ใช่ของตัวเองแล้ว — แจ้งในแอปอย่างเดียว ไม่ส่งอีเมล (เจ้าของตัดสิน B-2).
+     *
+     * ต้องรับ id ของช่างคนเดิมเข้ามาตรง ๆ เพราะตอนที่ยิงแจ้งเตือน transaction commit ไปแล้ว บริบทของ ticket
+     * จึงชี้ไปที่ช่างคนใหม่เรียบร้อย. ถ้าไม่แจ้ง งานจะหายจากคิวของช่างคนเดิมไปเฉย ๆ (หลังย้ายแล้วเขาก็หมดสิทธิ์
+     * เห็นใบนั้นด้วย) — คนที่กำลังจะไปหน้างานจริงจะไม่มีทางรู้เลยว่าถูกถอดออกแล้ว
+     */
+    public function notifyTechnicianUnassigned(int $ticketId, int $previousTechnicianId, int $actorId): void
+    {
+        if ($previousTechnicianId <= 0 || $previousTechnicianId === $actorId) {
+            return;
+        }
+
+        try {
+            $context = $this->reads->findTicketNotificationContextById($ticketId);
+            if ($context === null) {
+                return;
+            }
+
+            $recipients = $this->filterByPreference([$previousTechnicianId], 'ticket_status_changed', 'in_app');
+            if ($recipients === []) {
+                return;
+            }
+
+            $this->dispatchNotification([
+                'type' => 'ticket.unassigned',
+                'title' => 'งานถูกย้ายให้ช่างท่านอื่น',
+                'message' => 'Ticket ' . (string) ($context['ticket_no'] ?? '-') . ' ถูกมอบหมายให้ช่างท่านอื่นดำเนินการแทนแล้ว',
+                'payload' => json_encode([
+                    'ticket_id' => (int) ($context['id'] ?? $ticketId),
+                    'ticket_no' => (string) ($context['ticket_no'] ?? ''),
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                'related_type' => 'ticket',
+                'related_id' => $ticketId,
+            ], $recipients);
+        } catch (Throwable $exception) {
+            // best-effort เหมือนแจ้งเตือนตัวอื่น: การย้ายงาน commit ไปแล้ว ห้ามพังเพราะแจ้งเตือนไม่สำเร็จ
+            log_caught_exception('notify.ticket.unassigned', $exception, ['ticket' => $ticketId]);
+        }
+    }
+
     public function notifyCommentEvent(int $ticketId, int $commentId, int $actorId, bool $isInternal, string $body, string $action): void
     {
         $context = $this->reads->findTicketNotificationContextById($ticketId);

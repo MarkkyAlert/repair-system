@@ -182,6 +182,9 @@ class TicketWorkflowService
         }
         require_max_bytes($instructions, self::MAX_TEXT_BYTES, 'คำสั่ง/เหตุผลการมอบหมาย');
 
+        // จำช่างคนเดิมไว้ก่อนเขียนทับ — หลัง commit บริบทของ ticket จะชี้ไปที่ช่างคนใหม่แล้ว
+        $previousTechnicianId = (int) ($ticket['assigned_technician_id'] ?? 0);
+
         $this->tickets->assignTechnician(
             $ticketId,
             (int) ($viewer['id'] ?? 0),
@@ -191,6 +194,11 @@ class TicketWorkflowService
             (string) ($ticket['status'] ?? 'approved')
         );
         $this->notifications->notifyTicketEvent($ticketId, 'ticket.assigned', (int) ($viewer['id'] ?? 0));
+        // ช่างคนเดิมต้องรู้ว่าไม่ใช่งานของตัวเองแล้ว ไม่งั้นงานหายจากคิวไปเฉย ๆ (ย้ายแล้วเขาหมดสิทธิ์เห็นใบนั้นด้วย)
+        // — เหตุผลที่กฎย้ายงานกลางคันมีอยู่คือ "ช่างลาป่วย/ลาออก" ซึ่งเป็นตอนที่ช่างไม่ได้อยู่ให้บอกปากเปล่าพอดี
+        if ($previousTechnicianId !== $technicianId) {
+            $this->notifications->notifyTechnicianUnassigned($ticketId, $previousTechnicianId, (int) ($viewer['id'] ?? 0));
+        }
     }
 
     /**

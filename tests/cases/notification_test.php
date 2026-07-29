@@ -503,3 +503,51 @@ test('notify B-1: a ticket that HAS a manager owner still notifies only that man
         nt_cleanup([$ticketId], [$requesterId, $technicianId, $ownerId, $otherManagerId]);
     }
 });
+
+// ── B-2: ช่างที่ถูกย้ายงานออกต้องได้รับแจ้ง (ในแอปอย่างเดียว ตามที่เจ้าของเลือก) ──
+// หลังย้ายงาน ช่างคนเดิมหมดสิทธิ์เห็นใบนั้นด้วย งานจึงหายจากคิวไปเฉย ๆ โดยไม่มีข้อความใด ๆ — และเหตุผลที่กฎ
+// "ย้ายงานกลางคัน" มีอยู่ก็คือช่างลาป่วย/ลาออก ซึ่งเป็นตอนที่ไม่มีใครบอกเขาปากเปล่าได้พอดี
+test('notify B-2: the technician who lost the job is told, in-app', function (): void {
+    $requesterId = nt_seed_user('requester');
+    $oldTechId = nt_seed_user('technician');
+    $newTechId = nt_seed_user('technician');
+    $managerId = nt_seed_user('manager');
+    $ticketId = nt_seed_ticket($requesterId, $managerId, $oldTechId);
+    $pdo = nt_pdo();
+
+    try {
+        // จำลองการย้ายงาน: ตัว repo เปลี่ยนช่างแล้ว service ยิงแจ้งเตือนโดยส่ง id ช่างคนเดิมมาให้
+        $pdo->prepare('UPDATE tickets SET assigned_technician_id = ? WHERE id = ?')->execute([$newTechId, $ticketId]);
+        nt_service()->notifyTechnicianUnassigned($ticketId, $oldTechId, $managerId);
+
+        $notifId = nt_last_notif_id($ticketId);
+        assert_true($notifId > 0, 'a notification is created');
+        assert_same([$oldTechId], nt_recipients_of($notifId), 'it goes to the technician who was removed — and only to them');
+
+        $row = $pdo->query("SELECT type, title FROM notifications WHERE id = $notifId")->fetch(PDO::FETCH_ASSOC);
+        assert_same('ticket.unassigned', (string) $row['type'], 'it is its own event type');
+        assert_contains_str('ย้าย', (string) $row['title'], 'and says the job moved to someone else');
+
+        // ในแอปอย่างเดียว — ไม่ต้องส่งอีเมล (เจ้าของตัดสิน)
+        $queued = (int) $pdo->query("SELECT COUNT(*) FROM email_queue WHERE subject LIKE '%ย้าย%'")->fetchColumn();
+        assert_same(0, $queued, 'no email is sent — this is an in-app notice only');
+    } finally {
+        nt_cleanup([$ticketId], [$requesterId, $oldTechId, $newTechId, $managerId]);
+    }
+});
+
+test('notify B-2: nothing is sent when there was no previous technician, or when the mover is the technician', function (): void {
+    $requesterId = nt_seed_user('requester');
+    $techId = nt_seed_user('technician');
+    $ticketId = nt_seed_ticket($requesterId, null, $techId);
+
+    try {
+        nt_service()->notifyTechnicianUnassigned($ticketId, 0, $techId);
+        assert_same(0, nt_last_notif_id($ticketId), 'a first-time assignment notifies nobody about being unassigned');
+
+        nt_service()->notifyTechnicianUnassigned($ticketId, $techId, $techId);
+        assert_same(0, nt_last_notif_id($ticketId), 'and nobody is told about their own action');
+    } finally {
+        nt_cleanup([$ticketId], [$requesterId, $techId]);
+    }
+});
