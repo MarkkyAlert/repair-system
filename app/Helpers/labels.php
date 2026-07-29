@@ -287,3 +287,24 @@ if (!function_exists('asset_status_label_th')) {
         return $map[strtolower(trim($status))] ?? humanize_label($status);
     }
 }
+
+if (!function_exists('comment_visibility_label_th')) {
+    /**
+     * ป้ายกำกับการมองเห็นของ comment (ภายใน / สาธารณะ) — single source ให้สองทางที่ส่งค่านี้ออกไปตรงกัน:
+     * ตอน render หน้า (TicketService::mapComment) กับตอนตอบ AJAX หลังแก้ inline (CommentService::updateComment).
+     * เดิมสองที่เขียนสตริงแยกกัน ฝั่ง AJAX เผลอเป็นอังกฤษ พอผู้ใช้แก้ comment ป้ายจึงเปลี่ยนจาก "สาธารณะ"
+     * เป็น "Public" คาหน้าจอจนกว่าจะรีเฟรช
+     */
+    function comment_visibility_label_th(bool $isInternal): string
+    {
+        return $isInternal ? 'ภายใน' : 'สาธารณะ';
+    }
+}
+
+if (!function_exists('comment_visibility_tone')) {
+    /** โทนสีของป้ายการมองเห็น comment — คู่กับ comment_visibility_label_th() ต้องเปลี่ยนพร้อมกันเสมอ */
+    function comment_visibility_tone(bool $isInternal): string
+    {
+        return $isInternal ? 'warning' : 'default';
+    }
+}

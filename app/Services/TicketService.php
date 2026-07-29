@@ -1003,8 +1003,8 @@ class TicketService
             'author_name' => (string) ($comment['author_name'] ?? 'Unknown'),
             'author_role' => role_label_th((string) ($comment['author_role'] ?? 'user')),
             'body' => (string) ($comment['body'] ?? ''),
-            'visibility_label' => $isInternal ? 'ภายใน' : 'สาธารณะ',
-            'visibility_tone' => $isInternal ? 'warning' : 'default',
+            'visibility_label' => comment_visibility_label_th($isInternal),
+            'visibility_tone' => comment_visibility_tone($isInternal),
             'created_at' => $this->formatDateTime($comment['created_at'] ?? null),
             // integer version สำหรับ optimistic-lock ตอนแก้ไข (มาจาก hidden original_version) — กันเคส lost update
             // ในวินาทีเดียวกันที่ token แบบ updated_at (ละเอียดแค่วินาที) จับไม่ได้ (WHERE version = :original_version)

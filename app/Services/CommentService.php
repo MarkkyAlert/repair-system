@@ -118,8 +118,9 @@ class CommentService
             // ฟอร์มจะยังถือเลขเดิมที่ถูกใช้ไปแล้ว พอแก้ครั้งที่สองจะโดน optimistic lock ตีกลับว่า "คนอื่นแก้ไปแล้ว"
             // ทั้งที่ไม่มีใครมายุ่ง. updateComment ผ่านมาได้แปลว่า version ตรงกับที่ส่งไป ค่าใหม่จึงเป็น +1 เสมอ
             'version' => $originalVersion + 1,
-            'visibility_label' => $isInternal ? 'Internal' : 'Public',
-            'visibility_tone' => $isInternal ? 'warning' : 'default',
+            // ใช้ helper ตัวเดียวกับตอน render หน้า ป้ายจะได้ไม่เปลี่ยนภาษาหลังผู้ใช้กดแก้ inline
+            'visibility_label' => comment_visibility_label_th($isInternal),
+            'visibility_tone' => comment_visibility_tone($isInternal),
         ];
     }
 

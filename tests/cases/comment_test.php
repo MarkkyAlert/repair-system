@@ -611,3 +611,50 @@ test('comment M-4: the inline editor writes the returned version back into the f
     assert_contains_str('original_version', $js, 'the editor knows about the lock field');
     assert_contains_str('.version', $js, 'and reads the version the server returned');
 });
+
+// ── M-5: ป้ายกำกับต้องเป็นภาษาเดียวกันทั้งตอน render และตอนแก้ inline ──
+// สองทางเคยเขียนสตริงของตัวเองแยกกัน ฝั่ง AJAX เผลอเป็นอังกฤษ ผู้ใช้แก้ comment ทีป้ายก็เปลี่ยนจาก
+// "สาธารณะ" เป็น "Public" คาหน้าจอ กลายเป็นสองภาษาปนกันในเธรดเดียวจนกว่าจะรีเฟรช
+test('comment M-5: the inline edit response uses the same Thai labels the page renders', function (): void {
+    $ticketId = cm_seed_ticket();
+    [$commentId, $version] = cm_seed_comment($ticketId, cm_owner()['id']);
+
+    try {
+        $payload = cm_service()->updateComment($ticketId, $commentId, cm_owner(), [
+            'body' => 'แก้แล้ว',
+            'submission_token' => cm_token(),
+            'original_version' => $version,
+        ]);
+        assert_same('สาธารณะ', (string) ($payload['visibility_label'] ?? ''), 'a public comment stays "สาธารณะ" after an inline edit');
+
+        // เทียบกับป้ายที่หน้าเว็บ render จริงสำหรับ comment ตัวเดียวกัน ต้องตรงกันเป๊ะ
+        $detail = tvm_container()->get(App\Services\TicketService::class)
+            ->getTicketDetailData($ticketId, cm_owner(), []);
+        $rendered = null;
+        foreach ($detail['comments'] as $row) {
+            if ((int) ($row['id'] ?? 0) === $commentId) {
+                $rendered = $row;
+                break;
+            }
+        }
+        assert_true($rendered !== null, 'the comment is on the page');
+        assert_same(
+            (string) $rendered['visibility_label'],
+            (string) $payload['visibility_label'],
+            'the AJAX label and the rendered label are the same string — the badge cannot change language mid-thread'
+        );
+        assert_same((string) $rendered['visibility_tone'], (string) $payload['visibility_tone'], 'and the same tone');
+
+        // โน้ตภายใน: ต้องเป็น comment ของช่างเอง (แก้ของคนอื่นไม่ได้ และ requester ตั้ง internal ไม่ได้)
+        [$techCommentId, $techVersion] = cm_seed_comment($ticketId, cm_tech()['id']);
+        $internal = cm_service()->updateComment($ticketId, $techCommentId, cm_tech(), [
+            'body' => 'ทำเป็นโน้ตภายใน',
+            'submission_token' => cm_token(),
+            'original_version' => $techVersion,
+            'is_internal' => '1',
+        ]);
+        assert_same('ภายใน', (string) ($internal['visibility_label'] ?? ''), 'and an internal note reads "ภายใน", not "Internal"');
+    } finally {
+        cm_cleanup($ticketId);
+    }
+});
