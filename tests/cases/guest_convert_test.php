@@ -197,6 +197,7 @@ test('guest convert: a claim/link failure AFTER the ticket is created rolls it b
             tvm_container()->get(AssetRepository::class),
             tvm_container()->get(LoginRateLimiter::class),
             tvm_container()->get(NotificationService::class),
+            tvm_container()->get(App\Repositories\TicketReadRepository::class),
             $pdo
         );
 
@@ -396,5 +397,40 @@ test('guest convert M-1: a location nothing depends on is still deletable', func
     } finally {
         gc_cleanup($requestId, []);
         gc_pdo()->prepare('DELETE FROM locations WHERE id = ?')->execute([$locationId]);
+    }
+});
+
+// ── M-6: ฟอร์มแปลงต้องเสนอเฉพาะตัวเลือกที่ service ยอมรับ ──
+// หน้าจัดการคำขอเคยดึงรายการหมวด/ความสำคัญจากชุดของหน้า "ข้อมูลหลัก" ซึ่งไม่กรอง is_active (มันต้องโชว์ของที่ปิด
+// ใช้งานด้วยเพื่อให้แก้ได้) แต่ convertToTicket ตรวจกับชุดที่กรอง is_active แล้ว ผู้ดูแลจึงเลือกหมวดที่ถูกปิด
+// ใช้งานไปแล้วได้ แล้วเจอ error ที่พูดถึง Location ซึ่งไม่มีในฟอร์มนั้นด้วยซ้ำ
+test('guest convert M-6: the moderation form only offers options the convert will accept', function (): void {
+    $pdo = gc_pdo();
+    $sfx = strtoupper(bin2hex(random_bytes(3)));
+    $pdo->prepare('INSERT INTO ticket_categories (code, name, sort_order, is_active, created_at, updated_at) VALUES (?, ?, 90, 0, NOW(), NOW())')
+        ->execute(["GCOFF-$sfx", "GC ปิดใช้งาน $sfx"]);
+    $offCategoryId = (int) $pdo->lastInsertId();
+    $pdo->prepare('INSERT INTO priorities (code, name, level, sort_order, response_time_minutes, resolution_time_minutes, is_active, created_at, updated_at) VALUES (?, ?, (SELECT COALESCE(MAX(level),0)+1 FROM (SELECT level FROM priorities) p), 90, 60, 240, 0, NOW(), NOW())')
+        ->execute(["GCPOFF-$sfx", "GC Prio ปิด $sfx"]);
+    $offPriorityId = (int) $pdo->lastInsertId();
+
+    try {
+        $data = gc_service()->getModerationData('new', 1);
+        $categoryIds = array_map(static fn (array $r): int => (int) $r['id'], $data['categories']);
+        $priorityIds = array_map(static fn (array $r): int => (int) $r['id'], $data['priorities']);
+
+        assert_true(!in_array($offCategoryId, $categoryIds, true), 'a deactivated category is not offered — the convert would always reject it');
+        assert_true(!in_array($offPriorityId, $priorityIds, true), 'nor is a deactivated priority');
+        assert_true($categoryIds !== [] && $priorityIds !== [], 'active options are still offered, so the form remains usable');
+
+        // ทุกตัวเลือกที่เสนอต้องเป็นตัวที่ convert ยอมรับจริง (ชุดเดียวกับที่ createTicket ตรวจ)
+        $accepted = tvm_container()->get(App\Repositories\TicketReadRepository::class)->getCreateFormReferenceData();
+        $acceptedCategories = array_map(static fn (array $r): int => (int) $r['id'], $accepted['categories']);
+        foreach ($categoryIds as $id) {
+            assert_true(in_array($id, $acceptedCategories, true), "category $id is offered and is accepted by the convert");
+        }
+    } finally {
+        $pdo->prepare('DELETE FROM ticket_categories WHERE id = ?')->execute([$offCategoryId]);
+        $pdo->prepare('DELETE FROM priorities WHERE id = ?')->execute([$offPriorityId]);
     }
 });

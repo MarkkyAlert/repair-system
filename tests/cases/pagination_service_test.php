@@ -81,6 +81,7 @@ test('service pagination: pages beyond the end clamp before fetching email and g
         $container->get(AssetRepository::class),
         $container->get(LoginRateLimiter::class),
         $container->get(NotificationService::class),
+        $container->get(App\Repositories\TicketReadRepository::class),
         $container->get(\PDO::class),
     );
 

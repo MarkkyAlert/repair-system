@@ -5,6 +5,7 @@ namespace App\Services;
 
 use App\Repositories\AssetRepository;
 use App\Repositories\GuestTicketRequestRepository;
+use App\Repositories\TicketReadRepository;
 use DomainException;
 use PDO;
 use RuntimeException;
@@ -27,6 +28,7 @@ class GuestTicketService
         private AssetRepository $assets,
         private LoginRateLimiter $rateLimiter,
         private NotificationService $notifications,
+        private TicketReadRepository $reads,
         private PDO $db,
     ) {
     }
@@ -143,9 +145,16 @@ class GuestTicketService
         $matched = $this->requests->countMatching($status);
         ['page' => $page, 'offset' => $offset, 'totalPages' => $totalPages] = paginate($page, $perPage, $matched);
 
+        // ตัวเลือกในฟอร์มแปลงต้องมาจากชุดเดียวกับที่ convertToTicket ใช้ตรวจ (getCreateFormReferenceData กรอง
+        // is_active ให้แล้ว) ไม่ใช่รายการเต็มของหน้าจัดการข้อมูลหลัก — ไม่งั้นหน้าจอจะเสนอหมวด/ความสำคัญที่ถูกปิด
+        // ใช้งานไปแล้ว ซึ่ง service ปฏิเสธเสมอ ผู้ดูแลเลือกไปก็เจอ error ที่ยังพูดถึง Location ซึ่งไม่มีในฟอร์มด้วยซ้ำ
+        $reference = $this->reads->getCreateFormReferenceData();
+
         return [
             'requests' => $this->requests->listByStatus($status, $perPage, $offset),
             'totals' => $totals,
+            'priorities' => $reference['priorities'] ?? [],
+            'categories' => $reference['categories'] ?? [],
             'pagination' => [
                 'page' => $page,
                 'perPage' => $perPage,

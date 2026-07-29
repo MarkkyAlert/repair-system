@@ -42,6 +42,7 @@ function grnc_service(GuestTicketRequestRepository $requests): GuestTicketServic
         $assets,
         $c->get(App\Services\LoginRateLimiter::class),
         $c->get(App\Services\NotificationService::class),
+        $c->get(App\Repositories\TicketReadRepository::class),
         $pdo,
     );
 }

@@ -5,7 +5,6 @@ namespace App\Controllers;
 
 use App\Core\Response;
 use App\Middleware\AuthMiddleware;
-use App\Repositories\AdminRepository;
 use App\Services\GuestTicketService;
 use App\Services\TicketService;
 
@@ -16,7 +15,6 @@ class GuestRequestController
     public function __construct(
         private GuestTicketService $guests,
         private TicketService $tickets,
-        private AdminRepository $admin,
     ) {
     }
 
@@ -39,8 +37,8 @@ class GuestRequestController
             'totals' => $data['totals'],
             'pagination' => $data['pagination'],
             'selectedStatus' => $status,
-            'priorities' => $this->admin->getPriorities(),
-            'categories' => $this->admin->getTicketCategories(),
+            'priorities' => $data['priorities'],
+            'categories' => $data['categories'],
             'queueMaxId' => $this->guests->getQueueMaxId(),
         ]);
     }
