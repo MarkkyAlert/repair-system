@@ -165,3 +165,62 @@ test('asset reliability: avg-resolution rounds to hours the same way as summary/
         }
     }
 });
+
+// ── M-2: ค่าเริ่มต้นของช่อง "เวลาที่ใช้" ต้องเป็นยอดรอบนี้ ไม่ใช่ยอดสะสม ──
+// repository เอาค่าในช่องไป "บวกเพิ่ม" (labor_minutes + :labor_minutes) แต่ฟอร์มเดิมเติมยอดสะสมมาให้
+// พอเปิดงานซ้ำแล้วช่างเปิดฟอร์มมากดบันทึกเฉย ๆ ยอดจึงถูกบวกซ้ำตัวเอง (30 → 60) และตัวเลขชั่วโมงแรงงานในรายงาน
+// ก็เฟ้อขึ้นทุกครั้งที่เปิดซ้ำ โดยไม่มีใครสังเกต
+test('labor effort M-2: after a reopen the form asks for THIS round only, so re-saving does not double-count', function (): void {
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $tech = ['id' => 3, 'role' => 'technician'];
+    $requester = ['id' => 1, 'role' => 'requester'];
+    $tickets = tvm_container()->get(App\Services\TicketService::class);
+    $wf = tvm_container()->get(App\Services\TicketWorkflowService::class);
+    $reads = tvm_container()->get(App\Repositories\TicketReadRepository::class);
+    $ref = $reads->getCreateFormReferenceData();
+    $pdo = le_pdo();
+    $ticketId = 0;
+
+    $labor = static fn (int $id): int => (int) le_pdo()->query("SELECT labor_minutes FROM work_orders WHERE ticket_id = $id")->fetchColumn();
+    $formDefault = static fn (int $id): string => (string) (tvm_container()->get(App\Services\TicketService::class)
+        ->getTicketDetailData($id, ['id' => 3, 'role' => 'technician'], [])['workflow']['defaults']['labor_minutes'] ?? '');
+
+    try {
+        $ticketId = $tickets->createTicket($requester, [
+            'submission_token' => bin2hex(random_bytes(32)),
+            'title' => 'M-2 labor default',
+            'description' => 'x',
+            'priority_id' => (int) $ref['priorities'][0]['id'],
+            'ticket_category_id' => (int) $ref['categories'][0]['id'],
+            'location_id' => (int) $ref['locations'][0]['id'],
+            'impact_level' => 'medium',
+            'urgency_level' => 'medium',
+        ], []);
+        $wf->approveTicket($ticketId, $admin, ['note' => '']);
+        $wf->assignTechnician($ticketId, $admin, ['technician_id' => 3, 'instructions' => '']);
+        $wf->acceptAssignedWork($ticketId, $tech, ['accept_note' => '']);
+
+        assert_same('0', $formDefault($ticketId), 'the first round starts from zero');
+        $wf->resolveAssignedWork($ticketId, $tech, ['diagnosis_summary' => 'd', 'resolution_summary' => 'r', 'labor_minutes' => 30]);
+        assert_same(30, $labor($ticketId), 'sanity: the first round records 30 minutes');
+
+        $wf->reopenTicket($ticketId, $requester, ['reopen_note' => 'ยังไม่หาย']);
+        $wf->acceptAssignedWork($ticketId, $tech, ['accept_note' => '']);
+
+        // ⭐ ตรงนี้คือหัวใจ: ฟอร์มต้องไม่เติม 30 กลับมาให้ ไม่งั้นกดบันทึกเฉย ๆ = 30+30
+        assert_same('0', $formDefault($ticketId), 'after a reopen the field asks for this round, not the running total');
+
+        // ช่างกดบันทึกโดยไม่แก้ค่าที่ฟอร์มให้มา
+        $wf->resolveAssignedWork($ticketId, $tech, [
+            'diagnosis_summary' => 'd2',
+            'resolution_summary' => 'r2',
+            'labor_minutes' => $formDefault($ticketId),
+        ]);
+        assert_same(30, $labor($ticketId), 'saving the untouched default adds nothing — the total is still 30, not 60');
+    } finally {
+        if ($ticketId > 0) {
+            $pdo->prepare("DELETE FROM notifications WHERE related_type = 'ticket' AND related_id = ?")->execute([$ticketId]);
+            $pdo->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+        }
+    }
+});

@@ -973,7 +973,10 @@ class TicketService
                 'start_note' => (string) ($oldInput['start_note'] ?? ''),
                 'diagnosis_summary' => (string) ($oldInput['diagnosis_summary'] ?? (string) ($ticket['work_order_diagnosis_summary'] ?? '')),
                 'resolution_summary' => (string) ($oldInput['resolution_summary'] ?? (string) ($ticket['work_order_resolution_summary'] ?? '')),
-                'labor_minutes' => (string) ($oldInput['labor_minutes'] ?? (string) ((int) ($ticket['work_order_labor_minutes'] ?? 0))),
+                // ช่องนี้คือ "เวลาที่ใช้รอบนี้" ไม่ใช่ยอดสะสม เพราะ repository เอาไปบวกเพิ่ม (labor_minutes + :labor_minutes)
+                // ถ้าเติมยอดสะสมมาให้ พอช่างเปิดฟอร์มหลัง reopen แล้วกดบันทึกเฉย ๆ ยอดจะถูกบวกซ้ำตัวเอง (30 → 60)
+                // ยอดสะสมแสดงแยกให้เห็นในฟอร์มอยู่แล้ว จะได้ไม่ต้องเดา
+                'labor_minutes' => (string) ($oldInput['labor_minutes'] ?? '0'),
                 'closure_note' => (string) ($oldInput['closure_note'] ?? (string) ($ticket['closure_note'] ?? '')),
                 'reopen_note' => (string) ($oldInput['reopen_note'] ?? ''),
                 'cancel_note' => (string) ($oldInput['cancel_note'] ?? ''),

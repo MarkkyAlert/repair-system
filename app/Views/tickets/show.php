@@ -425,8 +425,16 @@ if (!empty($workflow['canReview'])) {
                         <textarea id="resolution_summary" name="resolution_summary" class="input" rows="3" required placeholder="อธิบายวิธีแก้ไขและผลลัพธ์หลังทดสอบ"><?= e((string) ($workflow['defaults']['resolution_summary'] ?? '')) ?></textarea>
                     </div>
                     <div class="field-group">
-                        <label for="labor_minutes" class="field-label">เวลาที่ใช้ (นาที)</label>
+                        <label for="labor_minutes" class="field-label">เวลาที่ใช้รอบนี้ (นาที)</label>
                         <input id="labor_minutes" name="labor_minutes" type="number" min="0" class="input" value="<?= e((string) ($workflow['defaults']['labor_minutes'] ?? '0')) ?>">
+                        <?php $laborSoFar = (int) ($workflow['workOrder']['labor_minutes'] ?? 0); ?>
+                        <p class="field-hint">
+                            <?php if ($laborSoFar > 0): ?>
+                                กรอกเฉพาะเวลาที่ใช้ในรอบนี้ ระบบจะบวกเข้ากับยอดสะสมเดิม <?= e((string) $laborSoFar) ?> นาที
+                            <?php else: ?>
+                                กรอกเวลาที่ใช้ในรอบนี้ ระบบจะสะสมต่อให้เองถ้ามีการเปิดงานซ้ำ
+                            <?php endif; ?>
+                        </p>
                     </div>
                     <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'สรุปงาน', 'variant' => 'primary', 'icon' => 'check-circle']) ?>
                 </form>
