@@ -92,6 +92,11 @@ class AuthService
         }
 
         $this->rateLimiter->clear($limiterKey);
+        // ทิ้ง CSRF token เก่าตอนเปลี่ยนตัวตน ให้สมมาตรกับ logout ที่ทำอยู่แล้ว: token ที่ถูกสร้างตอนยังไม่ล็อกอิน
+        // (หน้า login/ลืมรหัสผ่านเรียก csrf_token() ตั้งแต่ตอนนั้น) ต้องใช้ต่อหลังล็อกอินไม่ได้ ไม่งั้นค่าที่คุ้มกัน
+        // ทุกการแก้ข้อมูลของ session ที่ล็อกอินแล้ว ก็คือค่าเดียวกับที่มีอยู่ตั้งแต่ก่อนรู้ว่าเป็นใคร.
+        // Session::regenerate() ย้ายข้อมูลใน session ตามไปด้วย เลยต้องลบทิ้งเองก่อน แล้วปล่อยให้หน้าถัดไปสร้างใหม่
+        Session::forget('_csrf_token');
         // หมุน session id ใหม่ตอนยกระดับสิทธิ์ กัน session fixation — คนร้ายแอบฝัง session id ที่ตัวเองรู้ค่าไว้ก่อน
         // แล้วรอสวมรอยหลังเหยื่อ login ทับ id เดิม. จุดคู่กันอยู่ที่ RememberMeService::attemptRestore
         // ล็อกไว้ด้วย session_fixation_test

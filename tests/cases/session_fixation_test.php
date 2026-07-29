@@ -71,3 +71,54 @@ test('auth(idle): the idle-timeout branch revokes the remember-me token, not jus
         'AuthMiddleware::handle must clear the remember-me token on idle expiry — otherwise attemptRestore re-authenticates the user next request and the idle timeout is a no-op for remember-me users'
     );
 });
+
+// ── M-10: CSRF token ต้องถูกทิ้งตอนเปลี่ยนตัวตน ให้สมมาตรทั้ง login และ logout ──
+// logout ทิ้ง token อยู่แล้ว แต่ login ไม่ทิ้ง. token ถูกสร้างตั้งแต่ตอน render หน้า login (ยังไม่รู้ว่าเป็นใคร) และ
+// Session::regenerate() ย้ายข้อมูลใน session ตามไปด้วย ค่าเดิมจึงรอดมาคุ้มกันทุกการแก้ข้อมูลของ session ที่
+// ล็อกอินแล้ว — ใครที่วาง session id ไว้ล่วงหน้าได้ ก็เท่ากับรู้ token หลังเหยื่อล็อกอินไปด้วย.
+// ขับ attemptLogin จริงไม่ได้ใน CLI (session_regenerate_id) จึงล็อกที่ source เหมือนเคสอื่นในไฟล์นี้ แล้วเสริม
+// เทสต์เชิงพฤติกรรมของกลไกอีกตัวข้างล่าง
+test('auth(csrf): a successful login discards the CSRF token minted before authentication', function (): void {
+    assert_contains_str(
+        "Session::forget('_csrf_token')",
+        af_method_source('attemptLogin'),
+        'login must drop the pre-auth CSRF token — otherwise the value guarding every authenticated write is the same one that existed before the system knew who the user was'
+    );
+});
+
+test('auth(csrf): logout discards the CSRF token, not just the session id', function (): void {
+    assert_contains_str(
+        "Session::forget('_csrf_token')",
+        af_method_source('logout'),
+        'logout must drop the CSRF token bound to the identity that just ended'
+    );
+});
+
+test('auth(csrf): dropping the token invalidates the old value and mints a working new one', function (): void {
+    $saved = $_SESSION['_csrf_token'] ?? null;
+
+    try {
+        $before = App\Core\Csrf::token();
+        App\Core\Csrf::validate($before); // valid while it is the session's token
+
+        App\Core\Session::forget('_csrf_token'); // what login/logout now do on an identity change
+
+        $threw = false;
+        try {
+            App\Core\Csrf::validate($before);
+        } catch (DomainException) {
+            $threw = true;
+        }
+        assert_true($threw, 'the discarded token is rejected afterwards');
+
+        $after = App\Core\Csrf::token();
+        assert_true($after !== $before, 'a fresh token is minted on next use');
+        App\Core\Csrf::validate($after); // and real forms still submit with it
+    } finally {
+        if ($saved === null) {
+            unset($_SESSION['_csrf_token']);
+        } else {
+            $_SESSION['_csrf_token'] = $saved;
+        }
+    }
+});
