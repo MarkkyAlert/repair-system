@@ -322,8 +322,14 @@ test('assetImport.parseUploadedFile: parses a valid CSV (header/escaping/_line/b
 
 // bug-hunt LOW#11: custodian resolution used findIdsByLogins with no is_active filter, so an import row naming a
 // DISABLED / departed employee resolved to their id and the asset was assigned to a person no longer in the org.
-// Custodian resolution now only matches active accounts (findActiveIdsByLogins).
-test('assetImport.validateRows (LOW#11): an INACTIVE user cannot be assigned as a custodian', function (): void {
+// Custodian resolution only matches active accounts (findActiveIdsByLogins) — that part still holds.
+//
+// B-8 (owner decision, reversing the "reject the row" half): rejecting the WHOLE row also threw away the name,
+// serial, dates and notes because of one stale field, and it contradicted the edit form, which deliberately KEEPS
+// a deactivated custodian rather than clearing it. Export → import of a file naming someone who has since left
+// therefore lost the asset entirely. The archived-reference rule used for category/location/department now applies
+// here too: import the asset, leave the custodian unset, and warn.
+test('assetImport.validateRows (LOW#11/B-8): a deactivated custodian is never assigned, but the row still imports', function (): void {
     $ref = ai_ref();
     $uname = 'inactive_cust_' . bin2hex(random_bytes(3));
     ai_pdo()->prepare("INSERT INTO users (username, email, password_hash, full_name, role, is_active) VALUES (?, ?, 'x', 'Departed Staff', 'requester', 0)")
@@ -331,12 +337,31 @@ test('assetImport.validateRows (LOW#11): an INACTIVE user cannot be assigned as 
 
     try {
         $result = ai_service()->validateRows([ai_raw($ref, ['_line' => 2, 'custodian_username' => $uname])]);
-        $entry = ai_invalid_for($result, 2);
-        assert_true($entry !== null, 'a row naming an inactive custodian is rejected, not silently imported onto a disabled account');
-        assert_true(ai_has_error($entry, 'custodian_username'), 'the error names the custodian field (inactive account is not assignable)');
+
+        assert_true(ai_invalid_for($result, 2) === null, 'the row is not rejected — one stale field must not discard every other column');
+        assert_same(1, count($result['valid']), 'it is ready to import');
+        assert_true(
+            ($result['valid'][0]['custodian_user_id'] ?? null) === null,
+            'but the asset is NOT assigned to the disabled account (the original LOW#11 guarantee)'
+        );
+
+        $warning = $result['warnings'][0] ?? null;
+        assert_true($warning !== null, 'the admin is warned rather than left to discover it later');
+        assert_same(2, (int) $warning['line'], 'the warning names the line');
+        assert_contains_str('ถูกปิดใช้งาน', (string) $warning['message'], 'and says why the custodian was left empty');
     } finally {
         ai_pdo()->prepare('DELETE FROM users WHERE username = ?')->execute([$uname]);
     }
+});
+
+test('assetImport.validateRows (B-8): a custodian who does not exist at all is still a hard error', function (): void {
+    $ref = ai_ref();
+    $result = ai_service()->validateRows([ai_raw($ref, ['_line' => 2, 'custodian_username' => 'no_such_user_' . bin2hex(random_bytes(3))])]);
+
+    $entry = ai_invalid_for($result, 2);
+    assert_true($entry !== null, 'a typo in the custodian column is still rejected — only a real-but-deactivated account is forgiven');
+    assert_true(ai_has_error($entry, 'ไม่พบในระบบ'), 'and says the account does not exist');
+    assert_same([], $result['warnings'], 'a hard error is not downgraded to a warning');
 });
 
 // bug-hunt LOW#12: asset_code/name length was checked with strlen (BYTES) while the message says "ตัวอักษร"

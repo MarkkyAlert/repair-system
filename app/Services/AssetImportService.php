@@ -47,9 +47,12 @@ class AssetImportService
 
         // ค้นหา id ของ custodian username แบบ batch ทีเดียว (แทน findByLogin ต่อแถว) — เฉพาะบัญชีที่ยัง active
         // เท่านั้น กันมอบหมายทรัพย์สินให้บัญชีที่ถูกปิดใช้งาน/ลาออกไปแล้ว
-        $custodianIds = $this->users->findActiveIdsByLogins(
-            array_map(static fn (array $r): string => strtolower(trim((string) ($r['custodian_username'] ?? ''))), $rows)
-        );
+        $custodianLogins = array_map(static fn (array $r): string => strtolower(trim((string) ($r['custodian_username'] ?? ''))), $rows);
+        $custodianIds = $this->users->findActiveIdsByLogins($custodianLogins);
+        // บัญชีที่ "มีจริงแต่ถูกปิดใช้งาน" ต้องแยกจาก "พิมพ์ชื่อผิด": ไฟล์ที่ export ออกไปมีชื่อผู้ดูแลของตอนนั้นติดมาด้วย
+        // พอคนนั้นลาออก การ import กลับเข้ามาไม่ควรทิ้งทั้งแถว (ชื่อ/ซีเรียล/วันที่/หมายเหตุหายหมดเพราะช่องเดียว)
+        // ใช้กติกาเดียวกับหมวด/สถานที่/แผนกที่ถูก archive แล้ว: รับแถวเข้า ปล่อยช่องนั้นว่าง แล้วเตือนให้ไปตั้งใหม่
+        $deactivatedCustodians = $this->users->findDeactivatedLogins($custodianLogins);
 
         // ของที่ชนกับ "ของเดิมในระบบ" ต้องบอกตั้งแต่หน้า preview เหมือนตัวนำเข้าผู้ใช้ ไม่ใช่ปล่อยผ่านไปตายตอน
         // INSERT แล้วรายงานรวม ๆ ว่าข้ามไปกี่แถว — คิวรีเดียวทั้งไฟล์ ไม่ใช่ต่อแถว
@@ -62,6 +65,7 @@ class AssetImportService
         $invalid = [];
         $seenCodes = [];
         $seenSerials = [];
+        $warnings = [];
 
         foreach ($rows as $row) {
             $errors = [];
@@ -131,8 +135,15 @@ class AssetImportService
             if ($departmentCode !== '' && $departmentId === null) {
                 $errors[] = 'department_code "' . $departmentCode . '" ไม่พบในระบบ';
             }
+            $custodianWarning = '';
             if ($custodianUsername !== '' && $custodianUserId === null) {
-                $errors[] = 'custodian_username "' . $custodianUsername . '" ไม่พบในระบบ หรือถูกปิดใช้งาน';
+                if (isset($deactivatedCustodians[$custodianUsername])) {
+                    // บัญชีมีจริงแต่ถูกปิดใช้งาน — นำเข้าต่อได้ แค่ไม่ผูกผู้ดูแล (ตรงกับฟอร์มแก้ไขที่เก็บผู้ดูแล
+                    // ที่ปิดบัญชีไว้ให้ ไม่ใช่ล้างทิ้ง) แล้วเตือนให้แอดมินไปตั้งผู้ดูแลคนใหม่
+                    $custodianWarning = 'custodian_username "' . $custodianUsername . '" ถูกปิดใช้งานแล้ว — นำเข้าโดยไม่ผูกผู้ดูแล';
+                } else {
+                    $errors[] = 'custodian_username "' . $custodianUsername . '" ไม่พบในระบบ';
+                }
             }
 
             $purchaseDate = trim((string) ($row['purchase_date'] ?? ''));
@@ -157,6 +168,14 @@ class AssetImportService
             if ($errors !== []) {
                 $invalid[] = $entry;
                 continue;
+            }
+
+            if ($custodianWarning !== '') {
+                $warnings[] = [
+                    'line' => (int) ($row['_line'] ?? 0),
+                    'asset_code' => $assetCode,
+                    'message' => $custodianWarning,
+                ];
             }
 
             $seenCodes[$assetCode] = true;
@@ -185,6 +204,8 @@ class AssetImportService
         return [
             'valid' => $valid,
             'invalid' => $invalid,
+            // แถวที่นำเข้าได้แต่มีบางช่องถูกละไว้ (ตอนนี้: ผู้ดูแลที่ถูกปิดบัญชี) — ไม่ใช่ error แต่ต้องบอกให้เห็น
+            'warnings' => $warnings,
             'total' => count($rows),
         ];
     }

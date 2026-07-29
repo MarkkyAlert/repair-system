@@ -137,6 +137,45 @@ class UserRepository
         return $map;
     }
 
+    /**
+     * ชุด login (username/email) ที่ "มีบัญชีอยู่จริงแต่ถูกปิดใช้งานแล้ว" จากรายการที่ส่งมา.
+     *
+     * คู่กับ findActiveIdsByLogins เพื่อให้ผู้เรียกแยกสองกรณีออกจากกันได้: พิมพ์ชื่อผิด (ไม่มีบัญชีนี้เลย) กับ
+     * บัญชีมีจริงแต่คนลาออกไปแล้ว — สองอย่างนี้ควรได้รับการปฏิบัติต่างกันตอน import
+     *
+     * @param list<string> $logins
+     * @return array<string, true>
+     */
+    public function findDeactivatedLogins(array $logins): array
+    {
+        $logins = array_values(array_unique(array_filter(
+            array_map(static fn ($x): string => strtolower(trim((string) $x)), $logins),
+            static fn (string $x): bool => $x !== ''
+        )));
+        if ($logins === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($logins), '?'));
+        $stmt = $this->db->prepare(
+            "SELECT username, email
+             FROM users
+             WHERE (username IN ($placeholders) OR email IN ($placeholders)) AND is_active = 0"
+        );
+        $stmt->execute(array_merge($logins, $logins));
+
+        $found = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            foreach ([strtolower((string) ($row['username'] ?? '')), strtolower((string) ($row['email'] ?? ''))] as $login) {
+                if ($login !== '') {
+                    $found[$login] = true;
+                }
+            }
+        }
+
+        return $found;
+    }
+
     public function findById(int $userId): ?array
     {
         $stmt = $this->db->prepare(

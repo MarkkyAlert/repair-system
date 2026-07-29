@@ -2,6 +2,7 @@
 $hasPreview = is_array($preview ?? null);
 $valid = $preview['valid'] ?? [];
 $invalid = $preview['invalid'] ?? [];
+$warnings = $preview['warnings'] ?? [];
 $total = (int) ($preview['total'] ?? 0);
 ?>
 <section class="stack-lg">
@@ -96,6 +97,40 @@ $total = (int) ($preview['total'] ?? 0);
                 'icon' => 'triangle-alert',
             ]) ?>
         </div>
+
+        <?php if ($warnings !== []): ?>
+            <?php // แถวที่นำเข้าได้ แต่มีบางช่องถูกละไว้ (ผู้ดูแลที่ถูกปิดบัญชี) — ไม่ใช่ error จึงแยกกล่องจากด้านล่าง
+                  // แต่ต้องเห็น ไม่งั้นแอดมินจะไม่รู้ว่ามีทรัพย์สินที่ยังไม่มีผู้ดูแล ?>
+            <section class="panel-card stack-md">
+                <div class="panel-head">
+                    <div>
+                        <h2 class="panel-title">นำเข้าได้ แต่มีบางช่องถูกละไว้</h2>
+                        <p class="field-hint">แถวเหล่านี้จะถูกนำเข้าตามปกติ · กรุณาตั้งค่าที่ระบุไว้ให้ใหม่ภายหลัง</p>
+                    </div>
+                    <span class="badge badge-warning"><?= e((string) count($warnings)) ?> แถว</span>
+                </div>
+                <div class="table-wrap">
+                    <table class="insight-table">
+                        <thead>
+                        <tr>
+                            <th>บรรทัด</th>
+                            <th>asset_code</th>
+                            <th>สิ่งที่ถูกละไว้</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <?php foreach ($warnings as $row): ?>
+                            <tr>
+                                <td data-label="บรรทัด"><?= e((string) ($row['line'] ?? '-')) ?></td>
+                                <td data-label="asset_code"><code class="mono"><?= e((string) ($row['asset_code'] ?? '-')) ?></code></td>
+                                <td data-label="สิ่งที่ถูกละไว้"><?= e((string) ($row['message'] ?? '')) ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        <?php endif; ?>
 
         <?php if ($invalid !== []): ?>
             <section class="panel-card stack-md">
