@@ -14,6 +14,17 @@ class Session
         session_name($config['name'] ?? 'repair_system_session');
         // strict mode: ให้ PHP ปฏิเสธ session id ที่ระบบไม่เคยออกให้ — กัน session fixation ที่คนร้ายยัด id ที่ตัวเองรู้ค่าไว้ให้เหยื่อใช้ (คู่กับ regenerate() ตอน login)
         ini_set('session.use_strict_mode', '1');
+
+        // อายุข้อมูล session ฝั่งเซิร์ฟเวอร์ (gc_maxlifetime) ต้องไม่สั้นกว่าที่ระบบตั้งใจให้ session อยู่ได้จริง.
+        // ค่า default ของ PHP คือ 1440 วินาที (24 นาที) — สั้นกว่าทั้งอายุ cookie (7200 = 2 ชม.) และนโยบายหมดเวลา
+        // เมื่อไม่ใช้งาน (idle 60 นาที). บนโฮสต์แชร์ที่ตัวเก็บขยะ session ทำงานตาม gc_maxlifetime กลาง ผู้ใช้ที่พัก
+        // งานราว 25–30 นาทีอาจถูกลบ session แล้วเด้งออก ทั้งที่ตั้งใจให้อยู่ได้ถึง 60 นาที. ตั้งเป็นค่ามากสุดของทั้งสอง
+        // (อย่างน้อยเท่า default เดิม) ให้ PHP ไม่ลบก่อนกำหนด แล้วปล่อยให้ตรรกะ idle ระดับแอป (AuthMiddleware +
+        // Session::isIdleExpired) เป็นตัวตัดสินการหมดเวลาตามเดิม — สองชั้นนี้ทำงานร่วมกัน ไม่ทับกัน.
+        $cookieLifetime = (int) ($config['lifetime'] ?? 7200);
+        $idleSeconds = (int) ($config['idle_timeout_minutes'] ?? 0) * 60;
+        ini_set('session.gc_maxlifetime', (string) max($cookieLifetime, $idleSeconds, 1440));
+
         session_set_cookie_params([
             'lifetime' => $config['lifetime'] ?? 7200,
             'path' => $config['path'] ?? '/',
