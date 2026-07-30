@@ -138,3 +138,11 @@ test('deploy(D4): the handover doc set ships and stays anchored to the real inst
         'package-release.sh must not strip the buyer-facing docs (incl. LICENSE.md) from the release'
     );
 });
+
+// static-review #4: composer audit lived outside CI, so a newly-published advisory in a shipped dependency
+// (dompdf/phpspreadsheet had several medium CVEs at review time) would not fail the build. CI now runs
+// `composer audit --locked`; the lock is patched so it passes. This pins the gate in place.
+test('deploy(#4): CI audits the locked dependencies for known vulnerabilities', function (): void {
+    $wf = (string) file_get_contents(dirname(__DIR__, 2) . '/.github/workflows/tests.yml');
+    assert_true(str_contains($wf, 'composer audit --locked'), 'the CI workflow must run composer audit --locked so a dependency CVE fails the build');
+});
