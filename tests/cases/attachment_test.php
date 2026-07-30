@@ -384,4 +384,89 @@ namespace {
         assert_same('5.0 MB', $label(5 * 1024 * 1024), 'multi-MB scales to MB, not thousands of KB');
         assert_true(str_ends_with($label(1), 'B') && $label(1) !== '0 B', 'a 1-byte file is not rounded to zero');
     });
+
+    // static-review #3: getVisibleAttachment / deleteStoredFiles joined BASE_PATH . disk_path with no realpath
+    // containment check. disk_path is app-generated today, but a tampered/miswritten/imported value ("../../..")
+    // would let a download read — or a cleanup delete — a file OUTSIDE storage/uploads/tickets. resolveStoredPath()
+    // now confines every read/delete to that folder. These prove the guard blocks escapes without over-rejecting
+    // legitimate in-tree files.
+    test('attachment(#3): a tampered disk_path pointing outside the uploads tree cannot be read', function (): void {
+        $ticketId = att_seed_ticket(1);
+        // a canary OUTSIDE storage/uploads/tickets — the exact thing an arbitrary-read would leak
+        $canaryAbs = BASE_PATH . '/storage/logs/sec3_canary_' . bin2hex(random_bytes(4)) . '.txt';
+        file_put_contents($canaryAbs, 'TOP-SECRET-CANARY');
+        $canaryRel = str_replace(BASE_PATH . '/', '', $canaryAbs);
+        // disk_path climbs out of the tickets folder back down to the canary
+        $evilPath = 'storage/uploads/tickets/../../' . substr($canaryRel, strlen('storage/'));
+
+        att_pdo()->prepare(
+            'INSERT INTO ticket_attachments (ticket_id, comment_id, uploaded_by, original_name, stored_name, disk_path, mime_type, file_size, created_at)
+             VALUES (?, NULL, 4, "leak.txt", "leak.txt", ?, "text/plain", 17, NOW())'
+        )->execute([$ticketId, $evilPath]);
+        $attId = (int) att_pdo()->lastInsertId();
+
+        try {
+            // sanity: the crafted path really does resolve to the canary on disk (so the guard, not a typo, is what blocks it)
+            assert_true(is_file(BASE_PATH . '/' . $evilPath), 'the traversal path really points at the canary file');
+
+            $threw = false;
+            try {
+                att_service()->getVisibleAttachment($attId, ['id' => 4, 'role' => 'admin']); // fully-authorized viewer
+            } catch (RuntimeException $e) {
+                $threw = true;
+                assert_same('ไม่พบไฟล์แนบในพื้นที่จัดเก็บ', $e->getMessage(), 'an out-of-tree path is refused as not-found, never served');
+            }
+            assert_true($threw, 'even an admin cannot read a file outside storage/uploads/tickets via a tampered disk_path');
+            assert_true(is_file($canaryAbs), 'the canary is untouched (it was never opened)');
+        } finally {
+            @unlink($canaryAbs);
+            att_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]); // cascades the attachment
+        }
+    });
+
+    test('attachment(#3): a legitimate in-tree attachment still reads normally (no over-rejection)', function (): void {
+        $ticketId = att_seed_ticket(1);
+        $relDir = 'storage/uploads/tickets/' . $ticketId;
+        @mkdir(BASE_PATH . '/' . $relDir, 0775, true);
+        $relPath = $relDir . '/sec3_ok_' . bin2hex(random_bytes(3)) . '.txt';
+        file_put_contents(BASE_PATH . '/' . $relPath, 'legit contents');
+
+        att_pdo()->prepare(
+            'INSERT INTO ticket_attachments (ticket_id, comment_id, uploaded_by, original_name, stored_name, disk_path, mime_type, file_size, created_at)
+             VALUES (?, NULL, 4, "ok.txt", "ok.txt", ?, "text/plain", 14, NOW())'
+        )->execute([$ticketId, $relPath]);
+
+        try {
+            $out = att_service()->getVisibleAttachment((int) att_pdo()->lastInsertId(), ['id' => 4, 'role' => 'admin']);
+            assert_same('legit contents', $out['content'], 'a normal in-tree file is still served — the containment guard does not over-reject');
+        } finally {
+            @unlink(BASE_PATH . '/' . $relPath);
+            @rmdir(BASE_PATH . '/' . $relDir);
+            att_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+        }
+    });
+
+    test('attachment(#3): deleteStoredFiles refuses to unlink outside the uploads tree', function (): void {
+        $svc = att_service();
+        // canary outside the tree — an out-of-tree delete would remove it
+        $canaryAbs = BASE_PATH . '/storage/logs/sec3_del_canary_' . bin2hex(random_bytes(4)) . '.txt';
+        file_put_contents($canaryAbs, 'do-not-delete');
+        $canaryRel = str_replace(BASE_PATH . '/', '', $canaryAbs);
+        $evilRel = 'storage/uploads/tickets/../../' . substr($canaryRel, strlen('storage/'));
+        // a legitimate in-tree file that SHOULD be deleted
+        $okRel = 'storage/uploads/tickets/sec3del_ok_' . bin2hex(random_bytes(3)) . '.bin';
+        file_put_contents(BASE_PATH . '/' . $okRel, 'y');
+
+        try {
+            $failed = $svc->deleteStoredFiles([$okRel, $evilRel, $canaryAbs]);
+
+            assert_true(!is_file(BASE_PATH . '/' . $okRel), 'the legitimate in-tree file was deleted');
+            assert_true(is_file($canaryAbs), 'the out-of-tree canary was NOT deleted (both the traversal and absolute forms are refused)');
+            assert_true(in_array($evilRel, $failed, true), 'the traversal path is reported as failed so purgeStoredFiles can log it');
+            assert_true(in_array($canaryAbs, $failed, true), 'the absolute out-of-tree path is reported as failed too');
+        } finally {
+            @unlink($canaryAbs);
+            @unlink(BASE_PATH . '/' . $okRel);
+        }
+    });
 }

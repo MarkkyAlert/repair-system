@@ -29,6 +29,56 @@ class AttachmentService
     ) {
     }
 
+    /**
+     * แปลง disk_path (relative จาก DB) เป็น absolute path ที่การันตีว่าอยู่ใต้ storage/uploads/tickets จริง.
+     * คืน null ถ้า path ว่าง หรือหลุดออกนอกโฟลเดอร์ (เช่น ../../etc/passwd, absolute path, หรือ symlink ที่ชี้ออกนอก).
+     * ทุกจุดที่อ่าน/ลบไฟล์แนบต้องผ่านตัวนี้ ไม่ต่อ BASE_PATH . disk_path ตรง ๆ อีก — disk_path ที่เพี้ยน (ถูกแก้ใน DB,
+     * นำเข้าผิด, หรือบั๊กในอนาคต) จะได้ไม่พาไปอ่าน/ลบไฟล์นอกพื้นที่จัดเก็บ. เป็น defense-in-depth คู่กับ IDOR check.
+     */
+    private function resolveStoredPath(string $diskPath): ?string
+    {
+        // ตรวจการcontainment แบบ relative ก่อน (ไม่พึ่ง BASE_PATH ที่อาจมี symlink ในตัว path) — คลี่ ./ ../ ทิ้งก่อน
+        $relative = self::lexicalNormalize(ltrim(trim($diskPath), '/'));
+        $prefix = 'storage/uploads/tickets';
+        if ($relative !== $prefix && !str_starts_with($relative, $prefix . '/')) {
+            return null;
+        }
+
+        $full = BASE_PATH . '/' . $relative;
+        // ไฟล์ที่มีอยู่จริง: ยืนยันซ้ำด้วย realpath เพื่อจับ symlink ในโฟลเดอร์ที่ชี้ออกนอกด้วย.
+        $resolved = realpath($full);
+        if ($resolved !== false) {
+            $rootReal = realpath(BASE_PATH . '/' . $prefix);
+            if ($rootReal === false
+                || ($resolved !== $rootReal && !str_starts_with($resolved, $rootReal . DIRECTORY_SEPARATOR))) {
+                return null;
+            }
+            return $resolved;
+        }
+
+        // ไฟล์ยังไม่มีบนดิสก์ (เช่นตอนลบไฟล์กำพร้าที่หายไปแล้ว) แต่ path อยู่ในขอบเขต → คืน path ตรง ๆ ให้ผู้เรียกเช็ค is_file เอง
+        return $full;
+    }
+
+    /** คลี่ ./ และ ../ แบบเชิงสัญลักษณ์ (ไม่แตะดิสก์) สำหรับ path ของไฟล์ที่อาจยังไม่มีอยู่ */
+    private static function lexicalNormalize(string $path): string
+    {
+        $isAbsolute = str_starts_with($path, '/');
+        $segments = [];
+        foreach (explode('/', str_replace('\\', '/', $path)) as $segment) {
+            if ($segment === '' || $segment === '.') {
+                continue;
+            }
+            if ($segment === '..') {
+                array_pop($segments);
+                continue;
+            }
+            $segments[] = $segment;
+        }
+
+        return ($isAbsolute ? '/' : '') . implode('/', $segments);
+    }
+
     public function validateUploads(array $files): array
     {
         $normalized = $this->normalizeFiles($files);
@@ -115,7 +165,7 @@ class AttachmentService
     {
         $rows = array_filter(
             $this->attachments->getByTicketId($ticketId, $includeInternal),
-            static fn (array $row): bool => is_file(BASE_PATH . '/' . ltrim((string) ($row['disk_path'] ?? ''), '/'))
+            fn (array $row): bool => ($p = $this->resolveStoredPath((string) ($row['disk_path'] ?? ''))) !== null && is_file($p)
         );
 
         return array_map(fn (array $row): array => $this->mapAttachment($row), array_values($rows));
@@ -132,7 +182,7 @@ class AttachmentService
     {
         $rows = array_filter(
             $this->attachments->getByCommentIds($commentIds, $includeInternal),
-            static fn (array $row): bool => is_file(BASE_PATH . '/' . ltrim((string) ($row['disk_path'] ?? ''), '/'))
+            fn (array $row): bool => ($p = $this->resolveStoredPath((string) ($row['disk_path'] ?? ''))) !== null && is_file($p)
         );
 
         return array_map(fn (array $row): array => $this->mapAttachment($row), array_values($rows));
@@ -154,7 +204,13 @@ class AttachmentService
 
         $failed = [];
         foreach ($paths as $path) {
-            $fullPath = BASE_PATH . '/' . ltrim($path, '/');
+            // path ที่หลุดออกนอก storage/uploads/tickets (disk_path เพี้ยน) จะได้ค่า null — ห้าม unlink เด็ดขาด
+            // และรายงานเป็น "ลบไม่สำเร็จ" เพื่อให้ purgeStoredFiles log ไว้ ไม่ใช่ปล่อยผ่านเงียบ ๆ.
+            $fullPath = $this->resolveStoredPath($path);
+            if ($fullPath === null) {
+                $failed[] = $path;
+                continue;
+            }
             if (is_file($fullPath) && !@unlink($fullPath)) {
                 $failed[] = $path;
             }
@@ -199,8 +255,9 @@ class AttachmentService
             && ((string) ($viewer['role'] ?? 'guest') === 'requester' || $isRequesterOfThisTicket)) {
             throw new DomainException('ไม่มีสิทธิ์เปิดไฟล์แนบนี้');
         }
-        $path = BASE_PATH . '/' . ltrim((string) $attachment['disk_path'], '/');
-        if (!is_file($path)) {
+        // ยืนยันว่า disk_path ชี้อยู่ใต้ storage/uploads/tickets จริง ก่อนอ่าน — disk_path เพี้ยนจะได้ไม่พาไปอ่านไฟล์นอกพื้นที่
+        $path = $this->resolveStoredPath((string) $attachment['disk_path']);
+        if ($path === null || !is_file($path)) {
             throw new RuntimeException('ไม่พบไฟล์แนบในพื้นที่จัดเก็บ');
         }
 
