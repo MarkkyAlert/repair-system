@@ -13,7 +13,10 @@ header('Content-Type: text/html; charset=utf-8');
 header('X-Robots-Tag: noindex');
 
 $root = dirname(__DIR__);
-$MIN_PHP = '8.1.0';
+// ขั้นต่ำ PHP 8.2 — ไม่ใช่ 8.1: ไลบรารีที่ล็อกไว้ใน composer.lock (phpspreadsheet → maennchen/zipstream-php)
+// ต้องการ php-64bit ^8.2 โฮสต์ที่เป็น 8.1 จะผ่านหน้านี้แบบเก่าแต่ composer/vendor ใช้ไม่ได้จริง เพดานที่ทดสอบคือ 8.5
+// (phpspreadsheet ปิดที่ < 8.6.0) โปรดดู README หัวข้อความต้องการระบบ. ต้องซิงก์กับ composer.json โดย requirements_check_test.
+$MIN_PHP = '8.2.0';
 
 // Required extensions = every ext-* the shipped libraries declare (composer.lock) + the MySQL PDO driver the
 // app connects through. Kept in sync with composer.lock by tests/cases/requirements_check_test.php.
@@ -54,8 +57,16 @@ $fatal = 0;
 
 // 1) PHP version
 $phpOk = version_compare(PHP_VERSION, $MIN_PHP, '>=');
-$checks[] = array($phpOk, 'PHP เวอร์ชัน', 'ต้อง ' . $MIN_PHP . ' ขึ้นไป — เครื่องนี้คือ ' . PHP_VERSION, true);
+$checks[] = array($phpOk, 'PHP เวอร์ชัน', 'ต้อง ' . $MIN_PHP . ' ขึ้นไป (ทดสอบถึง 8.5) — เครื่องนี้คือ ' . PHP_VERSION, true);
 if (!$phpOk) {
+    $fatal++;
+}
+
+// 1b) PHP ต้องเป็น 64-bit: zipstream-php (ผ่าน phpspreadsheet) ประกาศ platform เป็น php-64bit ^8.2
+// โฮสต์ 32-bit จะติดตั้ง vendor ไม่ผ่าน (composer จะปฏิเสธ) — จับตั้งแต่หน้านี้ก่อนถึงขั้น composer.
+$bits64 = (PHP_INT_SIZE === 8);
+$checks[] = array($bits64, 'PHP แบบ 64-bit', $bits64 ? 'ใช่ (64-bit)' : 'เครื่องนี้เป็น 32-bit — ต้องใช้ PHP 64-bit ไลบรารีบางตัวรองรับเฉพาะ 64-bit', true);
+if (!$bits64) {
     $fatal++;
 }
 

@@ -50,6 +50,57 @@ test('requirements(D2): the checker runs on OLD PHP (no 8.1-only syntax) and hid
     assert_true(str_contains($src, 'ลบไฟล์'), 'the checker must tell the operator to delete it after install');
 });
 
+// static-review #1: composer.lock's phpspreadsheet -> zipstream-php declares php-64bit ^8.2, but composer.json,
+// README and the pre-install checker all said "8.1". A buyer on PHP 8.1 (or 32-bit) passed check-requirements.php
+// and then hit an un-installable / un-runnable vendor/ — the deal-breaker for a shared-hosting template. These
+// guards lock the human-facing floor to the machine-enforced one so they can never drift apart again.
+test('requirements(#1): the checker floor matches composer.json and demands 64-bit', function (): void {
+    $root = dirname(__DIR__, 2);
+    $src = (string) file_get_contents($root . '/public/check-requirements.php');
+
+    // composer.json is the developer-facing floor Composer enforces on install.
+    $composer = json_decode((string) file_get_contents($root . '/composer.json'), true);
+    $phpConstraint = (string) ($composer['require']['php'] ?? $composer['require']['php-64bit'] ?? '');
+    assert_true(preg_match('/(\d+)\.(\d+)/', $phpConstraint, $cm) === 1, 'composer.json must declare a php floor');
+    $composerFloor = $cm[1] . '.' . $cm[2];
+    // the constraint must be at least 8.2 — the real minimum zipstream-php needs (below that, install fails)
+    assert_true(
+        version_compare($composerFloor . '.0', '8.2.0', '>='),
+        "composer.json php floor must be >= 8.2 (zipstream-php needs php-64bit ^8.2); got {$phpConstraint}"
+    );
+
+    // check-requirements.php is the human-facing gate that runs BEFORE composer — its floor must match, or a
+    // host it green-lights could still fail composer install.
+    assert_true(preg_match("/\\\$MIN_PHP\\s*=\\s*'(\\d+)\\.(\\d+)/", $src, $mm) === 1, '$MIN_PHP must be set');
+    assert_same($composerFloor, $mm[1] . '.' . $mm[2], 'check-requirements $MIN_PHP major.minor must equal composer.json floor');
+
+    // zipstream-php's platform requirement is php-64bit — the checker must reject 32-bit PHP before composer does.
+    assert_true(str_contains($src, 'PHP_INT_SIZE === 8'), 'the checker must gate on 64-bit PHP (PHP_INT_SIZE === 8)');
+});
+
+test('requirements(#1): composer.lock still fits the documented 8.2–8.5 tested range', function (): void {
+    // The ceiling is not arbitrary: phpspreadsheet caps its own php constraint below 8.6, which is why 8.5 is the
+    // top of the tested range in README/check-requirements. If a dependency bump moved that cap, the docs (and the
+    // php-compat CI matrix leg) would need to move with it — this catches the drift.
+    $root = dirname(__DIR__, 2);
+    $lock = json_decode((string) file_get_contents($root . '/composer.lock'), true);
+    $spread = null;
+    foreach (($lock['packages'] ?? []) as $pkg) {
+        if (($pkg['name'] ?? '') === 'phpoffice/phpspreadsheet') {
+            $spread = (string) ($pkg['require']['php'] ?? '');
+        }
+    }
+    assert_true($spread !== null, 'phpspreadsheet must be present in composer.lock');
+    // it declares an upper bound below 8.6 (e.g. ">=8.1.0 <8.6.0"); 8.5.x installs, 8.6 would not
+    assert_true(str_contains($spread, '<8.6') || str_contains($spread, '< 8.6'), "phpspreadsheet php constraint expected to cap below 8.6; got {$spread}");
+});
+
+test('requirements(#1): the CI workflow exercises both ends of the supported PHP range', function (): void {
+    // The docs promise 8.2–8.5; CI must actually run the suite on both, or "supported" is just a claim.
+    $wf = (string) file_get_contents(dirname(__DIR__, 2) . '/.github/workflows/tests.yml');
+    assert_true(str_contains($wf, '"8.2"') && str_contains($wf, '"8.5"'), 'the workflow must run PHP 8.2 and 8.5');
+});
+
 test('requirements(D3): a boot failure points IT support to the diagnostic', function (): void {
     $index = (string) file_get_contents(dirname(__DIR__, 2) . '/public/index.php');
     assert_true(

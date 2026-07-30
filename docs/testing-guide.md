@@ -24,7 +24,7 @@
 
 ### Tech Stack โดยย่อ
 
-- PHP 8.1+ (วิ่งบน XAMPP/Apache), MySQL
+- PHP 8.2–8.5 แบบ 64-bit (วิ่งบน XAMPP/Apache), MySQL
 - Composer (`phpmailer`, `phpoffice/phpspreadsheet`, `dompdf`, `endroid/qr-code`)
 - Tailwind CSS — CSS ที่ compile แล้วแนบมาพร้อมชุดติดตั้ง; ถ้าจะแก้ดีไซน์แล้ว build ใหม่ ใช้ `./build-css.sh` ซึ่งจะดาวน์โหลดตัว Tailwind รุ่นที่ล็อกไว้ให้เอง (ไม่ต้องติดตั้ง Node/npm)
 - Routing แบบเขียนเอง อยู่ที่ `config/routes.php`

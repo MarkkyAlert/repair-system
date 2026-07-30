@@ -41,9 +41,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # PHP 8.2: within composer.json's "php": "^8.1", and required by the committed
-      # composer.lock (phpspreadsheet -> maennchen/zipstream-php 3.1.2 needs php ^8.2).
-      # It also matches the dev environment (8.2.4) that produced the lock. Extensions:
+      # PHP 8.2: the declared floor in composer.json ("php": "^8.2") and the real minimum the committed
+      # composer.lock enforces (phpspreadsheet -> maennchen/zipstream-php 3.1.2 needs php-64bit ^8.2).
+      # It also matches the dev environment (8.2.4) that produced the lock. The php-compat job below also
+      # runs the suite on 8.5 (the tested ceiling; phpspreadsheet caps at < 8.6). Extensions:
       #  - pdo_mysql: DB driver used by bootstrap.php
       #  - mbstring:  used across the app (mb_*) and required by phpspreadsheet/dompdf
       #  - gd:        hard-required by phpspreadsheet + dompdf, and by endroid/qr-code PNG output
@@ -150,3 +151,67 @@ jobs:
       # so a red run is reproducible with TEST_SEED=<n>.
       - name: Run test suite (randomized order)
         run: TEST_SHUFFLE=1 php tests/run.php
+
+  # Supported-PHP matrix: prove the app + suite run on BOTH ends of the documented range — 8.2 (floor) and
+  # 8.5 (ceiling; phpspreadsheet caps at < 8.6). This is where the M-11 fix (XLSX column-letter overflow on
+  # 8.5) is guarded on every push. Kept separate from the full `tests` gate above so it stays lightweight:
+  # just install + seed + the PHP suite, no PHPStan/phpcpd/php-cs-fixer/E2E (those run once, on 8.2, in `tests`).
+  php-compat:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ["8.2", "8.5"]
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: "3306"
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      TEST_DB_NAME: repair_system_test
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -uroot -proot --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP ${{ matrix.php }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, dom, xml, gd, zip, intl, pdo_mysql, fileinfo, iconv
+          tools: composer
+          coverage: none
+
+      - name: Install Composer dependencies
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: Wait for MySQL
+        run: |
+          for i in $(seq 1 30); do
+            if mysqladmin ping -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USERNAME" -p"$DB_PASSWORD" --silent; then
+              echo "MySQL is up"; exit 0
+            fi
+            echo "Waiting for MySQL... ($i)"; sleep 2
+          done
+          echo "MySQL did not become ready in time"; exit 1
+
+      - name: Create test database + import schema and seed
+        run: |
+          mysql -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USERNAME" -p"$DB_PASSWORD" \
+            -e "DROP DATABASE IF EXISTS \`$TEST_DB_NAME\`; CREATE DATABASE \`$TEST_DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          mysql -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USERNAME" -p"$DB_PASSWORD" "$TEST_DB_NAME" < database/schema.sql
+          mysql -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USERNAME" -p"$DB_PASSWORD" "$TEST_DB_NAME" < database/seed_reference.sql
+          mysql -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USERNAME" -p"$DB_PASSWORD" "$TEST_DB_NAME" < database/seed_demo.sql
+
+      - name: Run test suite
+        run: php tests/run.php

@@ -34,7 +34,7 @@
 
 | ส่วน | เทคโนโลยี |
 |---|---|
-| ภาษา/ฝั่งเซิร์ฟเวอร์ | PHP 8.1+ (โครงสร้าง MVC เขียนเอง ไม่พึ่ง framework) |
+| ภาษา/ฝั่งเซิร์ฟเวอร์ | PHP 8.2–8.5 แบบ 64-bit (โครงสร้าง MVC เขียนเอง ไม่พึ่ง framework) |
 | ฐานข้อมูล | MySQL / MariaDB (ผ่าน PDO) |
 | หน้าเว็บ | PHP views (server-rendered) + Tailwind CSS (compile มาแล้ว) + JavaScript ล้วน + Chart.js |
 | ไลบรารี | PHPMailer (อีเมล), PhpSpreadsheet (Excel), dompdf (PDF), endroid/qr-code (QR) |
@@ -43,7 +43,8 @@
 
 ## 4. ความต้องการของระบบ (Prerequisites)
 
-- **PHP 8.1 ขึ้นไป** พร้อมส่วนขยาย: `pdo, pdo_mysql, mbstring, gd, zip, zlib, dom, xml, simplexml, xmlreader, xmlwriter, libxml, fileinfo, iconv, ctype, filter, hash, openssl, json`
+- **PHP 8.2 ขึ้นไป แบบ 64-bit** (ทดสอบถึง 8.5 — ไลบรารี PhpSpreadsheet ปิดที่ต่ำกว่า 8.6) พร้อมส่วนขยาย: `pdo, pdo_mysql, mbstring, gd, zip, zlib, dom, xml, simplexml, xmlreader, xmlwriter, libxml, fileinfo, iconv, ctype, filter, hash, openssl, json`
+  - ต้อง **64-bit** เพราะ zipstream-php (มากับ PhpSpreadsheet) ประกาศ platform เป็น `php-64bit` โฮสต์ 32-bit จะติดตั้งไม่ผ่าน
 - **MySQL 5.7+ / MariaDB 10.3+** (charset `utf8mb4`)
 - **เว็บเซิร์ฟเวอร์** ที่เปิด `mod_rewrite` และอ่าน `.htaccess` (Apache — มาตรฐาน cPanel)
 - ตั้ง **cron ได้** (สำหรับ SLA + อีเมลอัตโนมัติ)
@@ -137,7 +138,7 @@ vendor/bin/phpstan analyse --memory-limit=1G   # ตรวจชนิดข้�
 - **ติดตั้งจริง →** ดู **[INSTALL.md](INSTALL.md)** (สำหรับ IT support) · **ตั้งค่า admin →** [ADMIN-GUIDE.md](ADMIN-GUIDE.md) · **ปรับแต่ง →** [CUSTOMIZE.md](CUSTOMIZE.md) · **อ่านรายงาน →** [REPORT-GUIDE.md](REPORT-GUIDE.md)
 - **ข้อจำกัดที่ควรรู้:**
   - ต้องตั้ง **cron** เพื่อให้ SLA + อีเมลทำงาน (ไม่ตั้ง = เงียบ ไม่ error)
-  - ต้อง PHP 8.1+ และเปิดส่วนขยายตามข้อ 4
+  - ต้อง PHP 8.2+ แบบ 64-bit (ทดสอบถึง 8.5) และเปิดส่วนขยายตามข้อ 4
   - การสำรองอัตโนมัติเต็มรูปแบบต้องการโฮสต์ที่เปิด `proc_open`/`mysqldump`; ถ้าปิด ให้ใช้ปุ่ม "สำรอง & ดาวน์โหลด" ในหน้า admin แทน
 - **License:** สัญญาอนุญาตเชิงพาณิชย์ — **ใช้ได้ในองค์กรเดียว ห้ามขายต่อ/แจกจ่ายซอร์ส** ดูรายละเอียดใน [LICENSE.md](LICENSE.md) (`TODO:` เจ้าของเติมชื่อผู้ขาย/ปี/ช่องทางติดต่อในไฟล์ และเพิ่ม `THIRD-PARTY-LICENSES.md` ที่สัญญาข้อ 5 อ้างถึง)
 - **Support:** `TODO: เจ้าของระบุช่องทางซัพพอร์ต (อีเมล/LINE/ระยะเวลารับประกัน)`
