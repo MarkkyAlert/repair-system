@@ -101,7 +101,7 @@ test('sla(freeze): reopening an old ticket must NOT rewrite the closed period it
     $locationId = (int) $pdo->lastInsertId();
 
     // a fully closed month well in the past
-    $monthStart = new DateTimeImmutable(date('Y-m-01', strtotime('-6 months')));
+    $monthStart = (new DateTimeImmutable('first day of this month'))->modify('-6 months');
     $from = $monthStart->format('Y-m-d');
     $to = $monthStart->modify('last day of this month')->format('Y-m-d');
     $ticketId = 0;
@@ -144,7 +144,7 @@ test('sla(freeze): a deadline that passes AFTER the period end is not backdated 
         ->execute(["SPFL-$sfx", "SpfLoc-$sfx"]);
     $locationId = (int) $pdo->lastInsertId();
 
-    $monthStart = new DateTimeImmutable(date('Y-m-01', strtotime('-6 months')));
+    $monthStart = (new DateTimeImmutable('first day of this month'))->modify('-6 months');
     $monthEnd = $monthStart->modify('last day of this month');
     $catId = (int) $pdo->query('SELECT id FROM ticket_categories LIMIT 1')->fetchColumn();
     $priId = (int) $pdo->query('SELECT id FROM priorities LIMIT 1')->fetchColumn();

@@ -95,7 +95,7 @@ test('closed period(immutability): later workflow actions cannot change a finish
     $ref = tvm_container()->get(TicketReadRepository::class)->getCreateFormReferenceData();
 
     // a period that is well and truly over
-    $monthStart = new DateTimeImmutable(date('Y-m-01', strtotime('-6 months')));
+    $monthStart = (new DateTimeImmutable('first day of this month'))->modify('-6 months');
     $monthEnd = $monthStart->modify('last day of this month');
     $filters = [
         'from_date' => $monthStart->format('Y-m-d'),
@@ -230,7 +230,7 @@ test('closed period(reconciliation): work finished after the cutoff but before i
     $catId = (int) $pdo->query('SELECT id FROM ticket_categories LIMIT 1')->fetchColumn();
     $priId = (int) $pdo->query('SELECT id FROM priorities LIMIT 1')->fetchColumn();
 
-    $monthStart = new DateTimeImmutable(date('Y-m-01', strtotime('-6 months')));
+    $monthStart = (new DateTimeImmutable('first day of this month'))->modify('-6 months');
     $monthEnd = $monthStart->modify('last day of this month');
     $filters = [
         'from_date' => $monthStart->format('Y-m-d'),
@@ -298,7 +298,7 @@ test('sla-breach(reconciliation): work finished after the cutoff is not counted 
     $catId = (int) $pdo->query('SELECT id FROM ticket_categories LIMIT 1')->fetchColumn();
     $priId = (int) $pdo->query('SELECT id FROM priorities LIMIT 1')->fetchColumn();
 
-    $monthStart = new DateTimeImmutable(date('Y-m-01', strtotime('-6 months')));
+    $monthStart = (new DateTimeImmutable('first day of this month'))->modify('-6 months');
     $monthEnd = $monthStart->modify('last day of this month');
     $filters = [
         'from_date' => $monthStart->format('Y-m-d'),

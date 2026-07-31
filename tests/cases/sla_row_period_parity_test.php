@@ -67,7 +67,7 @@ function srp_row(array $filters, string $ticketNo): ?array
 test('sla(row): a deadline that passes AFTER the period end is not flagged overdue in the detail row or export', function (): void {
     $sfx = bin2hex(random_bytes(4));
     $d = srp_dims($sfx);
-    $monthStart = new DateTimeImmutable(date('Y-m-01', strtotime('-6 months')));
+    $monthStart = (new DateTimeImmutable('first day of this month'))->modify('-6 months');
     $monthEnd = $monthStart->modify('last day of this month');
     $filters = [
         'from_date' => $monthStart->format('Y-m-d'),
@@ -167,7 +167,7 @@ test('sla(row): after a reopen the row is judged by the cycle that was live in t
     $sfx = bin2hex(random_bytes(4));
     $d = srp_dims($sfx);
 
-    $monthStart = new DateTimeImmutable(date('Y-m-01', strtotime('-6 months')));
+    $monthStart = (new DateTimeImmutable('first day of this month'))->modify('-6 months');
     $monthEnd = $monthStart->modify('last day of this month');
     $filters = [
         'from_date' => $monthStart->format('Y-m-d'),
@@ -262,7 +262,7 @@ test('sla(panel): the SLA panel obeys the same as-of status filter as the totals
     $sfx = bin2hex(random_bytes(4));
     $d = srp_dims($sfx);
 
-    $monthStart = new DateTimeImmutable(date('Y-m-01', strtotime('-6 months')));
+    $monthStart = (new DateTimeImmutable('first day of this month'))->modify('-6 months');
     $monthEnd = $monthStart->modify('last day of this month');
     // the reader is looking at work that sat "assigned" during that closed month
     $filters = [
