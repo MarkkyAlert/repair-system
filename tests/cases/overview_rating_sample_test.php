@@ -195,9 +195,11 @@ test('executive rating: BOTH periods disclose their review count, not just the c
     };
 
     try {
-        // this month: a single 5. previous month: three reviews averaging 4 — the comparison the card invites
-        $thisMonth = date('Y-m-05 10:00:00');
-        $prevMonth = date('Y-m-05 10:00:00', strtotime('-1 month'));
+        // this month: a single 5. previous month: three reviews averaging 4 — the comparison the card invites.
+        // Anchor to the 1st before shifting a month: "-1 month" from a 31-day month (e.g. run on Jul 31) would
+        // overflow into the CURRENT month; day-01 exists in every month, so the previous-month seed lands right.
+        $thisMonth = date('Y-m-01 10:00:00');
+        $prevMonth = date('Y-m-01 10:00:00', strtotime('first day of last month'));
         $rate("ORSE-$sfx-1", $thisMonth, 5);
         foreach ([1, 2, 3] as $i) {
             $rate("ORSE-$sfx-P$i", $prevMonth, 4);

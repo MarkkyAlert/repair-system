@@ -39,9 +39,12 @@ test('trend(partial): a half-finished latest period is compared against the SAME
     $catId = (int) $pdo->query('SELECT id FROM ticket_categories LIMIT 1')->fetchColumn();
     $priId = (int) $pdo->query('SELECT id FROM priorities LIMIT 1')->fetchColumn();
 
-    // two whole months in the past: prev = -3 months (complete), last = -2 months (cut off at day 10)
-    $lastStart = new DateTimeImmutable(date('Y-m-01', strtotime('-2 months')));
-    $prevStart = new DateTimeImmutable(date('Y-m-01', strtotime('-3 months')));
+    // two whole months in the past: prev = -3 months (complete), last = -2 months (cut off at day 10).
+    // Anchor the month subtraction to the 1st of this month: subtracting months from a 31st (e.g. Jul 31)
+    // overflows shorter months (Apr/Jun 31 → next month), which collapsed -2 and -3 into the same month.
+    $monthAnchor = new DateTimeImmutable('first day of this month');
+    $lastStart = $monthAnchor->modify('-2 months');
+    $prevStart = $monthAnchor->modify('-3 months');
     $observedTo = $lastStart->modify('+9 days'); // 10 elapsed days in the latest period
 
     try {
@@ -87,8 +90,10 @@ test('trend(partial): a COMPLETE latest period still compares against the whole 
     $catId = (int) $pdo->query('SELECT id FROM ticket_categories LIMIT 1')->fetchColumn();
     $priId = (int) $pdo->query('SELECT id FROM priorities LIMIT 1')->fetchColumn();
 
-    $lastStart = new DateTimeImmutable(date('Y-m-01', strtotime('-2 months')));
-    $prevStart = new DateTimeImmutable(date('Y-m-01', strtotime('-3 months')));
+    // anchor to the 1st before subtracting months (see the note in the first test — avoids month-end overflow)
+    $monthAnchor = new DateTimeImmutable('first day of this month');
+    $lastStart = $monthAnchor->modify('-2 months');
+    $prevStart = $monthAnchor->modify('-3 months');
     $lastEnd = $lastStart->modify('last day of this month');
 
     try {

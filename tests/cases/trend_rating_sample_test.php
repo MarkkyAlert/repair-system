@@ -171,18 +171,20 @@ test('trend rating: the card and its PDF name the review count of BOTH periods, 
 
     $filters = [
         'granularity' => 'month',
-        'from_date' => date('Y-m-01', strtotime('-1 month')),
+        // anchor to first-of-month before shifting: "-1 month" from a 31-day month (run on the 31st) overflows
+        // into the current month, collapsing the this-vs-prev split. "first day of last month" never overflows.
+        'from_date' => date('Y-m-01', strtotime('first day of last month')),
         'to_date' => date('Y-m-d'),
         'department_id' => $deptId,
     ];
 
     try {
         // known answer: previous month 3 reviews averaging 4, this month a single 5
-        $prevWhen = date('Y-m-05 10:00:00', strtotime('-1 month'));
+        $prevWhen = date('Y-m-01 10:00:00', strtotime('first day of last month'));
         foreach ([1, 2, 3] as $i) {
             $rate("TRSP-$sfx-P$i", $prevWhen, 4);
         }
-        $rate("TRSP-$sfx-C1", date('Y-m-05 10:00:00'), 5);
+        $rate("TRSP-$sfx-C1", date('Y-m-01 10:00:00'), 5);
 
         $page = $svc->getTicketTrendReportPage($admin, $filters);
         assert_same(1, (int) ($page['summary']['csat']['sample_count'] ?? -1), 'latest period base');

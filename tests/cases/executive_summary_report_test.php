@@ -36,7 +36,12 @@ test('executive: computePeriodWindows — this vs equal-length previous period (
     assert_same(date('Y-m-01', strtotime('first day of last month')), $m['prev']['from'], 'month prev.from = 1st of last month');
     $thisLen = strtotime($m['this']['to']) - strtotime($m['this']['from']);
     $prevLen = strtotime($m['prev']['to']) - strtotime($m['prev']['from']);
-    assert_same($thisLen, $prevLen, 'month: this and prev windows are the same length');
+    // prev is equal-length on most days, but at month-end where the previous month is shorter than the elapsed
+    // days the code deliberately clamps prev.to to the last day of the previous period (no-overlap — the
+    // invariant asserted below), so prev is never LONGER than this. Asserting exact equality here was
+    // date-fragile (it failed whenever today was e.g. the 31st and the previous month had 30 days); the
+    // date-independent custom case below still pins exact equal-length.
+    assert_true($prevLen <= $thisLen, 'month: prev window is never longer than this (equal except the intended month-end clamp)');
 
     // year: prev is the same YTD span one year earlier
     $y = exs_invoke('computePeriodWindows', ['year', '', '']);
