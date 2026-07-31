@@ -11,9 +11,15 @@ The immutable source of truth is the append-only event log **`ticket_activity_lo
 (`action='ticket_resolved'` written at resolve with `actor_id` = the resolving technician;
 `action='ticket_reopened'` written at reopen). Rows are never updated or deleted in the normal flow.
 
-## Why the current reports drift
+## Why the reports drifted — pre-fix baseline (resolved in Phase 2 & 3 below)
 
-Several reports read **mutable current-state columns** that `reopenTicket` rewrites:
+> ⚠️ **Historical framing.** This section describes the ORIGINAL problem before the as-reported fixes
+> shipped. In today's code `reopenTicket` **appends** a fresh per-cycle SLA track (it no longer resets the
+> row), reassign no longer moves a settled resolution's credit, and past-period verdicts are frozen — see
+> "Phase 2 … (shipped)" and Phase 3 below. Read the paragraphs here as the baseline being solved, not
+> current behavior.
+
+Several reports used to read **mutable current-state columns** that `reopenTicket` rewrote:
 
 - `reopenTicket` NULLs `first_response_at`, `resolved_at`, `completed_at`, and **resets** the single
   `ticket_sla_tracks` row (and a later re-rate overwrites the single `ticket_ratings` row in place).
