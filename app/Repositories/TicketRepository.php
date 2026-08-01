@@ -365,6 +365,8 @@ class TicketRepository
 
         try {
             $this->db->beginTransaction();
+            // recheck ผู้ปฏิเสธใต้ lock ก่อนแตะ ticket: บัญชีที่ถูกปิด/ลดบทบาทระหว่าง request ต้องปฏิเสธไม่ได้ (L-01 TOCTOU)
+            $this->lockAndRequireActiveManagerOrAdmin($actorId);
             $this->lockTicketForTransition($ticketId, ['pending_approval'], 'pending');
 
             $ticketStmt = $this->db->prepare(
@@ -419,6 +421,9 @@ class TicketRepository
         try {
             $this->acquireNamedLock($workOrderNumberLock);
             $this->db->beginTransaction();
+            // recheck ผู้มอบหมายใต้ lock ก่อนแตะ ticket/ช่าง: บัญชีที่ถูกปิด/ลดบทบาทระหว่าง request ต้องมอบหมายไม่ได้ (L-01 TOCTOU).
+            // ล็อก actor ก่อน ticket ก่อน technician → users → tickets → users(ช่าง) ตรง lock order ของ updateUser กัน deadlock
+            $this->lockAndRequireActiveManagerOrAdmin($actorId);
             // accepted/in_progress: การ reassign กลางงานตอนช่างทำต่อไม่ได้
             // ให้ตัดสินจากสถานะที่ล็อกไว้ ไม่ใช่ค่าเก่าที่ caller อ่านมาก่อนล็อก — ถ้ามีการ accept/start
             // แทรกเข้ามาพร้อมกันช่วงที่ service อ่านค่ากับตอนล็อกนี้ reassign ต้องไม่ถูกมองเป็นการ assign ครั้งแรก
@@ -1413,6 +1418,28 @@ class TicketRepository
             $stmt->execute(['name' => $name]);
         } catch (Throwable) {
             // การปล่อย lock ที่ผูกกับ connection ต้องไม่บดบังผลลัพธ์ของ operation เดิม
+        }
+    }
+
+    /**
+     * ล็อกแถวผู้กระทำ (actor) ด้วย FOR UPDATE แล้วยืนยันว่ายัง active และยังมีบทบาทที่ทำรายการนี้ได้ (manager/admin).
+     * ต้องเรียก "ก่อน" lock แถว ticket เสมอ เพื่อให้ลำดับล็อกเป็น users → tickets ตรงกับ AdminRepository::updateUser
+     * (กัน deadlock). เหตุผล: middleware ตรวจ is_active แค่ตอนต้น request — คำขอ reject/assign ของ manager อาจผ่าน
+     * เข้ามาแล้ว "พอดี" ก่อนที่แอดมินจะปิดบัญชี/ลดบทบาทนั้น. ถ้าไม่ recheck ใต้ lock บัญชีที่ถูกปิดไปแล้วจะยัง reject/assign
+     * ได้ และถูกบันทึกเป็นผู้ทำ. การ lock แถว user ตัวเดียวกับ updateUser บังคับให้สองฝ่ายเรียงกัน เหลือฝ่ายเดียวชนะ —
+     * แอดมินปิดบัญชีสำเร็จก่อน = คำขอค้างถูกปฏิเสธ (แนวเดียวกับ approveTicket ที่ recheck manager ใต้ lock อยู่แล้ว).
+     */
+    private function lockAndRequireActiveManagerOrAdmin(int $actorId): void
+    {
+        $stmt = $this->db->prepare(
+            'SELECT role, is_active FROM users WHERE id = :actor_id LIMIT 1 FOR UPDATE'
+        );
+        $stmt->execute(['actor_id' => $actorId]);
+        $actor = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        if ($actor === null
+            || (int) ($actor['is_active'] ?? 0) !== 1
+            || !in_array((string) ($actor['role'] ?? ''), ['manager', 'admin'], true)) {
+            throw new DomainException('บัญชีของคุณไม่พร้อมใช้งานแล้ว (อาจถูกปิดบัญชีหรือเปลี่ยนบทบาท) กรุณาเข้าสู่ระบบใหม่');
         }
     }
 
