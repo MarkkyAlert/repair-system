@@ -1,6 +1,6 @@
 # Tests
 
-Zero-dependency regression suite (composer/PHPUnit are not installed in this environment).
+Custom PHPUnit-free regression harness. ไม่ต้องติดตั้ง PHPUnit แต่ต้องมี runtime dependencies ใน `vendor/` ตาม `composer.lock`.
 
 ## Run
 
@@ -34,8 +34,8 @@ git config core.hooksPath .githooks
 
 ## Security guards
 
-Every security control has a test that goes RED when the guard is removed (the project's form of mutation
-testing). [`docs/security-guards.md`](../docs/security-guards.md) is the inventory: each guard → where it lives
+Security guards หลักที่ขึ้นทะเบียนมี test ที่ควรเป็น RED เมื่อถอด guard (รูปแบบ mutation testing ของโปรเจกต์).
+[`docs/security-guards.md`](../docs/security-guards.md) เป็น inventory แบบมีขอบเขต: guard → where it lives
 → the test that locks it → the exact mutation to prove the lock still bites. Keep it in sync when you add or
 touch a control.
 

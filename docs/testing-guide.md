@@ -4,7 +4,7 @@
 
 > เป้าหมาย: อ่านจบไฟล์เดียวแล้วเปิดเครื่องทดสอบระบบได้เอง พร้อมรู้ว่าแต่ละหน้าทำอะไรและคาดหวังผลแบบไหน
 >
-> _ตรวจทานกับ source แล้ว 2026-07-30: บัญชีทดสอบ/endpoints/scripts/routes/คอลัมน์ ตรงกับโค้ด · ตาราง status มี 10 ค่าใน ENUM (โดย `closed` เป็น terminal สำรองที่ยังไม่มี flow ใดสร้าง — ดูตารางด้านล่าง), เพิ่มสถานะ `accepted` ใน Flow 5, ระบุ 403 ใน Flow 9._
+> _ตรวจทานกับ source แล้ว 2026-08-01: บัญชีทดสอบ/endpoints/scripts/routes/คอลัมน์ ตรงกับโค้ด · ตาราง status มี 10 ค่าใน ENUM (โดย `closed` เป็น terminal สำรองที่ยังไม่มี flow ใดสร้าง — ดูตารางด้านล่าง) · สิทธิ์ Admin/Manager, SLA รายรอบ และข้อกำหนดฐานข้อมูลตรงกับ runtime._
 
 ---
 
@@ -14,7 +14,7 @@
 
 ฟีเจอร์หลักของระบบ:
 
-- **Ticket Lifecycle**: ผู้ใช้แจ้งงาน → หัวหน้าอนุมัติ → มอบหมายช่าง → ช่างรับงาน/ลงมือ → ปิดงาน + ให้คะแนน
+- **Ticket Lifecycle**: ผู้ใช้แจ้งงาน → หัวหน้าอนุมัติ → มอบหมายช่าง → ช่างรับงาน/ลงมือ/สรุปผล → ผู้แจ้งปิดงาน + ให้คะแนน (หรือ Admin ปิดแทนโดยไม่สร้างคะแนน)
 - **Assets & QR Code**: ลงทะเบียนทรัพย์สิน พิมพ์ QR Code ติดที่อุปกรณ์ สแกนเพื่อแจ้งซ่อมได้ทันที
 - **SLA Tracking**: คำนวณเวลาตอบกลับ (response) และเวลาแก้ไข (resolution) อัตโนมัติตาม priority พร้อมเตือนเมื่อใกล้/เลย deadline
 - **Notifications**: แจ้งเตือนในระบบ (bell icon) และ email queue
@@ -24,7 +24,7 @@
 
 ### Tech Stack โดยย่อ
 
-- PHP 8.2–8.5 แบบ 64-bit (วิ่งบน XAMPP/Apache), MySQL
+- PHP 8.2–8.5 แบบ 64-bit (วิ่งบน XAMPP/Apache), MySQL 8.0+ หรือ MariaDB 10.3+
 - Composer (`phpmailer`, `phpoffice/phpspreadsheet`, `dompdf`, `endroid/qr-code`)
 - Tailwind CSS — CSS ที่ compile แล้วแนบมาพร้อมชุดติดตั้ง; ถ้าจะแก้ดีไซน์แล้ว build ใหม่ ใช้ `./build-css.sh` ซึ่งจะดาวน์โหลดตัว Tailwind รุ่นที่ล็อกไว้ให้เอง (ไม่ต้องติดตั้ง Node/npm)
 - Routing แบบเขียนเอง อยู่ที่ `config/routes.php`
@@ -38,9 +38,9 @@
 | Role | คำอธิบาย | สิ่งที่ทำได้ |
 |---|---|---|
 | **requester** | ผู้แจ้งงาน (พนักงานทั่วไป / ผู้ใช้งานปลายทาง) | สร้าง ticket, ติดตามสถานะของตัวเอง, คอมเมนต์ (เห็นเฉพาะ comment ที่ไม่ใช่ internal), ยืนยันปิดงาน + ให้คะแนนช่าง, สแกน QR เพื่อแจ้งซ่อม |
-| **manager** | หัวหน้างาน / หัวหน้าฝ่าย | เห็น ticket ทุกใบในแผนกที่ดูแล (หรือทั้งหมดถ้าระบบกำหนด), **อนุมัติ / ปฏิเสธ** ticket, **มอบหมายช่าง (assign technician)**, คอมเมนต์ภายใน (internal), ดูรายงาน |
+| **manager** | หัวหน้างาน / หัวหน้าฝ่าย | เห็น ticket และรายงานทั้งองค์กร; **อนุมัติ / ปฏิเสธ / มอบหมายช่าง** ได้กับงานคิวส่วนกลางหรือที่ตนรับผิดชอบ, คอมเมนต์ภายใน (internal) |
 | **technician** | ช่างซ่อม | เห็นงานที่ได้รับมอบหมาย, **รับงาน (accept)**, **เริ่มงาน (start)**, **บันทึกการวินิจฉัย + สรุปการซ่อม (resolve)**, อัปโหลดไฟล์/ภาพหลักฐาน, คอมเมนต์ภายใน |
-| **admin** | ผู้ดูแลระบบ | ทุกสิทธิ์ของ role อื่น + เข้า **/admin** เพื่อจัดการ users, departments, ticket/asset categories, system settings, จัดการ assets และ regenerate QR token |
+| **admin** | ผู้ดูแลระบบ | อนุมัติ/ปฏิเสธ/มอบหมาย, ดูรายงาน, ปิดงานแทนผู้แจ้งตามเงื่อนไข + เข้า **/admin** จัดการระบบ; **ไม่รับ/เริ่ม/resolve งานแทน technician** เพราะขั้นลงมือสงวนให้ช่างที่ถูกมอบหมาย |
 
 ### สถานะของ Ticket (เพื่อให้เข้าใจเวลาทดสอบ)
 
@@ -55,7 +55,7 @@
 | `accepted` | ช่างกด **รับงาน** แล้ว แต่ยังไม่เริ่มลงมือ |
 | `in_progress` | ช่างเริ่มลงมือซ่อมแล้ว |
 | `resolved` | ช่างสรุปผลซ่อมเสร็จ รอผู้แจ้งยืนยัน |
-| `completed` | ผู้แจ้งยืนยันปิดงานและให้คะแนน |
+| `completed` | ผู้แจ้งยืนยันปิดงานและให้คะแนน หรือ Admin ปิดแทนพร้อมเหตุผลโดยไม่สร้างคะแนน |
 | `cancelled` | ยกเลิกงาน |
 | `closed` | สถานะปิดงานสำรองที่คงไว้ใน ENUM แต่ **ยังไม่มี flow ใดในระบบพาไปถึง** — แม้แต่ข้อมูลตัวอย่าง (demo) ก็ไม่สร้างสถานะนี้แล้ว (จบที่ `completed`) · ยังถูกนับรวมกับ resolved/completed เป็น "ปิดงาน" ในรายงาน |
 
@@ -169,7 +169,7 @@
 5. ระบบ redirect ไปหน้า `/tickets/{id}` ของ ticket ที่เพิ่งสร้าง โดย:
    - สถานะแสดง **รออนุมัติ (pending_approval)**
    - กิจกรรม (activity log) แสดง `ticket_submitted`
-   - manager ของแผนกที่เกี่ยวข้องจะได้ notification ใหม่
+   - manager/admin ที่ยังเปิดใช้งานจะได้ notification ใหม่ในคิวผู้อนุมัติส่วนกลาง (ระบบไม่ได้แบ่งขอบเขตตามแผนก)
 6. กลับไปหน้า `/tickets` ต้องเห็น ticket ใหม่ใน list
 
 **ตรวจในฐานข้อมูล** (optional): 
@@ -194,7 +194,8 @@ SELECT * FROM notifications ORDER BY id DESC LIMIT 1;
 5. **เคสอนุมัติ**:
    - ใส่หมายเหตุ เช่น "อนุมัติเร่งด่วน" → กด **อนุมัติ**
    - สถานะเปลี่ยนเป็น `approved` พร้อมเวลา `approved_at`
-   - มี notification ใหม่ส่งถึงผู้แจ้ง (และ technician ที่เกี่ยวข้อง)
+   - มี notification ใหม่ส่งถึงผู้แจ้ง; ช่างจะได้รับตอนมีการมอบหมายใน Flow 4
+   - manager ที่อนุมัติจะถูกบันทึกเป็นเจ้าของงาน (`assigned_manager_id`); manager อนุมัติงานที่ตนเป็นผู้แจ้งไม่ได้ ส่วน admin อนุมัติได้และปล่อยงานเป็นคิวส่วนกลาง (`assigned_manager_id = NULL`)
 6. **เคสปฏิเสธ** (ลองกับ ticket อีกใบ):
    - ใส่เหตุผล เช่น "นอก scope ฝ่าย" → กด **ปฏิเสธ**
    - สถานะเปลี่ยนเป็น `rejected` ผู้แจ้งจะได้ notification
@@ -244,7 +245,7 @@ SELECT * FROM notifications ORDER BY id DESC LIMIT 1;
 - กรอก:
   - **Diagnosis Summary** (สาเหตุที่พบ): เช่น "interface uplink มี error counter สูง"
   - **Resolution Summary** (วิธีแก้): เช่น "เปลี่ยนสาย uplink และรีบูตอุปกรณ์"
-  - **Labor Minutes**: เวลาที่ใช้ เป็นนาที เช่น `60`
+  - **Labor Minutes**: เวลาที่ใช้ **เฉพาะรอบนี้** เป็นนาที เช่น `60` ระบบบวกเข้ายอดสะสมเดิมเองเมื่อมีการเปิดงานซ้ำ
 - อัปโหลดรูป/ไฟล์หลักฐาน (ทางเลือก)
 - กด **บันทึก/สรุปงาน**
 - สถานะ → `resolved`, `resolved_at` ถูกบันทึก
@@ -325,7 +326,7 @@ SELECT * FROM notifications ORDER BY id DESC LIMIT 1;
    - **Departments**: เปลี่ยนชื่อ/รหัส/เปิด-ปิดใช้งาน
    - **Ticket Categories**: เพิ่ม/แก้/ปิดใช้งานหมวด, ตั้งค่า SLA ของหมวด (ถ้ามี)
    - **Asset Categories**: เช่นเดียวกัน
-   - **System Settings**: แก้ค่า `app_name`, `app_tagline` (คำโปรยใต้ชื่อระบบ — เว้นว่างได้เพื่อซ่อน), `ticket_prefix`, `business_hours` แล้วกดบันทึก
+   - **System Settings**: แก้ `app_name`, `app_tagline`, `ticket_prefix`, เวลาเริ่ม/สิ้นสุด (`business_start` / `business_end` ซึ่งเก็บรวมใน `business_hours`) แล้วกดบันทึก
 3. หลังแก้ไข ลองออกจาก admin → เข้าหน้า ticket ใหม่ ดูว่า prefix/หมวดหมู่เปลี่ยนตามไหม
 4. **ทดสอบสิทธิ์**: login เป็น `requester` (หรือ `technician`/`manager`) แล้วเข้า `/admin` ตรง ๆ → ระบบตอบ **หน้า 403 "คุณไม่มีสิทธิ์เข้าถึงหน้านี้"** (require_role gate ที่ controller — ไม่ใช่ redirect)
 
@@ -339,6 +340,7 @@ SELECT * FROM notifications ORDER BY id DESC LIMIT 1;
 
 1. Login เป็น `manager` หรือ `admin`
 2. เข้า `/reports`
+   - ระบบมี 10 หน้า: รายงานรวม/SLA compliance + รายงานเฉพาะอีก 9 หน้าในเมนู
 3. เลือกช่วงวันที่ (เช่นเดือนปัจจุบัน), หมวดหมู่, สถานะ ฯลฯ → กด **กรอง**
 4. หน้ารายงานแสดง: จำนวน ticket ตามสถานะ, SLA met/breached, top categories
 5. กด **Export Excel** → ดาวน์โหลด `.xlsx` มาเปิดด้วย Excel/Numbers ตรวจคอลัมน์
@@ -383,7 +385,8 @@ SELECT * FROM notifications ORDER BY id DESC LIMIT 1;
 **คาดหวัง**: ✅ cron รันได้ exit code 0, ✅ SLA breach ถูก mark, ✅ email queue ถูก process
 
 > **ตั้ง cron จริง (production)** — `run-maintenance-cron.php` จัดการทั้ง SLA และคิวอีเมลในตัว จึงตั้งบรรทัดเดียวพอ
-> รันทุก 5 นาที ถ้าไม่ตั้ง cron: SLA breach จะไม่ถูก mark และอีเมลจะไม่ถูกส่ง (แบบเงียบ ๆ)
+> รันทุก 5 นาที ถ้าไม่ตั้ง cron: SLA breach จะไม่ถูก mark ลงฐานข้อมูลและการแจ้งเตือน/อีเมลจะไม่ถูกส่ง
+> แต่หน้าจอ/รายงานยังอาจแสดง “เกินกำหนด” จากการเทียบ `target_at` กับเวลาปัจจุบันโดยตรง
 > ```
 > */5 * * * * php /ABSOLUTE/PATH/TO/bin/run-maintenance-cron.php
 > ```
@@ -431,9 +434,9 @@ SELECT * FROM notifications ORDER BY id DESC LIMIT 1;
 | Login ไม่ได้ ("ข้อผิดพลาดของระบบ") | ตรวจ `.env` ว่า `DB_*` ถูก, ตรวจว่า import `schema.sql` + `seed_reference.sql` + `seed_demo.sql` ครบ |
 | CSS ไม่ขึ้น/หน้าเว็บเปลือย | รัน `./build-css.sh` ก่อน |
 | `composer: command not found` | ใช้ `/Applications/XAMPP/xamppfiles/bin/php composer install` หรือดาวน์โหลด composer.phar |
-| QR ไม่ขึ้น | ตรวจว่า `composer install` แล้วและมี `endroid/qr-code`, ตรวจ permission `public/uploads` |
+| QR ไม่ขึ้น | ตรวจว่า `composer install` แล้วและมี `endroid/qr-code`, ตรวจ permission `storage/qr-cache` และ `storage/uploads` |
 | Email ไม่ส่ง | `MAIL_DRIVER=log` ส่งเข้า log ไม่ออกจริง ตั้ง MailHog (port 1025) แล้วเปลี่ยนเป็น smtp |
-| SLA ไม่อัปเดต | ยังไม่ได้รัน `bin/run-maintenance-cron.php` |
+| ไม่มี SLA breach notification / แถว `ticket_sla_tracks` ยัง pending หลังเลยกำหนด | ยังไม่ได้รัน `bin/run-maintenance-cron.php` (ป้ายหน้าจออาจยังคำนวณว่าเกินได้) |
 | รหัสผ่าน reset แล้ว login ไม่ได้ | ตรวจรหัสยาว ≥ 8 ตัวอักษร และตรงกับ confirm |
 
 ---

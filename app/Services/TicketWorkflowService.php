@@ -151,7 +151,8 @@ class TicketWorkflowService
     /**
      * manager/admin มอบหมายช่างที่ยัง active ให้ ticket ที่อนุมัติแล้ว (approved/assigned/accepted/in_progress → assigned).
      * มอบหมายใหม่กลางงาน (reassign ตอนช่าง accepted/in_progress) ได้ แต่ต้องระบุเหตุผล.
-     * ผลข้างเคียง: อัปเดตช่าง + สร้าง/อัปเดต work order + reset response-SLA ถ้าเป็น reassign ใน transaction แล้วยิง notification 'ticket.assigned'.
+     * ผลข้างเคียง: อัปเดตช่าง + สร้าง/อัปเดต work order + reset เฉพาะ response-SLA ที่ยัง pending
+     * ถ้าเป็น reassign (ผล met/breached เดิมไม่ถูกแก้ย้อนหลัง) ใน transaction แล้วยิง notification 'ticket.assigned'.
      * @param array<string, mixed> $input ต้องมี 'technician_id' (>0); 'instructions' บังคับเมื่อ reassign งานที่ช่างรับ/เริ่มไปแล้ว
      * @throws DomainException เมื่อไม่มีสิทธิ์ / ยังไม่พร้อมมอบหมาย / ไม่เลือกช่าง / ช่างไม่ active / reassign โดยไม่ระบุเหตุผล
      */

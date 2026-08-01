@@ -414,7 +414,7 @@ if (!empty($workflow['canReview'])) {
                     <?= csrf_field() ?>
                     <div class="action-form-head">
                         <span class="action-form-icon tone-success"><?= lucide('check-circle', 'h-5 w-5') ?></span>
-                        <div><h3>สรุปผลการซ่อม</h3><p>บันทึกสิ่งที่ค้นพบและวิธีแก้ไขเพื่อปิดงาน</p></div>
+                        <div><h3>สรุปผลการซ่อม</h3><p>บันทึกสิ่งที่ค้นพบและวิธีแก้ไขเพื่อส่งให้ผู้แจ้งตรวจรับ</p></div>
                     </div>
                     <div class="field-group">
                         <label for="diagnosis_summary" class="field-label">ผลการวิเคราะห์สาเหตุ <span class="required">*</span></label>
@@ -508,7 +508,7 @@ if (!empty($workflow['canReview'])) {
                     <?= csrf_field() ?>
                     <div class="action-form-head">
                         <span class="action-form-icon tone-warning"><?= lucide('rotate-ccw', 'h-5 w-5') ?></span>
-                        <div><h3>ขอแก้งานซ้ำ</h3><p>ส่งงานกลับไปให้ช่างดำเนินการต่อ โดยใช้ช่างคนเดิมและรีเซ็ต SLA ของรอบนี้</p></div>
+                        <div><h3>ขอแก้งานซ้ำ</h3><p>ส่งงานกลับไปให้ช่างดำเนินการต่อ โดยใช้ช่างคนเดิมและเริ่ม SLA รอบใหม่ ส่วนผลของรอบเดิมจะเก็บไว้ในรายงานย้อนหลัง</p></div>
                     </div>
                     <div class="field-group">
                         <label for="reopen_note" class="field-label">เหตุผลที่ต้องการให้แก้ไขซ้ำ <span class="required">*</span></label>

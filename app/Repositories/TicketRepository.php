@@ -400,7 +400,8 @@ class TicketRepository
      * ผลข้างเคียง: ทำใน transaction เดียว — lock แถว ticket (FOR UPDATE) + lock แถว users ของช่าง (FOR UPDATE) แล้ว
      * re-check ใต้ lock (สถานะที่อนุญาต + approval_status approved, ช่างยัง role technician+active, ถ้า reassign กลางงานต้องมีเหตุผล)
      * จากนั้น UPDATE tickets + INSERT/UPDATE work_orders (สร้างใหม่ใช้ named lock กันเลข work order ซ้ำ) + INSERT ticket_activity_logs;
-     * ถ้าเป็น reassign จะ reset แถว response SLA (ticket_sla_tracks) กลับเป็น pending.
+     * ถ้าเป็น reassign จะ reset เฉพาะแถว response SLA (ticket_sla_tracks) ที่ยัง pending;
+     * ผล met/breached ที่ตัดสินแล้วเป็นประวัติและไม่ถูกเขียนทับ.
      * @param string $currentStatus สถานะที่ caller เห็นก่อน lock (from_status ที่บันทึกจริงยึดจากสถานะใต้ lock เพื่อกัน race)
      * @throws DomainException เมื่อสถานะถูกเปลี่ยน, ช่างไม่พร้อมใช้งาน (ปิดบัญชี/เปลี่ยน role), หรือ reassign กลางงานโดยไม่ระบุเหตุผล
      * @throws Throwable เมื่อ write ใด ๆ ล้มเหลว (rollback tx ก่อน rethrow)
@@ -421,7 +422,7 @@ class TicketRepository
             // accepted/in_progress: การ reassign กลางงานตอนช่างทำต่อไม่ได้
             // ให้ตัดสินจากสถานะที่ล็อกไว้ ไม่ใช่ค่าเก่าที่ caller อ่านมาก่อนล็อก — ถ้ามีการ accept/start
             // แทรกเข้ามาพร้อมกันช่วงที่ service อ่านค่ากับตอนล็อกนี้ reassign ต้องไม่ถูกมองเป็นการ assign ครั้งแรก
-            // เพราะจะข้ามการ reset response-SLA แล้วบันทึก from_status ผิด
+            // เพราะจะข้ามการ reset response-SLA ที่ยัง pending แล้วบันทึก from_status ผิด
             $lockedStatus = $this->lockTicketForTransition($ticketId, ['approved', 'assigned', 'accepted', 'in_progress'], 'approved');
 
             $isReassign = in_array($lockedStatus, ['assigned', 'accepted', 'in_progress'], true);
@@ -461,7 +462,7 @@ class TicketRepository
 
             $existingResponseDueAt = '';
             if ($isReassign) {
-                // refresh response_due_at ในแถวที่ถูก lock เพื่อให้การ reset SLA ใช้ target ปัจจุบัน
+                // refresh response_due_at ในแถวที่ถูก lock เผื่อแถว SLA ล่าสุดยัง pending และต้อง reset ด้วย target ปัจจุบัน
                 $dueStmt = $this->db->prepare(
                     'SELECT response_due_at FROM tickets WHERE id = :ticket_id LIMIT 1'
                 );
@@ -583,8 +584,8 @@ class TicketRepository
             $this->insertActivityLog($ticketId, $actorId, 'technician_assigned', $lockedStatus, 'assigned', $details);
 
             if ($isReassign && $existingResponseDueAt !== '') {
-                // การ reassign ticket ทำให้ first response ของช่างคนก่อนใช้ไม่ได้;
-                // reset แถว response SLA เพื่อให้ช่างคนใหม่เริ่มจากสถานะ pending
+                // ถ้า response SLA ยังไม่ถูกตัดสิน การ reassign ทำให้ response ของช่างคนก่อนใช้ไม่ได้
+                // จึง reset แถว pending ให้ช่างคนใหม่เริ่มวัดใหม่; แถว met/breached จะไม่ถูกแก้ย้อนหลัง.
                 $this->resetSlaTrack($ticketId, 'response', $existingResponseDueAt);
             }
 
@@ -1419,7 +1420,7 @@ class TicketRepository
      * lock แถว ticket ด้วย FOR UPDATE ตรวจว่าอยู่ในสถานะที่อนุญาต แล้วคืนสถานะจริงที่ล็อกไว้ตอนนั้น
      * ผู้เรียกต้องตัดสินจากค่าที่คืนกลับ ห้ามใช้สถานะที่อ่านมาก่อน lock — เพื่อให้ transition ที่เข้ามาพร้อมกัน
      * แล้วพา ticket ไปอยู่สถานะอื่นที่ยังอนุญาต ไม่ไปกระตุ้น logic แตกกิ่งด้วยค่าเก่าที่ล้าสมัย
-     * (เช่น การ reset SLA ของ reassign / from_status ใน audit) lock แค่รับประกันว่า transition ถูกต้อง ส่วนสถานะ
+     * (เช่น การ reset เฉพาะ SLA ที่ยัง pending ของ reassign / from_status ใน audit) lock แค่รับประกันว่า transition ถูกต้อง ส่วนสถานะ
      * ที่คืนกลับมาคือสิ่งที่ทำให้ผลลัพธ์ตรงกับความจริง
      */
     private function lockTicketForTransition(

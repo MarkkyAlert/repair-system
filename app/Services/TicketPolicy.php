@@ -42,7 +42,7 @@ class TicketPolicy
 
         // รวม accepted/in_progress ไว้ด้วย manager/admin จะได้มอบหมายช่างใหม่ได้ถ้าช่างเดิม
         // ไม่ว่าง (ลาป่วย / ลาออก) — ไม่งั้น ticket จะค้างตลอดกาล เพราะมีแต่ช่างที่ถูกมอบหมาย
-        // เท่านั้นที่ปิดงานได้ และ requester ก็ยกเลิกไม่ได้แล้ว
+        // เท่านั้นที่สรุปผลซ่อมให้ถึงสถานะ resolved ได้ และ requester ก็ยกเลิกไม่ได้แล้ว
         // (ยืนยันโดยฝั่งธุรกิจ). การมอบหมายใหม่ระหว่างทำงานต้องมีเหตุผล (บังคับใน TicketWorkflowService).
         return (string) ($ticket['approval_status'] ?? '') === 'approved'
             && in_array((string) ($ticket['status'] ?? ''), ['approved', 'assigned', 'accepted', 'in_progress'], true);

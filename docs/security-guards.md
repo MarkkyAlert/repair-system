@@ -1,9 +1,9 @@
 # Security guards & mutation checklist
 
-Every security control in this codebase is backed by a test that **fails when the guard is removed** — this
-is the project's form of mutation testing. This file is the inventory: each guard, where it lives, the test
-that locks it, and the exact mutation a reviewer can apply to prove the test still bites (make it RED, then
-restore). Run the whole suite with `php tests/run.php` (see [tests/README.md](../tests/README.md)).
+This is a **scoped inventory of the registered security guards below**, not a claim that every possible
+security control in the codebase has been mutation-tested. Each listed row names where it lives, the test
+that locks it, and a mutation a reviewer can apply to prove the test still bites (make it RED, then restore).
+Run the whole suite with `php tests/run.php` (see [tests/README.md](../tests/README.md)).
 
 The discipline for any new guard: **break the guard first, watch only its test go red, then restore and
 commit.** If a change touches a control below without reddening its row, the lock has rotted — fix the test.
@@ -29,15 +29,17 @@ commit.** If a change touches a control below without reddening its row, the loc
 | 17 | **Debug-in-production refusal** | `is_unsafe_production_debug()` fail-fast (`public/index.php`) | `config_guard_test.php` | Let the app serve with `APP_DEBUG=true` under `APP_ENV=production` |
 | 18 | **Setup lockout after first run** | `SetupController::requiresSetupRedirect` (admin-exists / flag) | `setup_gate_test.php` | Allow `/setup` to re-run once an admin exists |
 | 19 | **Report/ticket data visibility** (row-level authz) | `ReportService` scope + `TicketPolicy` owner scoping | `report_access_test.php`, `ticket_visibility_test.php`, `notification_test.php` | Return rows outside the viewer's scope |
+| 20 | **CSRF identity-boundary rotation** | `AuthService::attemptLogin/logout` drops `_csrf_token` before rotating the session | `session_fixation_test.php`, browser auth flow | Remove `Session::forget('_csrf_token')` at login or logout; the pre-auth/old-identity token becomes reusable |
+| 21 | **Idle timeout is not kept alive by background polling** | `AuthMiddleware` + explicit `touchActivity: false` on poll-only endpoints + `X-Background-Refresh` | `auth_test.php` (M-9/M-9A/M-9B) | Let a poll call `Session::touchActivity()`; an abandoned open tab never expires |
 
-## Not covered by the CI suite (out of scope, tracked separately)
+## Coverage boundary (what CI does and does not prove)
 
-- **HTTP-multipart E2E** (real upload / spoofed-MIME reject / unauthorized download over the wire) — belongs in
-  the Playwright `e2e/` suite (`@axe-core/playwright` net already lives there), not the zero-dependency PHP
-  harness. Service-level upload security **is** covered (rows 10–11).
-- **Deploy config** — HTTPS enablement, `.htaccess` being honored by the web server, `.env` secret hygiene,
-  `composer audit` for dependency CVEs. These are ops/runtime concerns, not code, and can't be asserted here.
-  The code supports them (e.g. `session.secure` follows HTTPS; security headers are emitted in code — row 14).
+- **Covered in Playwright/CI, not this PHP table:** real multipart upload/download/IDOR and MIME rejection are
+  exercised by `e2e/tests/attachment-upload.spec.ts` and `e2e/tests/http-api-regression.spec.ts`; dependency
+  vulnerabilities are checked by `composer audit --locked` in `.github/workflows/tests.yml`.
+- **Still requires the real host/operator:** HTTPS actually enabled, `.htaccess` honored by Apache, `.env`
+  permissions/secret handling, mail deliverability, and external infrastructure. Code/CI cannot prove the
+  cPanel host applies those settings; verify them during deployment UAT.
 
 ## Residuals (accepted, documented)
 

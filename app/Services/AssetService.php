@@ -240,7 +240,7 @@ class AssetService
 
             // เดินคอลัมน์ด้วยเลข index แล้วแปลงเป็นตัวอักษร แบบเดียวกับ loop ข้อมูลข้างล่าง — ห้ามใช้ $column++
             // บนสตริง: PHP 8.5 ประกาศว่า deprecated แล้ว notice จะถูกพ่นออก output ก่อน header ของไฟล์
-            // ทำให้ .xlsx ที่ดาวน์โหลดไปมีข้อความปนหัวไฟล์จนเปิดไม่ขึ้น (composer.json รองรับ ^8.1 ไม่มีเพดานบน)
+            // ทำให้ .xlsx ที่ดาวน์โหลดไปมีข้อความปนหัวไฟล์จนเปิดไม่ขึ้น (รองรับ PHP 8.2–8.5 ตาม composer.lock)
             foreach (array_values($headers) as $headerIndex => $header) {
                 $column = Coordinate::stringFromColumnIndex($headerIndex + 1);
                 $sheet->setCellValue($column . '1', $header);

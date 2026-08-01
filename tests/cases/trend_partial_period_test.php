@@ -18,13 +18,13 @@ function tpp_pdo(): PDO
     return tvm_container()->get(PDO::class);
 }
 
-function tpp_ticket(string $sfx, string $requestedAt, int $n, int $locId, int $catId, int $priId): void
+function tpp_ticket(string $sfx, string $requestedAt, int $n, int $deptId, int $locId, int $catId, int $priId): void
 {
     tpp_pdo()->prepare(
-        'INSERT INTO tickets (ticket_no, title, description, requester_id, location_id, ticket_category_id,
+        'INSERT INTO tickets (ticket_no, title, description, requester_id, requester_department_id, location_id, ticket_category_id,
             priority_id, status, approval_status, requested_at, created_at, updated_at)
-         VALUES (?, ?, "x", 1, ?, ?, ?, "in_progress", "approved", ?, NOW(), NOW())'
-    )->execute(["TPP-$sfx-$n", "tpp $n", $locId, $catId, $priId, $requestedAt]);
+         VALUES (?, ?, "x", 1, ?, ?, ?, ?, "in_progress", "approved", ?, NOW(), NOW())'
+    )->execute(["TPP-$sfx-$n", "tpp $n", $deptId, $locId, $catId, $priId, $requestedAt]);
 }
 
 test('trend(partial): a half-finished latest period is compared against the SAME number of days, not a full one', function (): void {
@@ -36,6 +36,9 @@ test('trend(partial): a half-finished latest period is compared against the SAME
     $pdo->prepare('INSERT INTO locations (code, name, is_active, created_at, updated_at) VALUES (?, ?, 1, NOW(), NOW())')
         ->execute(["TPPL-$sfx", "TppLoc-$sfx"]);
     $locId = (int) $pdo->lastInsertId();
+    $pdo->prepare('INSERT INTO departments (code, name, is_active, created_at, updated_at) VALUES (?, ?, 1, NOW(), NOW())')
+        ->execute(["TPPD-$sfx", "TppDept-$sfx"]);
+    $deptId = (int) $pdo->lastInsertId();
     $catId = (int) $pdo->query('SELECT id FROM ticket_categories LIMIT 1')->fetchColumn();
     $priId = (int) $pdo->query('SELECT id FROM priorities LIMIT 1')->fetchColumn();
 
@@ -49,21 +52,21 @@ test('trend(partial): a half-finished latest period is compared against the SAME
 
     try {
         // latest period: 2 tickets inside the first 10 days
-        tpp_ticket($sfx, $lastStart->format('Y-m-d') . ' 09:00:00', 1, $locId, $catId, $priId);
-        tpp_ticket($sfx, $lastStart->modify('+2 days')->format('Y-m-d') . ' 09:00:00', 2, $locId, $catId, $priId);
+        tpp_ticket($sfx, $lastStart->format('Y-m-d') . ' 09:00:00', 1, $deptId, $locId, $catId, $priId);
+        tpp_ticket($sfx, $lastStart->modify('+2 days')->format('Y-m-d') . ' 09:00:00', 2, $deptId, $locId, $catId, $priId);
         // previous period: 2 tickets in its first 10 days …
-        tpp_ticket($sfx, $prevStart->format('Y-m-d') . ' 09:00:00', 3, $locId, $catId, $priId);
-        tpp_ticket($sfx, $prevStart->modify('+2 days')->format('Y-m-d') . ' 09:00:00', 4, $locId, $catId, $priId);
+        tpp_ticket($sfx, $prevStart->format('Y-m-d') . ' 09:00:00', 3, $deptId, $locId, $catId, $priId);
+        tpp_ticket($sfx, $prevStart->modify('+2 days')->format('Y-m-d') . ' 09:00:00', 4, $deptId, $locId, $catId, $priId);
         // … plus 5 more LATE in that month, which a like-for-like comparison must not count
         foreach ([20, 21, 22, 23, 24] as $i => $day) {
-            tpp_ticket($sfx, $prevStart->modify("+$day days")->format('Y-m-d') . ' 09:00:00', 10 + $i, $locId, $catId, $priId);
+            tpp_ticket($sfx, $prevStart->modify("+$day days")->format('Y-m-d') . ' 09:00:00', 10 + $i, $deptId, $locId, $catId, $priId);
         }
 
         $summary = $svc->getTicketTrendReportPage($admin, [
             'granularity' => 'month',
             'from_date' => $prevStart->format('Y-m-d'),
             'to_date' => $observedTo->format('Y-m-d'),
-            'location_id' => $locId,
+            'department_id' => $deptId,
         ])['summary'] ?? [];
 
         assert_same('2', (string) $summary['created']['value'], 'the latest (partial) period genuinely has 2 tickets');
@@ -74,6 +77,7 @@ test('trend(partial): a half-finished latest period is compared against the SAME
         );
     } finally {
         $pdo->prepare('DELETE FROM tickets WHERE ticket_no LIKE ?')->execute(["TPP-$sfx-%"]);
+        $pdo->prepare('DELETE FROM departments WHERE id = ?')->execute([$deptId]);
         $pdo->prepare('DELETE FROM locations WHERE id = ?')->execute([$locId]);
     }
 });
@@ -87,6 +91,9 @@ test('trend(partial): a COMPLETE latest period still compares against the whole 
     $pdo->prepare('INSERT INTO locations (code, name, is_active, created_at, updated_at) VALUES (?, ?, 1, NOW(), NOW())')
         ->execute(["TPPL-$sfx", "TppLoc-$sfx"]);
     $locId = (int) $pdo->lastInsertId();
+    $pdo->prepare('INSERT INTO departments (code, name, is_active, created_at, updated_at) VALUES (?, ?, 1, NOW(), NOW())')
+        ->execute(["TPPD-$sfx", "TppDept-$sfx"]);
+    $deptId = (int) $pdo->lastInsertId();
     $catId = (int) $pdo->query('SELECT id FROM ticket_categories LIMIT 1')->fetchColumn();
     $priId = (int) $pdo->query('SELECT id FROM priorities LIMIT 1')->fetchColumn();
 
@@ -97,17 +104,17 @@ test('trend(partial): a COMPLETE latest period still compares against the whole 
     $lastEnd = $lastStart->modify('last day of this month');
 
     try {
-        tpp_ticket($sfx, $lastStart->format('Y-m-d') . ' 09:00:00', 1, $locId, $catId, $priId);
+        tpp_ticket($sfx, $lastStart->format('Y-m-d') . ' 09:00:00', 1, $deptId, $locId, $catId, $priId);
         // 3 in the previous month, one of them late — all must count because the latest period is complete
-        tpp_ticket($sfx, $prevStart->format('Y-m-d') . ' 09:00:00', 2, $locId, $catId, $priId);
-        tpp_ticket($sfx, $prevStart->modify('+1 day')->format('Y-m-d') . ' 09:00:00', 3, $locId, $catId, $priId);
-        tpp_ticket($sfx, $prevStart->modify('+25 days')->format('Y-m-d') . ' 09:00:00', 4, $locId, $catId, $priId);
+        tpp_ticket($sfx, $prevStart->format('Y-m-d') . ' 09:00:00', 2, $deptId, $locId, $catId, $priId);
+        tpp_ticket($sfx, $prevStart->modify('+1 day')->format('Y-m-d') . ' 09:00:00', 3, $deptId, $locId, $catId, $priId);
+        tpp_ticket($sfx, $prevStart->modify('+25 days')->format('Y-m-d') . ' 09:00:00', 4, $deptId, $locId, $catId, $priId);
 
         $summary = $svc->getTicketTrendReportPage($admin, [
             'granularity' => 'month',
             'from_date' => $prevStart->format('Y-m-d'),
             'to_date' => $lastEnd->format('Y-m-d'),
-            'location_id' => $locId,
+            'department_id' => $deptId,
         ])['summary'] ?? [];
 
         assert_same('1', (string) $summary['created']['value'], 'the finished latest period has 1 ticket');
@@ -118,6 +125,7 @@ test('trend(partial): a COMPLETE latest period still compares against the whole 
         );
     } finally {
         $pdo->prepare('DELETE FROM tickets WHERE ticket_no LIKE ?')->execute(["TPP-$sfx-%"]);
+        $pdo->prepare('DELETE FROM departments WHERE id = ?')->execute([$deptId]);
         $pdo->prepare('DELETE FROM locations WHERE id = ?')->execute([$locId]);
     }
 });

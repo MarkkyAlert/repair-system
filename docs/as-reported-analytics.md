@@ -138,8 +138,9 @@ period and blank the latest. Older cycles whose snapshots were genuinely lost re
 moved). Locked by `tests/cases/migration_cycle_backfill_test.php` (R10-F2). Fresh installs do NOT need it.
 
 Writers (`TicketRepository`): `reopenTicket` **appends** a fresh pending SLA cycle (`currentTicketCycle()+1`)
-instead of resetting the row, so a past cycle's due-date + met/breached verdict is frozen; `markSlaAchieved` /
-`resetSlaTrack` target the **latest** cycle; `upsertTicketRating` **appends** a rating per cycle (idempotent
+instead of resetting the row, so a past cycle's due-date + met/breached verdict is frozen; `markSlaAchieved`
+targets the **latest** cycle, while `resetSlaTrack` may move only that cycle's still-`pending` row (a settled
+`met`/`breached` verdict cannot be reset by reassign); `upsertTicketRating` **appends** a rating per cycle (idempotent
 within a cycle) instead of UPDATE-in-place.
 
 Readers: every **current-state** SLA/CSAT surface (dashboard + report summary overdue/breached, ticket detail
@@ -151,6 +152,11 @@ windowed on `tr.created_at`, which is now genuinely as-reported: an old cycle's 
 + score, so a re-rate no longer restates a past period (locked by a new `csat_report_test.php` reconciliation
 test). E2E (`report_lineage_test.php`): a full reopen cycle through the real services freezes the first
 cycle's resolution-SLA snapshot byte-for-byte and stores the rating against the cycle actually rated.
+
+> **Current behavior after Phase 3:** the phrase "current-state" above describes the Phase 2 milestone.
+> Report queries for a closed period were subsequently changed to select the cycle/verdict as of that
+> period's cutoff; only operational screens such as the live ticket list, dashboard backlog and pending-SLA
+> escalation intentionally use the latest cycle/current time.
 
 **Note on the reopen→re-rate path:** the requester workflow only allows a reopen from `resolved` (a
 `completed`/rated ticket is final — an unhappy requester duplicates instead), so a ticket is rated at most

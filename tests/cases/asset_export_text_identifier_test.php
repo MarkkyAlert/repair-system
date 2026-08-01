@@ -37,7 +37,7 @@ test('asset export (MED#7): every XLSX cell is text — leading zeros / scientif
 // เดิม header loop เดินคอลัมน์ด้วย $column++ บนสตริง ('A'→'B') ซึ่ง PHP 8.5 ประกาศเป็น deprecated. ถ้าเครื่อง
 // ที่ติดตั้งเปิด display_errors ไว้ notice จะถูกพ่นออกไปก่อน Response::download() จะทันตั้ง header ด้วยซ้ำ
 // (headers_sent = true) ผลคือผู้ใช้ดาวน์โหลดไฟล์ที่มีข้อความ notice ปนอยู่หัวไฟล์ แล้ว Excel เปิดไม่ขึ้น
-// composer.json รองรับ ^8.1 โดยไม่มีเพดานบน = PHP 8.5 เป็นเป้าหมายที่ต้องรองรับของ template ที่ขายไป
+// ช่วงที่ประกาศรองรับคือ PHP 8.2–8.5 = PHP 8.5 เป็นเป้าหมายที่ต้องคุมไม่ให้ notice ทำไฟล์เสีย
 test('asset export M-11: building the XLSX emits nothing — a stray notice would corrupt the download', function (): void {
     $service = tvm_container()->get(App\Services\AssetService::class);
     $method = new ReflectionMethod(App\Services\AssetService::class, 'buildAssetXlsx');

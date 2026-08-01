@@ -14,7 +14,7 @@ pyramid: deliberately focused, on top of the PHP unit/integration suite in `../t
 | `tests/notification-preferences.spec.ts` | Toggle → save → DB → reload | Frontend preference state reconciles with persistence |
 | `tests/password-reset.spec.ts` | Request → queued link → reset → replay denial → login | Safe queue-backed test inbox, one-time token, auth persistence |
 | `tests/report-export.spec.ts` | Executive CSV → downloaded payload + export audit | File response, completed audit row, requester denial |
-| `tests/http-api-regression.spec.ts` | 59 HTTP contract/security cases | Routing, session, CSRF, method guard, validation, role/IDOR, upload, DB state and cleanup |
+| `tests/http-api-regression.spec.ts` | HTTP contract/security matrix (จำนวนเคสเปลี่ยนตาม suite) | Routing, session, CSRF, method guard, validation, role/IDOR, upload, DB state and cleanup |
 | `tests/a11y.spec.ts` | Axe checks + keyboard focus traps | Browser-rendered accessibility guard for key pages |
 
 ## Run

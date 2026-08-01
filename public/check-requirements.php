@@ -4,7 +4,7 @@
 // Open https://your-site/check-requirements.php BEFORE (and during) install. It runs standalone — no app
 // bootstrap — so it works even when the app cannot boot yet, and it is written in conservative PHP so it
 // still runs on an OLD PHP version and can tell you "your PHP is too old". It checks: PHP version, required
-// extensions, .env presence, database connectivity, schema import, storage writability — and prints the exact
+// extensions, .env presence, database connectivity + version, schema import, storage writability — and prints the exact
 // cron command for THIS install. Once the system is set up it hides the details and asks you to delete it.
 //
 // SECURITY: delete this file after a successful install (it is a diagnostic, not part of the app).
@@ -15,8 +15,12 @@ header('X-Robots-Tag: noindex');
 $root = dirname(__DIR__);
 // ขั้นต่ำ PHP 8.2 — ไม่ใช่ 8.1: ไลบรารีที่ล็อกไว้ใน composer.lock (phpspreadsheet → maennchen/zipstream-php)
 // ต้องการ php-64bit ^8.2 โฮสต์ที่เป็น 8.1 จะผ่านหน้านี้แบบเก่าแต่ composer/vendor ใช้ไม่ได้จริง เพดานที่ทดสอบคือ 8.5
-// (phpspreadsheet ปิดที่ < 8.6.0) โปรดดู README หัวข้อความต้องการระบบ. ต้องซิงก์กับ composer.json โดย requirements_check_test.
+// (phpspreadsheet ปิดที่ < 8.6.0) โปรดดู README หัวข้อความต้องการระบบ. floor ต้องซิงก์กับ composer.json
+// และ ceiling ต้องซิงก์กับ composer.lock โดย requirements_check_test.
 $MIN_PHP = '8.2.0';
+$MAX_PHP_EXCLUSIVE = '8.6.0';
+$MIN_MYSQL = '8.0.0';
+$MIN_MARIADB = '10.3.0';
 
 // Required extensions = every ext-* the shipped libraries declare (composer.lock) + the MySQL PDO driver the
 // app connects through. Kept in sync with composer.lock by tests/cases/requirements_check_test.php.
@@ -51,13 +55,55 @@ function env_val($env, $key, $default)
     return ($v === false || $v === '') ? $default : $v;
 }
 
+function php_version_supported($version, $minimum, $maximumExclusive)
+{
+    return version_compare($version, $minimum, '>=')
+        && version_compare($version, $maximumExclusive, '<');
+}
+
+// ReportRepository ใช้ ROW_NUMBER() สำหรับรายงานย้อนหลัง ซึ่ง MySQL เพิ่งรองรับตั้งแต่ 8.0
+// (MariaDB รองรับก่อนหน้านั้น). ตรวจจาก server จริง ไม่เดาจากชื่อ driver เพราะทั้งคู่ใช้ pdo_mysql.
+function database_version_result($rawVersion, $minMysql, $minMariaDb)
+{
+    $isMariaDb = stripos($rawVersion, 'mariadb') !== false;
+    $version = '';
+    if ($isMariaDb) {
+        // บาง host คืน "5.5.5-10.4.28-MariaDB" เพื่อ compatibility ต้องเลือก 10.4.28 ไม่ใช่ 5.5.5.
+        $beforeMariaDb = substr($rawVersion, 0, stripos($rawVersion, 'mariadb'));
+        preg_match_all('/\d+\.\d+(?:\.\d+)?/', $beforeMariaDb, $matches);
+        if (isset($matches[0]) && count($matches[0]) > 0) {
+            $version = (string) $matches[0][count($matches[0]) - 1];
+        }
+    } elseif (preg_match('/(\d+\.\d+(?:\.\d+)?)/', $rawVersion, $match) === 1) {
+        $version = (string) $match[1];
+    }
+    if ($version === '') {
+        return array(false, 'อ่านเวอร์ชันฐานข้อมูลไม่ได้ — ติดต่อผู้ดูแลโฮสต์เพื่อตรวจว่าเป็น MySQL/MariaDB รุ่นที่รองรับ');
+    }
+    $engine = $isMariaDb ? 'MariaDB' : 'MySQL';
+    $minimum = $isMariaDb ? $minMariaDb : $minMysql;
+    $ok = version_compare($version, $minimum, '>=');
+
+    return array(
+        $ok,
+        $engine . ' ' . $version . ($ok
+            ? ' (ผ่านขั้นต่ำ ' . $minimum . ')'
+            : ' — ต้องอัปเกรดเป็น ' . $minimum . ' ขึ้นไปก่อนติดตั้ง'),
+    );
+}
+
 // --- checks -----------------------------------------------------------------------------------------------
 $checks = array();
 $fatal = 0;
 
 // 1) PHP version
-$phpOk = version_compare(PHP_VERSION, $MIN_PHP, '>=');
-$checks[] = array($phpOk, 'PHP เวอร์ชัน', 'ต้อง ' . $MIN_PHP . ' ขึ้นไป (ทดสอบถึง 8.5) — เครื่องนี้คือ ' . PHP_VERSION, true);
+$phpOk = php_version_supported(PHP_VERSION, $MIN_PHP, $MAX_PHP_EXCLUSIVE);
+$checks[] = array(
+    $phpOk,
+    'PHP เวอร์ชัน',
+    'ต้องอยู่ในช่วง ' . $MIN_PHP . ' ถึง 8.5.x (dependency ชุดนี้ยังไม่รองรับ 8.6) — เครื่องนี้คือ ' . PHP_VERSION,
+    true
+);
 if (!$phpOk) {
     $fatal++;
 }
@@ -98,6 +144,9 @@ $checks[] = array(
 
 // 4) DB connectivity + 5) schema + setup state
 $dbOk = false;
+$dbVersionOk = false;
+$dbVersionMsg = '';
+$schemaOk = false;
 $alreadyInstalled = false;
 $dbMsg = '';
 $schemaMsg = '';
@@ -113,10 +162,15 @@ if (extension_loaded('pdo_mysql')) {
         $pdo = new PDO($dsn, $user, $pass, array(PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION));
         $dbOk = true;
         $dbMsg = 'เชื่อมต่อฐานข้อมูล "' . $name . '" ได้';
+        $dbVersionRaw = (string) $pdo->query('SELECT VERSION()')->fetchColumn();
+        $dbVersionResult = database_version_result($dbVersionRaw, $MIN_MYSQL, $MIN_MARIADB);
+        $dbVersionOk = (bool) $dbVersionResult[0];
+        $dbVersionMsg = (string) $dbVersionResult[1];
         // schema present?
         $hasUsers = $pdo->query("SHOW TABLES LIKE 'users'")->fetch() !== false;
         $hasSettings = $pdo->query("SHOW TABLES LIKE 'system_settings'")->fetch() !== false;
         if ($hasUsers && $hasSettings) {
+            $schemaOk = true;
             $schemaMsg = 'ตารางหลักครบ (schema ถูก import แล้ว)';
             $row = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'setup_completed'")->fetch(PDO::FETCH_ASSOC);
             if (is_array($row) && (string) $row['setting_value'] === '1') {
@@ -133,20 +187,12 @@ if (extension_loaded('pdo_mysql')) {
     $dbMsg = 'ไม่มีส่วนขยาย pdo_mysql — เปิดก่อนจึงจะต่อฐานข้อมูลได้';
 }
 
-// Already installed → minimal, non-revealing output + ask to delete this file.
-if ($alreadyInstalled) {
-    echo '<!doctype html><meta charset="utf-8"><title>ตรวจความพร้อม</title>';
-    echo '<div style="font-family:system-ui,sans-serif;max-width:640px;margin:64px auto;padding:24px;border:1px solid #ddd;border-radius:12px">';
-    echo '<h1 style="font-size:20px">✅ ระบบติดตั้งเรียบร้อยแล้ว</h1>';
-    echo '<p style="color:#444;line-height:1.7">เพื่อความปลอดภัย กรุณา <b>ลบไฟล์ public/check-requirements.php</b> ออกจากเซิร์ฟเวอร์</p>';
-    echo '</div>';
-    exit;
+$checks[] = array($dbOk, 'การเชื่อมต่อฐานข้อมูล', $dbMsg, true);
+if ($dbOk) {
+    $checks[] = array($dbVersionOk, 'เวอร์ชันฐานข้อมูล', $dbVersionMsg, true);
 }
-
-$checks[] = array($dbOk, 'การเชื่อมต่อฐานข้อมูล', $dbMsg, false);
 if ($schemaMsg !== '') {
-    $schemaOk = strpos($schemaMsg, 'ครบ') !== false;
-    $checks[] = array($schemaOk, 'โครงสร้างฐานข้อมูล (schema)', $schemaMsg, false);
+    $checks[] = array($schemaOk, 'โครงสร้างฐานข้อมูล (schema)', $schemaMsg, true);
 }
 
 // 6) storage writable
@@ -163,14 +209,25 @@ $checks[] = array(
     $storageOk,
     'สิทธิ์เขียนโฟลเดอร์ storage/',
     $storageOk ? 'เขียนได้ครบ' : 'เขียนไม่ได้: ' . implode(', ', $notWritable) . ' — ตั้ง permission 755/775',
-    false
+    true
 );
 
-// cron command for THIS install (run-maintenance-cron does BOTH SLA + the email queue in one run)
+// cron command for THIS install (run-maintenance-cron marks overdue SLA, sends its alerts, and processes email)
 $cronScript = $root . '/bin/run-maintenance-cron.php';
 $backupScript = $root . '/bin/backup-database.php';
 
-$allOk = ($fatal === 0);
+$allOk = $fatal === 0 && $envExists && $dbOk && $dbVersionOk && $schemaOk && $storageOk;
+
+// ซ่อนรายละเอียดหลังติดตั้งได้ต่อเมื่อทุกข้อยังผ่านจริงเท่านั้น ถ้า PHP/DB/storage เปลี่ยนจนไม่รองรับ
+// ต้องแสดงรายการที่ล้มเหลว ไม่ใช่บอก IT ว่า "ติดตั้งเรียบร้อย" แล้วกลบสาเหตุที่ระบบใช้งานไม่ได้.
+if ($alreadyInstalled && $allOk) {
+    echo '<!doctype html><meta charset="utf-8"><title>ตรวจความพร้อม</title>';
+    echo '<div style="font-family:system-ui,sans-serif;max-width:640px;margin:64px auto;padding:24px;border:1px solid #ddd;border-radius:12px">';
+    echo '<h1 style="font-size:20px">✅ ระบบติดตั้งเรียบร้อยแล้ว</h1>';
+    echo '<p style="color:#444;line-height:1.7">เพื่อความปลอดภัย กรุณา <b>ลบไฟล์ public/check-requirements.php</b> ออกจากเซิร์ฟเวอร์</p>';
+    echo '</div>';
+    exit;
+}
 ?>
 <!doctype html>
 <html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -192,9 +249,9 @@ $allOk = ($fatal === 0);
   </table>
 
   <div style="margin-top:24px;padding:16px 18px;background:#f4f3fb;border-radius:12px">
-    <div style="font-weight:600;margin-bottom:6px">ตั้ง cron สำหรับ SLA และอีเมล (หลังติดตั้งเสร็จ)</div>
-    <div style="color:#555;font-size:13.5px;line-height:1.6">ใน cPanel → Cron Jobs เพิ่มบรรทัดล่าง (บรรทัดแรกจำเป็น — จัดการทั้ง SLA และคิวอีเมลในตัว; บรรทัดสองสำรองข้อมูลรายวัน เป็นทางเลือก). แทน <code>php</code> ด้วย path ของ PHP CLI บนโฮสต์ของคุณถ้าจำเป็น:</div>
-    <pre style="background:#0e0c2a;color:#d4d6f5;padding:12px;border-radius:8px;overflow-x:auto;font-size:12.5px">*/5 * * * * php <?php echo htmlspecialchars($cronScript, ENT_QUOTES, 'UTF-8'); ?>
+    <div style="font-weight:600;margin-bottom:6px">ตั้ง cron สำหรับการแจ้งเตือน SLA และอีเมล (หลังติดตั้งเสร็จ)</div>
+    <div style="color:#555;font-size:13.5px;line-height:1.6">ใน cPanel → Cron Jobs เพิ่มบรรทัดล่าง (บรรทัดแรกจำเป็น — mark SLA ที่เกินกำหนด ส่งการแจ้งเตือน และจัดการคิวอีเมล; บรรทัดสองสำรองข้อมูลรายวัน เป็นทางเลือก). แทน <code>php</code> ด้วย path ของ PHP CLI บนโฮสต์ของคุณถ้าจำเป็น:</div>
+    <pre style="background:#0e0c2a;color:#d4d6f5;padding:12px;border-radius:8px;overflow-x:auto;font-size:12.5px">*/5 * * * * php <?php echo htmlspecialchars($cronScript, ENT_QUOTES, 'UTF-8') . "\n"; ?>
 0 2 * * * php <?php echo htmlspecialchars($backupScript, ENT_QUOTES, 'UTF-8'); ?></pre>
   </div>
 

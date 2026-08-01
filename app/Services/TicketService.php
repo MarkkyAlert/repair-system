@@ -238,7 +238,7 @@ class TicketService
             ],
             [
                 'key' => 'users', 'icon' => 'users', 'label' => 'เพิ่มผู้ใช้และช่างเทคนิค',
-                'hint' => 'สร้างบัญชีช่างเพื่อรับและปิดงาน',
+                'hint' => 'สร้างบัญชีช่างเพื่อรับงานและสรุปผลซ่อมส่งตรวจรับ',
                 'done' => $this->reads->countTechnicians() >= 1,
                 'href' => '/admin#tab-users', 'cta' => 'เพิ่มผู้ใช้',
             ],

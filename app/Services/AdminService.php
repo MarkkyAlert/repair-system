@@ -198,11 +198,12 @@ class AdminService
                 ['label' => 'เข้าสู่ Dashboard และดูภาพรวมของตนเอง', 'roles' => ['requester', 'manager', 'technician', 'admin']],
                 ['label' => 'สร้าง Ticket ใหม่และติดตามงานที่ตนแจ้ง', 'roles' => ['requester', 'manager', 'technician', 'admin']],
                 ['label' => 'ยกเลิก Ticket ของตนเองก่อนเริ่มงาน', 'roles' => ['requester', 'manager', 'technician', 'admin']],
-                ['label' => 'อนุมัติ/ปฏิเสธ Ticket ที่รออนุมัติ', 'roles' => ['manager', 'admin']],
-                ['label' => 'มอบหมายช่างและจัดคิวงานซ่อม', 'roles' => ['manager', 'admin']],
-                // งานลงมือของช่าง (รับงาน/เริ่มงาน/ปิดงาน) เป็นสิทธิ์ของช่างเท่านั้น — TicketPolicy::canTechnicianWork
+                ['label' => 'อนุมัติ/ปฏิเสธ Ticket ที่รออนุมัติ (manager อนุมัติงานที่ตนแจ้งเองไม่ได้)', 'roles' => ['manager', 'admin']],
+                ['label' => 'มอบหมายช่างและจัดคิวงานที่เป็นคิวส่วนกลาง/อยู่ในความรับผิดชอบ', 'roles' => ['manager', 'admin']],
+                // งานลงมือของช่าง (รับงาน/เริ่มงาน/สรุปผลซ่อมเพื่อส่งตรวจรับ) เป็นสิทธิ์ของช่างเท่านั้น — TicketPolicy::canTechnicianWork
                 // ต้องเป็นช่างที่ถูกมอบหมาย; admin เป็นผู้จัดการ/มอบหมาย แต่ไม่ได้ลงมือซ่อมเอง.
-                ['label' => 'รับงาน เริ่มงาน และปิดงานซ่อม', 'roles' => ['technician']],
+                ['label' => 'รับงาน เริ่มงาน และสรุปผลซ่อมเพื่อส่งรอตรวจรับ', 'roles' => ['technician']],
+                ['label' => 'ปิดงานสถานะรอตรวจรับแทนผู้แจ้ง (ต้องระบุเหตุผล ไม่สร้างคะแนน)', 'roles' => ['admin']],
                 ['label' => 'เพิ่ม/แก้ไขความคิดเห็นและโน้ตภายในตามสิทธิ์ Ticket', 'roles' => ['requester', 'manager', 'technician', 'admin']],
                 ['label' => 'จัดการทรัพย์สินและแผ่น QR', 'roles' => ['manager', 'admin']],
                 ['label' => 'ดูรายงานและส่งออก Excel/PDF/CSV', 'roles' => ['manager', 'admin']],

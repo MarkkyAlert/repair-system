@@ -41,7 +41,7 @@
             <div class="ticket-create-info-body stack-md">
                 <ol class="ticket-flow-list">
                     <li><span>1</span><div><strong>ระบบสร้าง Ticket</strong><span>พร้อมเลขอ้างอิงอัตโนมัติ</span></div></li>
-                    <li><span>2</span><div><strong>ส่งให้หัวหน้างานอนุมัติ</strong><span>เข้าคิวอนุมัติของแผนกที่เกี่ยวข้อง</span></div></li>
+                    <li><span>2</span><div><strong>ส่งให้หัวหน้างานอนุมัติ</strong><span>เข้าคิวผู้อนุมัติส่วนกลางขององค์กร</span></div></li>
                     <li><span>3</span><div><strong>เริ่มนับ SLA</strong><span>บันทึกประวัติทุกความเคลื่อนไหวของงาน</span></div></li>
                 </ol>
             </div>

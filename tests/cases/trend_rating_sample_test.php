@@ -26,8 +26,9 @@ function trs_seed(string $sfx, int $deptId, int $score): void
     $locationId = (int) $pdo->query('SELECT id FROM locations LIMIT 1')->fetchColumn();
     $catId = (int) $pdo->query('SELECT id FROM ticket_categories LIMIT 1')->fetchColumn();
     $priId = (int) $pdo->query('SELECT id FROM priorities LIMIT 1')->fetchColumn();
-    $requested = date('Y-m-d H:i:s', strtotime('-2 days'));
-    $resolved = date('Y-m-d H:i:s', strtotime('-1 day'));
+    // Keep the fixture in the current reporting bucket even on the first day of a month.
+    $requested = date('Y-m-01 00:00:00');
+    $resolved = $requested;
 
     $pdo->prepare(
         'INSERT INTO tickets (ticket_no, title, description, requester_id, requester_department_id, location_id,
