@@ -312,6 +312,12 @@ class TicketRepository
                     || (int) ($manager['is_active'] ?? 0) !== 1) {
                     throw new DomainException('หัวหน้างานไม่พร้อมใช้งาน กรุณารีเฟรชหน้าแล้วลองอีกครั้ง');
                 }
+            } else {
+                // admin อนุมัติ (managerId = null): เดิมไม่มีการ recheck actor เลย → บัญชี admin ที่ถูกปิดกลางคัน
+                // ยังอนุมัติได้ (L-01 เดียวกันกับ reject/assign). การปิดบัญชีต้องชนะทันทีไม่เว้น admin. lock แถว actor
+                // ก่อน ticket (users → tickets) ตรง lock order ของ updateUser. (path manager ด้านบน recheck actor แล้ว
+                // เพราะ managerId = actorId ตอน manager อนุมัติ)
+                $this->lockAndRequireActiveActor($actorId, ['manager', 'admin']);
             }
 
             $this->lockTicketForTransition($ticketId, ['pending_approval'], 'pending');
@@ -366,7 +372,7 @@ class TicketRepository
         try {
             $this->db->beginTransaction();
             // recheck ผู้ปฏิเสธใต้ lock ก่อนแตะ ticket: บัญชีที่ถูกปิด/ลดบทบาทระหว่าง request ต้องปฏิเสธไม่ได้ (L-01 TOCTOU)
-            $this->lockAndRequireActiveManagerOrAdmin($actorId);
+            $this->lockAndRequireActiveActor($actorId, ['manager', 'admin']);
             $this->lockTicketForTransition($ticketId, ['pending_approval'], 'pending');
 
             $ticketStmt = $this->db->prepare(
@@ -423,7 +429,7 @@ class TicketRepository
             $this->db->beginTransaction();
             // recheck ผู้มอบหมายใต้ lock ก่อนแตะ ticket/ช่าง: บัญชีที่ถูกปิด/ลดบทบาทระหว่าง request ต้องมอบหมายไม่ได้ (L-01 TOCTOU).
             // ล็อก actor ก่อน ticket ก่อน technician → users → tickets → users(ช่าง) ตรง lock order ของ updateUser กัน deadlock
-            $this->lockAndRequireActiveManagerOrAdmin($actorId);
+            $this->lockAndRequireActiveActor($actorId, ['manager', 'admin']);
             // accepted/in_progress: การ reassign กลางงานตอนช่างทำต่อไม่ได้
             // ให้ตัดสินจากสถานะที่ล็อกไว้ ไม่ใช่ค่าเก่าที่ caller อ่านมาก่อนล็อก — ถ้ามีการ accept/start
             // แทรกเข้ามาพร้อมกันช่วงที่ service อ่านค่ากับตอนล็อกนี้ reassign ต้องไม่ถูกมองเป็นการ assign ครั้งแรก
@@ -623,6 +629,8 @@ class TicketRepository
 
         try {
             $this->db->beginTransaction();
+            // recheck ช่างผู้รับงานใต้ lock ก่อนแตะ ticket: ต้องยังเป็นช่าง active (ownership assigned_technician_id ตรวจต่อด้านล่าง)
+            $this->lockAndRequireActiveActor($actorId, ['technician']);
             $this->lockTicketForTransition($ticketId, ['assigned'], 'approved', 'assigned_technician_id', $actorId);
 
             // COALESCE(first_response_at, …) = บันทึกเวลาตอบสนอง "ครั้งแรก" ครั้งเดียวแล้วไม่เขียนทับอีก —
@@ -688,6 +696,8 @@ class TicketRepository
 
         try {
             $this->db->beginTransaction();
+            // recheck ช่างผู้เริ่มงานใต้ lock ก่อนแตะ ticket: ต้องยังเป็นช่าง active (ownership ตรวจต่อด้านล่าง)
+            $this->lockAndRequireActiveActor($actorId, ['technician']);
             // lock ได้หลายสถานะ → บันทึก log จากสถานะที่ล็อกไว้ ไม่ใช่ค่าเก่าที่ caller อ่านมาก่อนล็อก เพื่อให้การ
             // accept ที่เข้ามาพร้อมกันช่วง service อ่านค่ากับล็อกนี้ ไม่บันทึก from_status ผิด
             $lockedStatus = $this->lockTicketForTransition($ticketId, ['assigned', 'accepted'], 'approved', 'assigned_technician_id', $actorId);
@@ -760,6 +770,8 @@ class TicketRepository
 
         try {
             $this->db->beginTransaction();
+            // recheck ช่างผู้สรุปผลงานใต้ lock ก่อนแตะ ticket: ต้องยังเป็นช่าง active (ownership ตรวจต่อด้านล่าง)
+            $this->lockAndRequireActiveActor($actorId, ['technician']);
             // lock ได้หลายสถานะ → บันทึก log จากสถานะที่ล็อกไว้ ไม่ใช่ค่าเก่าที่ caller อ่านมาก่อนล็อก
             $lockedStatus = $this->lockTicketForTransition($ticketId, ['accepted', 'in_progress'], 'approved', 'assigned_technician_id', $actorId);
 
@@ -854,6 +866,9 @@ class TicketRepository
 
         try {
             $this->db->beginTransaction();
+            // recheck ผู้ปิดงานใต้ lock ก่อนแตะ ticket (L-01 family): admin ปิดแทน (H-3) ต้องยังเป็น admin active,
+            // ส่วนผู้แจ้งยืนยันปิดงานเองต้องยังเป็นบัญชี active (ownership requester_id ตรวจต่อที่ lockTicketForTransition)
+            $this->lockAndRequireActiveActor($actorId, $onBehalfByAdmin ? ['manager', 'admin'] : []);
             $this->lockTicketForTransition(
                 $ticketId,
                 ['resolved'],
@@ -925,6 +940,8 @@ class TicketRepository
 
         try {
             $this->db->beginTransaction();
+            // recheck ผู้เปิดงานซ้ำใต้ lock ก่อนแตะ ticket: ต้องยังเป็นบัญชี active (ownership requester_id ตรวจต่อด้านล่าง)
+            $this->lockAndRequireActiveActor($actorId);
             $this->lockTicketForTransition($ticketId, ['resolved'], 'approved', 'requester_id', $actorId);
 
             // ถ้าช่างที่เคยรับงานถูกปิดบัญชีหรือเปลี่ยน role ไปแล้ว การเปิดซ้ำต้องไม่เด้งงานกลับไปผูกกับคนที่รับงานช่างไม่ได้
@@ -1034,6 +1051,8 @@ class TicketRepository
 
         try {
             $this->db->beginTransaction();
+            // recheck ผู้ยกเลิกใต้ lock ก่อนแตะ ticket: ต้องยังเป็นบัญชี active (ownership requester_id ตรวจต่อด้านล่าง)
+            $this->lockAndRequireActiveActor($actorId);
             $expectedApprovalStatus = $currentStatus === 'pending_approval' ? 'pending' : 'approved';
             $this->lockTicketForTransition($ticketId, [$currentStatus], $expectedApprovalStatus, 'requester_id', $actorId);
 
@@ -1422,14 +1441,18 @@ class TicketRepository
     }
 
     /**
-     * ล็อกแถวผู้กระทำ (actor) ด้วย FOR UPDATE แล้วยืนยันว่ายัง active และยังมีบทบาทที่ทำรายการนี้ได้ (manager/admin).
+     * ล็อกแถวผู้กระทำ (actor) ด้วย FOR UPDATE แล้วยืนยันว่ายัง active (และถ้าระบุ $allowedRoles ก็ยังมีบทบาทที่อนุญาต).
      * ต้องเรียก "ก่อน" lock แถว ticket เสมอ เพื่อให้ลำดับล็อกเป็น users → tickets ตรงกับ AdminRepository::updateUser
-     * (กัน deadlock). เหตุผล: middleware ตรวจ is_active แค่ตอนต้น request — คำขอ reject/assign ของ manager อาจผ่าน
-     * เข้ามาแล้ว "พอดี" ก่อนที่แอดมินจะปิดบัญชี/ลดบทบาทนั้น. ถ้าไม่ recheck ใต้ lock บัญชีที่ถูกปิดไปแล้วจะยัง reject/assign
-     * ได้ และถูกบันทึกเป็นผู้ทำ. การ lock แถว user ตัวเดียวกับ updateUser บังคับให้สองฝ่ายเรียงกัน เหลือฝ่ายเดียวชนะ —
-     * แอดมินปิดบัญชีสำเร็จก่อน = คำขอค้างถูกปฏิเสธ (แนวเดียวกับ approveTicket ที่ recheck manager ใต้ lock อยู่แล้ว).
+     * (กัน deadlock). เหตุผล: middleware ตรวจ is_active แค่ตอนต้น request — คำขอที่เขียน ticket อาจผ่านเข้ามาแล้ว "พอดี"
+     * ก่อนที่แอดมินจะปิดบัญชี/ลดบทบาทนั้น. ถ้าไม่ recheck ใต้ lock บัญชีที่ถูกปิดไปแล้วจะยังทำรายการได้และถูกบันทึกเป็นผู้ทำ
+     * (การปิดบัญชี = ถอนความไว้ใจ ต้องชนะทันที ไม่ยกเว้นแม้แต่ admin). lock แถว user ตัวเดียวกับ updateUser บังคับให้สอง
+     * ฝ่ายเรียงกัน เหลือฝ่ายเดียวชนะ — แอดมินปิดบัญชีสำเร็จก่อน = คำขอค้างถูกปฏิเสธ. ใช้กับทุก action ที่เขียน ticket:
+     * privilege (approve/reject/assign/ปิดงานแทน) ส่ง ['manager','admin']; งานช่างส่ง ['technician']; งานที่ผูกกับเจ้าของ
+     * (ผู้แจ้ง cancel/reopen/ยืนยันปิดงาน) ส่ง [] เพราะ ownership ถูก recheck ใต้ lock ที่ lockTicketForTransition อยู่แล้ว
+     * เหลือแค่ต้องยืนยันว่าบัญชียัง active.
+     * @param string[] $allowedRoles บทบาทที่อนุญาต (ว่าง = ตรวจแค่ is_active ไม่จำกัดบทบาท)
      */
-    private function lockAndRequireActiveManagerOrAdmin(int $actorId): void
+    private function lockAndRequireActiveActor(int $actorId, array $allowedRoles = []): void
     {
         $stmt = $this->db->prepare(
             'SELECT role, is_active FROM users WHERE id = :actor_id LIMIT 1 FOR UPDATE'
@@ -1438,7 +1461,7 @@ class TicketRepository
         $actor = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
         if ($actor === null
             || (int) ($actor['is_active'] ?? 0) !== 1
-            || !in_array((string) ($actor['role'] ?? ''), ['manager', 'admin'], true)) {
+            || ($allowedRoles !== [] && !in_array((string) ($actor['role'] ?? ''), $allowedRoles, true))) {
             throw new DomainException('บัญชีของคุณไม่พร้อมใช้งานแล้ว (อาจถูกปิดบัญชีหรือเปลี่ยนบทบาท) กรุณาเข้าสู่ระบบใหม่');
         }
     }

@@ -208,3 +208,181 @@ test('policy(manager): sees any ticket, but cannot run workflow on another manag
         mdt_pdo()->prepare('DELETE FROM users WHERE id IN (?, ?)')->execute([$managerA, $managerB]);
     }
 });
+
+// L-01 family completeness (owner-confirmed principle: deactivation withdraws trust and must win for EVERY
+// ticket-writing action, admin included). Beyond approve/reject/assign, these lock the actor under FOR UPDATE
+// too: admin approve (managerId=null path), admin close-on-behalf (H-3), requester reopen/cancel, technician
+// accept/start/resolve. Each proves a deactivated actor is refused with no state change.
+
+function mdt_seed_user(string $role): int
+{
+    $sfx = bin2hex(random_bytes(4));
+    mdt_pdo()->prepare(
+        'INSERT INTO users (username, email, password_hash, full_name, role, is_active, created_at, updated_at)
+         VALUES (?, ?, "x", "MDT actor", ?, 1, NOW(), NOW())'
+    )->execute(["mdtu_$sfx", "mdtu_$sfx@example.com", $role]);
+
+    return (int) mdt_pdo()->lastInsertId();
+}
+
+/** Drive a ticket by $requesterId through the real flow to a target state, using admin #4 to approve/assign. */
+function mdt_drive(int $requesterId, int $techId, string $stopAt): int
+{
+    $wf = tvm_container()->get(TicketWorkflowService::class);
+    $admin = ['id' => 4, 'role' => 'admin'];
+    $tech = ['id' => $techId, 'role' => 'technician'];
+    $ref = tvm_container()->get(TicketReadRepository::class)->getCreateFormReferenceData();
+    $id = tvm_container()->get(TicketService::class)->createTicket(
+        ['id' => $requesterId, 'role' => 'requester'],
+        [
+            'submission_token' => bin2hex(random_bytes(32)), 'title' => 'mdt drive', 'description' => 'x',
+            'priority_id' => (int) $ref['priorities'][0]['id'], 'ticket_category_id' => (int) $ref['categories'][0]['id'],
+            'location_id' => (int) $ref['locations'][0]['id'], 'impact_level' => 'medium', 'urgency_level' => 'medium',
+        ],
+        []
+    );
+    if ($stopAt === 'pending_approval') {
+        return $id;
+    }
+    $wf->approveTicket($id, $admin, ['note' => '']);
+    $wf->assignTechnician($id, $admin, ['technician_id' => $techId, 'instructions' => '']);
+    $wf->acceptAssignedWork($id, $tech, ['accept_note' => '']);
+    if ($stopAt === 'accepted') {
+        return $id;
+    }
+    $wf->startAssignedWork($id, $tech, ['start_note' => '']);
+    $wf->resolveAssignedWork($id, $tech, ['diagnosis_summary' => 'd', 'resolution_summary' => 'r', 'labor_minutes' => '10']);
+
+    return $id; // resolved
+}
+
+test('workflow(L-01 family): a deactivated ADMIN cannot approve (managerId=null path)', function (): void {
+    $wf = tvm_container()->get(TicketWorkflowService::class);
+    $adminId = mdt_seed_user('admin');
+    $ticketId = mdt_seed_pending_ticket();
+    try {
+        mdt_pdo()->prepare('UPDATE users SET is_active = 0 WHERE id = ?')->execute([$adminId]);
+        $blocked = false;
+        try {
+            $wf->approveTicket($ticketId, ['id' => $adminId, 'role' => 'admin'], ['note' => '']);
+        } catch (DomainException $e) {
+            $blocked = str_contains($e->getMessage(), 'บัญชีของคุณไม่พร้อมใช้งาน');
+        }
+        assert_true($blocked, 'a deactivated admin approver is refused — "admin is trusted" does not survive deactivation');
+        $row = mdt_pdo()->query("SELECT status, approval_status FROM tickets WHERE id = $ticketId")->fetch(PDO::FETCH_ASSOC);
+        assert_same('pending_approval', (string) $row['status'], 'ticket not approved');
+        assert_same('pending', (string) $row['approval_status'], 'approval still pending');
+    } finally {
+        mdt_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+        mdt_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$adminId]);
+    }
+});
+
+test('workflow(L-01 family): a deactivated admin cannot CLOSE ON BEHALF (H-3), ticket stays resolved', function (): void {
+    $wf = tvm_container()->get(TicketWorkflowService::class);
+    $adminId = mdt_seed_user('admin');
+    $ticketId = mdt_drive(1, 3, 'resolved');
+    try {
+        mdt_pdo()->prepare('UPDATE users SET is_active = 0 WHERE id = ?')->execute([$adminId]);
+        $blocked = false;
+        try {
+            $wf->completeResolvedTicket($ticketId, ['id' => $adminId, 'role' => 'admin'], ['closure_note' => 'requester left']);
+        } catch (DomainException $e) {
+            $blocked = str_contains($e->getMessage(), 'บัญชีของคุณไม่พร้อมใช้งาน');
+        }
+        assert_true($blocked, 'a deactivated admin cannot close a ticket on behalf of the requester');
+        assert_same('resolved', (string) mdt_pdo()->query("SELECT status FROM tickets WHERE id = $ticketId")->fetchColumn(), 'ticket stays resolved');
+    } finally {
+        mdt_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+        mdt_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$adminId]);
+    }
+});
+
+test('workflow(L-01 family): a deactivated REQUESTER cannot reopen or cancel their own ticket', function (): void {
+    $wf = tvm_container()->get(TicketWorkflowService::class);
+
+    // reopen (from resolved)
+    $reqA = mdt_seed_user('requester');
+    $resolved = mdt_drive($reqA, 3, 'resolved');
+    try {
+        mdt_pdo()->prepare('UPDATE users SET is_active = 0 WHERE id = ?')->execute([$reqA]);
+        $blocked = false;
+        try {
+            $wf->reopenTicket($resolved, ['id' => $reqA, 'role' => 'requester'], ['reopen_note' => 'still broken']);
+        } catch (DomainException $e) {
+            $blocked = str_contains($e->getMessage(), 'บัญชีของคุณไม่พร้อมใช้งาน');
+        }
+        assert_true($blocked, 'a deactivated requester cannot reopen');
+        assert_same('resolved', (string) mdt_pdo()->query("SELECT status FROM tickets WHERE id = $resolved")->fetchColumn(), 'ticket stays resolved');
+    } finally {
+        mdt_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$resolved]);
+        mdt_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$reqA]);
+    }
+
+    // cancel (from pending_approval)
+    $reqB = mdt_seed_user('requester');
+    $pending = mdt_drive($reqB, 3, 'pending_approval');
+    try {
+        mdt_pdo()->prepare('UPDATE users SET is_active = 0 WHERE id = ?')->execute([$reqB]);
+        $blocked = false;
+        try {
+            $wf->cancelTicket($pending, ['id' => $reqB, 'role' => 'requester'], ['cancel_note' => 'never mind']);
+        } catch (DomainException $e) {
+            $blocked = str_contains($e->getMessage(), 'บัญชีของคุณไม่พร้อมใช้งาน');
+        }
+        assert_true($blocked, 'a deactivated requester cannot cancel');
+        assert_same('pending_approval', (string) mdt_pdo()->query("SELECT status FROM tickets WHERE id = $pending")->fetchColumn(), 'ticket not cancelled');
+    } finally {
+        mdt_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$pending]);
+        mdt_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$reqB]);
+    }
+});
+
+test('workflow(L-01 family): a deactivated TECHNICIAN cannot resolve their accepted work, ticket unchanged', function (): void {
+    $wf = tvm_container()->get(TicketWorkflowService::class);
+    $techId = mdt_seed_user('technician');
+    $ticketId = mdt_drive(1, $techId, 'accepted');
+    try {
+        mdt_pdo()->prepare('UPDATE users SET is_active = 0 WHERE id = ?')->execute([$techId]);
+        $blocked = false;
+        try {
+            $wf->resolveAssignedWork($ticketId, ['id' => $techId, 'role' => 'technician'], ['diagnosis_summary' => 'd', 'resolution_summary' => 'r', 'labor_minutes' => '5']);
+        } catch (DomainException $e) {
+            $blocked = str_contains($e->getMessage(), 'บัญชีของคุณไม่พร้อมใช้งาน');
+        }
+        assert_true($blocked, 'a deactivated technician cannot resolve their assigned work');
+        assert_same('accepted', (string) mdt_pdo()->query("SELECT status FROM tickets WHERE id = $ticketId")->fetchColumn(), 'ticket stays accepted, not resolved');
+    } finally {
+        mdt_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+        mdt_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$techId]);
+    }
+});
+
+test('workflow(L-01 family): active throwaway actors still complete every path (no over-correction)', function (): void {
+    $wf = tvm_container()->get(TicketWorkflowService::class);
+
+    // active throwaway admin approves + closes on behalf
+    $adminId = mdt_seed_user('admin');
+    $ticketId = mdt_drive(1, 3, 'resolved');
+    try {
+        $wf->completeResolvedTicket($ticketId, ['id' => $adminId, 'role' => 'admin'], ['closure_note' => 'closing for absent requester']);
+        assert_same('completed', (string) mdt_pdo()->query("SELECT status FROM tickets WHERE id = $ticketId")->fetchColumn(), 'an ACTIVE admin can still close on behalf');
+    } finally {
+        mdt_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+        mdt_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$adminId]);
+    }
+
+    // active requester reopens their own resolved ticket
+    $reqA = mdt_seed_user('requester');
+    $resolved = mdt_drive($reqA, 3, 'resolved');
+    try {
+        $wf->reopenTicket($resolved, ['id' => $reqA, 'role' => 'requester'], ['reopen_note' => 'still broken']);
+        assert_true(
+            in_array((string) mdt_pdo()->query("SELECT status FROM tickets WHERE id = $resolved")->fetchColumn(), ['assigned', 'approved'], true),
+            'an ACTIVE requester can still reopen'
+        );
+    } finally {
+        mdt_pdo()->prepare('DELETE FROM tickets WHERE id = ?')->execute([$resolved]);
+        mdt_pdo()->prepare('DELETE FROM users WHERE id = ?')->execute([$reqA]);
+    }
+});
