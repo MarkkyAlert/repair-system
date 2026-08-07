@@ -219,6 +219,24 @@ test('executive(known-answer): every KPI of a closed month equals the hand-compu
             assert_contains_str($needle, $pdfText, "the printed PDF carries the same figure as the screen: $needle");
         }
 
+        // ── the OTHER page leadership reads must tell the same story about the same month ──
+        // (two leadership reports that disagree on one screen is worse than one that is merely wrong: the reader
+        //  cannot tell which half to believe. The executive counts breached TICKETS; the overview counts breached
+        //  METRICS — on this month that is the one resolution miss on B, and nothing else.)
+        $overview = $svc->getReportPageData($admin, [
+            'from_date' => $monthStart->format('Y-m-d'),
+            'to_date' => $monthEnd->format('Y-m-d'),
+            'department_id' => $deptId,
+        ]);
+        assert_same(5, (int) ($overview['summary']['total'] ?? -1), 'the overview counts the same five tickets as the executive card');
+        assert_same(2, (int) ($overview['summary']['resolved'] ?? -1), 'and the same two closures');
+
+        $sla = $overview['slaCompliance']['overall'] ?? [];
+        assert_same(0, (int) ($sla['response']['breached'] ?? -1), 'nobody missed a response deadline in that month');
+        assert_same(2, (int) ($sla['response']['met'] ?? -1), 'both answered tickets met their response deadline');
+        assert_same(1, (int) ($sla['resolution']['breached'] ?? -1), 'exactly one resolution deadline was missed — the same miss the executive card counts');
+        assert_same(1, (int) ($sla['resolution']['met'] ?? -1), 'and one was met');
+
         // ── the month is closed: nothing that happens now may rewrite it ──
         $before = $page['kpis'];
         // C is finally picked up and closed TODAY — months after the month it was raised in. Its closure belongs
