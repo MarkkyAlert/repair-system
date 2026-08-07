@@ -115,6 +115,9 @@ test('sla(fixture): drain pre-existing overdue SLA tracks to a known baseline', 
     )->fetchAll(PDO::FETCH_COLUMN);
     $GLOBALS['__sla_drained_ids'] = array_map('intval', $ids);
     $GLOBALS['__sla_notif_floor'] = (int) sla_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM notifications')->fetchColumn();
+    // id floor for the leak check in the teardown: any track above this line was created after the drain, so it
+    // belongs to a test and must be gone again by the end. Identity, not "is it overdue" — see the teardown.
+    $GLOBALS['__sla_track_floor'] = (int) sla_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM ticket_sla_tracks')->fetchColumn();
 
     sla_service()->processOverdueBreaches(); // breach every pre-existing overdue track now
 
@@ -405,16 +408,51 @@ test('sla(resilience): a failing notification does not abort the batch — every
 
 // ── fixture teardown: undo everything this file did to shared state ──
 
+// TEST_SHUFFLE reorders individual tests, not files, so this teardown can run before the drain above it — 5 of
+// 15 sample seeds do exactly that. Two consequences had to be closed:
+//
+//   * With no recorded floor, `DELETE FROM notifications WHERE id > 0` erased EVERY notification in the test
+//     database, including seed rows this file never created.
+//   * The old check counted every pending-overdue track in the database and compared it against the number
+//     drained. That count moves on its own: a track whose deadline sits a little in the future when the drain
+//     runs becomes overdue later in the same run, and the two numbers no longer match. It went red on CI —
+//     slower, and running the whole suite twice — while passing locally, with no defect behind it.
+//
+// The leak check it was really there for is kept, but by identity instead of by clock: every track created
+// after the drain belongs to a test and must be gone by the end. That answers "did a test leave rows behind"
+// without depending on when a deadline happens to pass.
 test('sla(fixture): restore seed SLA tracks + purge notifications created during this run', function (): void {
     $ids = $GLOBALS['__sla_drained_ids'] ?? [];
     if ($ids !== []) {
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
         sla_pdo()->prepare("UPDATE ticket_sla_tracks SET status = 'pending', breached_at = NULL WHERE id IN ($placeholders)")->execute($ids);
-    }
-    $floor = (int) ($GLOBALS['__sla_notif_floor'] ?? 0);
-    sla_pdo()->prepare('DELETE FROM notifications WHERE id > ?')->execute([$floor]); // cascades notification_recipients
 
-    assert_same(count($ids), sla_count_pending_overdue(), 'seed overdue tracks are restored and no test tracks leaked');
+        $check = sla_pdo()->prepare("SELECT COUNT(*) FROM ticket_sla_tracks WHERE status = 'pending' AND breached_at IS NULL AND id IN ($placeholders)");
+        $check->execute($ids);
+        assert_same(
+            count($ids),
+            (int) $check->fetchColumn(),
+            'every seed track this file breached is back to pending — the file leaves the seed data as it found it'
+        );
+    }
+
+    // the leak net, by identity: nothing created after the drain may still be sitting there
+    if (isset($GLOBALS['__sla_track_floor'])) {
+        $trackFloor = (int) $GLOBALS['__sla_track_floor'];
+        $leaked = (int) sla_pdo()->query('SELECT COUNT(*) FROM ticket_sla_tracks WHERE id > ' . $trackFloor)->fetchColumn();
+        assert_same(0, $leaked, 'every SLA track created during this run was cleaned up by the test that made it');
+    }
+
+    // only purge when the drain actually recorded a floor; without one this deleted the whole table
+    if (isset($GLOBALS['__sla_notif_floor'])) {
+        $floor = (int) $GLOBALS['__sla_notif_floor'];
+        sla_pdo()->prepare('DELETE FROM notifications WHERE id > ?')->execute([$floor]); // cascades notification_recipients
+        assert_same(
+            0,
+            (int) sla_pdo()->query('SELECT COUNT(*) FROM notifications WHERE id > ' . $floor)->fetchColumn(),
+            'every notification this file created is gone'
+        );
+    }
 });
 
 // bug-hunt A4 (2nd pass): the dashboard "SLA-notify failed" flag (cron_sla_notify_last_failed) was upserted
