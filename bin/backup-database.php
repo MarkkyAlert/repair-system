@@ -29,6 +29,60 @@ if (PHP_SAPI !== 'cli') {
 
 [$container] = require dirname(__DIR__) . '/bootstrap.php';
 
+/**
+ * หา mysqldump ให้เจอโดยไม่พึ่ง PATH.
+ *
+ * cron มี PATH แค่ประมาณ /usr/bin:/bin ดังนั้นชื่อสั้น ๆ ว่า "mysqldump" จะหาไม่เจอบนโฮสต์ที่ MySQL ไม่ได้
+ * ติดตั้งลงโฟลเดอร์ระบบ — XAMPP/MAMP เป็นแบบนั้นทั้งคู่ ผลคือ backup ตายทุกคืนด้วย exit 127 และเจ้าของระบบ
+ * รู้ตัวอีกทีตอนป้าย "สำรองข้อมูลค้างนาน" ขึ้น 48 ชม.ให้หลัง (ถ้าเขาเปิดหน้านั้น).
+ *
+ * ค่าที่ตั้งเองใน .env ชนะเสมอ — ถ้าตั้งไว้แล้วผิด เราไม่เดาแทน แต่บอกไปตรง ๆ ว่าตั้งอะไรไว้.
+ */
+function resolve_mysqldump_bin(string $configured): string
+{
+    if ($configured !== '') {
+        return $configured; // เจ้าของระบบสั่งมาเอง — ถ้าพังจะได้เห็นว่าพังเพราะค่าที่ตั้ง ไม่ใช่เพราะเราไปเดาที่อื่น
+    }
+
+    // PHP_BINDIR มาก่อน: บน XAMPP/MAMP ตัว mysqldump วางอยู่ข้าง ๆ php ตัวที่กำลังรันสคริปต์นี้อยู่แล้ว
+    // ที่เหลือคือที่อยู่มาตรฐานของ MySQL/MariaDB บนโฮสต์จริง แล้วตามด้วยชุด XAMPP/MAMP ซึ่งเป็นชุดที่ผู้ซื้อ
+    // มักใช้ทดลองบนเครื่องตัวเอง (php กับ mysql คนละชุดกัน PHP_BINDIR เลยไม่ครอบคลุม)
+    $candidates = [
+        PHP_BINDIR . '/mysqldump',
+        '/usr/bin/mysqldump',
+        '/usr/local/bin/mysqldump',
+        '/opt/homebrew/bin/mysqldump',
+        '/usr/local/mysql/bin/mysqldump',
+        '/opt/lampp/bin/mysqldump',                        // XAMPP บน Linux
+        '/Applications/XAMPP/xamppfiles/bin/mysqldump',     // XAMPP บน macOS
+        '/Applications/MAMP/Library/bin/mysqldump',         // MAMP
+    ];
+    foreach ($candidates as $candidate) {
+        if (is_file($candidate) && is_executable($candidate)) {
+            return $candidate;
+        }
+    }
+
+    return 'mysqldump'; // หาไม่เจอ — ปล่อยให้ PATH ลองอีกที แล้วรายงานให้ชัดถ้าล้ม
+}
+
+/**
+ * ข้อความตอนเรียก mysqldump ไม่ได้ — ต้องบอกทางออก ไม่ใช่โยน warning ของ PHP ใส่หน้า log.
+ *
+ * "เรียกไม่ได้" โผล่มาได้สองหน้าตาแล้วแต่ระบบปฏิบัติการ/รุ่นของ PHP: บางที proc_open สร้างโปรเซสได้แล้วโปรเซส
+ * นั้นจบด้วย exit 127, บางที proc_open ล้มตั้งแต่ spawn (posix_spawn) แล้ว return false ไปเลย ทั้งสองแบบคือ
+ * เรื่องเดียวกันสำหรับเจ้าของระบบ จึงต้องได้ข้อความเดียวกัน.
+ */
+function mysqldump_unavailable_message(string $bin): string
+{
+    $headline = (is_file($bin) && !is_executable($bin))
+        ? 'พบไฟล์ mysqldump แต่รันไม่ได้ (สิทธิ์ไม่พอ)'
+        : 'ไม่พบคำสั่ง mysqldump';
+
+    return $headline . ' (ที่ลองใช้: ' . $bin . ')' . PHP_EOL
+        . 'cron ใช้ PATH แคบกว่าตอนพิมพ์คำสั่งเอง — ตั้ง MYSQLDUMP_BIN=/path/to/mysqldump ใน .env แล้วรันใหม่' . PHP_EOL;
+}
+
 $keep = 14;
 $dryRun = false;
 foreach (array_slice($argv, 1) as $arg) {
@@ -51,7 +105,7 @@ $database = (string) config('db.name', '');
 $username = (string) config('db.username', '');
 $password = (string) config('db.password', '');
 $charset = (string) config('db.charset', 'utf8mb4');
-$mysqldumpBin = (string) env('MYSQLDUMP_BIN', 'mysqldump');
+$mysqldumpBin = resolve_mysqldump_bin((string) env('MYSQLDUMP_BIN', ''));
 
 if ($database === '' || $username === '') {
     fwrite(STDERR, 'Database name/username missing in config.' . PHP_EOL);
@@ -117,10 +171,12 @@ if (!$dryRun) {
 
     $descriptors = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
     $pipes = [];
-    $proc = proc_open($dumpArgs, $descriptors, $pipes);
+    // @ ไว้เพราะเราจัดการเคสล้มเองด้านล่างแล้ว: ถ้าปล่อย warning ของ proc_open ไปลง log ของ cron
+    // เจ้าของระบบจะเห็นแต่ posix_spawn ซึ่งไม่ได้บอกว่าต้องทำอะไรต่อ
+    $proc = @proc_open($dumpArgs, $descriptors, $pipes);
     if (!is_resource($proc)) {
         putenv('MYSQL_PWD');
-        fwrite(STDERR, 'Cannot start mysqldump.' . PHP_EOL);
+        fwrite(STDERR, mysqldump_unavailable_message($mysqldumpBin));
         @unlink($absolutePath);
         exit(1);
     }
@@ -218,7 +274,13 @@ if (!$dryRun) {
         exit(1);
     }
     if ($exitCode !== 0) {
-        fwrite(STDERR, 'mysqldump failed (exit ' . $exitCode . '): ' . trim($stderr) . PHP_EOL);
+        // 127 = shell/OS บอกว่า "ไม่มีคำสั่งนี้" ซึ่งบน cron แปลว่าหา mysqldump ไม่เจอ ไม่ใช่ dump ล้มเหลว
+        // ข้อความต้องบอกทางออกไปเลย ไม่ใช่ให้เจ้าของระบบไปไล่อ่าน warning ของ proc_open เอง
+        if ($exitCode === 127) {
+            fwrite(STDERR, mysqldump_unavailable_message($mysqldumpBin));
+        } else {
+            fwrite(STDERR, 'mysqldump failed (exit ' . $exitCode . '): ' . trim($stderr) . PHP_EOL);
+        }
         @unlink($absolutePath);
         exit(1);
     }
