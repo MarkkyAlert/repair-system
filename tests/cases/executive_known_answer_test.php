@@ -257,3 +257,49 @@ test('executive(known-answer): every KPI of a closed month equals the hand-compu
         $pdo->prepare('DELETE FROM departments WHERE id = ?')->execute([$deptId]);
     }
 });
+
+// The rating card must decide "is there a score?" from the number of reviews, exactly like MTTR decides from its
+// resolution base and exactly like every other surface that prints a score (overview, technician performance,
+// trend, CSAT). Gating on the AVERAGE instead is only safe while no row can hold a 0 — but ticket_ratings.score is
+// TINYINT UNSIGNED with no range constraint in the schema (1–5 is enforced by the service alone), so a legacy,
+// imported or seeded 0 makes the executive card contradict itself: '-' for "no data" while its own base line says
+// "จาก 1 รีวิว", and the overview page on the very same data prints 0.0.
+test('executive(rating base): a review scored 0 is data — the card shows it and agrees with the overview', function (): void {
+    $svc = tvm_container()->get(ReportService::class);
+    $pdo = eka_pdo();
+    $sfx = bin2hex(random_bytes(4));
+    $admin = ['id' => 4, 'role' => 'admin'];
+
+    $pdo->prepare('INSERT INTO departments (code, name, is_active, created_at, updated_at) VALUES (?, ?, 1, NOW(), NOW())')
+        ->execute(["EKAZ-$sfx", "EkaZeroDept-$sfx"]);
+    $deptId = (int) $pdo->lastInsertId();
+
+    $monthStart = (new DateTimeImmutable('first day of this month'))->modify('-5 months');
+    $monthEnd = $monthStart->modify('last day of this month');
+    $at = $monthStart->modify('+3 days +9 hours')->format('Y-m-d H:i:s');
+    $filters = ['preset' => 'custom', 'from_date' => $monthStart->format('Y-m-d'), 'to_date' => $monthEnd->format('Y-m-d'), 'department_id' => $deptId];
+    $ticketId = 0;
+
+    try {
+        $ticketId = eka_create(1);
+        tvm_container()->get(TicketWorkflowService::class)->approveTicket($ticketId, $admin, ['note' => '']);
+        eka_backdate($ticketId, $deptId, $at);
+        // a rating row the DB happily accepts but the UI would never produce
+        $pdo->prepare('INSERT INTO ticket_ratings (ticket_id, requester_id, technician_id, cycle, score, feedback, created_at, updated_at)
+                       VALUES (?, 1, 3, 1, 0, "legacy", ?, ?)')->execute([$ticketId, $at, $at]);
+
+        $rating = eka_kpi($svc->getExecutiveSummaryPage($admin, $filters), 'คะแนนเฉลี่ย');
+        assert_same('0.0', (string) $rating['value_label'], 'one review scoring 0 is a real average of 0.0, not "no data"');
+        assert_contains_str('จาก 1 รีวิว', (string) ($rating['sample_label'] ?? ''), 'and the base it rests on is stated');
+
+        $overviewLabel = (string) ($svc->getReportPageData($admin, [
+            'from_date' => $monthStart->format('Y-m-d'),
+            'to_date' => $monthEnd->format('Y-m-d'),
+            'department_id' => $deptId,
+        ])['summary']['avgRatingLabel'] ?? '');
+        assert_same($overviewLabel, (string) $rating['value_label'], 'the two leadership pages print the same score for the same month');
+    } finally {
+        $pdo->prepare('DELETE FROM tickets WHERE id = ?')->execute([$ticketId]);
+        $pdo->prepare('DELETE FROM departments WHERE id = ?')->execute([$deptId]);
+    }
+});

@@ -1677,6 +1677,11 @@ class ReportService
             // MTTR/คะแนน เป็น avg → การมีอยู่ = มีงานปิด/มีรีวิวจริงไหม (base count) ไม่ใช่ค่า avg>0 —
             // งานปิด <1 นาที (MTTR 0.0) ยังต้องนับว่ามีข้อมูล ไม่งั้นเดลต้าหาย/โชว์ '-' ทั้งที่มีงาน
             $this->execKpiCard('เวลาซ่อมเฉลี่ย (ชม.)', $tMttr, $pMttr, 'down_good', 1, '', $tMttrBase > 0 ? number_format($tMttr, 1) : '-', $tMttrBase > 0, $pMttrBase > 0),
+            // การมีอยู่ของคะแนน = "มีรีวิวกี่ใบ" (rating_count) ไม่ใช่ "ค่าเฉลี่ย > 0" — แบบเดียวกับ MTTR ด้านบนและ
+            // กับทุกหน้าที่แสดงคะแนน (รายงานรวม/ผลงานช่าง/แนวโน้ม/CSAT ล้วนตัดสินจาก rating_count). ถ้าตัดสินจากค่าเฉลี่ย
+            // รีวิวที่คะแนนเป็น 0 (คอลัมน์เป็น TINYINT UNSIGNED ที่ DB ไม่ได้บังคับช่วง 1–5 — มีแต่ service ที่บังคับ)
+            // จะทำให้การ์ดขัดกันเอง: โชว์ '-' ว่าไม่มีข้อมูล แต่บรรทัดฐานเขียนว่า "จาก N รีวิว" และหน้ารายงานรวมบนข้อมูล
+            // ชุดเดียวกันจะโชว์ 0.0 — สองหน้าของผู้บริหารเล่าคนละเรื่อง
             $this->execKpiCard(
                 'คะแนนเฉลี่ย',
                 $tRating,
@@ -1684,9 +1689,9 @@ class ReportService
                 'up_good',
                 1,
                 '',
-                $tRating > 0 ? number_format($tRating, 1) : '-',
-                $tRating > 0,
-                $pRating > 0,
+                $tRatingCount > 0 ? number_format($tRating, 1) : '-',
+                $tRatingCount > 0,
+                $pRatingCount > 0,
                 $tRatingCount > 0 ? 'จาก ' . number_format($tRatingCount) . ' รีวิว' : null,
                 $pRatingCount > 0 ? 'จาก ' . number_format($pRatingCount) . ' รีวิว' : null
             ),
