@@ -9,6 +9,45 @@ use App\Services\BackupService;
 // restore view-model carries the configured DB name + newest filename. Drops a temp db-*.sql.gz and restores
 // the cron_backup_last_run_at setting to its original state (deletes it if it did not exist before).
 
+/**
+ * Move real backups out of the folder for the duration of a test, and hand back the undo.
+ *
+ * getStatus() reads one fixed folder, so these cases silently depended on that folder being empty. On any
+ * machine where the backup cron has actually run — every correctly configured install, and any buyer who set
+ * backups up before running the suite — a real recent file made "old evidence → stale" impossible and the test
+ * failed for a reason that was not a defect. The junk-file case had the mirror problem: it skipped its two
+ * strongest assertions whenever a real backup happened to be present.
+ *
+ * Files are parked beside themselves (rename keeps their mtime) and the returned callable puts them back.
+ * Anything left parked by an interrupted earlier run is restored first, so this heals rather than accumulates.
+ *
+ * @return callable(): void the undo, safe to call once from a finally
+ */
+function bkst_park_real_backups(): callable
+{
+    $dir = storage_path('backups');
+    @mkdir($dir, 0775, true);
+
+    foreach (glob($dir . '/db-*.sql.gz.parked') ?: [] as $stray) {
+        @rename($stray, substr($stray, 0, -7));
+    }
+
+    $parked = [];
+    foreach (glob($dir . '/db-*.sql.gz') ?: [] as $path) {
+        if (is_file($path) && @rename($path, $path . '.parked')) {
+            $parked[$path] = $path . '.parked';
+        }
+    }
+    clearstatcache();
+
+    return static function () use ($parked): void {
+        foreach ($parked as $path => $stashed) {
+            @rename($stashed, $path);
+        }
+        clearstatcache();
+    };
+}
+
 test('backup status: staleness by last-run age + file listing + restore command', function (): void {
     $svc = tvm_container()->get(BackupService::class);
     $settings = tvm_container()->get(SettingsRepository::class);
@@ -19,6 +58,7 @@ test('backup status: staleness by last-run age + file listing + restore command'
     @mkdir($dir, 0775, true);
     $tmpName = 'db-2099-01-01_' . str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT) . '.sql.gz';
     $tmpPath = $dir . '/' . $tmpName;
+    $unpark = bkst_park_real_backups(); // the staleness case needs this file to be the ONLY evidence
 
     try {
         // a REAL, non-empty gzip (getStatus now only counts restorable gzips, not any bytes). (error-review-9 F1)
@@ -49,6 +89,7 @@ test('backup status: staleness by last-run age + file listing + restore command'
     } finally {
         clearstatcache(true, $tmpPath);
         @unlink($tmpPath);
+        $unpark();
         if ($original === null) {
             $pdo->prepare('DELETE FROM system_settings WHERE setting_key = ?')->execute(['cron_backup_last_run_at']);
         } else {
@@ -78,7 +119,7 @@ test('backup status: a non-gzip / empty-gzip file is not counted as a restorable
     $emptyGzPath = $dir . '/db-2099-02-03_' . $suffix . '.sql.gz'; // valid gzip of EMPTY input (ISIZE 0)
 
     // isolate: no other valid backups + no cron heartbeat, so freshness depends solely on these files
-    $existingValid = array_filter(glob($dir . '/db-*.sql.gz') ?: [], static fn (string $p): bool => is_file($p));
+    $unpark = bkst_park_real_backups();
 
     try {
         file_put_contents($junkPath, str_repeat('x', 2048)); // 2KB of non-gzip bytes
@@ -92,13 +133,12 @@ test('backup status: a non-gzip / empty-gzip file is not counted as a restorable
         // neither junk file is the newest/counted backup
         assert_true(basename((string) ($status['newest_file'] ?? '')) !== basename($junkPath), 'a non-gzip file is not the newest backup');
         assert_true(basename((string) ($status['newest_file'] ?? '')) !== basename($emptyGzPath), 'an empty-input gzip is not the newest backup');
-        if ($existingValid === []) {
-            assert_true($status['has_backups'] === false, 'with only junk files present, there are NO valid backups');
-            assert_true($status['is_stale'] === true, 'junk files do not keep the backup status fresh');
-        }
+        assert_true($status['has_backups'] === false, 'with only junk files present, there are NO valid backups');
+        assert_true($status['is_stale'] === true, 'junk files do not keep the backup status fresh');
     } finally {
         @unlink($junkPath);
         @unlink($emptyGzPath);
+        $unpark();
         if ($original === null) {
             $pdo->prepare('DELETE FROM system_settings WHERE setting_key = ?')->execute(['cron_backup_last_run_at']);
         } else {
