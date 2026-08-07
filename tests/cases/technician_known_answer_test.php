@@ -67,7 +67,7 @@ test('technician(known-answer): each technician is judged on the work they actua
         ->execute(["TKAD-$sfx", "TkaDept-$sfx"]);
     $deptId = (int) $pdo->lastInsertId();
 
-    $monthStart = (new DateTimeImmutable('first day of this month'))->modify('-4 months');
+    $monthStart = (new DateTimeImmutable('first day of this month'))->setTime(0, 0)->modify('-4 months');
     $monthEnd = $monthStart->modify('last day of this month');
     $filters = [
         'from_date' => $monthStart->format('Y-m-d'),

@@ -88,7 +88,7 @@ test('executive(known-answer): every KPI of a closed month equals the hand-compu
     $deptId = (int) $pdo->lastInsertId();
 
     // a month that is well and truly over (anchored to the 1st so month-end run dates cannot overflow it)
-    $monthStart = (new DateTimeImmutable('first day of this month'))->modify('-6 months');
+    $monthStart = (new DateTimeImmutable('first day of this month'))->setTime(0, 0)->modify('-6 months');
     $monthEnd = $monthStart->modify('last day of this month');
     $filters = [
         'preset' => 'custom',
@@ -274,7 +274,7 @@ test('executive(rating base): a review scored 0 is data — the card shows it an
         ->execute(["EKAZ-$sfx", "EkaZeroDept-$sfx"]);
     $deptId = (int) $pdo->lastInsertId();
 
-    $monthStart = (new DateTimeImmutable('first day of this month'))->modify('-5 months');
+    $monthStart = (new DateTimeImmutable('first day of this month'))->setTime(0, 0)->modify('-5 months');
     $monthEnd = $monthStart->modify('last day of this month');
     $at = $monthStart->modify('+3 days +9 hours')->format('Y-m-d H:i:s');
     $filters = ['preset' => 'custom', 'from_date' => $monthStart->format('Y-m-d'), 'to_date' => $monthEnd->format('Y-m-d'), 'department_id' => $deptId];

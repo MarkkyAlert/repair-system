@@ -49,8 +49,8 @@ test('trend(known-answer): every column of two finished months equals the hand-c
         ->execute(["TKND-$sfx", "TknDept-$sfx"]);
     $deptId = (int) $pdo->lastInsertId();
 
-    $m1 = (new DateTimeImmutable('first day of this month'))->modify('-5 months');
-    $m2 = (new DateTimeImmutable('first day of this month'))->modify('-4 months');
+    $m1 = (new DateTimeImmutable('first day of this month'))->setTime(0, 0)->modify('-5 months');
+    $m2 = (new DateTimeImmutable('first day of this month'))->setTime(0, 0)->modify('-4 months');
     $filters = [
         'granularity' => 'month',
         'from_date' => $m1->format('Y-m-d'),
