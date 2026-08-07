@@ -16,6 +16,32 @@ function storage_path(string $path = ''): string
     return base_path('storage/' . ltrim($path, '/'));
 }
 
+/**
+ * ที่อยู่เต็มของ PHP CLI สำหรับเอาไปใส่ cron.
+ *
+ * cron ไม่ได้อ่าน profile ของ shell — PATH มีแค่ /usr/bin:/bin ดังนั้นคำสั่งที่ขึ้นต้นด้วย `php` เฉย ๆ
+ * เจอ "command not found" บนโฮสต์ที่ PHP ไม่ได้อยู่ใน path มาตรฐาน (XAMPP/MAMP/PHP หลายเวอร์ชัน) เราจึงต้อง
+ * พิมพ์ path เต็มให้ ไม่ใช่ให้ผู้ซื้อเดาเอง.
+ *
+ * PHP_BINARY ใช้ไม่ได้: ใต้ Apache mod_php มันเป็นค่าว่าง (วัดมาแล้ว) และใต้ php-fpm มันชี้ไปที่ตัว fpm
+ * ไม่ใช่ตัว CLI. PHP_BINDIR เป็นค่าคงที่ตอน compile ที่ถูกต้องในทุก SAPI จึงใช้อันนี้เป็นหลัก.
+ */
+function php_cli_binary(): string
+{
+    $candidates = [PHP_BINDIR . '/php'];
+    if (PHP_SAPI === 'cli' && PHP_BINARY !== '') {
+        array_unshift($candidates, PHP_BINARY);
+    }
+
+    foreach ($candidates as $candidate) {
+        if (is_file($candidate) && is_executable($candidate)) {
+            return $candidate;
+        }
+    }
+
+    return 'php'; // หาไม่เจอจริง ๆ — ยังดีกว่าพิมพ์ path ที่ไม่มีอยู่จริง
+}
+
 function app_base_path(): string
 {
     $basePath = (string) config('app.base_path', '');

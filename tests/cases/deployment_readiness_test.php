@@ -79,11 +79,13 @@ test('deploy(D5): the production cron guidance is host-agnostic and points to th
     // Host-agnostic guidance: placeholder path, cPanel steps, and a pointer to the auto-generating checker.
     assert_true(str_contains($guide, 'cPanel'), 'the cron guide must include cPanel Cron Jobs steps');
     assert_true(str_contains($guide, 'check-requirements.php'), 'the cron guide must point to check-requirements.php for the exact command');
-    assert_true((bool) preg_match('#\*/5 \* \* \* \* php /ABSOLUTE/PATH#', $guide), 'the cron guide must show a host-agnostic placeholder command');
+    assert_true((bool) preg_match('#\*/5 \* \* \* \* /ABSOLUTE/PATH/TO/php /ABSOLUTE/PATH#', $guide), 'the cron guide must show a host-agnostic placeholder command');
 
-    // The diagnostic prints a real cron line for this install.
+    // The diagnostic prints a real cron line for this install — interpreter path filled in, not left as `php`,
+    // because cron's PATH does not resolve a bare `php` on most hosts. See cron_command_test.
     $checker = (string) file_get_contents($root . '/public/check-requirements.php');
-    assert_true(str_contains($checker, '*/5 * * * * php') && str_contains($checker, 'run-maintenance-cron.php'), 'the checker must print the exact cron command');
+    assert_true(str_contains($checker, '*/5 * * * * ') && str_contains($checker, 'run-maintenance-cron.php'), 'the checker must print the exact cron command');
+    assert_true(str_contains($checker, '$phpCliPath'), 'and it must fill in the resolved PHP CLI path rather than a bare `php`');
 });
 
 test('deploy(D1,D6): the release-packaging script bundles vendor and excludes secrets/dev data', function (): void {

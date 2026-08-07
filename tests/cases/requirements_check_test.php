@@ -188,7 +188,7 @@ test('requirements(D2): the two copy-ready cron commands stay on separate lines'
     $src = (string) file_get_contents(dirname(__DIR__, 2) . '/public/check-requirements.php');
 
     assert_contains_str(
-        'htmlspecialchars($cronScript, ENT_QUOTES, \'UTF-8\') . "\\n"',
+        'htmlspecialchars($phpCliPath . \' \' . $cronScript, ENT_QUOTES, \'UTF-8\') . "\\n"',
         $src,
         'PHP consumes the source newline after a closing tag, so the first command must emit its own newline'
     );

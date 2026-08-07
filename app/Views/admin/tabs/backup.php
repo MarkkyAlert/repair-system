@@ -7,6 +7,9 @@ $dbName = (string) ($restore['db_name'] ?? 'repair_system');
 $dbUser = (string) ($restore['db_user'] ?? 'root');
 $newestGz = (string) ($restore['newest_file'] ?? 'db-YYYY-MM-DD_HHMMSS.sql.gz');
 $newestSql = preg_replace('/\.gz$/', '', $newestGz);
+$cron = $backup['cron'] ?? [];
+$cronLine = (string) ($cron['line'] ?? '0 2 * * * php bin/backup-database.php');
+$cronLog = (string) ($cron['log'] ?? 'storage/logs/backup.log');
 $dbCharset = (string) ($restore['db_charset'] ?? 'utf8mb4');
 $dbCollation = $dbCharset . '_unicode_ci'; // ตรงกับที่ schema.sql สร้างทุกตาราง
 
@@ -165,8 +168,10 @@ $cmdVerify = 'mysql -u ' . $dbUser . ' -p -e "SHOW TABLES" ' . $dbName;
             </li>
         </ol>
         <p class="field-hint">
-            การสำรองทำงานอัตโนมัติผ่าน cron (แนะนำวันละครั้ง) — สคริปต์ <code>bin/backup-database.php</code>:
+            การสำรองทำงานอัตโนมัติผ่าน cron (แนะนำวันละครั้ง) — บรรทัดนี้เป็น path จริงของเครื่องนี้ ก็อปไปวางได้เลย
+            (cron ไม่รู้จักคำสั่ง <code>php</code> สั้น ๆ และไม่ได้เริ่มจากโฟลเดอร์ระบบ จึงต้องเขียนเต็ม):
         </p>
-        <pre class="code-block"><?= e('0 2 * * * php bin/backup-database.php') ?></pre>
+        <pre class="code-block"><?= e($cronLine) ?></pre>
+        <p class="field-hint">ผลการทำงานแต่ละคืนจะต่อท้ายไว้ที่ <code><?= e($cronLog) ?></code> — เปิดไฟล์นี้ดูได้เมื่อสงสัยว่า cron ไม่ทำงาน</p>
     </div>
 </section>

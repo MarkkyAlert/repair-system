@@ -216,6 +216,18 @@ $checks[] = array(
 $cronScript = $root . '/bin/run-maintenance-cron.php';
 $backupScript = $root . '/bin/backup-database.php';
 
+// Full path to the PHP CLI. cron reads no shell profile — its PATH is roughly /usr/bin:/bin — so a line that
+// starts with a bare `php` dies with "command not found" wherever PHP is not in a system directory (XAMPP,
+// MAMP, multi-version hosts). We promise a paste-ready command, so we have to print the real path.
+// PHP_BINARY is no help here: under Apache mod_php it is an empty string, and under php-fpm it names the fpm
+// binary rather than the CLI. PHP_BINDIR is a compile-time constant and correct in every SAPI.
+// Mirrors php_cli_binary() in app/Helpers/urls.php — kept inline because this page must run with no bootstrap
+// and no vendor/; cron_command_test locks the two together.
+$phpCliPath = PHP_BINDIR . '/php';
+if (!is_file($phpCliPath) || !is_executable($phpCliPath)) {
+    $phpCliPath = (PHP_SAPI === 'cli' && PHP_BINARY !== '') ? PHP_BINARY : 'php';
+}
+
 $allOk = $fatal === 0 && $envExists && $dbOk && $dbVersionOk && $schemaOk && $storageOk;
 
 // ซ่อนรายละเอียดหลังติดตั้งได้ต่อเมื่อทุกข้อยังผ่านจริงเท่านั้น ถ้า PHP/DB/storage เปลี่ยนจนไม่รองรับ
@@ -250,9 +262,9 @@ if ($alreadyInstalled && $allOk) {
 
   <div style="margin-top:24px;padding:16px 18px;background:#f4f3fb;border-radius:12px">
     <div style="font-weight:600;margin-bottom:6px">ตั้ง cron สำหรับการแจ้งเตือน SLA และอีเมล (หลังติดตั้งเสร็จ)</div>
-    <div style="color:#555;font-size:13.5px;line-height:1.6">ใน cPanel → Cron Jobs เพิ่มบรรทัดล่าง (บรรทัดแรกจำเป็น — mark SLA ที่เกินกำหนด ส่งการแจ้งเตือน และจัดการคิวอีเมล; บรรทัดสองสำรองข้อมูลรายวัน เป็นทางเลือก). แทน <code>php</code> ด้วย path ของ PHP CLI บนโฮสต์ของคุณถ้าจำเป็น:</div>
-    <pre style="background:#0e0c2a;color:#d4d6f5;padding:12px;border-radius:8px;overflow-x:auto;font-size:12.5px">*/5 * * * * php <?php echo htmlspecialchars($cronScript, ENT_QUOTES, 'UTF-8') . "\n"; ?>
-0 2 * * * php <?php echo htmlspecialchars($backupScript, ENT_QUOTES, 'UTF-8'); ?></pre>
+    <div style="color:#555;font-size:13.5px;line-height:1.6">ใน cPanel → Cron Jobs เพิ่มบรรทัดล่าง (บรรทัดแรกจำเป็น — mark SLA ที่เกินกำหนด ส่งการแจ้งเตือน และจัดการคิวอีเมล; บรรทัดสองสำรองข้อมูลรายวัน เป็นทางเลือก). ทั้งสองบรรทัดเติม path จริงของเครื่องนี้ไว้แล้ว — ก็อปไปวางได้เลย:</div>
+    <pre style="background:#0e0c2a;color:#d4d6f5;padding:12px;border-radius:8px;overflow-x:auto;font-size:12.5px">*/5 * * * * <?php echo htmlspecialchars($phpCliPath . ' ' . $cronScript, ENT_QUOTES, 'UTF-8') . "\n"; ?>
+0 2 * * * <?php echo htmlspecialchars($phpCliPath . ' ' . $backupScript, ENT_QUOTES, 'UTF-8'); ?></pre>
   </div>
 
   <p style="margin-top:22px;padding-top:16px;border-top:1px solid #eee;color:<?php echo $allOk ? '#0a7d33' : '#b91c1c'; ?>;font-weight:600">

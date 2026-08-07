@@ -92,7 +92,31 @@ class BackupService
                 // ชื่อไฟล์ล่าสุดจริง (มี .gz) — view จะตัด .gz เป็นชื่อ .sql สำหรับคำสั่ง import
                 'newest_file' => $newest !== null ? basename($newest) : 'db-YYYY-MM-DD_HHMMSS.sql.gz',
             ],
+            'cron' => $this->cronCommand(),
             'on_demand' => $this->onDemandStatus(),
+        ];
+    }
+
+    /**
+     * บรรทัด cron ที่ "ก็อปไปวางแล้วทำงานจริง" บนเครื่องนี้.
+     *
+     * ของเดิมพิมพ์ `0 2 * * * php bin/backup-database.php` ซึ่งใต้ cron ล้มทั้งสองทาง: cron ไม่ได้อยู่ใน
+     * โฟลเดอร์ระบบจึงหา bin/... ไม่เจอ และ PATH ของ cron ไม่มี php. ต้องเป็น path เต็มทั้งคู่ และเก็บ log
+     * ไว้ในที่ที่เจ้าของระบบเปิดอ่านได้ ไม่ใช่ /var/log ซึ่งปกติต้องเป็น root ถึงเขียนได้.
+     *
+     * @return array{php: string, script: string, log: string, line: string}
+     */
+    private function cronCommand(): array
+    {
+        $php = php_cli_binary();
+        $script = base_path('bin/backup-database.php');
+        $log = storage_path('logs/backup.log');
+
+        return [
+            'php' => $php,
+            'script' => $script,
+            'log' => $log,
+            'line' => '0 2 * * * ' . $php . ' ' . $script . ' >> ' . $log . ' 2>&1',
         ];
     }
 

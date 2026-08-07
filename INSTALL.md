@@ -119,19 +119,24 @@
 
 1. cPanel → **Cron Jobs**
 2. Common Settings เลือก **"Once Per Five Minutes"** (`*/5 * * * *`)
-3. ช่อง Command ใส่ (แทน `/path/to` ด้วยที่อยู่จริงของระบบบนโฮสต์):
+3. ช่อง Command ใส่ (แทน `/path/to` ด้วยที่อยู่จริงของระบบบนโฮสต์ **และแทน `/usr/bin/php` ด้วย path เต็มของ PHP CLI**):
    ```
-   php /home/cpaneluser/public_html/bin/run-maintenance-cron.php
+   /usr/bin/php /home/cpaneluser/public_html/bin/run-maintenance-cron.php
    ```
-   > 💡 **ไม่รู้ path หรือคำสั่ง php ที่ถูกต้อง?** เปิด `https://your-site/check-requirements.php`
-   > หน้านั้น **พิมพ์คำสั่ง cron ที่ตรงกับเครื่องคุณให้เลย** — ก็อปไปวางได้
+   > ⚠️ **ต้องเป็น path เต็มทั้งสองส่วน** — cron ไม่ได้อ่านค่า PATH แบบเดียวกับตอนคุณพิมพ์คำสั่งเอง
+   > คำสั่งที่ขึ้นต้นด้วย `php` เฉย ๆ มักล้มด้วย `php: command not found` โดยไม่มีอะไรเตือน
+   >
+   > 💡 **ไม่รู้ path?** เปิด `https://your-site/check-requirements.php`
+   > หน้านั้น **พิมพ์คำสั่ง cron ที่เติม path จริงของเครื่องคุณไว้แล้ว** — ก็อปไปวางได้เลย
 4. (แนะนำ) เพิ่มอีกงานสำรองฐานข้อมูลรายวัน — เลือก "Once Per Day" แล้วใส่:
    ```
-   php /home/cpaneluser/public_html/bin/backup-database.php
+   /usr/bin/php /home/cpaneluser/public_html/bin/backup-database.php
    ```
+   > การสำรองข้อมูลเรียกใช้โปรแกรม `mysqldump` ถ้าโฮสต์เก็บไว้นอก path มาตรฐาน (เช่น XAMPP/MAMP)
+   > ให้ตั้ง `MYSQLDUMP_BIN=/path/to/mysqldump` ใน `.env` — หน้า `check-requirements.php` บอกให้ว่าเจอหรือไม่
 5. (ทางเลือก) เก็บกวาดไฟล์แนบกำพร้ารายสัปดาห์ — เลือก "Once Per Week" แล้วใส่:
    ```
-   php /home/cpaneluser/public_html/bin/cleanup-orphan-attachments.php
+   /usr/bin/php /home/cpaneluser/public_html/bin/cleanup-orphan-attachments.php
    ```
 
 ---
