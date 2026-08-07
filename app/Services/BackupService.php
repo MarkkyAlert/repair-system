@@ -86,7 +86,9 @@ class BackupService
             'restore' => [
                 'db_name' => (string) config('db.name', 'repair_system'),
                 'db_user' => (string) config('db.username', 'root'),
-                'dir' => 'storage/backups',
+                'db_charset' => (string) config('db.charset', 'utf8mb4'),
+                // path เต็ม ไม่ใช่ path ย่อ: คนที่กำลังกู้ระบบ copy คำสั่งไปวางจากที่ไหนก็ได้ ไม่ต้องเดาว่าต้อง cd ไปไหนก่อน
+                'dir' => storage_path('backups'),
                 // ชื่อไฟล์ล่าสุดจริง (มี .gz) — view จะตัด .gz เป็นชื่อ .sql สำหรับคำสั่ง import
                 'newest_file' => $newest !== null ? basename($newest) : 'db-YYYY-MM-DD_HHMMSS.sql.gz',
             ],

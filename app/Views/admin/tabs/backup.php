@@ -7,6 +7,8 @@ $dbName = (string) ($restore['db_name'] ?? 'repair_system');
 $dbUser = (string) ($restore['db_user'] ?? 'root');
 $newestGz = (string) ($restore['newest_file'] ?? 'db-YYYY-MM-DD_HHMMSS.sql.gz');
 $newestSql = preg_replace('/\.gz$/', '', $newestGz);
+$dbCharset = (string) ($restore['db_charset'] ?? 'utf8mb4');
+$dbCollation = $dbCharset . '_unicode_ci'; // ตรงกับที่ schema.sql สร้างทุกตาราง
 
 // สถานะรวม — ต้องมีไฟล์สำรองจริงถึงจะ "ปกติ": ไม่พบไฟล์ / ยังไม่เคยสำรอง / ค้างนาน / ปกติ
 if (empty($backup['has_backups'])) {
@@ -27,6 +29,10 @@ if (empty($backup['has_backups'])) {
 }
 
 // คำสั่ง restore (สร้างเป็นสตริงแล้วให้ e() escape ตอนแสดง — < และ " จะปลอดภัย)
+// ขั้นแรกต้องเป็นการสร้างฐานข้อมูล: ไฟล์สำรองมีแต่ตาราง ไม่มี CREATE DATABASE อยู่ข้างใน ถ้าเครื่องพังจนฐานข้อมูลหายไป
+// ทั้งก้อน (หรือกู้ขึ้นเครื่องใหม่) การ import ตรง ๆ จะเจอ "Unknown database" แล้วไปต่อไม่ถูก
+$cmdCreate = 'mysql -u ' . $dbUser . ' -p -e "CREATE DATABASE IF NOT EXISTS ' . $dbName
+    . ' CHARACTER SET ' . $dbCharset . ' COLLATE ' . $dbCollation . '"';
 $cmdUnzip = 'gzip -dk ' . $dir . '/' . $newestGz;
 $cmdImport = 'mysql -u ' . $dbUser . ' -p ' . $dbName . ' < ' . $dir . '/' . $newestSql;
 $cmdVerify = 'mysql -u ' . $dbUser . ' -p -e "SHOW TABLES" ' . $dbName;
@@ -145,6 +151,9 @@ $cmdVerify = 'mysql -u ' . $dbUser . ' -p -e "SHOW TABLES" ' . $dbName;
             <strong>คำเตือน:</strong> การกู้คืนจะ<strong>เขียนทับข้อมูลปัจจุบันทั้งหมด</strong> — ควรสำรองชุดล่าสุดไว้ก่อนเสมอ
         </div>
         <ol class="stack-md" style="padding-left:1.25rem;margin:0">
+            <li>สร้างฐานข้อมูล <code><?= e($dbName) ?></code> ให้มีอยู่ก่อน — ข้ามขั้นนี้ได้ถ้าฐานข้อมูลยังอยู่ (คำสั่งนี้ไม่ลบของเดิม)
+                <pre class="code-block"><?= e($cmdCreate) ?></pre>
+            </li>
             <li>แตกไฟล์ <code>.gz</code> ให้เป็น <code>.sql</code>
                 <pre class="code-block"><?= e($cmdUnzip) ?></pre>
             </li>
