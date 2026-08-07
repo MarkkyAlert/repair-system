@@ -17,32 +17,64 @@ function ras_service(): ReportService
     return tvm_container()->get(ReportService::class);
 }
 
-test('reports: every report page is blocked for a non-manager (require manager/admin)', function (): void {
+// The list this used to carry named 10 page methods by hand. The service actually exposes 40-odd entry points
+// once every export is counted, so three quarters of the surface was outside the net — and the net could not
+// grow by itself: adding an eleventh report, or one more export format, silently added an ungated door unless
+// somebody remembered to edit this file. Nothing was leaking when this was widened (every entry point was
+// checked and every one of them denied a requester, a technician and a guest), which is exactly when to make
+// the guard derive itself, while the answer is still "all of them".
+//
+// The rule the service follows: every public method takes the viewer first and starts by calling
+// ensureCanViewReports. Reports are org-wide by design — visibilityClause is 1=1 for manager/admin — so an
+// entry point that forgets the check hands the whole organisation's data to whoever asks.
+test('reports: EVERY entry point blocks a non-manager — the list is derived from the class, not maintained by hand', function (): void {
     $svc = ras_service();
-    // covers all 11 report entry points — each must call ensureCanViewReports
-    $pages = [
-        'getReportPageData' => static fn (array $v) => $svc->getReportPageData($v, []),
-        'getAssetReliabilityReportPage' => static fn (array $v) => $svc->getAssetReliabilityReportPage($v, []),
-        'getTechnicianPerformanceReportPage' => static fn (array $v) => $svc->getTechnicianPerformanceReportPage($v, []),
-        'getProblemHotspotReportPage' => static fn (array $v) => $svc->getProblemHotspotReportPage($v, []),
-        'getTicketTrendReportPage' => static fn (array $v) => $svc->getTicketTrendReportPage($v, []),
-        'getExecutiveSummaryPage' => static fn (array $v) => $svc->getExecutiveSummaryPage($v, []),
-        'getBacklogAgingReportPage' => static fn (array $v) => $svc->getBacklogAgingReportPage($v, []),
-        'getReopenRateReportPage' => static fn (array $v) => $svc->getReopenRateReportPage($v, []),
-        'getCsatReportPage' => static fn (array $v) => $svc->getCsatReportPage($v, []),
-        'getSlaBreachReportPage' => static fn (array $v) => $svc->getSlaBreachReportPage($v, []),
-    ];
+
+    $entryPoints = [];
+    foreach ((new ReflectionClass(ReportService::class))->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
+        if ($method->isConstructor() || $method->isStatic()) {
+            continue;
+        }
+        $first = $method->getParameters()[0] ?? null;
+        if ($first === null || $first->getName() !== 'viewer') {
+            continue;
+        }
+        $entryPoints[] = $method;
+    }
+
+    assert_true(count($entryPoints) >= 38, 'sanity: the sweep really does find the report surface (found ' . count($entryPoints) . ')');
+
+    /** stand-in values for anything the method needs beyond the viewer — the check must come first regardless */
+    $fillerFor = static function (ReflectionParameter $p): mixed {
+        $type = $p->getType() instanceof ReflectionNamedType ? $p->getType()->getName() : 'mixed';
+
+        return match ($type) {
+            'int' => 0,
+            'string' => '',
+            'bool' => false,
+            'float' => 0.0,
+            default => [],
+        };
+    };
 
     foreach (['technician', 'requester', 'guest'] as $role) {
         $viewer = ['id' => 1, 'role' => $role];
-        foreach ($pages as $name => $call) {
+        foreach ($entryPoints as $method) {
+            $args = [$viewer];
+            foreach (array_slice($method->getParameters(), 1) as $parameter) {
+                if ($parameter->isOptional()) {
+                    break;
+                }
+                $args[] = $fillerFor($parameter);
+            }
+
             $blocked = false;
             try {
-                $call($viewer);
+                $method->invokeArgs($svc, $args);
             } catch (DomainException $e) {
                 $blocked = str_contains($e->getMessage(), 'ไม่มีสิทธิ์เข้าถึงรายงาน');
             }
-            assert_true($blocked, "$name blocks a $role viewer");
+            assert_true($blocked, $method->getName() . '() must refuse a ' . $role . ' before doing any work');
         }
     }
 });
