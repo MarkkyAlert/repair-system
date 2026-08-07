@@ -42,7 +42,7 @@ class ReportExporter
             $string = (string) $value;
             if ($value instanceof \App\Support\ExportText) {
                 // ตัวระบุที่เป็น text ชัดเจน (asset_code, ticket_no) → เก็บเป็น text ตามตัวอักษร ไม่เดาเป็นตัวเลข
-                $sheet->setCellValueExplicit($coord, sanitize_export_cell($string), DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit($coord, $string, DataType::TYPE_STRING);
             } elseif (is_int($value) || is_float($value)) {
                 // ตัวเลขที่กำหนด type แล้ว (count, delta, net ติดลบ, metric ตัวเลขเปล่า) → numeric; พิสูจน์ได้ว่าเป็นค่า
                 // ไม่ใช่ formula หรือ identifier แน่นอน. ตัวเรียกส่ง metric แบบ typed และส่ง identifier เป็น string (ด้านล่าง).
@@ -65,8 +65,13 @@ class ReportExporter
                 // ที่เหลือเป็น text — รวมถึง string identifier ที่เป็นตัวเลขล้วน (asset_code "0028712749",
                 // ticket_no): เก็บเป็น text ชัด ๆ เลขศูนย์นำหน้าจะได้ไม่หายและ code ยาว ๆ คงความแม่นยำ.
                 // อย่าปล่อยให้ default value binder ของ PhpSpreadsheet แปลง string identifier เป็นตัวเลข.
-                // guard กัน formula-injection ยังมีผลอยู่. (metric ที่เป็น integer ล้วนต้องส่งแบบ typed ตามด้านบน.)
-                $sheet->setCellValueExplicit($coord, sanitize_export_cell($value), DataType::TYPE_STRING);
+                //
+                // เขียนค่าดิบ ไม่ผ่าน sanitize_export_cell: การใส่ ' นำหน้าเป็นกติกาของ "ไฟล์ CSV" เท่านั้น. ในไฟล์ .xlsx
+                // เซลล์นี้ถูกกำหนด type เป็น string ชัดเจนอยู่แล้ว ไฟล์ที่ได้จึงไม่มี element สูตร (<f>) เลย แม้ค่าจะขึ้นต้น
+                // ด้วย = + - @ — Excel จึงไม่มีทางคำนวณมัน (PhpSpreadsheet ยังติดธง quotePrefix ให้ค่าที่ขึ้นต้นด้วย =
+                // เองด้วย). ถ้าใส่ ' ลงไปในค่า มันจะกลายเป็นตัวอักษรจริงตัวหนึ่งในเซลล์ ผู้อ่านรายงานจะเห็น '- แทน -
+                // ในทุกช่องที่ "ไม่มีข้อมูล" ซึ่งคือการแสดงผลที่ผิด. ฝั่ง CSV ยังกันสูตรตามเดิม (buildCsvSections).
+                $sheet->setCellValueExplicit($coord, $string, DataType::TYPE_STRING);
             }
             $colIndex++;
         }

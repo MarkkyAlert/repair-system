@@ -15,14 +15,31 @@ function ebs_exporter(): ReportExporter
     return tvm_container()->get(ReportExporter::class);
 }
 
-test('export-builder(xlsx): buildXlsxExport neutralises a formula cell (guard built into the shared builder)', function (): void {
-    $content = ebs_exporter()->buildXlsxExport('รายงาน', ['หัว'], [['=cmd()']]);
+// A .xlsx cell is neutralised by its TYPE, not by a quote character glued onto the value. The builder writes every
+// text cell with an explicit string type, so the saved workbook contains no formula element at all — Excel cannot
+// evaluate it no matter what the text starts with. Prepending "'" (the CSV convention) would make that apostrophe a
+// real character IN the cell, so every "no data" cell would read '- instead of - on the reader's screen. The CSV
+// exporter still prepends it, because a CSV cell carries no type and the file format has no other defence.
+test('export-builder(xlsx): a formula-looking cell is inert by type, with the value left readable', function (): void {
+    $content = ebs_exporter()->buildXlsxExport('รายงาน', ['หัว'], [['=cmd()'], ['-'], ['@SUM(A1)']]);
 
     $tmp = tempnam(sys_get_temp_dir(), 'xlsxguard_') . '.xlsx';
     try {
         file_put_contents($tmp, $content);
-        $a2 = (string) IOFactory::createReader('Xlsx')->load($tmp)->getActiveSheet()->getCell('A2')->getValue();
-        assert_same("'=cmd()", $a2, 'the formula cell is neutralised with a leading quote by the builder');
+
+        // the real guard: the workbook carries no <f> (formula) element for these cells
+        $zip = new ZipArchive();
+        assert_true($zip->open($tmp) === true, 'the workbook opens as a zip');
+        $sheetXml = (string) $zip->getFromName('xl/worksheets/sheet1.xml');
+        $zip->close();
+        assert_true(!str_contains($sheetXml, '<f>'), 'no cell was written as a formula, so Excel has nothing to evaluate');
+
+        $sheet = IOFactory::createReader('Xlsx')->load($tmp)->getActiveSheet();
+        assert_same(DataType::TYPE_STRING, $sheet->getCell('A2')->getDataType(), 'the formula-looking cell is stored as text');
+        assert_same('=cmd()', (string) $sheet->getCell('A2')->getValue(), 'and its text is preserved byte-for-byte, not rewritten');
+        // the placeholder every report uses for "no data" must read as a plain dash on screen
+        assert_same('-', (string) $sheet->getCell('A3')->getValue(), 'a "no data" dash is not disfigured into \'-');
+        assert_same('@SUM(A1)', (string) $sheet->getCell('A4')->getValue(), 'other formula openers are equally inert and equally readable');
     } finally {
         @unlink($tmp);
     }
