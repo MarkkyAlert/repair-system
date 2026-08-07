@@ -74,6 +74,7 @@ class TicketReadRepository
             "SELECT
                 COUNT(*) AS total_tickets,
                 COALESCE(SUM(CASE WHEN t.approval_status = 'pending' THEN 1 ELSE 0 END), 0) AS pending_approval_tickets,
+                COALESCE(SUM(CASE WHEN t.status = 'approved' AND t.assigned_technician_id IS NULL THEN 1 ELSE 0 END), 0) AS approved_unassigned_tickets,
                 COALESCE(SUM(CASE WHEN t.status IN ('assigned', 'accepted', 'in_progress') THEN 1 ELSE 0 END), 0) AS active_work_tickets,
                 COALESCE(SUM(CASE
                     WHEN t.completed_at IS NOT NULL
@@ -105,6 +106,7 @@ class TicketReadRepository
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: [
             'total_tickets' => 0,
             'pending_approval_tickets' => 0,
+            'approved_unassigned_tickets' => 0,
             'active_work_tickets' => 0,
             'completed_this_month_tickets' => 0,
             'overdue_tickets' => 0,

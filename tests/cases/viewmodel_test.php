@@ -37,11 +37,18 @@ test('buildTicketFilterChips: technician label resolved from list', function ():
 
 test('buildTicketUrgentAlerts: only present metrics, correct tone/count', function (): void {
     $svc = tvm_container()->get(TicketService::class);
-    $alerts = call_private($svc, 'buildTicketUrgentAlerts', [['overdue' => 5, 'pendingApproval' => 0]]);
+    $alerts = call_private($svc, 'buildTicketUrgentAlerts', [['overdue' => 5, 'pendingApproval' => 0], 'admin']);
     assert_count(1, $alerts);
     assert_same('danger', $alerts[0]['tone']);
     assert_contains_str('5 รายการ', $alerts[0]['label']);
-    assert_count(0, call_private($svc, 'buildTicketUrgentAlerts', [['overdue' => 0, 'pendingApproval' => 0]]));
+    assert_count(0, call_private($svc, 'buildTicketUrgentAlerts', [['overdue' => 0, 'pendingApproval' => 0], 'admin']));
+
+    // the assignment queue joins the same list, and only for the roles that can act on it
+    $awaiting = ['overdue' => 0, 'pendingApproval' => 0, 'approvedUnassigned' => 3];
+    $forAdmin = call_private($svc, 'buildTicketUrgentAlerts', [$awaiting, 'admin']);
+    assert_count(1, $forAdmin);
+    assert_contains_str('รอมอบหมายช่าง 3 รายการ', $forAdmin[0]['label']);
+    assert_count(0, call_private($svc, 'buildTicketUrgentAlerts', [$awaiting, 'requester']));
 });
 
 // ── Dashboard view-model (moved out of dashboard/index.php this session) ──

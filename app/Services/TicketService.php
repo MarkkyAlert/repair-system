@@ -6,6 +6,7 @@ namespace App\Services;
 use App\Repositories\CommentRepository;
 use App\Repositories\TicketReadRepository;
 use App\Repositories\TicketRepository;
+use App\Support\Role;
 use DomainException;
 use PDO;
 use Throwable;
@@ -99,7 +100,7 @@ class TicketService
             'cronHealth' => $this->buildDashboardCronHealth((string) ($viewer['role'] ?? 'guest')),
             'cronFailures' => $this->buildDashboardCronFailures((string) ($viewer['role'] ?? 'guest')),
             'setupChecklist' => $this->buildAdminSetupChecklist((string) ($viewer['role'] ?? 'guest')),
-            'urgentAlerts' => $this->buildDashboardUrgentAlerts($formattedMetrics),
+            'urgentAlerts' => $this->buildDashboardUrgentAlerts($formattedMetrics, (string) ($viewer['role'] ?? 'guest')),
             'chartSummaries' => $this->buildDashboardChartSummaries($charts),
             'highlights' => [
                 'topTechnicians' => array_map(fn (array $row): array => [
@@ -267,7 +268,7 @@ class TicketService
     }
 
     /** การแจ้งเตือนงานด่วนที่แสดงเหนือ dashboard (view-model). */
-    private function buildDashboardUrgentAlerts(array $metrics): array
+    private function buildDashboardUrgentAlerts(array $metrics, string $role): array
     {
         $alerts = [];
         $overdue = max(0, (int) ($metrics['overdue'] ?? 0));
@@ -278,8 +279,41 @@ class TicketService
         if ($pendingApproval > 0) {
             $alerts[] = ['tone' => 'warning', 'icon' => 'clock', 'label' => 'มีงานรออนุมัติ ' . $pendingApproval . ' รายการ', 'href' => '/tickets?status=pending_approval'];
         }
+        $alerts = array_merge($alerts, $this->awaitingAssignmentAlert($metrics, $role));
 
         return $alerts;
+    }
+
+    /**
+     * ป้าย "อนุมัติแล้วแต่ยังไม่มีช่าง" — ช่องว่างเดียวของ workflow ที่ไม่มีอะไรสะกิดเลย.
+     *
+     * ทุกขั้นอื่นมีคนถูกเรียก: สร้างงาน → ผู้อนุมัติได้แจ้งเตือน, มอบหมาย → ช่างได้แจ้งเตือน, ซ่อมเสร็จ → ผู้แจ้งได้แจ้งเตือน
+     * แต่ช่วง "อนุมัติแล้ว รอมอบหมาย" ไม่มีใครถูกเรียกและหน้าแรกก็ไม่นับให้ดู งานที่อนุมัติเย็นวันศุกร์จึงนอนรอเงียบ ๆ
+     * ระหว่างที่นาฬิกา SLA เดินอยู่ แล้วค่อยโผล่มาอีกทีตอนเป็น "เกินกำหนด" ซึ่งสายไปแล้ว.
+     *
+     * เลือกเป็นป้ายนับจำนวน ไม่ใช่การแจ้งเตือนรายคน เพราะแจ้งเตือนอ่านแล้วหายไปทั้งที่งานยังค้างอยู่ที่เดิม
+     * ป้ายจะอยู่จนกว่าคิวจะว่างจริง. โชว์เฉพาะคนที่มอบหมายช่างได้ — ผู้แจ้งเห็นแล้วทำอะไรไม่ได้ กลายเป็นเสียงรบกวน.
+     *
+     * @param array<string, mixed> $metrics
+     * @return list<array<string, string>>
+     */
+    private function awaitingAssignmentAlert(array $metrics, string $role): array
+    {
+        if (!in_array($role, [Role::ADMIN, Role::MANAGER], true)) {
+            return [];
+        }
+
+        $awaiting = max(0, (int) ($metrics['approvedUnassigned'] ?? 0));
+        if ($awaiting === 0) {
+            return [];
+        }
+
+        return [[
+            'tone' => 'warning',
+            'icon' => 'user',
+            'label' => 'อนุมัติแล้วรอมอบหมายช่าง ' . $awaiting . ' รายการ',
+            'href' => '/tickets?status=approved',
+        ]];
     }
 
     /** บรรทัดสรุป total/top/avg ของแต่ละกราฟ (view-model) สำหรับกราฟทั้งหมดบน dashboard. */
@@ -349,7 +383,7 @@ class TicketService
             'pagination' => $result,
             'queueMaxId' => $this->reads->getMaxVisibleTicketId($viewer),
             'activeFilterChips' => $this->buildTicketFilterChips($normalized, $technicians),
-            'urgentAlerts' => $this->buildTicketUrgentAlerts($metrics),
+            'urgentAlerts' => $this->buildTicketUrgentAlerts($metrics, (string) ($viewer['role'] ?? 'guest')),
         ];
     }
 
@@ -399,7 +433,7 @@ class TicketService
     }
 
     /** chip แจ้งเตือนงานด่วน (view-model) ที่แสดงเหนือคิว ticket. */
-    private function buildTicketUrgentAlerts(array $metrics): array
+    private function buildTicketUrgentAlerts(array $metrics, string $role): array
     {
         $alerts = [];
         $overdue = max(0, (int) ($metrics['overdue'] ?? 0));
@@ -410,6 +444,7 @@ class TicketService
         if ($pendingApproval > 0) {
             $alerts[] = ['tone' => 'warning', 'icon' => 'clock', 'label' => 'มีงานรออนุมัติ ' . $pendingApproval . ' รายการ', 'href' => '/tickets?status=pending_approval'];
         }
+        $alerts = array_merge($alerts, $this->awaitingAssignmentAlert($metrics, $role));
 
         return $alerts;
     }
@@ -812,6 +847,7 @@ class TicketService
         return [
             'total' => (int) ($metrics['total_tickets'] ?? 0),
             'pendingApproval' => (int) ($metrics['pending_approval_tickets'] ?? 0),
+            'approvedUnassigned' => (int) ($metrics['approved_unassigned_tickets'] ?? 0),
             'inProgress' => (int) ($metrics['active_work_tickets'] ?? 0),
             'completedThisMonth' => (int) ($metrics['completed_this_month_tickets'] ?? 0),
             'overdue' => (int) ($metrics['overdue_tickets'] ?? 0),
