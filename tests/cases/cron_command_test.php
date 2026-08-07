@@ -154,18 +154,29 @@ test('cron(backup): on this machine the resolution works end to end, with an emp
     // The whole point: nothing configured, no PATH to fall back on. The expectation is decided by what this
     // machine actually has — NOT by what the run happens to return, or the test would pass either way and catch
     // no regression at all. If a mysqldump exists in any known location, the worker is required to find it.
-    $known = [
+    $known = array_unique([
         PHP_BINDIR . '/mysqldump', '/usr/bin/mysqldump', '/usr/local/bin/mysqldump', '/opt/homebrew/bin/mysqldump',
         '/usr/local/mysql/bin/mysqldump', '/opt/lampp/bin/mysqldump',
         '/Applications/XAMPP/xamppfiles/bin/mysqldump', '/Applications/MAMP/Library/bin/mysqldump',
-    ];
+    ]);
     $available = array_values(array_filter($known, static fn (string $p): bool => is_file($p) && is_executable($p)));
+
+    // Empty the PATH — that is the whole point — but keep whatever database settings the environment supplies,
+    // or this stops testing "can it find mysqldump" and starts testing "can it log in" (CI passes credentials
+    // as environment variables; a local .env supplies none, so this adds nothing there).
+    $dbEnv = '';
+    foreach (['DB_HOST', 'DB_PORT', 'DB_USERNAME', 'DB_PASSWORD', 'DB_CHARSET'] as $key) {
+        $value = getenv($key);
+        if ($value !== false) {
+            $dbEnv .= ' ' . $key . '=' . escapeshellarg((string) $value);
+        }
+    }
 
     $backupDir = BASE_PATH . '/storage/backups';
     $before = glob($backupDir . '/db-*.sql.gz') ?: [];
 
     try {
-        $cmd = 'env -i PATH= DB_NAME=repair_system_test HOME=' . escapeshellarg((string) (getenv('HOME') ?: '/tmp'))
+        $cmd = 'env -i PATH= DB_NAME=repair_system_test HOME=' . escapeshellarg((string) (getenv('HOME') ?: '/tmp')) . $dbEnv
             . ' ' . escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(BASE_PATH . '/bin/backup-database.php') . ' --keep=1000';
         $out = [];
         $exitCode = 0;
