@@ -327,8 +327,27 @@ class EmailTemplateService
         );
     }
 
+    /**
+     * เตือนเมื่อลิงก์ในอีเมลกดไม่ได้ — คือตอนที่ยังไม่ได้ตั้ง APP_URL.
+     *
+     * url() จะคืน path สั้น ๆ อย่าง /tickets/42 เมื่อ app.url ว่าง ซึ่งบนหน้าเว็บใช้ได้ปกติ แต่ในอีเมลกดไม่ได้เลย
+     * (โปรแกรมอ่านเมลไม่รู้ว่าเว็บอยู่โดเมนไหน) ที่หนักสุดคืออีเมลตั้งรหัสผ่านใหม่ — คนที่เข้าระบบไม่ได้จะไม่มีทาง
+     * กลับเข้ามาได้เลย. ไม่มีสักค่าที่ตั้งแล้วบังเอิญถูก จึงต้องดังพอให้เห็นตอนไล่ปัญหา ไม่ใช่เงียบ.
+     * เตือนครั้งเดียวต่อการรันหนึ่งรอบ ไม่งั้น cron ที่ส่งทีละหลายฉบับจะพ่นซ้ำเต็ม log
+     */
+    private function warnIfLinkIsUnclickable(string $link): void
+    {
+        static $warned = false;
+        if ($warned || $link === '' || preg_match('#^https?://#i', $link) === 1) {
+            return;
+        }
+        $warned = true;
+        error_log('[email] ลิงก์ในอีเมลเป็น path สั้น (' . $link . ') กดจากอีเมลไม่ได้ — ตั้ง APP_URL ใน .env เป็นที่อยู่เว็บจริง');
+    }
+
     private function renderNotificationTemplate(array $data): array
     {
+        $this->warnIfLinkIsUnclickable((string) ($data['ticket_url'] ?? ''));
         $appName = (string) setting('app_name', config('app.name', 'Repair System'));
         $appTagline = (string) setting('app_tagline', 'Maintenance Operations');
         $logoUrl = branding_logo_url();

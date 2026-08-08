@@ -14,17 +14,17 @@ function scl_service(): TicketService
     return tvm_container()->get(TicketService::class);
 }
 
-test('setup checklist: hidden for non-admins, 5 ordered items for admin', function (): void {
+test('setup checklist: hidden for non-admins, 6 ordered items for admin', function (): void {
     foreach (['requester', 'technician', 'manager', 'guest'] as $role) {
         $dashboard = scl_service()->getDashboardData(['id' => 1, 'role' => $role], []);
         assert_same([], $dashboard['setupChecklist'], "$role must not see the setup checklist");
     }
 
     $checklist = scl_service()->getDashboardData(['id' => 4, 'role' => 'admin'], [])['setupChecklist'];
-    assert_same(['mail', 'logo', 'users', 'data', 'cron'], array_column($checklist['items'], 'key'), '5 items in expected order');
-    assert_same(5, (int) $checklist['total'], 'total is 5');
-    assert_true(is_int($checklist['done_count']) && $checklist['done_count'] >= 0 && $checklist['done_count'] <= 5, 'done_count within 0..5');
-    assert_same($checklist['done_count'] === 5, $checklist['complete'], 'complete flag equals (done_count===5)');
+    assert_same(['app_url', 'mail', 'logo', 'users', 'data', 'cron'], array_column($checklist['items'], 'key'), '6 items in expected order — the site address comes first, since email links are built from it');
+    assert_same(6, (int) $checklist['total'], 'total is 6');
+    assert_true(is_int($checklist['done_count']) && $checklist['done_count'] >= 0 && $checklist['done_count'] <= 6, 'done_count within 0..5');
+    assert_same($checklist['done_count'] === 6, $checklist['complete'], 'complete flag equals (done_count===6)');
     foreach ($checklist['items'] as $item) {
         assert_true(is_bool($item['done']) && $item['href'] !== '' && $item['label'] !== '', 'each item has done bool + href + label');
     }

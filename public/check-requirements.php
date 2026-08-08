@@ -142,6 +142,34 @@ $checks[] = array(
     true
 );
 
+// 3b) APP_URL — ลิงก์ในอีเมลทุกฉบับสร้างจากค่านี้ ไม่ตั้งไว้ก็ยังใช้งานเว็บได้ปกติ ระบบเลยดูเหมือนไม่มีปัญหา
+// จนกระทั่งมีคนกดลิงก์ในอีเมลไม่ได้ ที่หนักสุดคืออีเมลตั้งรหัสผ่านใหม่ ซึ่งคนที่เข้าระบบไม่ได้ต้องพึ่งมันอย่างเดียว
+// ค่า localhost ที่ติดมากับ .env.example ก็ยังไม่พอ เพราะเปิดได้แค่บนเครื่อง server เอง
+$appUrl = '';
+if ($envExists) {
+    $envLines = @file($root . '/.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach (($envLines ?: array()) as $line) {
+        if (strpos(ltrim($line), 'APP_URL=') === 0) {
+            $appUrl = trim(substr(ltrim($line), 8), " \t\"'");
+        }
+    }
+}
+$appUrlHost = $appUrl !== '' ? strtolower((string) parse_url($appUrl, PHP_URL_HOST)) : '';
+$appUrlOk = $appUrl !== ''
+    && preg_match('#^https?://#i', $appUrl) === 1
+    && $appUrlHost !== ''
+    && !in_array($appUrlHost, array('localhost', '127.0.0.1', '::1'), true);
+$checks[] = array(
+    $appUrlOk,
+    'APP_URL (ที่อยู่เว็บสำหรับลิงก์ในอีเมล)',
+    $appUrlOk
+        ? $appUrl
+        : ($appUrl === ''
+            ? 'ยังไม่ได้ตั้ง — ลิงก์ในอีเมลจะกดไม่ได้ รวมถึงลิงก์ตั้งรหัสผ่านใหม่'
+            : 'ยังเป็น ' . $appUrl . ' — ผู้รับอีเมลกดแล้วเปิดไม่ได้ ต้องใส่ที่อยู่จริงของเว็บ'),
+    false
+);
+
 // 4) DB connectivity + 5) schema + setup state
 $dbOk = false;
 $dbVersionOk = false;

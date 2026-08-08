@@ -218,6 +218,24 @@ class TicketService
      * Admin-only: checklist แนะนำตั้งค่าหลัง setup (5 ข้อ + สถานะ done + ลิงก์ไปตั้งค่า). ว่างถ้าไม่ใช่ admin.
      * @return array{items: array<int, array>, done_count: int, total: int, complete: bool}|array{}
      */
+    /**
+     * ที่อยู่เว็บถูกตั้งไว้จนใช้ในอีเมลได้จริงหรือยัง.
+     *
+     * ไม่ได้ตั้ง = url() คืน path สั้น ๆ ลิงก์ในอีเมลกดไม่ได้. ปล่อยค่า localhost ที่ติดมากับไฟล์ตัวอย่างไว้ก็เท่ากัน
+     * เพราะเปิดได้แค่บนเครื่อง server เอง คนรับเมลกดแล้วไปไม่ถึง — ทั้งสองแบบจึงยังไม่ถือว่าเสร็จ
+     */
+    private function appUrlLooksReachable(): bool
+    {
+        $url = trim((string) config('app.url', ''));
+        if ($url === '' || preg_match('#^https?://#i', $url) !== 1) {
+            return false;
+        }
+
+        $host = (string) (parse_url($url, PHP_URL_HOST) ?: '');
+
+        return $host !== '' && !in_array(strtolower($host), ['localhost', '127.0.0.1', '::1'], true);
+    }
+
     private function buildAdminSetupChecklist(string $role): array
     {
         if ($role !== 'admin') {
@@ -225,6 +243,13 @@ class TicketService
         }
 
         $items = [
+            [
+                // มาก่อนเรื่องอีเมล เพราะตั้ง SMTP เสร็จแต่ไม่ได้ตั้งข้อนี้ อีเมลจะส่งออกไปพร้อมลิงก์ที่กดไม่ได้
+                'key' => 'app_url', 'icon' => 'external-link', 'label' => 'ตั้งที่อยู่เว็บของระบบ (APP_URL)',
+                'hint' => 'ลิงก์ในอีเมลทุกฉบับใช้ค่านี้ ถ้าไม่ตั้ง ลิงก์จะกดไม่ได้ — รวมถึงลิงก์ตั้งรหัสผ่านใหม่',
+                'done' => $this->appUrlLooksReachable(),
+                'href' => '/admin#tab-settings', 'cta' => 'ดูวิธีตั้งค่า',
+            ],
             [
                 'key' => 'mail', 'icon' => 'send', 'label' => 'ตั้งค่าอีเมล (SMTP)',
                 'hint' => 'เพื่อส่งอีเมลแจ้งเตือนและรีเซ็ตรหัสผ่าน',
