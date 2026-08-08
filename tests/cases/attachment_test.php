@@ -123,6 +123,79 @@ namespace {
         }
     });
 
+    // The webshell case above proves the sniff beats a lying NAME. These two pin the other half of the same
+    // idea, which the sniff alone does not answer:
+    //
+    //   SVG and HTML are the two formats a browser will happily execute script from while looking like harmless
+    //   uploads. They are absent from the whitelist, and this says so out loud — adding "image/svg+xml" to that
+    //   list would look like a reasonable convenience and would quietly turn every attachment into a place to
+    //   park script that runs on this origin.
+    test('attachment(security): SVG and HTML are refused — the two formats a browser will run script from', function (): void {
+        $payloads = [
+            'svg' => '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
+            'html' => '<html><body><script>alert(document.cookie)</script></body></html>',
+        ];
+
+        foreach ($payloads as $label => $bytes) {
+            $tmp = att_tmp($bytes);
+            try {
+                $threw = false;
+                try {
+                    att_service()->validateUploads(att_files([['name' => 'harmless.png', 'tmp' => $tmp, 'size' => strlen($bytes)]]));
+                } catch (\DomainException $e) {
+                    $threw = true;
+                }
+                assert_true($threw, "a {$label} payload must be refused, whatever the file is called");
+            } finally {
+                @unlink($tmp);
+            }
+        }
+
+        // and the whitelist itself must not grow to include them
+        $reflection = new \ReflectionClass(AttachmentService::class);
+        $whitelist = array_keys((array) $reflection->getConstant('MIME_EXTENSIONS'));
+        foreach (['image/svg+xml', 'text/html', 'application/xhtml+xml'] as $dangerous) {
+            assert_true(!in_array($dangerous, $whitelist, true), "{$dangerous} must stay off the accepted list");
+        }
+    });
+
+    //   And the name the uploader chose must never become the name on disk. The existing traversal tests cover a
+    //   disk_path tampered with in the DATABASE; this covers the way in that a normal user actually has.
+    test('attachment(security): the uploader\'s filename never becomes the filename on disk', function (): void {
+        $service = att_service();
+        $reflection = new \ReflectionClass(AttachmentService::class);
+        $source = (string) file_get_contents($reflection->getFileName());
+
+        // the stored name is generated, not derived from anything the uploader sent
+        assert_true(
+            (bool) preg_match('/\$storedName = bin2hex\(random_bytes\(\d+\)\) \. \\\'\.\\\' \. \(string\) \$file\[\\\'extension\\\'\]/', $source),
+            'the name written to disk is random bytes plus the server-derived extension'
+        );
+        assert_true(
+            !preg_match('/\$storedName\s*=\s*[^;]*\$file\[\\\'name\\\'\]/', $source),
+            'nothing from the uploaded name is spliced into the stored name'
+        );
+
+        // a name that would escape the folder, and one that would take over the web server's own config,
+        // both validate purely on their content — which is safe only because of the rule above
+        foreach ([['../../../evil.png', att_jpeg()], ['.htaccess', "AddType application/x-httpd-php .png\n"]] as [$name, $bytes]) {
+            $tmp = att_tmp($bytes);
+            try {
+                $valid = $service->validateUploads(att_files([['name' => $name, 'tmp' => $tmp, 'size' => strlen($bytes)]]));
+                assert_true(
+                    in_array((string) ($valid[0]['extension'] ?? ''), ['jpg', 'txt'], true),
+                    "\"{$name}\" keeps only a server-derived extension, never its own"
+                );
+                assert_true(
+                    !str_contains((string) ($valid[0]['extension'] ?? ''), '/'),
+                    'the extension can never carry a path separator out of the folder'
+                );
+            } finally {
+                @unlink($tmp);
+            }
+        }
+    });
+
     test('attachment: a valid upload takes its extension + mime from the server sniff, not the client name', function (): void {
         // Real JPEG bytes, but the client names it ".png" — the stored extension must be jpg (from image/jpeg).
         $tmp = att_tmp(att_jpeg());
