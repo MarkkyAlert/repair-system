@@ -344,6 +344,7 @@ test('comment(resilience): updateComment persists even when the notification thr
             $throwingNotifier,
             tvm_container()->get(\App\Services\AttachmentService::class),
             tvm_container()->get(PDO::class),
+            tvm_container()->get(\App\Services\AuditLogger::class),
         );
 
         $threw = false;
@@ -380,6 +381,7 @@ function cm_throwing_notifier_service(): \App\Services\CommentService
         $throwingNotifier,
         tvm_container()->get(\App\Services\AttachmentService::class),
         tvm_container()->get(PDO::class),
+        tvm_container()->get(\App\Services\AuditLogger::class),
     );
 }
 

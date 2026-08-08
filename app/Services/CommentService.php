@@ -17,6 +17,7 @@ class CommentService
         private NotificationService $notifications,
         private AttachmentService $attachments,
         private PDO $db,
+        private AuditLogger $audit,
     ) {
     }
 
@@ -110,6 +111,16 @@ class CommentService
         }
 
         $this->comments->updateComment($commentId, $body, $isInternal, $originalVersion);
+
+        // แก้ไขทับข้อความเดิมโดยไม่เก็บของเก่าไว้ (มีแค่ updated_at กับเลข version) และหัวหน้า/แอดมินแก้ของคนอื่นได้
+        // จึงบันทึกไว้ให้รู้ว่าใครแก้ของใคร เหตุผลเดียวกับตอนลบ. ไม่บันทึกตอน "สร้าง" เพราะตัว comment เองคือหลักฐาน
+        // อยู่แล้ว — ที่ทำให้ข้อมูลหายคือการลบกับการแก้เท่านั้น
+        $this->audit->record($viewer, 'comment.updated', 'ticket_comment', $commentId, [
+            'ticket_id' => $ticketId,
+            'author_id' => (int) ($comment['user_id'] ?? 0),
+            'is_internal' => $isInternal,
+        ]);
+
         // แจ้งเตือนแบบ best-effort (ให้เหมือน createComment/deleteComment): การแก้ไขถูกบันทึกไปแล้ว
         // การแจ้งเตือนล้มเหลวจะได้ไม่โผล่มาเป็น error ให้ user ที่บันทึก comment สำเร็จเห็น.
         try {
@@ -153,6 +164,16 @@ class CommentService
         // ไฟล์ที่ลบไม่ได้จะถูก log ไว้ ไม่ทิ้งแบบเงียบ ๆ และไม่ทำให้การลบที่ commit ไปแล้ว
         // ล้มเหลว — helper purge ตัวกลางจะบันทึกไฟล์กำพร้าไว้.
         $this->attachments->purgeStoredFiles($paths, 'comment.delete.cleanup', ['comment' => $commentId]);
+
+        // ลบ comment = ลบทั้งข้อความและรูปถ่ายทิ้งถาวร ไม่มีทางกู้กลับ และหัวหน้า/แอดมินลบของคนอื่นได้ด้วย
+        // ระบบบันทึก audit ตอนลบ "แผนก" อยู่แล้ว แต่ตอนลบบันทึกการซ่อมของช่างกลับไม่บันทึกอะไรเลย — เวลามีข้อโต้แย้ง
+        // ว่างานซ่อมทำจริงไหม จะไม่มีใครรู้ว่าเคยมีบันทึกอยู่และใครลบไป. เก็บ ticket + ผู้เขียนเดิมไว้ใน context
+        // เพราะแถวต้นทางหายไปแล้ว ตัว audit จึงเป็นหลักฐานชิ้นเดียวที่เหลือ
+        $this->audit->record($viewer, 'comment.deleted', 'ticket_comment', $commentId, [
+            'ticket_id' => $ticketId,
+            'author_id' => (int) ($comment['user_id'] ?? 0),
+            'is_internal' => (bool) ($comment['is_internal'] ?? false),
+        ]);
 
         try {
             $this->notifications->notifyCommentEvent(
