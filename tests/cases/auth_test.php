@@ -152,6 +152,40 @@ test('auth: resetPassword throws when new password is shorter than 8 chars', fun
     assert_true($threw, 'too-short password must throw');
 });
 
+// The reset token in the emailed link is the one secret that grants an account without knowing its password.
+// It must be stored the way a password is: hashed, so the stored copy cannot be replayed. That matters here more
+// than usual, because an admin can download a full database backup from the admin screen and the nightly cron
+// writes one to disk — a plain-text column would turn any copy of the database into a set of skeleton keys for
+// every account with a pending reset.
+//
+// The other reset tests seed their own rows already hashed, which pins the READ side (the service must hash the
+// token from the link before comparing). Nothing pinned the WRITE side, and that is the half a leak depends on.
+test('auth(reset): the emailed token is stored hashed — a copy of the database is not a set of skeleton keys', function (): void {
+    auth_clear_reset_submit_limit();
+    $u = auth_seed_user();
+
+    try {
+        $url = (string) auth_service()->createPasswordReset($u['email']);
+        assert_true(preg_match('#/reset-password/([a-f0-9]{64})#', $url, $m) === 1, 'the link carries a token');
+        $emailed = $m[1];
+
+        $stmt = auth_pdo()->prepare('SELECT token FROM password_resets WHERE email = ? ORDER BY created_at DESC LIMIT 1');
+        $stmt->execute([$u['email']]);
+        $stored = (string) $stmt->fetchColumn();
+
+        assert_true($stored !== '', 'a reset row was written');
+        assert_true($stored !== $emailed, 'the value from the link is NOT what sits in the database');
+        assert_same(hash('sha256', $emailed), $stored, 'what is stored is a hash of it, so the stored copy cannot be replayed');
+
+        // and the round trip still works — hashing the write side is worthless if it breaks the read side
+        auth_service()->resetPassword($u['email'], $emailed, 'RoundTripPass123', 'RoundTripPass123');
+        assert_true(password_verify('RoundTripPass123', auth_password_hash($u['id'])), 'the emailed token still resets the password');
+    } finally {
+        auth_delete_resets($u['email']);
+        auth_cleanup($u['id']);
+    }
+});
+
 // ── password reset: token CONSUMPTION (single-use / expiry / wrong token) — drives resetPasswordUsingToken ──
 
 test('auth(reset): a token works once — after a successful reset the same token is rejected (single-use)', function (): void {
