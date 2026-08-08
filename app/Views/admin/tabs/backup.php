@@ -2,14 +2,18 @@
 /** @var array $backup  view-model จาก BackupService::getStatus() */
 $backup = $backup ?? [];
 $restore = $backup['restore'] ?? [];
-$dir = (string) ($restore['dir'] ?? 'storage/backups');
+// ค่าสำรองต้องเป็น placeholder ที่ "เห็นแล้วรู้ว่ายังไม่ใช่ของจริง" ไม่ใช่คำสั่งที่ดูใช้ได้แต่รันไม่ผ่าน
+// (ของเดิมใส่ path ย่อกับคำว่า php เฉย ๆ ไว้ ซึ่งเป็นคำสั่งเวอร์ชันที่ cron รันไม่ได้ — ถ้า view-model ขาดไป
+// หน้าจอจะพิมพ์คำสั่งพังออกมาแบบเนียน ๆ แล้วคนก็ก็อปไปตั้ง cron จริง)
+$dir = (string) ($restore['dir'] ?? '/PATH/TO/APP/storage/backups');
 $dbName = (string) ($restore['db_name'] ?? 'repair_system');
 $dbUser = (string) ($restore['db_user'] ?? 'root');
 $newestGz = (string) ($restore['newest_file'] ?? 'db-YYYY-MM-DD_HHMMSS.sql.gz');
 $newestSql = preg_replace('/\.gz$/', '', $newestGz);
 $cron = $backup['cron'] ?? [];
-$cronLine = (string) ($cron['line'] ?? '0 2 * * * php bin/backup-database.php');
-$cronLog = (string) ($cron['log'] ?? 'storage/logs/backup.log');
+$cronLog = (string) ($cron['log'] ?? '/PATH/TO/APP/storage/logs/backup.log');
+$cronLine = (string) ($cron['line']
+    ?? '0 2 * * * /PATH/TO/php /PATH/TO/APP/bin/backup-database.php >> ' . $cronLog . ' 2>&1');
 $dbCharset = (string) ($restore['db_charset'] ?? 'utf8mb4');
 $dbCollation = $dbCharset . '_unicode_ci'; // ตรงกับที่ schema.sql สร้างทุกตาราง
 

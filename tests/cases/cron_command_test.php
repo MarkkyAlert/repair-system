@@ -62,6 +62,33 @@ test('cron(command): the interpreter the line names can actually run the script'
     assert_contains_str('[backup]', $output, 'the script boots and reports, started from a directory that is not the application root: ' . trim($output));
 });
 
+// A screen's fallback value is where a fixed bug goes to hide. The backup tab defaults every field it prints
+// in case the view-model arrives incomplete, and those defaults were still the pre-fix strings — a bare `php`
+// and a relative folder. Nothing renders them today, so nothing failed; the day a refactor hands the view a
+// partial model, the screen quietly prints the exact command that cannot run, and it looks entirely plausible.
+// A fallback has to be visibly a placeholder, never a working-looking command that isn't.
+test('cron(command): the screen\'s fallback values are placeholders, not the old broken command', function (): void {
+    $view = (string) file_get_contents(BASE_PATH . '/app/Views/admin/tabs/backup.php');
+
+    preg_match_all('/\?\?\s*\'([^\']+)\'/', $view, $m);
+    $fallbacks = $m[1] ?? [];
+    assert_true($fallbacks !== [], 'the view still defends against a missing view-model');
+
+    foreach ($fallbacks as $fallback) {
+        assert_true(
+            !preg_match('/(^|\s)php\s+bin\//', $fallback),
+            "the fallback \"{$fallback}\" is the command shape that cannot run under cron"
+        );
+        // anything that looks like a path in a pasteable command must be absolute or an obvious placeholder
+        if (preg_match('#(storage|bin)/#', $fallback) === 1) {
+            assert_true(
+                str_starts_with($fallback, '/') || str_contains($fallback, '/PATH/TO'),
+                "the fallback \"{$fallback}\" must be absolute or marked as a placeholder, not a bare relative path"
+            );
+        }
+    }
+});
+
 test('cron(command): the standalone pre-install page resolves the interpreter the same way', function (): void {
     // check-requirements.php must run before composer install and before the app can boot, so it cannot call
     // php_cli_binary(). It carries its own copy — which is exactly how the two drift apart. This pins them.
