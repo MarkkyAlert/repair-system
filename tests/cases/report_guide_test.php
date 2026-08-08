@@ -77,6 +77,54 @@ test('report guide: /reports/guide still prints the same cutoff tokens (drift lo
     assert_contains_str('ข้อมูลน้อย', $guide, 'guide warns about drawing conclusions from tiny samples');
 });
 
+// The two tests above lock the code to the page inside the app. REPORT-GUIDE.md — the file a buyer reads before
+// they have the system open, and the one an owner quotes when setting targets — repeats the same cutoffs and was
+// outside that lock. A number that drifts there is worse than one that drifts on screen: the reader has nothing
+// to compare it against, so a stale threshold reads as authoritative. The owner asked for these figures and now
+// sets expectations from them, which makes it worth holding all three in step.
+test('report guide: the printed guide states the same cutoffs as the code and the in-app page (drift lock, third side)', function (): void {
+    $doc = (string) file_get_contents(BASE_PATH . '/REPORT-GUIDE.md');
+    $svc = tvm_container()->get(ReportService::class);
+    $tone = static fn (string $method, mixed $arg): string => (string) call_private($svc, $method, [$arg]);
+
+    // Each row states a boundary AND the code is asked what it does exactly there, so the two cannot drift
+    // apart silently — an edited constant fails the behaviour half, an edited table fails the text half.
+    $rows = [
+        ['≥ 90%',     fn (): string => $tone('slaComplianceTone', 90.0),  'success'],
+        ['75–89.9%',  fn (): string => $tone('slaComplianceTone', 89.9),  'warning'],
+        ['< 75%',     fn (): string => $tone('slaComplianceTone', 74.99), 'danger'],
+        ['≥ 25%',     fn (): string => $tone('breachTone', 25.0),         'danger'],
+        ['10–24.9%',  fn (): string => $tone('breachTone', 10.0),         'warning'],
+        ['≥ 4.0',     fn (): string => $tone('csatTone', 4.0),            'success'],
+        ['3.0–3.9',   fn (): string => $tone('csatTone', 3.0),            'warning'],
+        ['< 3.0',     fn (): string => $tone('csatTone', 2.99),           'danger'],
+        ['≥ 20%',     fn (): string => $tone('reopenTone', 20.0),         'danger'],
+        ['10–19.9%',  fn (): string => $tone('reopenTone', 10.0),         'warning'],
+        ['< 10%',     fn (): string => $tone('reopenTone', 9.99),         'success'],
+    ];
+    foreach ($rows as [$printed, $behaviour, $expected]) {
+        assert_contains_str($printed, $doc, "the printed guide must still state the band \"{$printed}\"");
+        assert_same($expected, $behaviour(), "and the code must still behave that way at the \"{$printed}\" boundary");
+    }
+
+    // the asset-health scoring the guide spells out, read straight off the constants
+    $reflection = new ReflectionClass(ReportService::class);
+    $scores = [
+        'HEALTH_FAILURE_HIGH' => 5, 'HEALTH_FAILURE_MED' => 3,
+        'HEALTH_AGE_HIGH' => 8, 'HEALTH_AGE_MED' => 5,
+        'HEALTH_MTBF_SHORT_DAYS' => 30, 'HEALTH_SLOW_RESOLUTION_HOURS' => 8,
+        'HEALTH_REPLACE_SCORE' => 4, 'HEALTH_WATCH_SCORE' => 2,
+    ];
+    foreach ($scores as $name => $value) {
+        assert_same($value, (int) $reflection->getConstant($name), "{$name} is what the printed guide claims");
+        assert_contains_str((string) $value, $doc, "the printed guide mentions the {$name} figure ({$value})");
+    }
+
+    // the traps are the part that stops a number becoming a bad target — they must survive edits too
+    assert_contains_str('ช่องว่างไม่ใช่ศูนย์', $doc, 'the guide still warns that a blank is not a zero');
+    assert_contains_str('100%', $doc, 'and still warns against setting an SLA target of 100%');
+});
+
 test('report guide: glossary defines the non-obvious metrics — formula + direction (round-2 #7)', function (): void {
     $guide = (string) file_get_contents(BASE_PATH . '/app/Views/reports/guide.php');
 
