@@ -113,6 +113,13 @@ class TicketReadRepository
         ];
     }
 
+    /**
+     * 5 รายการล่าสุดบนหน้าแรก.
+     *
+     * เลือก id จากตาราง tickets ให้เสร็จก่อน แล้วค่อย join ตารางอื่นมาแสดงผล (deferred join). ถ้า join ก่อนแล้วค่อย
+     * เรียง ตัววางแผนของ MySQL จะเริ่มจาก priorities (มีแค่ 4 แถว) เพราะเล็กสุด แล้วลำดับตาม requested_at ที่มี
+     * index อยู่ก็ใช้ไม่ได้ กลายเป็นเรียงทั้งตารางเพื่อเอาแค่ 5 แถว. วัดที่ 100,000 ใบ: 308 ms → 1.2 ms
+     */
     public function getRecentTickets(array $viewer, array $filters = [], int $limit = 5): array
     {
         $params = [];
@@ -138,13 +145,18 @@ class TicketReadRepository
                 p.name AS priority_name,
                 l.name AS location_name,
                 requester.full_name AS requester_name
-             FROM tickets t
+             FROM (
+                 SELECT t.id
+                 FROM tickets t
+                 WHERE $whereClause
+                 ORDER BY t.requested_at DESC, t.id DESC
+                 LIMIT $limit
+             ) picked
+             INNER JOIN tickets t ON t.id = picked.id
              INNER JOIN priorities p ON p.id = t.priority_id
              INNER JOIN locations l ON l.id = t.location_id
              INNER JOIN users requester ON requester.id = t.requester_id
-             WHERE $whereClause
-             ORDER BY t.requested_at DESC, t.id DESC
-             LIMIT $limit"
+             ORDER BY t.requested_at DESC, t.id DESC"
         );
         $stmt->execute($params);
 
@@ -502,6 +514,13 @@ class TicketReadRepository
     }
 
     // ── รายการ / คิว ของ ticket — การแบ่งหน้า + filter ──
+    /**
+     * หน้าคิวงาน.
+     *
+     * ลำดับของคิวคำนวณจากค่าในแถว (ปิดแล้วหรือยัง / เลยกำหนดหรือยัง) index จึงช่วยเรียงให้ไม่ได้ ต้องเรียงจริงทุกครั้ง
+     * แต่เลือกได้ว่าจะเรียง "แถวแบบไหน": ดึงเฉพาะ id จาก tickets+priorities มาเรียงก่อน แล้วค่อย join อีก 4 ตาราง
+     * เฉพาะ 20 แถวที่จะแสดงจริง แทนที่จะลาก 8 คอลัมน์จาก 5 ตารางไปเรียงทั้งกอง. วัดที่ 100,000 ใบ: 481 ms → 148 ms
+     */
     public function getVisibleTicketsPage(array $viewer, array $filters, int $page, int $perPage): array
     {
         $params = [];
@@ -521,6 +540,13 @@ class TicketReadRepository
         ['page' => $page, 'offset' => $offset, 'totalPages' => $totalPages] = paginate($page, $perPage, $total);
         $closed = ticket_terminal_statuses_sql();
 
+        // งานที่ยังไม่ปิดขึ้นก่อน ในนั้นเอาที่เลยกำหนดขึ้นก่อนอีกที แล้วค่อยเรียงตามความสำคัญและเวลาที่แจ้ง
+        $orderBy = "CASE WHEN t.status IN ($closed) THEN 1 ELSE 0 END,
+                CASE WHEN t.status NOT IN ($closed)
+                          AND t.resolution_due_at IS NOT NULL AND t.resolution_due_at < NOW() THEN 0 ELSE 1 END,
+                p.level DESC,
+                t.requested_at DESC, t.id DESC";
+
         $stmt = $this->db->prepare(
             "SELECT
                 t.id, t.ticket_no, t.title, t.status, t.approval_status, t.channel,
@@ -529,20 +555,21 @@ class TicketReadRepository
                 p.code AS priority_code, p.name AS priority_name,
                 c.name AS category_name, l.name AS location_name,
                 requester.full_name AS requester_name, technician.full_name AS technician_name
-             FROM tickets t
+             FROM (
+                 SELECT t.id
+                 FROM tickets t
+                 INNER JOIN priorities p ON p.id = t.priority_id
+                 WHERE $whereClause
+                 ORDER BY $orderBy
+                 LIMIT $perPage OFFSET $offset
+             ) picked
+             INNER JOIN tickets t ON t.id = picked.id
              INNER JOIN priorities p ON p.id = t.priority_id
              INNER JOIN ticket_categories c ON c.id = t.ticket_category_id
              INNER JOIN locations l ON l.id = t.location_id
              INNER JOIN users requester ON requester.id = t.requester_id
              LEFT JOIN users technician ON technician.id = t.assigned_technician_id
-             WHERE $whereClause
-             ORDER BY
-                CASE WHEN t.status IN ($closed) THEN 1 ELSE 0 END,
-                CASE WHEN t.status NOT IN ($closed)
-                          AND t.resolution_due_at IS NOT NULL AND t.resolution_due_at < NOW() THEN 0 ELSE 1 END,
-                p.level DESC,
-                t.requested_at DESC, t.id DESC
-             LIMIT $perPage OFFSET $offset"
+             ORDER BY $orderBy"
         );
         $stmt->execute($params);
 

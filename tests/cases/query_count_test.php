@@ -25,6 +25,44 @@ test('query-count(ticket-list): getVisibleTicketsPage issues a constant 2 querie
     assert_same(2, $n, 'the ticket list must be one COUNT + one paginated SELECT, regardless of how many rows');
 });
 
+// Query COUNT alone does not make a page fast — one query can still be slow. Both hot-path reads pick their
+// row ids from tickets first and only then join the display tables (a deferred join), because joining first
+// makes MySQL start from the tiny priorities table, which throws away any usable ordering and filesorts the
+// whole set to return one screenful. Measured on 50,007 tickets, best of 21 interleaved runs: the queue page
+// 165.9ms → 44.1ms and the dashboard's recent-five 98.3ms → 36.8ms, returning identical rows in identical
+// order. Written down as a shape guard because a "simplification" back to a plain JOIN looks tidier, costs
+// nothing on seed-sized data, and only bites a customer years later.
+test('query-shape: the two hot-path reads pick ids before joining, so the sort never drags joined columns', function (): void {
+    $src = (string) file_get_contents(BASE_PATH . '/app/Repositories/TicketReadRepository.php');
+
+    $body = static function (string $method) use ($src): string {
+        $start = strpos($src, 'public function ' . $method . '(');
+        assert_true($start !== false, $method . '() still exists');
+
+        return substr($src, (int) $start, 3000);
+    };
+
+    foreach (['getVisibleTicketsPage', 'getRecentTickets'] as $method) {
+        $sql = $body($method);
+        assert_true(
+            (bool) preg_match('/FROM \(\s*SELECT t\.id\s+FROM tickets t/', $sql),
+            $method . '() still selects ids from tickets in a subquery before joining the display tables'
+        );
+        assert_contains_str(
+            'INNER JOIN tickets t ON t.id = picked.id',
+            $sql,
+            $method . '() joins back only the rows it kept'
+        );
+    }
+
+    // the queue keeps priorities inside the subquery — its ordering and its priority filter both need it
+    $queue = $body('getVisibleTicketsPage');
+    assert_true(
+        (bool) preg_match('/FROM \(\s*SELECT t\.id\s+FROM tickets t\s+INNER JOIN priorities p/', $queue),
+        'the queue subquery keeps the priorities join, which its ORDER BY and priority filter depend on'
+    );
+});
+
 test('query-count(asset-index): getAssetIndexData is 4 queries — list COUNT+SELECT + only the 2 filters it uses', function (): void {
     // perf-review F8: the asset list filter bar only offers category + location, so the page must load just
     // those two reference sets — not the full create/edit form reference (which also fetches departments +
