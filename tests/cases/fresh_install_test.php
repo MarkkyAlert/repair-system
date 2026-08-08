@@ -53,9 +53,38 @@ test('fresh-install(R2): empty DB → real schema/reference import → wizard pr
             . '$u = $pdo->query("SELECT role, is_active, password_hash FROM users WHERE username = \'freshadmin\'")->fetch(PDO::FETCH_ASSOC);'
             . '$app = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = \'app_name\'")->fetchColumn();'
             . '$done = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = \'setup_completed\'")->fetchColumn();'
+            // Walk the screens the new owner opens on day one, while the system still holds nothing but the
+            // reference data. Every counter divides by something, every chart maps a list, every report averages
+            // a set — and on day one all of those are empty. A page that only ever ran against seeded data can
+            // divide by zero or index a missing row here, and this is the one moment a buyer cannot dismiss:
+            // it is the first thing they see after paying.
+            . '$viewer = ["id" => (int) $pdo->query("SELECT id FROM users WHERE username = \'freshadmin\'")->fetchColumn(), "role" => "admin"];'
+            . '$tickets = $c->get(App\\Services\\TicketService::class);'
+            . '$reports = $c->get(App\\Services\\ReportService::class);'
+            . '$assets = $c->get(App\\Services\\AssetService::class);'
+            . '$screens = ['
+            . '"dashboard" => fn () => $tickets->getDashboardData($viewer, []),'
+            . '"ticket-queue" => fn () => $tickets->getTicketIndexData($viewer, []),'
+            . '"reports-overview" => fn () => $reports->getReportPageData($viewer, []),'
+            . '"reports-executive" => fn () => $reports->getExecutiveSummaryPage($viewer, []),'
+            . '"reports-sla-breach" => fn () => $reports->getSlaBreachReportPage($viewer, []),'
+            . '"reports-technician" => fn () => $reports->getTechnicianPerformanceReportPage($viewer, []),'
+            . '"reports-hotspot" => fn () => $reports->getProblemHotspotReportPage($viewer, []),'
+            . '"reports-trend" => fn () => $reports->getTicketTrendReportPage($viewer, []),'
+            . '"reports-backlog" => fn () => $reports->getBacklogAgingReportPage($viewer, []),'
+            . '"reports-reopen" => fn () => $reports->getReopenRateReportPage($viewer, []),'
+            . '"reports-csat" => fn () => $reports->getCsatReportPage($viewer, []),'
+            . '"reports-asset-health" => fn () => $reports->getAssetReliabilityReportPage($viewer, []),'
+            . '"asset-registry" => fn () => $assets->getAssetIndexData($viewer, []),'
+            . '];'
+            . '$broken = [];'
+            . 'foreach ($screens as $name => $render) {'
+            . '  try { $render(); } catch (Throwable $e) { $broken[] = $name . ": " . get_class($e) . " " . $e->getMessage(); }'
+            . '}'
             . 'echo json_encode(["gate_before" => (bool) $before, "gate_after" => (bool) $after, "app_name" => (string) $app,'
             . '"admin_active" => ($u && $u["role"] === "admin" && (int) $u["is_active"] === 1),'
             . '"setup_completed" => ((string) $done === "1"),'
+            . '"screens_checked" => count($screens), "broken_screens" => $broken,'
             . '"password_valid" => ($u && password_verify("fresh-pass-12345", (string) $u["password_hash"]))]);';
 
         $out = trim((string) shell_exec(escapeshellarg(PHP_BINARY) . ' -d error_reporting=0 -r ' . escapeshellarg($code) . ' 2>&1'));
@@ -69,6 +98,14 @@ test('fresh-install(R2): empty DB → real schema/reference import → wizard pr
         assert_true($res['admin_active'] === true, 'the wizard must create an active admin');
         assert_true($res['setup_completed'] === true, 'the wizard must set setup_completed');
         assert_true($res['password_valid'] === true, 'the admin password the wizard stored must verify — i.e. login will work');
+
+        // 5) And the system the buyer lands in actually renders, with nothing in it yet.
+        assert_true((int) ($res['screens_checked'] ?? 0) >= 13, 'the sweep covers the day-one screens, not a token one');
+        assert_same(
+            [],
+            $res['broken_screens'] ?? ['(the subprocess returned no screen result)'],
+            'every screen must render on a system that holds no tickets and no assets — this is the first thing a buyer sees'
+        );
     } finally {
         $rootPdo->exec("DROP DATABASE IF EXISTS `{$scratch}`");
     }
