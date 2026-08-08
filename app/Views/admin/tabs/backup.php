@@ -90,7 +90,7 @@ $cmdVerify = 'mysql -u ' . $dbUser . ' -p -e "SHOW TABLES" ' . $dbName;
         <div class="panel-head">
             <div>
                 <h3 class="panel-title panel-title-lg">สถานะการสำรอง</h3>
-                <p class="field-hint">อ่านจากไฟล์จริงใน <code><?= e($dir) ?></code> และเวลาที่ cron รันล่าสุด</p>
+                <p class="field-hint">อ่านจากไฟล์จริงใน <code class="code-inline"><?= e($dir) ?></code> และเวลาที่ cron รันล่าสุด</p>
             </div>
         </div>
         <dl class="description-list">
@@ -98,15 +98,15 @@ $cmdVerify = 'mysql -u ' . $dbUser . ' -p -e "SHOW TABLES" ' . $dbName;
             <dt>สำรองล่าสุด (cron)</dt>
             <dd><?= (string) ($backup['last_run_at'] ?? '') !== '' ? e(human_date((string) $backup['last_run_at'])) : '—' ?></dd>
             <dt>ไฟล์ล่าสุด</dt>
-            <dd><?php if (!empty($backup['newest_file'])): ?><code><?= e((string) $backup['newest_file']) ?></code> · <?= e((string) $backup['newest_size']) ?><?php if (!empty($backup['newest_at'])): ?> · <?= e(human_date((string) $backup['newest_at'])) ?><?php endif; ?><?php else: ?>—<?php endif; ?></dd>
+            <dd><?php if (!empty($backup['newest_file'])): ?><code class="code-inline"><?= e((string) $backup['newest_file']) ?></code> · <?= e((string) $backup['newest_size']) ?><?php if (!empty($backup['newest_at'])): ?> · <?= e(human_date((string) $backup['newest_at'])) ?><?php endif; ?><?php else: ?>—<?php endif; ?></dd>
             <dt>จำนวนชุดที่เก็บ</dt><dd><?= (int) ($backup['file_count'] ?? 0) ?> ชุด · รวม <?= e((string) ($backup['total_size'] ?? '0 B')) ?></dd>
             <dt>นโยบายเก็บย้อนหลัง</dt><dd><?= (int) ($backup['retention'] ?? 14) ?> ชุดล่าสุด (เก่ากว่านั้นลบอัตโนมัติ)</dd>
-            <dt>โฟลเดอร์</dt><dd><code><?= e($dir) ?></code></dd>
+            <dt>โฟลเดอร์</dt><dd><code class="code-inline"><?= e($dir) ?></code></dd>
         </dl>
         <?php if (empty($backup['has_backups']) && (string) ($backup['last_run_at'] ?? '') !== ''): ?>
             <p class="helper-text" style="display:flex;align-items:center;gap:6px;color:var(--danger-700,#be123c)">
                 <?= lucide('triangle-alert', 'h-4 w-4') ?>
-                มีบันทึกว่าสำรองล่าสุดเมื่อ <?= e(human_date((string) $backup['last_run_at'])) ?> แต่ไม่พบไฟล์ใน <code><?= e($dir) ?></code> — ตรวจว่าโฟลเดอร์/ดิสก์ยังปกติ
+                มีบันทึกว่าสำรองล่าสุดเมื่อ <?= e(human_date((string) $backup['last_run_at'])) ?> แต่ไม่พบไฟล์ใน <code class="code-inline"><?= e($dir) ?></code> — ตรวจว่าโฟลเดอร์/ดิสก์ยังปกติ
             </p>
         <?php elseif (!empty($backup['is_stale'])): ?>
             <p class="helper-text" style="display:flex;align-items:center;gap:6px;color:var(--warning-700,#b45309)">
@@ -172,6 +172,6 @@ $cmdVerify = 'mysql -u ' . $dbUser . ' -p -e "SHOW TABLES" ' . $dbName;
             (cron ไม่รู้จักคำสั่ง <code>php</code> สั้น ๆ และไม่ได้เริ่มจากโฟลเดอร์ระบบ จึงต้องเขียนเต็ม):
         </p>
         <pre class="code-block"><?= e($cronLine) ?></pre>
-        <p class="field-hint">ผลการทำงานแต่ละคืนจะต่อท้ายไว้ที่ <code><?= e($cronLog) ?></code> — เปิดไฟล์นี้ดูได้เมื่อสงสัยว่า cron ไม่ทำงาน</p>
+        <p class="field-hint">ผลการทำงานแต่ละคืนจะต่อท้ายไว้ที่ <code class="code-inline"><?= e($cronLog) ?></code> — เปิดไฟล์นี้ดูได้เมื่อสงสัยว่า cron ไม่ทำงาน</p>
     </div>
 </section>
