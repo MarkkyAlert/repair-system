@@ -54,3 +54,51 @@ test('template-hygiene(F3): no internal review-ID tags leak into the shipped sou
         'internal review-ID tags must not ship in source (keep the rationale, drop the tag): ' . implode(' | ', array_slice($offenders, 0, 10))
     );
 });
+
+// Same idea, different residue: a before/after benchmark quoted in a shipped comment. Two of them said
+// "measured at 100,000 tickets: 308 ms → 1.2 ms" — a figure from a rough single run that a careful repeat
+// (interleaved, best of 21) did not reproduce; the honest number was closer to threefold, not two-hundredfold.
+// So the comment overstated by a wide margin, and it sat in the source a buyer receives.
+//
+// Even an accurate one does not belong here. It is measured on one machine, one dataset and one database
+// version, and none of those are the buyer's — it turns stale without anything failing, and it reads like a
+// report rather than a note from whoever maintains the file. Keep the reason the code is shaped this way, and
+// point at the test that holds the shape; drop the stopwatch.
+//
+// Not a blanket ban on timings: an inline note like bcrypt's "~100ms" describes a permanent property of the
+// algorithm, not a result from a run. What is banned is the before→after pair.
+test('template-hygiene: no before/after benchmark figures are quoted in shipped comments', function (): void {
+    $root = dirname(__DIR__, 2);
+
+    // "308 ms → 1.2 ms", "481ms -> 148ms", "2.4s → 0.3s" — a measured pair joined by an arrow
+    $pattern = '/[\d.,]+\s*(?:ms|มิลลิวินาที|s\b|วินาที)\s*(?:→|->|—>)\s*[\d.,]+\s*(?:ms|มิลลิวินาที|s\b|วินาที)/u';
+
+    $files = [];
+    foreach (['/app', '/bin'] as $dir) {
+        $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root . $dir, FilesystemIterator::SKIP_DOTS));
+        foreach ($it as $file) {
+            if (in_array($file->getExtension(), ['php', 'js'], true)) {
+                $files[] = $file->getPathname();
+            }
+        }
+    }
+
+    $offenders = [];
+    foreach ($files as $path) {
+        foreach (token_get_all((string) file_get_contents($path)) as $token) {
+            if (!is_array($token) || !in_array($token[0], [T_COMMENT, T_DOC_COMMENT], true)) {
+                continue;
+            }
+            if (preg_match($pattern, $token[1], $m)) {
+                $offenders[] = basename($path) . ':' . $token[2] . ' — ' . trim($m[0]);
+            }
+        }
+    }
+
+    assert_same(
+        [],
+        $offenders,
+        'a shipped comment quotes a before/after timing, which rots silently and reads as a report — '
+        . 'keep the reason, cite the guarding test instead: ' . implode(' | ', $offenders)
+    );
+});
