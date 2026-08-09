@@ -13,6 +13,9 @@
     <link rel="stylesheet" href="<?= e(asset('css/app.css')) ?>">
     <!-- สีของแบรนด์ — อยากเปลี่ยนแบรนด์แก้ที่ public/assets/css/theme.css ได้เลย ไม่ต้อง build. โหลดเป็นไฟล์สุดท้ายจะได้ทับค่าอื่นได้. -->
     <link rel="stylesheet" href="<?= e(asset('css/theme.css')) ?>">
+    <!-- Chart.js โหลดเฉพาะหน้าที่มีกราฟจริง หน้าอื่นจะได้ไม่ต้องดึงไฟล์นี้มาเปล่า ๆ
+         เพิ่มกราฟในหน้าใหม่ = ต้องเติม path ของหน้านั้นในเงื่อนไขนี้ด้วย ไม่งั้นกราฟจะไม่ขึ้นแบบเงียบ ๆ
+         (ไม่มี error ให้เห็น หน้าตาเหมือนไม่มีข้อมูล) — chart_gate_contract_test คอยจับให้ -->
     <?php if (is_path('/dashboard') || is_path('/reports/trend')): ?>
         <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
     <?php endif; ?>
