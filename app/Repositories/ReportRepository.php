@@ -12,6 +12,11 @@ class ReportRepository
     // เพดานกัน query วิ่งหลุด ต้อง >= ReportService::EXPORT_MAX_ROWS_* ที่ใหญ่สุด (CSV 50k)
     // เสมอ — ไม่งั้น overflow probe ของ export (getRows(maxRows+1)) จะถูกตัดเงียบ ๆ แล้ว export ได้ข้อมูล
     // ไม่ครบโดยไม่มี warning limit จริง (screen 250 / export 10k-3k-50k) + overflow warning เป็นของ service
+    //
+    // ⚠️ คู่นี้ยังไม่มีเทสต์ล็อก (ต่างจาก guard ตัวอื่นในไฟล์นี้): export_row_cap_test ตรวจแค่ลำดับ
+    // pdf < xlsx <= csv กับ csv >= 10k ไม่เคยอ่านค่านี้เลย. ถ้าขยาย EXPORT_MAX_ROWS_CSV เกิน 100k
+    // (คำขอที่ดูสมเหตุผลมาก) เทสต์เขียวทั้งชุด แต่ CSV จะกลับไปตัดข้อมูลเงียบ ซึ่งคือบั๊กที่เทสต์ตัวนั้น
+    // ตั้งชื่อว่ากันอยู่ — ขยายค่านี้ตามทุกครั้ง
     private const MAX_ROWS = 100000;
 
     public function __construct(private PDO $db)
