@@ -16,9 +16,14 @@ use RuntimeException;
  * ชั้นผลิตไฟล์กลางสำหรับ export รายงาน: แปลงแถวที่ map แล้วเป็นไฟล์ไบนารี .xlsx / .csv / .pdf.
  * ไม่มี state (ไม่แตะ DB, ไม่แตะ request) เลย unit-test ง่ายมากและ exporter ตัวไหนก็ใช้ซ้ำได้.
  *
- * ทุกเส้นทางส่งแต่ละแถวผ่าน sanitizeExportRow() — guard กัน CSV/formula-injection เลยไม่มีทางถูก
- * เมธอด export ตัวไหนลืม ป้อนแถวเข้าไปได้ไฟล์ปลอดภัยออกมา. ส่วนการติดตาม job (audit ใน
- * export_jobs) เป็นคนละเรื่อง อยู่กับตัวเรียก.
+ * กัน formula-injection "คนละกลไกตามชนิดไฟล์" — อย่ารวมสองทางนี้ให้เหมือนกัน:
+ *   - CSV  : buildCsvSections → sanitizeExportRow() เติม ' นำหน้าเซลล์ที่ขึ้นต้นด้วย = + - @
+ *   - XLSX : writeDataRow เขียนทุกเซลล์ด้วย setCellValueExplicit ชนิดชัดเจน (STRING/NUMERIC) ไฟล์ที่ได้จึงไม่มี
+ *            element สูตร Excel คำนวณไม่ได้ "โดยไม่ต้องเติม '" — และห้ามเติม เพราะ ' จะโผล่เป็นตัวอักษรจริง
+ *            ("'-" ในทุกช่องว่างเปล่า = แสดงผลผิด ที่เพิ่งแก้ไป)
+ * อย่าให้ XLSX ไปเรียก sanitizeExportRow() เพื่อ "ให้เหมือน CSV" — จะพา bug การแสดงผลกลับมา.
+ * ทั้งสองกลไกล็อกโดย export_builder_sanitize_test (xlsx = inert-by-type, csv = apostrophe). job audit (export_jobs)
+ * เป็นคนละเรื่อง อยู่กับตัวเรียก.
  */
 class ReportExporter
 {
@@ -78,8 +83,8 @@ class ReportExporter
     }
 
     /**
-     * สร้างไฟล์ .xlsx แบบ sheet เดียวจากแถวที่ map แล้ว. sanitise ทุกแถวเสมอ export แบบ *Excel ตัวไหน
-     * เลยไม่มีทางลืม guard กัน formula-injection.
+     * สร้างไฟล์ .xlsx แบบ sheet เดียวจากแถวที่ map แล้ว. formula-safe ด้วยการกำหนดชนิดเซลล์ชัดเจนใน writeDataRow
+     * (ไม่ใช่การเติม ' แบบ CSV — ดู docblock ของคลาส). ทุก export .xlsx ต้องผ่าน fillSheet ตัวเดียวนี้.
      *
      * @param array<int, string>            $headers
      * @param array<int, array<int, mixed>> $rows
