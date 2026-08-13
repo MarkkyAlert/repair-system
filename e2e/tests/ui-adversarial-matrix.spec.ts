@@ -261,17 +261,46 @@ for (const viewport of [
         const responseErrors: string[] = [];
         const requestFailures: string[] = [];
 
+        // Only this app's own requests are the product's responsibility. The pages pull webfonts from Google,
+        // and when that CDN hiccups — a 404 on one gstatic file, which happened in CI — every screen in the
+        // sweep reports an error and the whole gate goes red for something no buyer's install can control and
+        // no commit here can fix. A suite that cries wolf gets deleted, so third-party noise is filtered out.
+        //
+        // Two things are deliberately NOT filtered, because they are ours even though the URL is not:
+        //   - a CSP violation: the page asked for something our own policy blocks, which is a real defect
+        //     (that is how the blocked font preconnect was found — see the ux-review-5 fix)
+        //   - anything same-origin, including assets, redirects and XHR
+        // the app under test is served from the loopback host by playwright.config.ts; anything else is a CDN
+        const isOurs = (url: string): boolean => {
+          if (url === '' || url.startsWith('/')) return true;
+          try {
+            const host = new URL(url).hostname;
+            return host === '127.0.0.1' || host === 'localhost';
+          } catch {
+            return true; // unparseable → treat as ours rather than quietly dropping a real error
+          }
+        };
+        const isPolicyError = (text: string): boolean =>
+          /content security policy|refused to (load|connect|execute)|blocked by cors/i.test(text);
+
         page.on('console', (message) => {
-          if (message.type() === 'error') consoleErrors.push(message.text());
+          if (message.type() !== 'error') return;
+          const text = message.text();
+          // "Failed to load resource: …404" carries no URL in its text — the failing resource is in location()
+          const source = message.location()?.url ?? '';
+          if (!isOurs(source) && !isPolicyError(text)) return;
+          consoleErrors.push(text);
         });
         page.on('pageerror', (error) => pageErrors.push(error.message));
         page.on('response', (response) => {
+          if (!isOurs(response.url())) return;
           if (response.status() >= 400 && !(screen.status === response.status() && response.request().isNavigationRequest())) {
             responseErrors.push(`${response.status()} ${response.url()}`);
           }
         });
         page.on('requestfailed', (request) => {
           const reason = request.failure()?.errorText || 'request failed';
+          if (!isOurs(request.url()) && !isPolicyError(reason)) return;
           if (reason !== 'net::ERR_ABORTED') requestFailures.push(`${reason} ${request.url()}`);
         });
 
