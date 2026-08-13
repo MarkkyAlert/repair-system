@@ -23,6 +23,31 @@ test('export-cell(allow): ordinary text and non-leading operators are passed thr
     assert_same('', sanitize_export_cell(''), 'an empty cell stays empty');
 });
 
+// The reports write "-" into any cell that has no data (empty is not zero). It starts with a minus, so the
+// guard used to prefix it, and every one of those cells reached the reader as "'-" — 27 of them in a single
+// twelve-ticket month across the overview, executive and asset CSVs. The .xlsx exports had the same artefact
+// until they moved to explicit cell types; CSV kept it.
+//
+// A lone "-" cannot be a formula: there is nothing after the operator for a spreadsheet to evaluate. So the
+// prefix bought no safety and cost the reader a stray apostrophe in every blank cell. Anything with a payload
+// after the dash ("-2+3", "-1+1") is still guarded — that is the case the guard exists for.
+test('export-cell: the "no data" dash ships clean, while a dash with a payload is still guarded', function (): void {
+    assert_same('-', sanitize_export_cell('-'), 'the no-data marker carries no apostrophe into the file');
+    // padding is left exactly as the caller wrote it — only the apostrophe decision looks past the spaces
+    assert_same(' - ', sanitize_export_cell(' - '), 'a padded dash is passed through, still without a prefix');
+
+    // the guard still covers everything that could actually evaluate
+    assert_same("'-2+3", sanitize_export_cell('-2+3'), 'a dash with a payload is still a formula');
+    assert_same("'-1+1", sanitize_export_cell('-1+1'), 'and so is the classic injection shape');
+    assert_same("'-cmd|'/c calc'!A1", sanitize_export_cell("-cmd|'/c calc'!A1"), 'the DDE shape stays neutralised');
+
+    // negative numbers were already exempt and must stay exempt (they are values, not formulas)
+    assert_same('-1.5', sanitize_export_cell('-1.5'), 'a negative number is still a number');
+
+    // files exported before this change still import cleanly: the import rule is untouched
+    assert_same('-', unsanitize_import_cell("'-"), 'an older file that guarded the dash still round-trips back to "-"');
+});
+
 test('export-cell round-trip: a genuine apostrophe before a formula opener is preserved', function (): void {
     foreach (["'=SUM(A1:A2)", "'+66 81 234 5678", "'-2+3", "'@Home", "''=literal"] as $original) {
         $exported = sanitize_export_cell($original);

@@ -122,6 +122,15 @@ function is_spreadsheet_formula_cell(string $value): bool
 function sanitize_export_cell(mixed $value): string
 {
     $cell = (string) $value;
+
+    // "-" เดี่ยว ๆ คือป้าย "ไม่มีข้อมูล" ของรายงาน ไม่ใช่สูตร — spreadsheet คำนวณมันไม่ได้ การเติม ' จึงไม่ได้กัน
+    // อะไรเลย แต่ทำให้ผู้ใช้เห็น '- ในทุกช่องที่ว่าง (อาการเดียวกับที่ .xlsx เคยเป็น). ยกเว้นที่ชั้น export
+    // เท่านั้น ไม่ไปแก้ is_spreadsheet_formula_cell เพราะ unsanitize_import_cell ใช้กฎเดียวกันถอด ' ออกจาก
+    // ไฟล์เก่าที่ยัง guard อยู่ — แก้ตรงนั้นจะทำให้ไฟล์เก่า import กลับมาเป็น "'-"
+    if (trim($cell) === '-') {
+        return $cell;
+    }
+
     if (is_spreadsheet_formula_cell($cell)) {
         return "'" . $cell;
     }
