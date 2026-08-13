@@ -83,6 +83,14 @@ function mysqldump_unavailable_message(string $bin): string
         . 'cron ใช้ PATH แคบกว่าตอนพิมพ์คำสั่งเอง — ตั้ง MYSQLDUMP_BIN=/path/to/mysqldump ใน .env แล้วรันใหม่' . PHP_EOL;
 }
 
+/** ข้อความตอนโฮสต์ปิด proc_open ไว้ — สำรองอัตโนมัติทำไม่ได้ ต้องเปลี่ยนวิธี ไม่ใช่แค่แก้ค่าตั้งต้น */
+function backup_disabled_function_message(): string
+{
+    return 'โฮสต์นี้ปิดฟังก์ชัน proc_open ไว้ จึงสั่ง mysqldump จากสคริปต์ไม่ได้ (พบบ่อยในโฮสต์แบบแชร์)' . PHP_EOL
+        . 'ทางออก: ใช้ปุ่ม "สำรอง & ดาวน์โหลด" ในหน้าผู้ดูแล ซึ่งสำรองด้วย PHP ล้วน ไม่ต้องพึ่ง proc_open' . PHP_EOL
+        . 'หรือใช้ระบบสำรองอัตโนมัติของผู้ให้บริการโฮสต์ แล้วดาวน์โหลดเก็บไว้เองเป็นระยะ' . PHP_EOL;
+}
+
 $keep = 14;
 $dryRun = false;
 foreach (array_slice($argv, 1) as $arg) {
@@ -171,6 +179,17 @@ if (!$dryRun) {
 
     $descriptors = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
     $pipes = [];
+
+    // โฮสต์แชร์จำนวนไม่น้อยใส่ proc_open ไว้ใน disable_functions ซึ่งทำให้ฟังก์ชัน "ไม่มีอยู่" ไม่ใช่แค่คืน false —
+    // เรียกตรง ๆ จะเป็น Fatal error ตั้งแต่บรรทัดนั้น log ของ cron เลยมีแต่ stack trace ที่ไม่ได้บอกว่าต้องทำอะไรต่อ
+    // (ต่างจากกรณีหา mysqldump ไม่เจอ ที่ตกมาถึงข้อความด้านล่างได้). เช็คก่อนเรียกจึงจำเป็น
+    if (!function_exists('proc_open')) {
+        putenv('MYSQL_PWD');
+        fwrite(STDERR, backup_disabled_function_message());
+        @unlink($absolutePath);
+        exit(1);
+    }
+
     // @ ไว้เพราะเราจัดการเคสล้มเองด้านล่างแล้ว: ถ้าปล่อย warning ของ proc_open ไปลง log ของ cron
     // เจ้าของระบบจะเห็นแต่ posix_spawn ซึ่งไม่ได้บอกว่าต้องทำอะไรต่อ
     $proc = @proc_open($dumpArgs, $descriptors, $pipes);

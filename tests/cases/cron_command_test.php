@@ -250,3 +250,32 @@ test('cron(command): the install guide does not hand out a command that dies und
     assert_contains_str('command not found', $install, 'and the guide warns about that failure by name, so a reader recognises it');
     assert_contains_str('MYSQLDUMP_BIN', $install, 'the backup step points at the setting to use when mysqldump lives outside the standard path');
 });
+
+// A shared host that lists proc_open in disable_functions does not make the call return false — it removes the
+// function, so calling it is a fatal Error on that line. The script died there with a stack trace, after already
+// printing "target: …", which reads to the owner as "the backup broke" rather than "this host cannot run
+// mysqldump and never will". The mysqldump-not-found path was fine; only this one crashed.
+//
+// Hostinger and most budget shared plans are exactly this case, and INSTALL.md warns about it — so the script
+// has to answer it in words, and point at the admin "สำรอง & ดาวน์โหลด" button, which is pure PHP and works
+// where proc_open does not.
+test('backup cli: a host with proc_open disabled gets an explanation, not a fatal error', function (): void {
+    $script = BASE_PATH . '/bin/backup-database.php';
+
+    // the guard must come BEFORE the call, or the fatal happens first and the message never prints
+    $source = (string) file_get_contents($script);
+    $guardAt = strpos($source, "function_exists('proc_open')");
+    $callAt = strpos($source, '@proc_open(');
+    assert_true($guardAt !== false, 'the script checks that proc_open exists before using it');
+    assert_true($callAt !== false && $guardAt < $callAt, 'and the check sits above the call, not after it');
+
+    // run it for real with the function removed, the way the host would
+    $php = PHP_BINDIR . '/php';
+    $cmd = escapeshellcmd($php) . ' -d disable_functions=proc_open ' . escapeshellarg($script) . ' 2>&1';
+    $env = 'DB_NAME=' . escapeshellarg((string) ($_ENV['DB_NAME'] ?? 'repair_system_test')) . ' ';
+    $output = (string) shell_exec($env . $cmd);
+
+    assert_true(!str_contains($output, 'Fatal error'), 'it does not die with a PHP fatal: ' . substr($output, 0, 200));
+    assert_contains_str('proc_open', $output, 'it names the function the host blocked');
+    assert_contains_str('สำรอง & ดาวน์โหลด', $output, 'and points at the admin button that still works');
+});
