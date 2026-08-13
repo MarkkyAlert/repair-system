@@ -55,11 +55,11 @@
         <div class="summary-value"><?= e((string) ($summary['rating_count'] ?? 0)) ?></div>
     </div>
     <div class="summary-item success">
-        <div class="summary-title">% พอใจ (≥4★)</div>
+        <div class="summary-title">% พอใจ (4 ดาวขึ้นไป)</div>
         <div class="summary-value"><?= e((string) ($summary['satisfied_pct_label'] ?? '-')) ?></div>
     </div>
     <div class="summary-item danger">
-        <div class="summary-title">% ไม่พอใจ (≤2★)</div>
+        <div class="summary-title">% ไม่พอใจ (2 ดาวลงมา)</div>
         <div class="summary-value"><?= e((string) ($summary['dissatisfied_pct_label'] ?? '-')) ?></div>
     </div>
 </div>
@@ -77,7 +77,7 @@
     <tbody>
     <?php foreach (($distribution ?? []) as $bucket): ?>
         <tr>
-            <td><?= (int) ($bucket['score'] ?? 0) ?> ★</td>
+            <td><?= (int) ($bucket['score'] ?? 0) ?> ดาว</td>
             <td class="num"><?= e((string) ($bucket['count'] ?? 0)) ?></td>
             <td class="num"><?= e((string) ($bucket['pct_label'] ?? '0.0%')) ?></td>
         </tr>
@@ -93,8 +93,8 @@
         <th><?= e((string) ($dimensionLabel ?? 'ช่าง')) ?></th>
         <th class="num">คะแนนเฉลี่ย</th>
         <th class="num">จำนวนรีวิว</th>
-        <th class="num">%พอใจ (≥4★)</th>
-        <th class="num">%ไม่พอใจ (≤2★)</th>
+        <th class="num">%พอใจ (4 ดาวขึ้นไป)</th>
+        <th class="num">%ไม่พอใจ (2 ดาวลงมา)</th>
     </tr>
     </thead>
     <tbody>
