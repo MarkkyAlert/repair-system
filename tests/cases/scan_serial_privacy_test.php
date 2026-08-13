@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+use App\Core\View;
 use App\Repositories\AssetRepository;
 use App\Services\AssetService;
 
@@ -79,6 +80,54 @@ test('scan B-6: a retired asset still scans (for stock-taking) but is not report
                 (string) $scan['asset']['status'],
                 'the scan says plainly what state it is in'
             );
+        }
+    } finally {
+        ssp_pdo()->prepare('DELETE FROM asset_qr_tokens WHERE asset_id = ?')->execute([$assetId]);
+        ssp_pdo()->prepare('DELETE FROM assets WHERE id = ?')->execute([$assetId]);
+    }
+});
+
+// Acceptance testing scanned a retired asset and the page read "คุณสามารถใช้ข้อมูลทรัพย์สินนี้เพื่อเปิด Ticket ใหม่
+// แบบเติมข้อมูลอัตโนมัติได้ทันที" at the top while the report button was correctly hidden further down. The blurb was
+// unconditional, so someone standing at the machine with a phone was told to open a ticket and then had nothing to
+// press. The gate itself was never wrong — only what the page said about it.
+test('scan B-6: the opening blurb matches whether the asset can actually be reported', function (): void {
+    $repo = tvm_container()->get(AssetRepository::class);
+    $svc = tvm_container()->get(AssetService::class);
+    $ref = $repo->getAssetFormReferenceData();
+    $code = 'B6B-' . strtoupper(bin2hex(random_bytes(3)));
+
+    ssp_pdo()->prepare("INSERT INTO assets (asset_code, name, asset_category_id, location_id, status, created_at, updated_at) VALUES (?, 'B6 Blurb', ?, ?, 'active', NOW(), NOW())")
+        ->execute([$code, (int) $ref['categories'][0]['id'], (int) $ref['locations'][0]['id']]);
+    $assetId = (int) ssp_pdo()->lastInsertId();
+
+    $render = static function (array $scan): string {
+        return View::capture('scan/show', [
+            'asset' => $scan['asset'],
+            'isReportable' => $scan['is_reportable'],
+            'isAuthenticated' => false,
+            'showSerial' => false,
+            'ticketCreatePath' => $scan['ticket_create_path'],
+            'guestReportPath' => $scan['guest_report_path'] ?? '#',
+            'loginPath' => $scan['login_path'],
+        ]);
+    };
+
+    try {
+        $token = $repo->regenerateQrToken($assetId, null);
+
+        $html = $render($svc->getScanData($token, false));
+        assert_contains_str('เปิด Ticket ใหม่', $html, 'sanity: an active asset is invited to open a ticket');
+
+        foreach (['retired', 'disposed'] as $status) {
+            ssp_pdo()->prepare('UPDATE assets SET status = ? WHERE id = ?')->execute([$status, $assetId]);
+            $html = $render($svc->getScanData($token, false));
+
+            assert_true(
+                !str_contains($html, 'เปิด Ticket ใหม่แบบเติมข้อมูลอัตโนมัติได้ทันที'),
+                "a $status asset must not invite the scanner to open a ticket it cannot accept"
+            );
+            assert_contains_str('ไม่เปิดรับแจ้งซ่อม', $html, "and says so instead ($status)");
         }
     } finally {
         ssp_pdo()->prepare('DELETE FROM asset_qr_tokens WHERE asset_id = ?')->execute([$assetId]);
