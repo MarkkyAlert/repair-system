@@ -145,3 +145,37 @@ test('css (ux-review-2): forgot-pw collapse, mobile export, priority reflow pres
         );
     }
 });
+
+// เลย์เอาต์มือถือรอบ 2026-08-16: หน้าล็อกอินเอาฟอร์มขึ้นก่อนครึ่งโฆษณา และหน้าคิวงานทำการ์ดสรุปเป็นรางเลื่อน
+// ทั้งคู่เป็นกฎใหม่ที่ต้องอยู่ใน "ไฟล์ที่เว็บโหลดจริง" ด้วย ไม่ใช่แค่ในไฟล์ต้นทาง — การแก้ resources/ แล้วลืมรัน
+// ./build-css.sh คือความผิดพลาดที่ไม่มีอะไรเตือนเลย (หน้าเว็บจะเหมือนเดิมเป๊ะ ๆ)
+test('css (mobile-reach): the login reorder + ticket stat rail ship in BOTH source and built CSS', function (): void {
+    $root = dirname(__DIR__, 2);
+    $markers = [
+        '.auth-login-panel' => 'login form-first reorder (scoped to /login only)',
+        '.ticket-stat-scroll' => 'ticket queue KPI rail',
+        '[data-ticket-queue-panel]' => 'queue panel-head icon hidden on mobile',
+    ];
+
+    foreach (['resources/css/app.css', 'public/assets/css/app.css'] as $rel) {
+        $css = (string) file_get_contents($root . '/' . $rel);
+        foreach ($markers as $selector => $what) {
+            assert_true(str_contains($css, $selector), "{$rel} missing {$selector} ({$what})");
+        }
+    }
+
+    // การจะกลายเป็นรางเลื่อนได้ ต้องมีคลาสอยู่บน element จริงด้วย ไม่ใช่มีแต่กฎ CSS ลอย ๆ
+    $queue = (string) file_get_contents($root . '/app/Views/tickets/index.php');
+    assert_true(str_contains($queue, 'class="stat-grid ticket-stat-scroll"'), 'the queue stat grid must carry the rail class');
+    assert_true(str_contains($queue, 'aria-label="สรุปสถานะงานแจ้งซ่อม'), 'the rail needs its own label — the auto-derived one would say the page title');
+
+    $login = (string) file_get_contents($root . '/app/Views/auth/login.php');
+    assert_true(str_contains($login, 'class="guest-panel auth-login-panel"'), 'the login page must carry the scoping class');
+
+    // รางที่เลื่อนได้ต้องโฟกัสด้วยคีย์บอร์ดได้ (WCAG 2.1.1) — ตัวจัดการอยู่ใน app.js ตัวเดียวกับ .table-wrap
+    $js = (string) file_get_contents($root . '/public/assets/js/app.js');
+    assert_true(
+        preg_match('/querySelectorAll\(\s*\'[^\']*\.ticket-stat-scroll/', $js) === 1,
+        'app.js must make the new rail keyboard-focusable when it overflows, like the other scroll rails'
+    );
+});
