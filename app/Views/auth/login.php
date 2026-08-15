@@ -1,6 +1,6 @@
 <?php $authLogoUrl = branding_logo_url(); ?>
 <?php $authAppName = (string) setting('app_name', config('app.name', 'ระบบแจ้งซ่อม')); ?>
-<section class="guest-panel">
+<section class="guest-panel auth-login-panel">
     <div class="guest-brand">
         <?php if ($authLogoUrl !== null): ?>
             <div class="brand-mark brand-mark-logo" aria-hidden="true"><img src="<?= e($authLogoUrl) ?>" alt="<?= e($authAppName) ?>"></div>
@@ -37,7 +37,7 @@
                 <li>
                     <span class="hero-feature-icon"><?= lucide('bar-chart-3', 'h-4 w-4') ?></span>
                     <div>
-                        <strong>Dashboard เรียลไทม์</strong>
+                        <strong>แดชบอร์ดเรียลไทม์</strong>
                         <span>เห็นงานค้าง งานด่วน และภาพรวมทีม</span>
                     </div>
                 </li>

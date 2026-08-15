@@ -38,7 +38,7 @@ foreach (['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as $__priorityCode) {
         'actions' => $heroActions,
     ]) ?>
 
-    <div class="stat-grid" data-ticket-queue-metrics>
+    <div class="stat-grid ticket-stat-scroll" data-ticket-queue-metrics aria-label="สรุปสถานะงานแจ้งซ่อม (เลื่อนแนวนอนได้)">
         <?= render_partial('partials/components/card', [
             'title' => 'ทั้งหมด',
             'value' => (string) $metricCount('total'),

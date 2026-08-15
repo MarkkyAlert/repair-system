@@ -1448,11 +1448,11 @@ document.addEventListener('DOMContentLoaded', () => {
   })();
 
   // ── กล่องครอบตารางที่เลื่อนได้ด้วยคีย์บอร์ด (WCAG 2.1.1) ──
-  // พื้นที่ scroll ที่ล้นแนวนอน (.table-wrap หรือแถบสถิติรายงานบนมือถือ .report-stat-scroll)
+  // พื้นที่ scroll ที่ล้นแนวนอน (.table-wrap หรือแถบสถิติบนมือถือ .report-stat-scroll / .ticket-stat-scroll)
   // ต้อง focus + เลื่อนได้ด้วยคีย์บอร์ด. ทำให้มันเป็น group ที่ focus ได้และมี label เฉพาะตอนที่มันล้นจริง ๆ
   // จะได้ไม่กลายเป็นจุดหยุด tab ที่กดแล้วไม่มีอะไรให้เลื่อนตอนที่มันพอดี (ทั้งคู่เลื่อนที่ 375px แต่พอดีบน desktop)
   (function () {
-    var wraps = document.querySelectorAll('.table-wrap, .report-stat-scroll');
+    var wraps = document.querySelectorAll('.table-wrap, .report-stat-scroll, .ticket-stat-scroll');
     if (!wraps.length) return;
     var sync = function () {
       wraps.forEach(function (w) {

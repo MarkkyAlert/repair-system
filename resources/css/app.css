@@ -3366,7 +3366,8 @@ a.leaderboard-number:hover {
   .page-hero,
   .panel-head,
   .section-header { align-items: flex-start; flex-direction: column; }
-  .page-hero { padding: 1.4rem; }
+  /* พอเป็นคอลัมน์แล้ว ช่องว่าง 2rem ที่ตั้งไว้สำหรับสองคอลัมน์กลายเป็นที่ว่างเปล่า ๆ ระหว่างข้อความกับปุ่ม */
+  .page-hero { padding: 1.4rem; gap: .9rem; }
   .page-hero-actions,
   .button-row { width: 100%; }
   .button-row .btn,
@@ -3422,6 +3423,13 @@ a.leaderboard-number:hover {
   .hero-card { border-radius: 0; }
   .hero-copy { min-height: 280px; padding: 2rem; }
   .auth-reset-panel .hero-copy { min-height: auto; }
+  /* บนมือถือ ครึ่งโฆษณา (สูงราว 480px) อยู่เหนือฟอร์ม คนที่มาล็อกอินจึงต้องเลื่อนก่อนถึงจะเจอช่องกรอก และถ้า
+     ใส่รหัสผิด กล่องเตือนยังดันช่องลงไปอีก ยิ่งพลาดยิ่งไกล — สลับให้ฟอร์มขึ้นก่อน
+     ผูกกับหน้าล็อกอินหน้าเดียว ไม่เหมาเป็น .hero-card ทุกหน้า เพราะหน้าอื่นที่ใช้โครงเดียวกันมีเหตุผลให้ครึ่งบน
+     มาก่อนจริง ๆ (หน้าสแกน QR ครึ่งบนบอกว่ากำลังแจ้งเครื่องไหน / หน้าตั้งค่าครั้งแรกครึ่งบนคือลำดับขั้นตอน)
+     ปลอดภัยกับคีย์บอร์ดเพราะครึ่งโฆษณาไม่มีอะไรที่โฟกัสได้เลย ลำดับ Tab จึงไม่ขัดกับสิ่งที่ตาเห็น
+     ถ้าวันหลังมีใครใส่ลิงก์ลงในครึ่งโฆษณา ต้องเปลี่ยนไปสลับลำดับใน DOM แทน ไม่ใช่ใช้ order */
+  .auth-login-panel .auth-card { order: -1; }
   .auth-step-list { margin-top: 1.35rem; }
   .auth-step-list li { grid-template-columns: 30px minmax(0, 1fr); padding: .7rem; }
   .auth-step-list li > span { width: 30px; height: 30px; border-radius: 10px; }
@@ -5906,6 +5914,9 @@ code.mono, .mono {
   /* ซ่อน metric-icon ที่เป็นของประดับบนพาเนลแคบ เพื่อประหยัดพื้นที่บนมือถือ */
   .panel-narrow .panel-card > .panel-head > .metric-icon,
   .panel-narrow.panel-card > .panel-head > .metric-icon { display: none; }
+  /* หน้าคิวงานไม่ได้เป็น .panel-narrow แต่มีปัญหาเดียวกัน: ที่ ≤700px หัวแผงเรียงเป็นคอลัมน์ ไอคอนรายการ
+     จึงตกลงมาอยู่ใต้หัวข้อที่บอกความหมายเดียวกันอยู่แล้ว กินที่ราว 52px โดยไม่ได้บอกอะไรเพิ่ม */
+  [data-ticket-queue-panel] > .panel-head > .metric-icon { display: none; }
 
   /* แถบบันทึกแบบติดหนึบบนมือถือ ผู้ใช้จะได้ไม่ต้องเลื่อนกลับขึ้นไป */
   .profile-save-row {
@@ -6145,6 +6156,31 @@ code.mono, .mono {
   }
   /* app.js ทำให้รางเลื่อนนี้โฟกัสด้วยคีย์บอร์ดได้ตอนที่มันล้น (WCAG 2.1.1); จึงแสดง focus ring */
   .report-stat-scroll:focus-visible {
+    outline: 3px solid var(--indigo-500);
+    outline-offset: 2px;
+  }
+}
+
+/* การ์ดสรุปหน้าคิวงาน – เลื่อนแนวนอนบนมือถือ (แบบเดียวกับหน้ารายงาน/หน้าผู้ดูแล)
+   ที่ 375px การ์ด 4 ใบวางสองต่อแถวสองแถว กินแนวตั้งราว 400px ดันแถวงานแรกลงไปเกือบสองหน้าจอ
+   ทำเป็นรางเลื่อนเหลือแถวเดียว ~195px โดยการ์ดทั้งสี่ยังอยู่ครบ — ห้ามใช้ overflow:hidden หรือซ่อนใบไหน
+   เพราะทั้งสี่ใบเป็นลิงก์ตัวกรองเดียวที่หน้านี้มี (ทั้งหมด / รออนุมัติ / กำลังดำเนินการ / เกินกำหนด) */
+@media (max-width: 700px) {
+  .ticket-stat-scroll {
+    display: flex;
+    gap: .75rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+    /* เผื่อที่ให้การ์ดยกตัวตอน hover ไม่ให้เกิดแถบเลื่อนแนวตั้งซ้อนในราง */
+    padding-bottom: .5rem;
+  }
+  .ticket-stat-scroll > * {
+    /* กว้างพอให้เห็นใบถัดไปโผล่ครึ่งหนึ่ง = สัญญาณว่าปัดต่อได้ */
+    flex: 0 0 min(72vw, 240px);
+    scroll-snap-align: start;
+  }
+  .ticket-stat-scroll:focus-visible {
     outline: 3px solid var(--indigo-500);
     outline-offset: 2px;
   }
