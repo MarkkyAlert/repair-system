@@ -12,7 +12,7 @@
         .grid td { width: 50%; vertical-align: top; padding: 6px 10px 6px 0; }
         .document-header { padding: 16px 18px; margin-bottom: 14px; background: #0a2233; color: #fff; }
         .document-header p { color: #b9d3d8; margin-top: 4px; }
-        .document-kicker { color: #5eead4 !important; font-size: 9px; font-weight: bold; letter-spacing: 1px; }
+        .document-kicker { color: #5eead4 !important; font-size: 9px; font-weight: bold; }
         .panel { border: 1px solid #d9e5e8; border-left: 3px solid #14b8a6; padding: 12px; margin-bottom: 12px; }
         .muted { color: #607783; }
         .paragraph-space-lg { margin-top: 8px; }
@@ -24,7 +24,7 @@
 <body>
 <div class="document-header">
     <?= render_partial('partials/print/pdf-brand') ?>
-    <p class="document-kicker">MAINTENANCE OPERATIONS · ใบสั่งงาน</p>
+    <p class="document-kicker">ใบสั่งงานซ่อม</p>
     <h1>ใบงานซ่อมบำรุง</h1>
     <p>พิมพ์เมื่อ <?= e($printedAt ?? '-') ?> · กระดาษ <?= e($paperLabel ?? 'A4') ?></p>
 </div>

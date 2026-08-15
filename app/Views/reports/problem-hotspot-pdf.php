@@ -9,7 +9,7 @@
         h1, h2, p { margin: 0; }
         .stack { margin-bottom: 14px; }
         .brand-header { padding: 15px 18px; margin-bottom: 14px; background: #0a2233; color: #ffffff; }
-        .brand-kicker { color: #fca5a5; font-size: 8px; font-weight: bold; letter-spacing: 1px; }
+        .brand-kicker { color: #fca5a5; font-size: 8px; font-weight: bold; }
         .brand-title { font-size: 22px; margin-top: 3px; }
         .brand-meta { color: #b9d3d8; margin-top: 4px; }
         .meta-table, .report-table { width: 100%; border-collapse: collapse; }
@@ -32,7 +32,7 @@
 <body>
 <div class="brand-header">
     <?= render_partial('partials/print/pdf-brand') ?>
-    <p class="brand-kicker">PROBLEM HOTSPOT</p>
+    <p class="brand-kicker">พื้นที่ปัญหา</p>
     <h1 class="brand-title">พื้นที่ปัญหา (แผนก / สถานที่)</h1>
     <p class="brand-meta">สร้างเมื่อ <?= e($generatedAt ?? '-') ?> · แยกตาม<?= e((string) ($dimensionLabel ?? 'แผนก')) ?></p>
 </div>

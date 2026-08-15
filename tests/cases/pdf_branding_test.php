@@ -48,3 +48,35 @@ test('pdf-brand(F2): every PDF header renders the org brand from Admin settings 
         }
     }
 });
+
+test('pdf-brand: ป้ายบนหัวเอกสารเป็นภาษาไทย ตรงกับชื่อเมนูในระบบ', function (): void {
+    // เดิมหัว PDF ทุกใบมีบรรทัดตัวพิมพ์ใหญ่ภาษาอังกฤษ (EXECUTIVE SUMMARY, BACKLOG AGING, SLA BREACH
+    // ANALYSIS…) เป็นของประดับเหนือหัวเรื่องไทย — เจ้าของเคยให้คงไว้ (2026-07-05) แล้วกลับมติ (2026-08-15)
+    // เพราะเอกสารพวกนี้ถูกส่งต่อให้ผู้บริหารที่ไม่ได้เปิดระบบ บรรทัดแรกสุดที่เขาเห็นจึงไม่ควรเป็นภาษาที่อ่านไม่ออก
+    $root = dirname(__DIR__, 2);
+    $views = array_merge(glob($root . '/app/Views/reports/*pdf*.php') ?: [], [$root . '/app/Views/tickets/pdf.php']);
+
+    $offenders = [];
+    foreach ($views as $view) {
+        if (preg_match('/<p class="(?:brand|document)-kicker">([^<]*)<\/p>/', (string) file_get_contents($view), $m) !== 1) {
+            continue;
+        }
+        $kicker = trim($m[1]);
+        // SLA เป็นคำที่เจ้าของสั่งให้คงไว้ (มีคำอธิบายกำกับที่อื่นแล้ว) ตัดออกก่อนตรวจ
+        $withoutKeepList = trim(str_replace('SLA', '', $kicker));
+        if (preg_match('/[ก-๙]/u', $withoutKeepList) !== 1 || preg_match('/[A-Za-z]/', $withoutKeepList) === 1) {
+            $offenders[] = basename($view) . ' → "' . $kicker . '"';
+        }
+    }
+
+    assert_same([], $offenders, 'หัวเอกสารที่ยังเป็นอังกฤษ: ' . implode(', ', $offenders));
+
+    // ระยะห่างตัวอักษรแบบอังกฤษตัวใหญ่ทำให้สระบน-ล่างของไทยลอยห่างจากพยัญชนะ
+    foreach ($views as $view) {
+        $css = (string) file_get_contents($view);
+        assert_true(
+            preg_match('/\.(?:brand|document)-kicker\s*\{[^}]*letter-spacing/', $css) !== 1,
+            basename($view) . ': ป้ายไทยไม่ควรมี letter-spacing แบบตัวอักษรอังกฤษ'
+        );
+    }
+});
