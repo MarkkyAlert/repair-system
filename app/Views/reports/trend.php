@@ -16,7 +16,7 @@ $chartCard = static function (array $chart, string $key, string $title) use ($ch
                 <?= render_partial('partials/components/empty-state', [
                     'icon' => 'trending-up',
                     'title' => 'ยังไม่มีข้อมูลในช่วงนี้',
-                    'description' => 'เมื่อมี Ticket ในช่วงเวลาที่เลือก กราฟจะแสดงที่นี่',
+                    'description' => 'เมื่อมีงานแจ้งซ่อมในช่วงเวลาที่เลือก กราฟจะแสดงที่นี่',
                 ]) ?>
             <?php endif; ?>
         </div>
@@ -231,7 +231,7 @@ $chartCard = static function (array $chart, string $key, string $title) use ($ch
             <?= render_partial('partials/components/empty-state', [
                 'icon' => 'trending-up',
                 'title' => 'ยังไม่มีข้อมูลในช่วงที่เลือก',
-                'description' => 'เมื่อมี Ticket ในช่วงเวลาที่เลือก ระบบจะสรุปแนวโน้มให้อัตโนมัติ',
+                'description' => 'เมื่อมีงานแจ้งซ่อมในช่วงเวลาที่เลือก ระบบจะสรุปแนวโน้มให้อัตโนมัติ',
             ]) ?>
         <?php endif; ?>
     </section>

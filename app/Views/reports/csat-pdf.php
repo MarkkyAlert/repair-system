@@ -114,7 +114,7 @@
 <table class="report-table">
     <thead>
     <tr>
-        <th>เลขที่ Ticket</th>
+        <th>เลขที่งาน</th>
         <th class="num">คะแนน</th>
         <th>ความคิดเห็น</th>
         <th>ช่าง</th>

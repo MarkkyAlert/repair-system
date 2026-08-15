@@ -34,7 +34,7 @@ test('export analytics: xlsx has 5 sheets (ticket + 4 analytics) with correct ti
         $book = IOFactory::createReader('Xlsx')->load($tmp);
         assert_same(5, $book->getSheetCount(), 'workbook has ticket + 4 analytics sheets');
         assert_same(
-            ['รายงาน Ticket', 'SLA ตรงตามกำหนด', 'ผลงานช่างเทคนิค', 'ชั่วโมงแรงงาน', 'ทรัพย์สินเสียบ่อย'],
+            ['รายงานงานแจ้งซ่อม', 'SLA ตรงตามกำหนด', 'ผลงานช่างเทคนิค', 'ชั่วโมงแรงงาน', 'ทรัพย์สินเสียบ่อย'],
             $book->getSheetNames(),
             'sheet titles in order'
         );

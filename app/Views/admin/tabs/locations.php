@@ -2,7 +2,7 @@
         <div class="panel-head">
             <div>
                 <h2 class="panel-title">จัดการสถานที่</h2>
-                <p class="field-hint">สถานที่ที่ใช้ในฟอร์ม Ticket และทะเบียนทรัพย์สิน</p>
+                <p class="field-hint">สถานที่ที่ใช้ในฟอร์มแจ้งซ่อมและทะเบียนทรัพย์สิน</p>
             </div>
             <span class="badge badge-info"><?= e((string) count($locations ?? [])) ?> รายการ</span>
         </div>
@@ -11,7 +11,7 @@
                 <span class="metric-icon metric-icon-sm"><?= lucide('plus', 'h-4 w-4') ?></span>
                 <div class="collapsible-summary-main">
                     <span class="collapsible-title">เพิ่มสถานที่ใหม่</span>
-                    <span class="collapsible-subtitle">สร้างจุดติดตั้งหรือพื้นที่สำหรับเลือกใน Ticket/ทรัพย์สิน</span>
+                    <span class="collapsible-subtitle">สร้างจุดติดตั้งหรือพื้นที่สำหรับเลือกในงานแจ้งซ่อม/ทรัพย์สิน</span>
                 </div>
                 <span class="collapsible-chevron"><?= lucide('chevron-down', 'h-4 w-4') ?></span>
             </summary>
@@ -60,7 +60,7 @@
             <?= render_partial('partials/components/empty-state', [
                 'icon' => 'map-pin',
                 'title' => 'ยังไม่มีสถานที่',
-                'description' => 'เพิ่มสถานที่เพื่อให้ผู้ใช้เลือกตอนเปิด Ticket หรือบันทึกทรัพย์สิน',
+                'description' => 'เพิ่มสถานที่เพื่อให้ผู้ใช้เลือกตอนแจ้งซ่อมหรือบันทึกทรัพย์สิน',
             ]) ?>
         <?php else: ?>
             <div class="stack-md">

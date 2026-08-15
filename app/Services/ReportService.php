@@ -2546,7 +2546,7 @@ class ReportService
 
     private function csatFeedbackExportHeaders(): array
     {
-        return ['เลขที่ Ticket', 'คะแนน', 'ความคิดเห็น', 'ช่าง', 'หมวดหมู่', 'วันที่'];
+        return ['เลขที่งานแจ้งซ่อม', 'คะแนน', 'ความคิดเห็น', 'ช่าง', 'หมวดหมู่', 'วันที่'];
     }
 
     private function csatFeedbackExportRow(array $row): array
@@ -3171,7 +3171,7 @@ class ReportService
             // ลูกน้ำหลักพัน) เป็นตัวเลขจริง ไม่ใช่ text — ทางเดียวกับ sheet ของ CSAT/analytics
             $this->exporter->fillSheet(
                 $spreadsheet->getActiveSheet(),
-                'รายงาน Ticket',
+                'รายงานงานแจ้งซ่อม',
                 $headers,
                 array_map(fn (array $row): array => [
                     $this->txt($row['ticket_no']),

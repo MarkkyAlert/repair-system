@@ -64,7 +64,7 @@ $isCapped = !empty($rowsMeta['capped']);
 
     <div class="stat-grid stat-grid-5 report-stat-scroll">
         <?= render_partial('partials/components/card', [
-            'title' => 'รายการ Ticket ทั้งหมด',
+            'title' => 'งานแจ้งซ่อมทั้งหมด',
             'value' => (string) ($summary['total'] ?? 0),
             'meta' => 'รายการในรายงานปัจจุบัน',
             'tone' => 'default',
@@ -78,7 +78,7 @@ $isCapped = !empty($rowsMeta['capped']);
         <?= render_partial('partials/components/card', [
             'title' => 'เกิน SLA',
             'value' => (string) ($summary['overdue'] ?? 0),
-            'meta' => 'Ticket ที่เกินกำหนดปัจจุบัน',
+            'meta' => 'งานที่เกินกำหนดปัจจุบัน',
             'tone' => 'danger',
         ]) ?>
         <?= render_partial('partials/components/card', [
@@ -388,7 +388,7 @@ $isCapped = !empty($rowsMeta['capped']);
 
     <section class="panel-card stack-md">
         <div class="panel-head">
-            <h2 class="panel-title">รายการ Ticket พร้อมสถานะ SLA</h2>
+            <h2 class="panel-title">รายการงานแจ้งซ่อมพร้อมสถานะ SLA</h2>
             <?php if ($isCapped): ?>
                 <span class="badge badge-warning">แสดง <?= e((string) $rowsMeta['displayed']) ?> จาก <?= e((string) $rowsMeta['total']) ?> รายการ</span>
             <?php else: ?>
@@ -406,7 +406,7 @@ $isCapped = !empty($rowsMeta['capped']);
         <?php if (!empty($rows)): ?>
             <div class="table-wrap">
                 <table class="data-table">
-                    <caption class="sr-only">รายการ Ticket พร้อมสถานะ SLA<?= $isCapped ? ' แสดง ' . e((string) $rowsMeta['displayed']) . ' จาก ' . e((string) $rowsMeta['total']) . ' รายการ' : ' จำนวน ' . e((string) $rowsMeta['total']) . ' รายการ' ?></caption>
+                    <caption class="sr-only">รายการงานแจ้งซ่อมพร้อมสถานะ SLA<?= $isCapped ? ' แสดง ' . e((string) $rowsMeta['displayed']) . ' จาก ' . e((string) $rowsMeta['total']) . ' รายการ' : ' จำนวน ' . e((string) $rowsMeta['total']) . ' รายการ' ?></caption>
                     <thead>
                     <tr>
                         <th data-sort-col="0">เลขที่</th>

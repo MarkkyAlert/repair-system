@@ -423,7 +423,7 @@ test('csat export parity: every format carries all 4 sections (summary/distribut
         assert_same('ตัวชี้วัด', (string) $book->getSheet(0)->getCell('A1')->getValue(), 'summary first header = metric');
         assert_same('คะแนน', (string) $book->getSheet(1)->getCell('A1')->getValue(), 'distribution first header = score');
         assert_same('ช่าง', (string) $book->getSheet(2)->getCell('A1')->getValue(), 'breakdown first header = dimension');
-        assert_same('เลขที่ Ticket', (string) $book->getSheet(3)->getCell('A1')->getValue(), 'feedback first header = ticket number');
+        assert_same('เลขที่งานแจ้งซ่อม', (string) $book->getSheet(3)->getCell('A1')->getValue(), 'feedback first header = ticket number');
         assert_same('ความคิดเห็น', (string) $book->getSheet(3)->getCell('C1')->getValue(), 'feedback carries the comment column');
         $book->disconnectWorksheets();
 

@@ -59,7 +59,7 @@
                         <label class="field-label" for="test_template">เทมเพลต</label>
                         <select id="test_template" class="input" name="template">
                             <option value="password_reset">รีเซ็ตรหัสผ่าน</option>
-                            <option value="notification">การแจ้งเตือน / เหตุการณ์ Ticket</option>
+                            <option value="notification">การแจ้งเตือน / เหตุการณ์ของงานแจ้งซ่อม</option>
                         </select>
                     </div>
                     <div class="button-row">

@@ -219,7 +219,7 @@ namespace {
             ss_reject_system(['default_timezone' => ''], 'Timezone ไม่ถูกต้อง', 'empty timezone');
             ss_reject_system(['default_timezone' => 'Mars/Phobos'], 'Timezone ไม่ถูกต้อง', 'non-existent timezone');
 
-            $prefixMsg = 'Ticket prefix ต้องมี 2-12 ตัวอักษร และใช้ได้เฉพาะ A-Z, 0-9, ขีดกลาง หรือขีดล่าง';
+            $prefixMsg = 'คำนำหน้าเลขที่งานต้องมี 2-12 ตัวอักษร และใช้ได้เฉพาะ A-Z, 0-9, ขีดกลาง หรือขีดล่าง';
             ss_reject_system(['ticket_prefix' => 'X'], $prefixMsg, 'ticket_prefix too short (<2)');
             ss_reject_system(['ticket_prefix' => 'TOOLONGPREFIX99'], $prefixMsg, 'ticket_prefix too long (>12)');
             ss_reject_system(['ticket_prefix' => 'A#B'], $prefixMsg, 'ticket_prefix has a forbidden char');

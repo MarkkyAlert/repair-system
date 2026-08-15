@@ -11,7 +11,7 @@
             <div class="panel-head">
                 <div>
                     <h3 class="panel-title panel-title-lg">ตั้งค่าระบบหลัก</h3>
-                    <p class="field-hint">ชื่อระบบ, เขตเวลา, คำนำหน้า Ticket และเวลาทำการ</p>
+                    <p class="field-hint">ชื่อระบบ, เขตเวลา, คำนำหน้าเลขที่งาน และเวลาทำการ</p>
                 </div>
             </div>
             <form method="post" action="<?= e(url('/admin/system-settings')) ?>" class="stack-md">
@@ -39,7 +39,7 @@
                 </div>
                 <div class="content-grid">
                     <div class="field-group">
-                        <label class="field-label" for="system_ticket_prefix">คำนำหน้า Ticket <span class="required">*</span></label>
+                        <label class="field-label" for="system_ticket_prefix">คำนำหน้าเลขที่งาน <span class="required">*</span></label>
                         <input id="system_ticket_prefix" class="input" type="text" name="ticket_prefix" required minlength="2" maxlength="12" pattern="[A-Za-z0-9_-]{2,12}" value="<?= e((string) ($systemForm['ticket_prefix'] ?? 'MT')) ?>">
                         <p class="field-hint">ใช้ A-Z, 0-9, ขีดกลาง หรือขีดล่าง เช่น MT</p>
                     </div>
@@ -186,7 +186,7 @@
             <div class="panel-head">
                 <div>
                     <h3 class="panel-title panel-title-lg">ข้อมูลตัวอย่าง (Demo Data)</h3>
-                    <p class="field-hint">เติมแผนก/หมวดหมู่/ทรัพย์สิน/Ticket ตัวอย่างเพื่อทดลองระบบ — ใช้ได้เฉพาะระบบที่ยังไม่มี Ticket</p>
+                    <p class="field-hint">เติมแผนก/หมวดหมู่/ทรัพย์สิน/งานแจ้งซ่อมตัวอย่างเพื่อทดลองระบบ — ใช้ได้เฉพาะระบบที่ยังไม่มีงานแจ้งซ่อม</p>
                 </div>
             </div>
             <form method="post" action="<?= e(url('/admin/demo-data/load')) ?>" class="stack-md">

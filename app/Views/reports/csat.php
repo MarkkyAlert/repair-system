@@ -216,7 +216,7 @@ $distColors = [5 => '#10b981', 4 => '#84cc16', 3 => '#f59e0b', 2 => '#f97316', 1
             <?= render_partial('partials/components/empty-state', [
                 'icon' => 'star',
                 'title' => 'ยังไม่มีรีวิวในเงื่อนไขนี้',
-                'description' => 'เมื่อมี Ticket ที่ถูกให้คะแนนในช่วง/เงื่อนไขที่เลือก ระบบจะสรุปความพึงพอใจให้อัตโนมัติ',
+                'description' => 'เมื่อมีงานแจ้งซ่อมที่ถูกให้คะแนนในช่วง/เงื่อนไขที่เลือก ระบบจะสรุปความพึงพอใจให้อัตโนมัติ',
             ]) ?>
         <?php endif; ?>
     </section>
@@ -243,7 +243,7 @@ $distColors = [5 => '#10b981', 4 => '#84cc16', 3 => '#f59e0b', 2 => '#f97316', 1
                         <th data-sort-col="2">ช่าง</th>
                         <th data-sort-col="3">หมวดหมู่</th>
                         <th data-sort-col="4" data-sort-type="date">วันที่</th>
-                        <th data-sort-col="5">เลขที่ Ticket</th>
+                        <th data-sort-col="5">เลขที่งาน</th>
                     </tr>
                     </thead>
                     <tbody>

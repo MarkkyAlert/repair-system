@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <title>Ticket Report PDF</title>
+    <title>รายงานงานแจ้งซ่อม</title>
     <style>
         @page { margin: 22px; }
         body { font-family: 'sarabun', sans-serif; font-size: 10px; color: #102a3a; }
@@ -51,7 +51,7 @@
 
 <div class="stack summary-grid">
     <div class="summary-item">
-        <div class="summary-title">รายการ Ticket ทั้งหมด</div>
+        <div class="summary-title">งานแจ้งซ่อมทั้งหมด</div>
         <div class="summary-value"><?= e((string) ($summary['total'] ?? 0)) ?></div>
     </div>
     <div class="summary-item">
@@ -209,7 +209,7 @@
     </table>
 <?php endif; ?>
 
-<div class="section-title">รายการ Ticket</div>
+<div class="section-title">รายการงานแจ้งซ่อม</div>
 <table class="report-table">
     <thead>
     <tr>

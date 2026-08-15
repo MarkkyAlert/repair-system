@@ -28,7 +28,7 @@ try {
     echo 'Notify failed: ' . $notifyFailed . PHP_EOL;
 
     foreach (($result['items'] ?? []) as $item) {
-        echo '- Ticket ' . (string) ($item['ticket_no'] ?? $item['ticket_id'] ?? '-') . ' [' . (string) ($item['metric_type'] ?? 'resolution') . ']' . PHP_EOL;
+        echo '- งานแจ้งซ่อม ' . (string) ($item['ticket_no'] ?? $item['ticket_id'] ?? '-') . ' [' . (string) ($item['metric_type'] ?? 'resolution') . ']' . PHP_EOL;
     }
 
     // รันจนจบ (heartbeat อัปเดตแล้ว) แต่การแจ้งเตือน SLA ที่ไม่เคยส่งออกไปคือสภาพไม่ปกติ — exit 2 เพื่อให้

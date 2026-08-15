@@ -57,7 +57,7 @@ class ReferenceDataService
         $this->audit->record($viewer, 'department.deleted', 'department', $departmentId);
     }
 
-    // --- หมวดหมู่ ticket (Ticket categories) ---------------------------------------------------
+    // --- หมวดหมู่งานแจ้งซ่อม ---------------------------------------------------
 
     public function createTicketCategory(array $viewer, array $input): void
     {

@@ -133,7 +133,7 @@ class SystemSettingsService
         }
 
         if (!preg_match('/^[A-Z0-9_-]{2,12}$/', $ticketPrefix)) {
-            throw new DomainException('Ticket prefix ต้องมี 2-12 ตัวอักษร และใช้ได้เฉพาะ A-Z, 0-9, ขีดกลาง หรือขีดล่าง');
+            throw new DomainException('คำนำหน้าเลขที่งานต้องมี 2-12 ตัวอักษร และใช้ได้เฉพาะ A-Z, 0-9, ขีดกลาง หรือขีดล่าง');
         }
 
         if (!$this->isValidTime($businessStart) || !$this->isValidTime($businessEnd)) {

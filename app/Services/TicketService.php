@@ -70,22 +70,22 @@ class TicketService
         $formattedMetrics = $this->formatMetrics($metrics);
         $charts = [
             'monthlyTickets' => $this->buildDashboardChart(
-                'Tickets / Month',
+                'งานแจ้งซ่อมต่อเดือน',
                 $this->monthLabels(),
                 $this->buildMonthlySeries($monthlyTickets, 'total_tickets')
             ),
             'categoryBreakdown' => $this->buildDashboardChart(
-                'Tickets by Category',
+                'งานแจ้งซ่อมแยกตามหมวดหมู่',
                 array_map(fn (array $row): string => (string) ($row['category_name'] ?? '-'), $categoryBreakdown),
                 array_map(fn (array $row): int => (int) ($row['total_tickets'] ?? 0), $categoryBreakdown)
             ),
             'departmentBreakdown' => $this->buildDashboardChart(
-                'Tickets by Department',
+                'งานแจ้งซ่อมแยกตามแผนก',
                 array_map(fn (array $row): string => (string) ($row['department_name'] ?? '-'), $departmentBreakdown),
                 array_map(fn (array $row): int => (int) ($row['total_tickets'] ?? 0), $departmentBreakdown)
             ),
             'resolutionTrend' => $this->buildDashboardChart(
-                'Avg Resolution Hours',
+                'เวลาซ่อมเฉลี่ย (ชม.)',
                 $this->monthLabels(),
                 $this->buildMonthlySeries($resolutionTrend, 'avg_minutes', true)
             ),

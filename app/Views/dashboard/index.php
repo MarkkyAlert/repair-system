@@ -156,7 +156,7 @@ $metricCount = static fn (string $key): int => max(0, (int) ($metrics[$key] ?? 0
             'tone' => 'default',
             'icon' => 'clipboard-list',
             'href' => '/tickets',
-            'ariaLabel' => 'เปิดรายการ Ticket ทั้งหมด จำนวน ' . $metricCount('total') . ' รายการ',
+            'ariaLabel' => 'เปิดรายการงานแจ้งซ่อมทั้งหมด จำนวน ' . $metricCount('total') . ' รายการ',
         ]) ?>
         <?= render_partial('partials/components/card', [
             'title' => 'รออนุมัติ',
@@ -165,7 +165,7 @@ $metricCount = static fn (string $key): int => max(0, (int) ($metrics[$key] ?? 0
             'tone' => 'warning',
             'icon' => 'clock',
             'href' => '/tickets?status=pending_approval',
-            'ariaLabel' => 'เปิดรายการ Ticket รออนุมัติ จำนวน ' . $metricCount('pendingApproval') . ' รายการ',
+            'ariaLabel' => 'เปิดรายการงานแจ้งซ่อมที่รออนุมัติ จำนวน ' . $metricCount('pendingApproval') . ' รายการ',
         ]) ?>
         <?= render_partial('partials/components/card', [
             'title' => 'กำลังดำเนินการ',
@@ -174,7 +174,7 @@ $metricCount = static fn (string $key): int => max(0, (int) ($metrics[$key] ?? 0
             'tone' => 'info',
             'icon' => 'activity',
             'href' => '/tickets?status=in_progress',
-            'ariaLabel' => 'เปิดรายการ Ticket กำลังดำเนินการ จำนวน ' . $metricCount('inProgress') . ' รายการ',
+            'ariaLabel' => 'เปิดรายการงานแจ้งซ่อมที่กำลังดำเนินการ จำนวน ' . $metricCount('inProgress') . ' รายการ',
         ]) ?>
         <?= render_partial('partials/components/card', [
             'title' => 'เสร็จเดือนนี้',
@@ -183,7 +183,7 @@ $metricCount = static fn (string $key): int => max(0, (int) ($metrics[$key] ?? 0
             'tone' => 'success',
             'icon' => 'check-circle',
             'href' => '/tickets?status=completed',
-            'ariaLabel' => 'เปิดรายการ Ticket ที่เสร็จแล้ว จำนวน ' . $metricCount('completedThisMonth') . ' รายการ',
+            'ariaLabel' => 'เปิดรายการงานแจ้งซ่อมที่เสร็จแล้ว จำนวน ' . $metricCount('completedThisMonth') . ' รายการ',
         ]) ?>
         <?= render_partial('partials/components/card', [
             'title' => 'เกินกำหนด',
@@ -192,7 +192,7 @@ $metricCount = static fn (string $key): int => max(0, (int) ($metrics[$key] ?? 0
             'tone' => 'danger',
             'icon' => 'triangle-alert',
             'href' => '/tickets',
-            'ariaLabel' => 'เปิดรายการ Ticket เกิน SLA จำนวน ' . $metricCount('overdue') . ' รายการ',
+            'ariaLabel' => 'เปิดรายการงานแจ้งซ่อมที่เกิน SLA จำนวน ' . $metricCount('overdue') . ' รายการ',
         ]) ?>
     </div>
 
@@ -332,7 +332,7 @@ $metricCount = static fn (string $key): int => max(0, (int) ($metrics[$key] ?? 0
                     <?= render_partial('partials/components/empty-state', [
                         'icon' => 'bar-chart-3',
                         'title' => 'ยังไม่มีปริมาณงานในช่วงนี้',
-                        'description' => 'เมื่อมี Ticket ในปีที่เลือก กราฟรายเดือนจะแสดงที่นี่',
+                        'description' => 'เมื่อมีงานแจ้งซ่อมในปีที่เลือก กราฟรายเดือนจะแสดงที่นี่',
                         'slot' => $emptySlot,
                     ]) ?>
                 <?php endif; ?>
@@ -359,7 +359,7 @@ $metricCount = static fn (string $key): int => max(0, (int) ($metrics[$key] ?? 0
                     <?= render_partial('partials/components/empty-state', [
                         'icon' => 'tag',
                         'title' => 'ยังไม่มีข้อมูลหมวดหมู่',
-                        'description' => 'เมื่อมี Ticket ตามหมวดหมู่ ระบบจะสรุปสัดส่วนให้ที่นี่',
+                        'description' => 'เมื่อมีงานแจ้งซ่อมตามหมวดหมู่ ระบบจะสรุปสัดส่วนให้ที่นี่',
                         'slot' => $emptySlot,
                     ]) ?>
                 <?php endif; ?>
@@ -386,7 +386,7 @@ $metricCount = static fn (string $key): int => max(0, (int) ($metrics[$key] ?? 0
                     <?= render_partial('partials/components/empty-state', [
                         'icon' => 'building',
                         'title' => 'ยังไม่มีข้อมูลตามแผนก',
-                        'description' => 'เมื่อมี Ticket จากแผนกต่าง ๆ ระบบจะแสดงสัดส่วนให้ที่นี่',
+                        'description' => 'เมื่อมีงานแจ้งซ่อมจากแผนกต่าง ๆ ระบบจะแสดงสัดส่วนให้ที่นี่',
                         'slot' => $emptySlot,
                     ]) ?>
                 <?php endif; ?>

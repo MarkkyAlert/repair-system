@@ -192,7 +192,7 @@ $dimensionLabel = (string) ($filters['dimensionLabel'] ?? 'ระดับคว
             <?= render_partial('partials/components/empty-state', [
                 'icon' => 'check-circle',
                 'title' => 'ไม่มีงานค้างในเงื่อนไขนี้',
-                'description' => 'เมื่อมี Ticket ที่ยังไม่ปิดในเงื่อนไขที่เลือก ระบบจะสรุปตามช่วงอายุให้อัตโนมัติ',
+                'description' => 'เมื่อมีงานแจ้งซ่อมที่ยังไม่ปิดในเงื่อนไขที่เลือก ระบบจะสรุปตามช่วงอายุให้อัตโนมัติ',
             ]) ?>
         <?php endif; ?>
     </section>

@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <title>Ticket Trend PDF</title>
+    <title>แนวโน้มงานแจ้งซ่อม</title>
     <style>
         @page { margin: 22px; }
         body { font-family: 'sarabun', sans-serif; font-size: 10px; color: #102a3a; }

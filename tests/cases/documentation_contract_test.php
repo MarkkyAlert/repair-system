@@ -127,7 +127,10 @@ test('docs: archived references and demo-state wording match the data-preservati
     assert_contains_str('เว้นผู้ดูแลไว้พร้อมคำเตือน', $adminGuide, 'deactivated custodians are not silently reassigned');
     assert_contains_str('findDeactivatedLogins', $import, 'the runtime distinguishes a departed custodian from an unknown username');
     assert_contains_str('ไม่สร้างสถานะ closed', $setupView, 'the demo description states the reserved-state exception');
-    assert_false(str_contains($setupView, '20 Ticket ครอบทุกสถานะ'), 'the setup wizard must not promise impossible demo coverage');
+    // Anchored on the over-promise itself ("covers EVERY status"), not on the sentence it once appeared in.
+    // The old literal quoted the English noun; once that noun was translated the assertion could never fail
+    // again and would have kept passing while saying nothing.
+    assert_false(str_contains($setupView, 'ครอบทุกสถานะ'), 'the setup wizard must not promise impossible demo coverage — closed is deliberately never produced');
 });
 
 test('docs: owner-only commercial placeholders are explicit instead of silently looking complete', function (): void {

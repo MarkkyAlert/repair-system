@@ -75,7 +75,7 @@
             <?= render_partial('partials/components/empty-state', [
                 'icon' => 'clock',
                 'title' => 'ยังไม่มีระดับความสำคัญ',
-                'description' => 'ควร seed priority พื้นฐานก่อนใช้งานระบบ Ticket',
+                'description' => 'ควรเพิ่มระดับความสำคัญพื้นฐานก่อนเริ่มรับแจ้งซ่อม',
             ]) ?>
         <?php else: ?>
             <div class="stack-md">
@@ -139,7 +139,7 @@
                                 </div>
                                 <label class="checkbox-row">
                                     <input type="checkbox" name="is_active" value="1"<?= !empty($priority['is_active']) ? ' checked' : '' ?>>
-                                    <span>เปิดใช้งานความสำคัญนี้ในฟอร์ม Ticket</span>
+                                    <span>เปิดใช้งานความสำคัญนี้ในฟอร์มแจ้งซ่อม</span>
                                 </label>
                                 <div class="button-row">
                                     <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'บันทึกความสำคัญ/SLA', 'variant' => 'primary', 'icon' => 'check-circle']) ?>

@@ -190,7 +190,7 @@ $dimensionLabel = (string) ($filters['dimensionLabel'] ?? 'ช่าง');
             <?= render_partial('partials/components/empty-state', [
                 'icon' => 'check-circle',
                 'title' => 'ยังไม่มีงานที่ปิดในเงื่อนไขนี้',
-                'description' => 'เมื่อมี Ticket ที่ถูกปิดในช่วง/เงื่อนไขที่เลือก ระบบจะสรุปอัตราเปิดซ้ำให้อัตโนมัติ',
+                'description' => 'เมื่อมีงานแจ้งซ่อมที่ถูกปิดในช่วง/เงื่อนไขที่เลือก ระบบจะสรุปอัตราเปิดซ้ำให้อัตโนมัติ',
             ]) ?>
         <?php endif; ?>
     </section>

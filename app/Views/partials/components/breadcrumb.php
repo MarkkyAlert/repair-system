@@ -7,7 +7,7 @@
  *       'items' => [
  *           ['label' => 'Admin', 'href' => '/admin'],
  *           ['label' => 'Email Templates', 'href' => '/admin/email-templates'],
- *           ['label' => 'Ticket Approved'],          // รายการสุดท้าย: ไม่ใส่ href = หน้าปัจจุบัน
+ *           ['label' => 'อนุมัติแล้ว'],               // รายการสุดท้าย: ไม่ใส่ href = หน้าปัจจุบัน
  *       ],
  *   ]);
  */
