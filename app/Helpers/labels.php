@@ -391,6 +391,12 @@ if (!function_exists('demo_accounts_message')) {
      */
     function demo_accounts_message(array $summary): string
     {
+        // แถวข้อมูลตั้งต้นที่ถูกข้ามเพราะมีอยู่แล้วต้องบอกให้รู้ ไม่ใช่รายงานว่าสำเร็จเฉย ๆ — บนเส้นทางติดตั้ง
+        // ตามคู่มือ (นำเข้า seed_reference.sql ก่อน) รหัสจะชนกันเกือบทั้งชุด คนติดตั้งจะได้เข้าใจว่าหมวดหมู่/
+        // ความสำคัญที่เห็นอยู่มาจากไฟล์ตั้งต้น ไม่ใช่จากข้อมูลตัวอย่าง
+        $skipped = (int) ($summary['skipped_existing'] ?? 0);
+        $skippedNote = $skipped > 0 ? ' · ข้ามข้อมูลตั้งต้นที่มีอยู่แล้ว ' . $skipped . ' รายการ' : '';
+
         $accounts = $summary['demo_accounts'] ?? null;
         if (is_array($accounts) && !empty($accounts['usernames'])) {
             $pairs = [];
@@ -398,7 +404,7 @@ if (!function_exists('demo_accounts_message')) {
                 $pairs[] = $roleLabel . ' ' . (string) $username;
             }
 
-            return ' · บัญชีตัวอย่าง (' . implode(' · ', $pairs) . ') รหัสผ่านเดียวกันทุกบัญชี: '
+            return $skippedNote . ' · บัญชีตัวอย่าง (' . implode(' · ', $pairs) . ') รหัสผ่านเดียวกันทุกบัญชี: '
                 . (string) ($accounts['password'] ?? '') . ' (บันทึกไว้ — รหัสนี้จะไม่แสดงอีก)';
         }
 
@@ -406,10 +412,10 @@ if (!function_exists('demo_accounts_message')) {
         if (!empty($summary['demo_technician']) && is_array($summary['demo_technician'])) {
             $cred = $summary['demo_technician'];
 
-            return ' · บัญชีช่างตัวอย่าง: ' . (string) ($cred['username'] ?? '')
+            return $skippedNote . ' · บัญชีช่างตัวอย่าง: ' . (string) ($cred['username'] ?? '')
                 . ' / ' . (string) ($cred['password'] ?? '') . ' (บันทึกไว้ — รหัสนี้จะไม่แสดงอีก)';
         }
 
-        return '';
+        return $skippedNote;
     }
 }

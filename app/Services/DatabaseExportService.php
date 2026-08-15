@@ -37,7 +37,7 @@ class DatabaseExportService
      */
     public function streamTo(callable $emit): void
     {
-        $emit("-- Repair System — database backup\n");
+        $emit("-- ระบบแจ้งซ่อม — database backup\n");
         $emit('-- Generated: ' . date('Y-m-d H:i:s') . "\n");
         $emit("-- Restore: import this file into an empty database (phpMyAdmin → Import, or mysql < file).\n\n");
         $emit("SET NAMES utf8mb4;\n");

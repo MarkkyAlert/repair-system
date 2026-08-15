@@ -19,7 +19,7 @@
                 <div class="content-grid">
                     <div class="field-group">
                         <label class="field-label" for="system_app_name">ชื่อระบบ <span class="required">*</span></label>
-                        <input id="system_app_name" class="input" type="text" name="app_name" required value="<?= e((string) ($systemForm['app_name'] ?? 'Repair System')) ?>">
+                        <input id="system_app_name" class="input" type="text" name="app_name" required value="<?= e((string) ($systemForm['app_name'] ?? 'ระบบแจ้งซ่อม')) ?>">
                     </div>
                     <div class="field-group">
                         <label class="field-label" for="system_timezone">เขตเวลา <span class="required">*</span></label>
@@ -33,7 +33,7 @@
                 <div class="content-grid">
                     <div class="field-group">
                         <label class="field-label" for="system_app_tagline">คำโปรยใต้ชื่อระบบ</label>
-                        <input id="system_app_tagline" class="input" type="text" name="app_tagline" maxlength="120" value="<?= e((string) ($systemForm['app_tagline'] ?? 'Maintenance Operations')) ?>">
+                        <input id="system_app_tagline" class="input" type="text" name="app_tagline" maxlength="120" value="<?= e((string) ($systemForm['app_tagline'] ?? 'ศูนย์ซ่อมบำรุง')) ?>">
                         <p class="field-hint">ข้อความบรรทัดเล็กใต้ชื่อระบบบนแถบเมนูและหัวอีเมล — เว้นว่างได้ถ้าไม่ต้องการแสดง</p>
                     </div>
                 </div>
@@ -135,7 +135,7 @@
                     </div>
                     <div class="field-group">
                         <label class="field-label" for="setting_value">ค่า <span class="required">*</span></label>
-                        <textarea id="setting_value" class="input" name="setting_value" rows="4" required placeholder='string: "Repair System"   bool: 1 หรือ 0   json: {"key":"value"}'></textarea>
+                        <textarea id="setting_value" class="input" name="setting_value" rows="4" required placeholder='string: "ระบบแจ้งซ่อม"   bool: 1 หรือ 0   json: {"key":"value"}'></textarea>
                         <p class="field-hint">สำหรับ json ต้องเป็น valid JSON เท่านั้น</p>
                     </div>
                     <label class="checkbox-row">

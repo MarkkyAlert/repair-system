@@ -150,7 +150,7 @@ class AssetService
         $filterOptions = $this->buildAssetFilterOptions($this->assets->getAssetIndexReferenceData());
 
         return [
-            'brandName' => (string) setting('app_name', config('app.name', 'Repair System')),
+            'brandName' => (string) setting('app_name', config('app.name', 'ระบบแจ้งซ่อม')),
             'brandLogoUrl' => branding_logo_url(),
             'capped' => $capped,
             'printLimit' => self::PRINT_ASSETS_CAP,

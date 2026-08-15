@@ -21,13 +21,13 @@
 <div class="wrapper">
     <div class="header">
         <?php if (!empty($logoUrl)): ?>
-            <div style="margin-bottom:12px;"><img src="<?= e((string) $logoUrl) ?>" alt="<?= e($appName ?? 'Repair System') ?>" style="max-height:48px;max-width:200px;display:block;background:#ffffff;padding:6px 10px;border-radius:8px;"></div>
+            <div style="margin-bottom:12px;"><img src="<?= e((string) $logoUrl) ?>" alt="<?= e($appName ?? 'ระบบแจ้งซ่อม') ?>" style="max-height:48px;max-width:200px;display:block;background:#ffffff;padding:6px 10px;border-radius:8px;"></div>
         <?php endif; ?>
-        <?php $kicker = trim((string) ($appTagline ?? 'Maintenance Operations')); ?>
+        <?php $kicker = trim((string) ($appTagline ?? 'ศูนย์ซ่อมบำรุง')); ?>
         <?php if ($kicker !== ''): ?>
             <div class="kicker"><?= e($kicker) ?></div>
         <?php endif; ?>
-        <h1><?= e($appName ?? 'Repair System') ?></h1>
+        <h1><?= e($appName ?? 'ระบบแจ้งซ่อม') ?></h1>
     </div>
     <div class="content">
         <p>สวัสดี <?= e($recipientName ?? 'ผู้ใช้งาน') ?></p>

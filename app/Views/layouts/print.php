@@ -1,4 +1,4 @@
-<?php $appName = (string) setting('app_name', config('app.name', 'Repair System')); ?>
+<?php $appName = (string) setting('app_name', config('app.name', 'ระบบแจ้งซ่อม')); ?>
 <!DOCTYPE html>
 <html lang="th" class="h-full bg-white text-slate-900 antialiased">
 <head>

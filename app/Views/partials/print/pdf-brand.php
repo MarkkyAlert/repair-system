@@ -3,7 +3,7 @@
 // app_tagline และโลโก้ที่อัปโหลดจากหน้า Admin System Settings มาแสดง เปลี่ยนแบรนด์ผ่าน UI แล้ว
 // เอกสารก็เปลี่ยนตามเลย ไม่ต้องไล่แก้ PHP ทีละ view. ใส่ style แบบ inline มาในตัวเองเพราะ render บน dompdf วางไว้เหนือ
 // ส่วนหัวตกแต่ง (kicker) ที่บอกชนิดรายงานของแต่ละใบ.
-$pdfBrandName = trim((string) setting('app_name', config('app.name', 'Repair System')));
+$pdfBrandName = trim((string) setting('app_name', config('app.name', 'ระบบแจ้งซ่อม')));
 $pdfBrandTagline = trim((string) setting('app_tagline', ''));
 $pdfBrandLogo = branding_logo_data_uri();
 ?>

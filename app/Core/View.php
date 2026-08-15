@@ -10,7 +10,7 @@ class View
     public static function render(string $view, array $data = [], string $layout = 'app'): void
     {
         $viewFile = self::resolve($view);
-        $title = $data['title'] ?? config('app.name', 'Repair System');
+        $title = $data['title'] ?? config('app.name', 'ระบบแจ้งซ่อม');
 
         extract($data, EXTR_SKIP);
 

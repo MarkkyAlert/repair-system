@@ -1,5 +1,5 @@
 <?php $authLogoUrl = branding_logo_url(); ?>
-<?php $authAppName = (string) setting('app_name', config('app.name', 'Repair System')); ?>
+<?php $authAppName = (string) setting('app_name', config('app.name', 'ระบบแจ้งซ่อม')); ?>
 <section class="guest-panel">
     <div class="guest-brand">
         <?php if ($authLogoUrl !== null): ?>

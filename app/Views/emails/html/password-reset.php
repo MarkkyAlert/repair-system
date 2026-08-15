@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <title><?= e($appName ?? 'Repair System') ?></title>
+    <title><?= e($appName ?? 'ระบบแจ้งซ่อม') ?></title>
     <style>
         body { font-family: Arial, Helvetica, sans-serif; background: #edf4f6; color: #102a3a; margin: 0; padding: 24px; }
         .wrapper { max-width: 640px; margin: 0 auto; background: #ffffff; border: 1px solid #d9e5e8; border-radius: 18px; overflow: hidden; }
@@ -18,13 +18,13 @@
 <div class="wrapper">
     <div class="header">
         <?php if (!empty($logoUrl)): ?>
-            <div style="margin-bottom:12px;"><img src="<?= e((string) $logoUrl) ?>" alt="<?= e($appName ?? 'Repair System') ?>" style="max-height:48px;max-width:200px;display:block;background:#ffffff;padding:6px 10px;border-radius:8px;"></div>
+            <div style="margin-bottom:12px;"><img src="<?= e((string) $logoUrl) ?>" alt="<?= e($appName ?? 'ระบบแจ้งซ่อม') ?>" style="max-height:48px;max-width:200px;display:block;background:#ffffff;padding:6px 10px;border-radius:8px;"></div>
         <?php endif; ?>
-        <?php $kicker = trim((string) ($appTagline ?? 'Maintenance Operations')); ?>
+        <?php $kicker = trim((string) ($appTagline ?? 'ศูนย์ซ่อมบำรุง')); ?>
         <?php if ($kicker !== ''): ?>
             <div class="kicker"><?= e($kicker) ?></div>
         <?php endif; ?>
-        <h1><?= e($appName ?? 'Repair System') ?></h1>
+        <h1><?= e($appName ?? 'ระบบแจ้งซ่อม') ?></h1>
     </div>
     <div class="content">
         <p>สวัสดี <?= e($recipientName ?? 'ผู้ใช้งาน') ?></p>

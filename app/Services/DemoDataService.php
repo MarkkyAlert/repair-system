@@ -73,6 +73,7 @@ class DemoDataService
             [$assetIds, $created['assets']] = $this->seedAssets($createdByUserId, $assetCategoryIds, $locationIds);
             $created['tickets'] = $this->seedTickets($createdByUserId, $staffIds, $departmentIds, $locationIds, $assetIds, $ticketCategoryIds, $priorityIds);
             $created['guest_requests'] = $this->seedGuestRequests($createdByUserId, $assetIds);
+            $created['skipped_existing'] = $this->skippedExisting;
 
             // surface รหัสบัญชีตัวอย่างเฉพาะเมื่อสร้างบัญชีใหม่จริง (ถ้ามีอยู่แล้วไม่รู้/ไม่แตะรหัสเดิม).
             // demo_technician คงไว้ตามเดิมเพื่อไม่ให้ผู้เรียกเดิมพัง; demo_accounts เพิ่มมาให้บอกครบทุกบทบาท เพราะ
@@ -99,12 +100,15 @@ class DemoDataService
         }
     }
 
+    /** จำนวนแถว master data ที่ข้ามเพราะมีอยู่แล้ว (รหัสชนกับ seed_reference.sql) — รายงานกลับให้ผู้ใช้เห็น */
+    private int $skippedExisting = 0;
+
     private function seedDepartments(): int
     {
         return $this->seedMasterData([
-            ['code' => 'IT', 'name' => 'IT'],
-            ['code' => 'FACILITY', 'name' => 'อาคารและสิ่งแวดล้อม'],
-            ['code' => 'ADMIN', 'name' => 'บริหาร'],
+            ['code' => 'IT', 'name' => 'ฝ่ายไอที'],
+            ['code' => 'FACILITY', 'name' => 'ฝ่ายอาคารและสิ่งแวดล้อม'],
+            ['code' => 'ADMIN', 'name' => 'ฝ่ายบริหารสำนักงาน'],
         ], fn (array $row): int => $this->admin->createDepartment([
             'code' => $row['code'],
             'name' => $row['name'],
@@ -279,11 +283,11 @@ class DemoDataService
             ['username' => 'tech_demo2', 'full_name' => 'วิภา ช่างซ่อมบำรุง', 'dept' => 'FACILITY', 'role' => 'technician'],
             ['username' => 'tech_demo3', 'full_name' => 'ธนา ช่างไฟฟ้า', 'dept' => 'FACILITY', 'role' => 'technician'],
             ['username' => 'mgr_demo', 'full_name' => 'สุภาวดี หัวหน้าฝ่ายอาคาร', 'dept' => 'FACILITY', 'role' => 'manager'],
-            ['username' => 'user_demo', 'full_name' => 'ปรียา ธุรการ', 'dept' => 'OFFICE', 'role' => 'requester'],
+            ['username' => 'user_demo', 'full_name' => 'ปรียา ธุรการ', 'dept' => 'ADMIN', 'role' => 'requester'],
             ['username' => 'user_demo2', 'full_name' => 'ณัฐพล ฝ่ายผลิต', 'dept' => 'IT', 'role' => 'requester'],
             // ลาออกไปแล้ว: บัญชีถูกปิด แต่ประวัติงานที่เคยแจ้งยังอยู่ — ให้ผู้ซื้อเห็นว่าปิดบัญชีแล้วข้อมูลไม่หาย
             // และเป็นคู่กับความสามารถ "แอดมินปิดงานแทนผู้แจ้งที่ลาออก" ซึ่งไม่มีทางลองได้ถ้าทุกบัญชียัง active
-            ['username' => 'user_left', 'full_name' => 'กมล (ลาออกแล้ว)', 'dept' => 'OFFICE', 'role' => 'requester', 'active' => false],
+            ['username' => 'user_left', 'full_name' => 'กมล (ลาออกแล้ว)', 'dept' => 'ADMIN', 'role' => 'requester', 'active' => false],
         ];
 
         $ids = ['technician' => [], 'manager' => [], 'requester' => []];
@@ -635,7 +639,13 @@ class DemoDataService
                 $creator($row);
                 $count++;
             } catch (DomainException) {
-                // มีอยู่แล้ว — ข้ามแบบเงียบ ๆ รันซ้ำกี่ครั้งผลก็เหมือนเดิม (idempotent)
+                // มีอยู่แล้ว — ข้ามไป รันซ้ำกี่ครั้งผลก็เหมือนเดิม (idempotent)
+                //
+                // นับไว้ด้วย ไม่ปล่อยหายเงียบ: เส้นทางติดตั้งตามคู่มือคือนำเข้า seed_reference.sql ก่อน แล้วค่อยกด
+                // โหลดข้อมูลตัวอย่าง รหัสจึงชนกันเกือบทั้งชุด (ทุกระดับความสำคัญ + IT/ADMIN + ELECTRICAL/PLUMBING
+                // + PRINTER) ตัวช่วยติดตั้งเคยรายงานว่า "สำเร็จ" ทั้งที่แทบไม่ได้เขียนอะไรลงไปเลย ผู้ซื้อจึงไม่มีทาง
+                // รู้ว่าที่เห็นอยู่มาจากไฟล์ตั้งต้น ไม่ใช่จากข้อมูลตัวอย่าง
+                $this->skippedExisting++;
             }
         }
         return $count;

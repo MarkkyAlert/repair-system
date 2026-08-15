@@ -200,12 +200,12 @@ INSERT INTO export_jobs (id, type, format, filters, status, file_name, file_path
     (1, 'ticket_summary', 'xlsx', '{"date_from":"2026-06-01","date_to":"2026-06-30"}', 'queued', NULL, NULL, 4, NULL, NULL, NOW(), NOW());
 
 INSERT INTO system_settings (id, setting_key, setting_value, value_type, is_public, updated_by, created_at, updated_at) VALUES
-    (1, 'app_name', 'Repair System', 'string', 1, 4, NOW(), NOW()),
+    (1, 'app_name', 'ระบบแจ้งซ่อม', 'string', 1, 4, NOW(), NOW()),
     (2, 'default_timezone', 'Asia/Bangkok', 'string', 0, 4, NOW(), NOW()),
     (3, 'ticket_prefix', 'MT', 'string', 0, 4, NOW(), NOW()),
     (4, 'business_hours', '{"start":"08:30","end":"17:30"}', 'json', 0, 4, NOW(), NOW()),
     (5, 'setup_completed', '1', 'bool', 0, 4, NOW(), NOW()),
-    (6, 'app_tagline', 'Maintenance Operations', 'string', 1, 4, NOW(), NOW());
+    (6, 'app_tagline', 'ศูนย์ซ่อมบำรุง', 'string', 1, 4, NOW(), NOW());
 
 INSERT INTO audit_logs (id, user_id, action, entity_type, entity_id, ip_address, user_agent, context, created_at) VALUES
     (1, 4, 'seed_imported', 'system', 1, '127.0.0.1', 'mysql-client', '{"source":"database/seed_demo.sql"}', NOW());

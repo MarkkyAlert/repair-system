@@ -27,7 +27,7 @@ $isHttps = ($_SERVER['HTTPS'] ?? '') !== '' && strtolower((string) ($_SERVER['HT
 
 return [
     'app' => [
-        'name' => Env::get('APP_NAME', 'Repair System'),
+        'name' => Env::get('APP_NAME', 'ระบบแจ้งซ่อม'),
         'env' => Env::get('APP_ENV', 'production'),
         'debug' => Env::bool('APP_DEBUG', false),
         'url' => $appUrl,

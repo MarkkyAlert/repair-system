@@ -1,5 +1,5 @@
 <?php
-$qrBrandName = trim((string) ($brandName ?? setting('app_name', config('app.name', 'Repair System'))));
+$qrBrandName = trim((string) ($brandName ?? setting('app_name', config('app.name', 'ระบบแจ้งซ่อม'))));
 $qrBrandLogoUrl = trim((string) ($brandLogoUrl ?? (branding_logo_url() ?? '')));
 $qrItems = $items ?? [];
 ?>

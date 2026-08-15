@@ -235,7 +235,7 @@ class AdminService
             'from_address' => (string) config('mail.from_address', 'noreply@example.com'),
             'from_name' => MailerService::resolveFromName(
                 (string) config('mail.from_name', ''),
-                (string) setting('app_name', config('app.name', 'Repair System'))
+                (string) setting('app_name', config('app.name', 'ระบบแจ้งซ่อม'))
             ),
             'reply_to_address' => (string) config('mail.reply_to_address', ''),
             'log_path' => (string) config('mail.log_path', storage_path('mail-logs')),
@@ -333,8 +333,8 @@ class AdminService
         }
 
         return [
-            'app_name' => $values['app_name'] ?? (string) config('app.name', 'Repair System'),
-            'app_tagline' => $values['app_tagline'] ?? 'Maintenance Operations',
+            'app_name' => $values['app_name'] ?? (string) config('app.name', 'ระบบแจ้งซ่อม'),
+            'app_tagline' => $values['app_tagline'] ?? 'ศูนย์ซ่อมบำรุง',
             'default_timezone' => $values['default_timezone'] ?? (string) config('app.timezone', 'Asia/Bangkok'),
             'ticket_prefix' => $values['ticket_prefix'] ?? 'MT',
             'business_start' => (string) ($businessHours['start'] ?? '08:30'),

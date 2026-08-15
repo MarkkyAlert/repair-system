@@ -3,7 +3,7 @@
 // เพราะค่าพวกนั้นเก็บใน DB — ตอน DB ล่ม ตัวจับ error 500 ต้องยังเรนเดอร์หน้าเต็ม ๆ ที่จัดสไตล์ครบได้อยู่ มันจึงอ่านแค่
 // ค่า default จาก config, stylesheet แบบ static และ session เท่านั้น ทั้ง stylesheet และฟอนต์เป็น static asset ที่ web
 // server ส่งได้เองแม้ตอน DB ล่ม
-$appName = (string) config('app.name', 'Repair System');
+$appName = (string) config('app.name', 'ระบบแจ้งซ่อม');
 ?>
 <!DOCTYPE html>
 <html lang="th" class="h-full antialiased">

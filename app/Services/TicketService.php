@@ -505,7 +505,7 @@ class TicketService
         return [
             'priorities' => array_map(fn (array $priority): array => [
                 'id' => (int) $priority['id'],
-                'label' => (string) $priority['name'] . ' (' . (string) $priority['code'] . ')',
+                'label' => (string) $priority['name'],
                 'response_minutes' => (int) ($priority['response_time_minutes'] ?? 0),
                 'resolution_minutes' => (int) ($priority['resolution_time_minutes'] ?? 0),
             ], $reference['priorities'] ?? []),

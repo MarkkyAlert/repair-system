@@ -60,7 +60,7 @@ class MailerService
         $fromAddress = (string) config('mail.from_address', 'noreply@example.com');
         $fromName = self::resolveFromName(
             (string) config('mail.from_name', ''),
-            (string) setting('app_name', config('app.name', 'Repair System'))
+            (string) setting('app_name', config('app.name', 'ระบบแจ้งซ่อม'))
         );
         $mailer->setFrom($fromAddress, $fromName);
 

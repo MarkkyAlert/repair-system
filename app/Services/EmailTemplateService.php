@@ -124,7 +124,7 @@ class EmailTemplateService
         $ticketTitle = (string) ($context['title'] ?? '-');
         $ticketUrl = $ticketId > 0 ? url('/tickets/' . $ticketId) : url('/tickets');
         $templateKey = $this->ticketEventTemplateKey($eventType);
-        $subject = '[' . (string) setting('app_name', config('app.name', 'Repair System')) . '] ' . $title . ' - ' . $ticketNo;
+        $subject = '[' . (string) setting('app_name', config('app.name', 'ระบบแจ้งซ่อม')) . '] ' . $title . ' - ' . $ticketNo;
 
         return $this->renderNotificationTemplate([
             'subject' => $subject,
@@ -176,7 +176,7 @@ class EmailTemplateService
         $defaultFooter = $isInternal ? 'อีเมลนี้เกี่ยวข้องกับ internal note ภายในทีม' : 'อีเมลฉบับนี้ถูกสร้างอัตโนมัติจากระบบแจ้งซ่อม';
 
         return $this->renderNotificationTemplate([
-            'subject' => '[' . (string) setting('app_name', config('app.name', 'Repair System')) . '] ' . $title . ' - ' . $ticketNo,
+            'subject' => '[' . (string) setting('app_name', config('app.name', 'ระบบแจ้งซ่อม')) . '] ' . $title . ' - ' . $ticketNo,
             'heading' => $this->override('comment_event', 'heading', $title),
             'intro' => $this->override('comment_event', 'intro', 'มีความเคลื่อนไหวใหม่ในความคิดเห็นของงานแจ้งซ่อม'),
             'message' => $message,
@@ -211,7 +211,7 @@ class EmailTemplateService
         $metricLabel = $metricType === 'response' ? 'SLA การตอบรับ' : 'SLA การแก้ไข';
 
         return $this->renderNotificationTemplate([
-            'subject' => '[' . (string) setting('app_name', config('app.name', 'Repair System')) . '] ' . $title . ' - ' . $ticketNo,
+            'subject' => '[' . (string) setting('app_name', config('app.name', 'ระบบแจ้งซ่อม')) . '] ' . $title . ' - ' . $ticketNo,
             'heading' => $this->override('sla_breached', 'heading', $title),
             'intro' => $this->override('sla_breached', 'intro', 'ระบบตรวจพบงานแจ้งซ่อมที่เกินกำหนด SLA (กำหนดเวลาตอบรับ/แก้ไข ตามระดับความสำคัญ)'),
             'message' => $message,
@@ -237,7 +237,7 @@ class EmailTemplateService
 
     public function buildSystemAnnouncement(array $recipient, string $title, string $message): array
     {
-        $appName = (string) setting('app_name', config('app.name', 'Repair System'));
+        $appName = (string) setting('app_name', config('app.name', 'ระบบแจ้งซ่อม'));
         $subject = '[' . $appName . '] ' . $title;
 
         return $this->renderNotificationTemplate([
@@ -259,8 +259,8 @@ class EmailTemplateService
 
     public function buildPasswordReset(array $user, string $resetUrl, string $expiresAt): array
     {
-        $appName = (string) setting('app_name', config('app.name', 'Repair System'));
-        $appTagline = (string) setting('app_tagline', 'Maintenance Operations');
+        $appName = (string) setting('app_name', config('app.name', 'ระบบแจ้งซ่อม'));
+        $appTagline = (string) setting('app_tagline', 'ศูนย์ซ่อมบำรุง');
         $logoUrl = branding_logo_url();
         $subject = '[' . $appName . '] ลิงก์ตั้งรหัสผ่านใหม่';
         $expiresAtLabel = $this->formatDateTime($expiresAt);
@@ -348,8 +348,8 @@ class EmailTemplateService
     private function renderNotificationTemplate(array $data): array
     {
         $this->warnIfLinkIsUnclickable((string) ($data['ticket_url'] ?? ''));
-        $appName = (string) setting('app_name', config('app.name', 'Repair System'));
-        $appTagline = (string) setting('app_tagline', 'Maintenance Operations');
+        $appName = (string) setting('app_name', config('app.name', 'ระบบแจ้งซ่อม'));
+        $appTagline = (string) setting('app_tagline', 'ศูนย์ซ่อมบำรุง');
         $logoUrl = branding_logo_url();
         $html = View::capture('emails/html/notification', [
             'appName' => $appName,

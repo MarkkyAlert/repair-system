@@ -25,7 +25,7 @@
                         </div>
                         <div class="field-group">
                             <label class="field-label" for="new_asset_cat_name">ชื่อหมวด <span class="required">*</span></label>
-                            <input id="new_asset_cat_name" class="input" type="text" name="name" required placeholder="เช่น Notebook">
+                            <input id="new_asset_cat_name" class="input" type="text" name="name" required placeholder="เช่น คอมพิวเตอร์พกพา">
                         </div>
                     </div>
                     <div class="field-group">

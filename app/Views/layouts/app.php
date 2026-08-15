@@ -1,4 +1,4 @@
-<?php $appName = (string) setting('app_name', config('app.name', 'Repair System')); ?>
+<?php $appName = (string) setting('app_name', config('app.name', 'ระบบแจ้งซ่อม')); ?>
 <?php $brandLogoUrl = branding_logo_url(); ?>
 <!DOCTYPE html>
 <html lang="th" class="h-full antialiased">
@@ -47,7 +47,7 @@
             <?php endif; ?>
             <div class="brand-copy">
                 <p class="brand-title"><?= e($appName) ?></p>
-                <?php $brandSubtitle = trim((string) setting('app_tagline', 'Maintenance Operations')); ?>
+                <?php $brandSubtitle = trim((string) setting('app_tagline', 'ศูนย์ซ่อมบำรุง')); ?>
                 <?php if ($brandSubtitle !== ''): ?>
                     <p class="brand-subtitle"><?= e($brandSubtitle) ?></p>
                 <?php endif; ?>

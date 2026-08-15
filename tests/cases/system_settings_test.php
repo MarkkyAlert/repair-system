@@ -119,7 +119,7 @@ namespace {
             );
 
             // the guard fires before any upsert — the protected rows are untouched (app_name still its seed value)
-            assert_same('Repair System', ss_get('app_name')['setting_value'] ?? null, 'app_name was NOT overwritten via the generic endpoint');
+            assert_same('ระบบแจ้งซ่อม', ss_get('app_name')['setting_value'] ?? null, 'app_name was NOT overwritten via the generic endpoint');
         } finally {
             ss_restore($snapshot);
         }
@@ -232,7 +232,7 @@ namespace {
             ss_reject_system(['business_start' => '09:00', 'business_end' => '09:00'], 'เวลาเริ่มทำการต้องน้อยกว่าเวลาสิ้นสุด', 'start equal to end');
 
             // nothing was written by any reject — seed values still stand
-            assert_same('Repair System', ss_get('app_name')['setting_value'] ?? null, 'app_name unchanged by rejects');
+            assert_same('ระบบแจ้งซ่อม', ss_get('app_name')['setting_value'] ?? null, 'app_name unchanged by rejects');
             assert_same('MT', ss_get('ticket_prefix')['setting_value'] ?? null, 'ticket_prefix unchanged by rejects');
         } finally {
             ss_restore($snapshot);

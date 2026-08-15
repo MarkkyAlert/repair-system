@@ -25,7 +25,7 @@
                         </div>
                         <div class="field-group">
                             <label class="field-label" for="new_location_name">ชื่อสถานที่ <span class="required">*</span></label>
-                            <input id="new_location_name" class="input" type="text" name="name" required placeholder="เช่น Reception Printer Area">
+                            <input id="new_location_name" class="input" type="text" name="name" required placeholder="เช่น จุดพิมพ์เอกสารแผนกต้อนรับ">
                         </div>
                     </div>
                     <div class="content-grid">

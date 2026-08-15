@@ -206,3 +206,49 @@ test('demo-load(integrity): generated lifecycle, work order, SLA, approval, hist
         $container->instance('config', $originalConfig);
     }
 });
+
+test('demo(dept): ผู้แจ้งตัวอย่างทุกคนต้องมีแผนก และกราฟแยกตามแผนกต้องมีของจริงให้ดู', function (): void {
+    // เดิมผู้แจ้งสองคนถูกตั้งรหัสแผนกเป็น 'OFFICE' ซึ่งไม่มีอยู่จริง (มีแค่ IT/FACILITY/ADMIN) ทั้งคู่จึงถูกสร้าง
+    // โดยไม่มีแผนก — กราฟ "แยกตามแผนก" ที่ข้อมูลตัวอย่างมีไว้โชว์ตอนขายจึงว่างเปล่าโดยไม่มีใครสังเกต
+    //
+    // รันตัวโหลดจริงในทรานแซกชันแล้ว rollback เหมือนเทสต์ตัวแรกของไฟล์นี้ ฐานทดสอบที่ใช้ร่วมกันจะได้ไม่มีของค้าง
+    $container = tvm_container();
+    $database = $container->get(PDO::class);
+    $originalConfig = $container->get('config');
+    $demoConfig = $originalConfig;
+    $demoConfig['app']['allow_demo_data'] = true;
+    $container->instance('config', $demoConfig);
+
+    try {
+        $database->beginTransaction();
+        $database->exec('DELETE FROM tickets');
+        $container->get(DemoDataService::class)->load(4);
+
+        $orphan = (int) $database->query("SELECT COUNT(*) FROM users WHERE username LIKE '%_demo%' AND department_id IS NULL")->fetchColumn();
+        assert_same(0, $orphan, 'บัญชีตัวอย่างต้องมีแผนกครบทุกคน');
+
+        $departments = (int) $database->query(
+            "SELECT COUNT(DISTINCT department_id) FROM users WHERE username LIKE '%_demo%' AND department_id IS NOT NULL"
+        )->fetchColumn();
+        assert_true($departments >= 2, 'บัญชีตัวอย่างต้องกระจายอย่างน้อย 2 แผนก ไม่งั้นกราฟแยกตามแผนกมีแท่งเดียว');
+    } finally {
+        if ($database->inTransaction()) {
+            $database->rollBack();
+        }
+        $container->instance('config', $originalConfig);
+    }
+});
+
+test('demo(master): แถวที่ข้ามเพราะมีอยู่แล้วต้องถูกนับและรายงานกลับ', function (): void {
+    // ตัวช่วยติดตั้งเคยรายงานว่า "โหลดสำเร็จ" ทั้งที่บนเส้นทางติดตั้งตามคู่มือ (นำเข้า seed_reference.sql ก่อน)
+    // รหัสชนกันเกือบทั้งชุดแล้วถูกกลืนทิ้งเงียบ ๆ ผู้ซื้อจึงเข้าใจผิดว่าหมวดหมู่ที่เห็นมาจากข้อมูลตัวอย่าง
+    $service = (string) file_get_contents(dirname(__DIR__, 2) . '/app/Services/DemoDataService.php');
+    assert_true(str_contains($service, '$this->skippedExisting++'), 'ต้องนับแถวที่ข้าม ไม่ใช่กลืน exception ทิ้งเฉย ๆ');
+    assert_true(str_contains($service, "\$created['skipped_existing']"), 'ต้องส่งจำนวนที่ข้ามกลับไปกับผลลัพธ์');
+
+    assert_true(
+        str_contains(demo_accounts_message(['skipped_existing' => 7]), '7'),
+        'ข้อความที่ผู้ติดตั้งเห็นต้องบอกจำนวนที่ข้าม'
+    );
+    assert_same('', demo_accounts_message([]), 'ถ้าไม่มีอะไรข้ามก็ไม่ต้องมีข้อความรก');
+});
