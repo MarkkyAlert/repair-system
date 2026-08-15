@@ -654,13 +654,24 @@ class TicketReadRepository
         ];
     }
 
+    /**
+     * ช่างที่มอบหมายงานได้ พร้อม "งานค้างตอนนี้" ของแต่ละคน — หัวหน้าที่กำลังจะเลือกช่างต้องรู้ว่าใครมือว่าง
+     * ตัวเลขนี้มีอยู่แล้วในรายงานผลงานทีมช่าง แต่คนละหน้ากับจุดที่ตัดสินใจ ทำให้ต้องเปิดสองหน้าแล้วจำมาเลือก.
+     *
+     * นับเฉพาะงานที่ยังอยู่ในมือช่างจริง (assigned/accepted/in_progress) — resolved ถือว่าพ้นมือแล้ว รอผู้แจ้งตรวจรับ.
+     * LEFT JOIN + COUNT ในคิวรีเดียว ไม่ใช่ยิงต่อช่างหนึ่งคน (N+1) และช่างที่ไม่มีงานต้องยังขึ้นในรายการ
+     */
     public function getActiveTechnicians(): array
     {
         $stmt = $this->db->query(
-            "SELECT id, full_name
-             FROM users
-             WHERE role = 'technician' AND is_active = 1
-             ORDER BY full_name ASC, id ASC"
+            "SELECT u.id, u.full_name, COUNT(t.id) AS open_now
+             FROM users u
+             LEFT JOIN tickets t
+                    ON t.assigned_technician_id = u.id
+                   AND t.status IN ('assigned','accepted','in_progress')
+             WHERE u.role = 'technician' AND u.is_active = 1
+             GROUP BY u.id, u.full_name
+             ORDER BY u.full_name ASC, u.id ASC"
         );
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];

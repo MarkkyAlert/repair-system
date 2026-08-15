@@ -1009,10 +1009,17 @@ class TicketService
             'canDuplicate' => $canDuplicate,
             'canComment' => $canComment,
             'canUseInternalComment' => $canUseInternalComment,
-            'technicians' => array_map(fn (array $technician): array => [
-                'id' => (int) ($technician['id'] ?? 0),
-                'label' => (string) ($technician['full_name'] ?? '-'),
-            ], $this->reads->getActiveTechnicians()),
+            // ป้ายในช่องเลือกช่างบอกงานค้างของแต่ละคนไปด้วย เพื่อไม่ต้องเปิดหน้ารายงานอีกหน้าแล้วจำตัวเลขมาเลือก
+            'technicians' => array_map(static function (array $technician): array {
+                $openNow = (int) ($technician['open_now'] ?? 0);
+                $name = (string) ($technician['full_name'] ?? '-');
+
+                return [
+                    'id' => (int) ($technician['id'] ?? 0),
+                    'label' => $openNow > 0 ? $name . ' — งานค้าง ' . $openNow : $name . ' — ว่าง',
+                    'open_now' => $openNow,
+                ];
+            }, $this->reads->getActiveTechnicians()),
             'workOrder' => [
                 'number' => (string) ($ticket['work_order_no'] ?? ''),
                 'status' => work_order_status_label_th((string) ($ticket['work_order_status'] ?? '')),
