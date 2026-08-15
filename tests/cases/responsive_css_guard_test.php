@@ -55,47 +55,82 @@ test('css (ux-review-2): forgot-pw collapse, mobile export, priority reflow pres
         'public/assets/css/app.css' => (string) file_get_contents($root . '/public/assets/css/app.css'),
     ];
 
+    // Match per RULE (one selector of the list + declarations in any order) instead of as one literal string.
+    // The minifier is free to alphabetise declarations and to fold a selector into a shared group
+    // (".auth-reset-panel .hero-card,.hero-card{…}"); a buyer who rebuilds with the pinned Tailwind gets
+    // exactly that, and a text match would then fail on a stylesheet that is perfectly correct. Comments are
+    // stripped first — in the readable source they sit between rules and would otherwise glue themselves onto
+    // the next selector, quietly weakening every match (a "must NOT be hidden" check that can never see the
+    // rule always passes).
+    $declares = static function (string $css, string $selectorPattern, array $declarationPatterns): bool {
+        $css = (string) preg_replace('#/\*.*?\*/#s', '', $css);
+        if (preg_match_all('/([^{}]+)\{([^{}]*)\}/', $css, $rules, PREG_SET_ORDER) < 1) {
+            return false;
+        }
+        foreach ($rules as $rule) {
+            $matched = false;
+            foreach (explode(',', $rule[1]) as $selector) {
+                if (preg_match($selectorPattern, trim($selector)) === 1) {
+                    $matched = true;
+                    break;
+                }
+            }
+            if (!$matched) {
+                continue;
+            }
+            foreach ($declarationPatterns as $declaration) {
+                if (preg_match($declaration, $rule[2]) !== 1) {
+                    continue 2;
+                }
+            }
+
+            return true;
+        }
+
+        return false;
+    };
+
     foreach ($files as $label => $css) {
         // F1: /forgot-password's .auth-reset-panel hero-card carries a 2-col grid at (0,2,0) specificity that
         // beats the single-class mobile .hero-card{1fr}; the collapse must be restated at matching specificity.
         assert_true(
-            preg_match('/\.auth-reset-panel\s+\.hero-card\s*\{\s*grid-template-columns:\s*1fr/', $css) === 1,
-            "{$label} missing .auth-reset-panel .hero-card { grid-template-columns: 1fr } (F1 mobile collapse)"
+            $declares($css, '/^\.auth-reset-panel\s+\.hero-card$/', ['/grid-template-columns:\s*1fr\s*(?:;|$)/']),
+            "{$label} missing a rule giving .auth-reset-panel .hero-card grid-template-columns: 1fr (F1 mobile collapse)"
         );
         // F2: the report export bar must NOT be hidden wholesale on mobile (it stranded phone users).
-        assert_true(
-            preg_match('/\.report-export-bar\s*\{\s*display:\s*none/', $css) !== 1,
+        assert_false(
+            $declares($css, '/^\.report-export-bar$/', ['/display:\s*none/']),
             "{$label} still hides .report-export-bar entirely on mobile (F2 — export unreachable)"
         );
         // F4: on mobile the priority-card meta drops to its own row so the copy column isn't crushed.
         assert_true(
-            preg_match('/\.collapsible-meta\s*\{\s*flex-basis:\s*100%/', $css) === 1,
+            $declares($css, '/^\.collapsible-meta$/', ['/flex-basis:\s*100%/']),
             "{$label} missing mobile .collapsible-meta { flex-basis: 100% } (F4 reflow)"
         );
         // F3: on mobile the admin tablist becomes one horizontal-scroll row (nowrap) and its group captions
         // stop forcing their own row (flex:0 0 auto) — desktop keeps the 3-row grouped layout (flex:0 0 100%).
         assert_true(
-            preg_match('/\.admin-tabs\s*\{\s*flex-wrap:\s*nowrap;\s*overflow-x:\s*auto/', $css) === 1,
+            $declares($css, '/^\.admin-tabs$/', ['/flex-wrap:\s*nowrap/', '/overflow-x:\s*auto/']),
             "{$label} missing mobile .admin-tabs { flex-wrap: nowrap; overflow-x: auto } (F3 single-row)"
         );
         assert_true(
-            preg_match('/\.admin-tab-grouplabel\s*\{\s*flex:\s*0 0 auto/', $css) === 1,
+            $declares($css, '/^\.admin-tab-grouplabel$/', ['/flex:\s*0 0 auto/']),
             "{$label} missing mobile .admin-tab-grouplabel { flex: 0 0 auto } (F3 inline captions)"
         );
         // ux-review-3 F2: on mobile the admin tab row sticks BELOW the 76px topbar (top:76px), not at top:0
         // where the taller, higher-z topbar hid it entirely.
         assert_true(
-            preg_match('/\.admin-tabs-scroller\s*\{\s*top:\s*76px/', $css) === 1,
+            $declares($css, '/^\.admin-tabs-scroller$/', ['/top:\s*76px/']),
             "{$label} missing mobile .admin-tabs-scroller { top: 76px } (F2 — tab row hidden behind topbar)"
         );
         // ux-review-3 F4: the field info-buttons must meet the 24x24 minimum target size (WCAG 2.5.8).
         assert_true(
-            preg_match('/\.field-info-icon\s*\{[^}]*width:\s*24px[^}]*height:\s*24px/', $css) === 1,
+            $declares($css, '/^\.field-info-icon$/', ['/(?<![-\w])width:\s*24px/', '/(?<![-\w])height:\s*24px/']),
             "{$label} .field-info-icon must be >= 24x24 (was 22x22 — below WCAG 2.5.8 min target)"
         );
         // ux-review-5 F2: the filter-chip dismiss button must clear 24x24 (was 1.2rem / 19.2px).
         assert_true(
-            preg_match('/\.filter-chip-dismiss\s*\{[^}]*min-width:\s*24px[^}]*min-height:\s*24px/', $css) === 1,
+            $declares($css, '/^\.filter-chip-dismiss$/', ['/min-width:\s*24px/', '/min-height:\s*24px/']),
             "{$label} .filter-chip-dismiss must be >= 24x24 (was 1.2rem/19.2px — below WCAG 2.5.8)"
         );
         // ux-review-7 F2: the mobile create-form sticky action bars sit BELOW the 76px topbar (was top:0,

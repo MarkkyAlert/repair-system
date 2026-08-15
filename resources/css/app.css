@@ -1596,6 +1596,34 @@ select.input::-ms-expand { display: none; }
 .error-card .error-reference { font-size: .85rem; color: var(--muted); }
 .error-actions { display: flex; gap: .65rem; flex-wrap: wrap; justify-content: center; margin-top: .5rem; }
 
+/* กล่องเลขที่อ้างอิงในหน้ายืนยันของผู้แจ้งที่ไม่ได้ล็อกอิน
+   หน้าแขกใช้พื้นเข้มทั้งสองธีม (.guest-body) และกล่องนี้เป็นแผ่นสีอ่อนวางทับอยู่ — พื้นกล่องจึงอ่อนเสมอ
+   สีตัวอักษรข้างในต้องล็อกเป็นค่าของพื้นอ่อน ห้ามใช้ var(--muted) เพราะธีมมืดจะสลับเป็น #adb0d2 ซึ่งเป็นสี
+   สำหรับพื้นเข้ม วางบนพื้น --indigo-50 แล้วได้ความคมชัดแค่ ~1.9:1 (AA ต้องการ 4.5:1) — เลขที่อ้างอิงคือ
+   สิ่งเดียวที่ผู้แจ้งใช้ตามเรื่องได้ ป้ายกำกับรอบ ๆ จึงต้องอ่านออก. ล็อกไว้ด้วย a11y_guard_test
+   ทั้งสองหยุดของ gradient ต้องทึบ: เดิมหยุดที่สองเป็น rgba(...,.08) พื้นเข้มของหน้าจึงทะลุขึ้นมาครึ่งขวา
+   ของกล่อง ทำให้ตัวหนังสือสีสำหรับพื้นอ่อนไปนั่งบนพื้นเข้ม (บทเรียนเดียวกับ .error-card ข้างบน) */
+.reference-card {
+  margin-top: 2rem;
+  padding: 2rem;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--indigo-50), var(--indigo-100));
+  text-align: center;
+}
+.reference-card .reference-label {
+  margin: 0;
+  font-size: .77rem;
+  color: #545786;              /* = ค่า --muted ของธีมสว่าง แบบไม่ให้ธีมมืดทับ */
+}
+.reference-card .reference-number {
+  margin: .5rem 0;
+  font-family: var(--font-mono, monospace);
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--indigo-600);    /* 5.4:1 บนพื้น --indigo-50 และธีมมืดไม่ทับค่าชุด --indigo-* */
+}
+.reference-card .btn { margin-top: .75rem; }
+
 /* =========================================================================
    กล่องยืนยันที่ใช้ร่วมกัน (ใช้ตอนอนุมัติหลายรายการ, ส่งประกาศ, ลบ)
    ========================================================================= */

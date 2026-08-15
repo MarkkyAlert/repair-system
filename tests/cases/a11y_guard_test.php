@@ -506,3 +506,77 @@ test('a11y-review pagination: hand-rolled admin pagination prev/next carry acces
         assert_true(str_contains($html, 'aria-current="page"'), "{$rel} active page link missing aria-current");
     }
 });
+
+test('a11y-review guest-ref: the reference-card labels clear AA on the light card in BOTH themes', function (): void {
+    // The guest confirmation page sits on the always-dark guest background, with the reference number on a
+    // light indigo-50 card. The two small labels around it used .helper-text = var(--muted), which the dark
+    // theme swaps to a light grey meant for dark surfaces — light grey on a light card measured ~1.9:1, so
+    // "เลขที่อ้างอิงของคุณ" and "เก็บเลขนี้ไว้สำหรับติดตามผล" were effectively invisible in dark mode while the
+    // number itself stayed readable. The card now owns its text colors and pins them to the light-surface
+    // values. Measured off the SERVED build (and the source it is built from), so a rebuild cannot drop it.
+    $root = dirname(__DIR__, 2);
+
+    $lum = static function (string $hex): float {
+        $f = static fn (float $c): float => ($c /= 255) <= 0.03928 ? $c / 12.92 : (($c + 0.055) / 1.055) ** 2.4;
+        return 0.2126 * $f((float) hexdec(substr($hex, 0, 2)))
+            + 0.7152 * $f((float) hexdec(substr($hex, 2, 2)))
+            + 0.0722 * $f((float) hexdec(substr($hex, 4, 2)));
+    };
+    $contrast = static function (string $a, string $b) use ($lum): float {
+        $l1 = $lum($a);
+        $l2 = $lum($b);
+        return (max($l1, $l2) + 0.05) / (min($l1, $l2) + 0.05);
+    };
+
+    foreach (['resources/css/app.css', 'public/assets/css/app.css'] as $rel) {
+        $css = (string) file_get_contents($root . '/' . $rel);
+
+        assert_true(
+            preg_match('/\.reference-card\s*\{[^}]*background:\s*([^;}]+)/', $css, $bm) === 1,
+            "{$rel}: could not isolate the .reference-card background"
+        );
+        $background = $bm[1];
+
+        // Every stop must be an opaque token. A translucent stop lets the always-dark guest page show through
+        // one side of the card, so light-surface text ends up on a dark backdrop — the bug the .error-card
+        // comment above already records once.
+        assert_true(
+            !str_contains($background, 'rgba(') && !str_contains($background, 'transparent'),
+            "{$rel}: .reference-card gradient must be fully opaque ({$background}) — the dark page must not show through it"
+        );
+
+        // Resolve each --indigo-NN stop from the same file: the card sits on all of them across its width.
+        assert_true(preg_match_all('/var\(--(indigo-\d+)\)/', $background, $sm) > 0, "{$rel}: no color tokens in the card background");
+        $stops = [];
+        foreach (array_unique($sm[1]) as $token) {
+            assert_true(preg_match('/--' . $token . ':\s*#([0-9a-fA-F]{6})/', $css, $tm) === 1, "{$rel}: --{$token} not declared");
+            // No theme overrides the --indigo-* ramp, so these values hold in light and dark alike.
+            assert_same(1, preg_match_all('/--' . $token . ':\s*#[0-9a-fA-F]{6}/', $css), "{$rel}: --{$token} is redefined per theme; the card would stop being light");
+            $stops[$token] = $tm[1];
+        }
+
+        assert_true(
+            preg_match('/\.reference-card \.reference-label\s*\{[^}]*color:\s*([^;}]+)/', $css, $lm) === 1,
+            "{$rel}: .reference-card .reference-label must set its own color"
+        );
+        $labelColor = trim($lm[1]);
+        assert_true(
+            preg_match('/^#([0-9a-fA-F]{6})$/', $labelColor, $cm) === 1,
+            "{$rel}: the label color must be a fixed value, not a theme token like {$labelColor} — a token that flips in dark mode is exactly the bug"
+        );
+
+        foreach ($stops as $token => $stopHex) {
+            $ratio = $contrast($cm[1], $stopHex);
+            assert_true(
+                $ratio >= 4.5,
+                sprintf('%s: label #%s over --%s (#%s) is %.2f:1 — WCAG AA needs 4.5:1 for this size', $rel, $cm[1], $token, $stopHex, $ratio)
+            );
+        }
+    }
+
+    // The rules only apply if the page actually uses them, so the view must carry the classes (not inline styles).
+    $view = (string) file_get_contents($root . '/app/Views/scan/report-success.php');
+    assert_true(str_contains($view, 'class="reference-card"'), 'the confirmation page must use .reference-card');
+    assert_same(2, substr_count($view, 'class="reference-label"'), 'both labels around the reference number must use .reference-label');
+    assert_false(str_contains($view, 'helper-text'), 'the labels must not fall back to .helper-text (its color flips with the theme)');
+});

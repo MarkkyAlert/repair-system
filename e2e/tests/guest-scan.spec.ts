@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 import path from 'node:path';
 import { mysqlInt, mysqlRows, sqlString } from '../helpers/db';
 
@@ -41,6 +42,48 @@ test('golden path B — guest submits by QR, admin converts, and guest sees the 
   await copyReference.click();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(reference);
   await expect(page.getByRole('button', { name: 'คัดลอกแล้ว' })).toBeVisible();
+
+  // The reference card is a light panel on a page that is dark in both themes, so the dark theme is where its
+  // text can go light-on-light. The a11y sweep only visits authenticated pages and this one exists only as the
+  // response to a POST, so check it here — in the theme that broke it — instead of leaving it uncovered.
+  await page.evaluate(() => document.documentElement.classList.add('dark'));
+
+  const axe = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .include('.reference-card')
+    .analyze();
+  const blocking = axe.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
+  expect(blocking, `\n${blocking.map((v) => `${v.id} (${v.impact}) x${v.nodes.length}`).join('\n')}`).toEqual([]);
+
+  // axe reports contrast over a gradient as "incomplete", never as a violation, so it cannot see this card at
+  // all — measure it directly instead, off the resolved styles the browser actually applied.
+  const cardContrast = await page.evaluate(() => {
+    const card = document.querySelector('.reference-card') as HTMLElement;
+    const label = document.querySelector('.reference-label') as HTMLElement;
+    const colors = (value: string) =>
+      (value.match(/rgba?\([^)]+\)/g) ?? []).map((c) => (c.match(/[\d.]+/g) ?? []).map(Number));
+    const luminance = ([r, g, b]: number[]) => {
+      const f = (c: number) => (c / 255 <= 0.03928 ? c / 255 / 12.92 : ((c / 255 + 0.055) / 1.055) ** 2.4);
+      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+    };
+    const stops = colors(getComputedStyle(card).backgroundImage);
+    const text = colors(getComputedStyle(label).color)[0];
+    const ratios = stops.map((stop) => {
+      const [a, b] = [luminance(text), luminance(stop)].sort((x, y) => y - x);
+      return (a + 0.05) / (b + 0.05);
+    });
+
+    return {
+      worst: Math.min(...ratios),
+      seeThrough: stops.some((stop) => stop.length > 3 && stop[3] < 1),
+    };
+  });
+  // A translucent stop would let the dark page through the card, so the measurement above would not describe
+  // what the eye sees either.
+  expect(cardContrast.seeThrough, 'the reference card must be opaque').toBe(false);
+  expect(cardContrast.worst).toBeGreaterThanOrEqual(4.5);
+
+  await page.evaluate(() => document.documentElement.classList.remove('dark'));
 
   const request = mysqlRows(
     `SELECT g.id, g.request_no, g.status, g.guest_phone, a.asset_code ` +
