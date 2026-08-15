@@ -108,5 +108,6 @@
     <p class="muted paragraph-space-md">ผลการแก้ไข: <?= e((string) (($ticket['work_order_resolution_summary'] ?? '') !== '' ? $ticket['work_order_resolution_summary'] : '-')) ?></p>
     <p class="muted paragraph-space-md">เวลาปฏิบัติงาน (นาที): <?= e((string) ($ticket['work_order_labor_minutes'] ?? 0)) ?></p>
 </div>
+<?= render_partial('partials/print/export-footnote') ?>
 </body>
 </html>

@@ -27,6 +27,13 @@ use RuntimeException;
  */
 class ReportExporter
 {
+    /**
+     * เชิงอรรถอธิบายศัพท์ท้ายไฟล์ที่ส่งออก — ไฟล์ Excel/CSV ถูกส่งต่อให้คนที่ไม่ได้เปิดระบบเอง จึงไม่มีปุ่มดู
+     * คำอธิบายเหมือนบนหน้าเว็บ. ต้องขึ้นต้นด้วย "หมายเหตุ" เสมอ: ถ้าเริ่มด้วย - หรือ = ตัวกัน formula-injection
+     * จะเติม ' นำหน้า แล้วผู้ใช้จะเห็นอักขระประหลาดใน Excel
+     */
+    public const SLA_FOOTNOTE = 'หมายเหตุ: SLA (Service Level Agreement) = ข้อตกลงระดับการให้บริการ คือกำหนดเวลาที่ต้องตอบรับงานและซ่อมให้เสร็จ ตั้งแยกตามระดับความสำคัญของงาน นับต่อเนื่องแบบ 24 ชั่วโมง ไม่หักเวลานอกเวลาทำการ';
+
     /** ทำให้ทุกเซลล์ในแถวปลอดภัยจาก CSV/spreadsheet formula injection (เติม `'` นำหน้าเมื่อขึ้นต้นด้วย = + - @) */
     public function sanitizeExportRow(array $values): array
     {
@@ -141,6 +148,29 @@ class ReportExporter
             $this->writeDataRow($sheet, $rowNumber, $row);
             $rowNumber++;
         }
+
+        // แผ่นไหนพูดถึง SLA (ในชื่อแผ่นหรือหัวคอลัมน์) ให้ต่อท้ายด้วยเชิงอรรถ เว้นหนึ่งบรรทัดจากตาราง — ไฟล์ที่ถูกส่งต่อ
+        // ให้ผู้บริหารจะได้อธิบายตัวเองได้ ตัดสินจาก header ตรงนี้ที่เดียวเลย ไม่ต้องให้ผู้เรียกแต่ละที่จำเอง
+        // (ต้องอยู่ "ท้าย" ตารางเท่านั้น: ทั้งเทสต์และคนอ่านต่างคาดว่าแถวแรกคือหัวคอลัมน์)
+        if (self::mentionsSla(array_merge([$title], $headers))) {
+            $sheet->setCellValueExplicit(
+                'A' . ($rowNumber + 1),
+                self::SLA_FOOTNOTE,
+                DataType::TYPE_STRING
+            );
+        }
+    }
+
+    /** @param array<int, string> $labels ชื่อแผ่น/ชื่อ section + หัวคอลัมน์ (แผ่น "SLA ตรงตามกำหนด" ไม่มีคำว่า SLA ในหัวคอลัมน์เลย) */
+    private static function mentionsSla(array $labels): bool
+    {
+        foreach ($labels as $label) {
+            if (str_contains((string) $label, 'SLA')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -168,8 +198,10 @@ class ReportExporter
             throw new RuntimeException('ไม่สามารถเตรียมไฟล์ CSV ได้');
         }
         fwrite($stream, "\xEF\xBB\xBF");
+        $explainsSla = false;
         $first = true;
         foreach ($sections as $section) {
+            $explainsSla = $explainsSla || self::mentionsSla(array_merge([(string) ($section['title'] ?? '')], (array) ($section['headers'] ?? [])));
             if (!$first) {
                 fputcsv($stream, []); // บรรทัดว่างคั่นระหว่าง section
             }
@@ -182,6 +214,10 @@ class ReportExporter
             foreach ((array) ($section['rows'] ?? []) as $row) {
                 fputcsv($stream, $this->sanitizeExportRow((array) $row));
             }
+        }
+        if ($explainsSla) {
+            fputcsv($stream, []);
+            fputcsv($stream, [self::SLA_FOOTNOTE]);
         }
         rewind($stream);
         $content = (string) stream_get_contents($stream);

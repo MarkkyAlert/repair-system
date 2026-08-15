@@ -95,5 +95,6 @@
     <?php endforeach; ?>
     </tbody>
 </table>
+<?= render_partial('partials/print/export-footnote') ?>
 </body>
 </html>
