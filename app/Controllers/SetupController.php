@@ -76,11 +76,7 @@ class SetupController
             $message = 'ตั้งค่าระบบเสร็จสมบูรณ์';
             if ($demoSummary !== null) {
                 $message .= ' · โหลดข้อมูลตัวอย่างแล้ว (' . (int) ($demoSummary['assets'] ?? 0) . ' assets, ' . (int) ($demoSummary['tickets'] ?? 0) . ' tickets)';
-                if (!empty($demoSummary['demo_technician'])) {
-                    $cred = $demoSummary['demo_technician'];
-                    $message .= ' · บัญชีช่างตัวอย่าง: ' . (string) $cred['username']
-                        . ' / ' . (string) $cred['password'] . ' (บันทึกไว้ — รหัสนี้จะไม่แสดงอีก)';
-                }
+                $message .= demo_accounts_message($demoSummary);
             }
             flash('success', $message . ' กรุณาเข้าสู่ระบบ');
             Response::redirect('/login');

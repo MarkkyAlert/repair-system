@@ -138,6 +138,38 @@ test('demo-load(integrity): generated lifecycle, work order, SLA, approval, hist
                 OR COALESCE(events.resolutions, 0) < 1"
         )->fetchColumn();
         assert_same(0, $ratingViolations, 'ratings belong only to a completed lifecycle cycle');
+
+        // A buyer tours the product with the accounts the demo hands them and nothing else. It used to hand over
+        // an admin and three technicians, so the two screens that decide the sale — the phone-first reporting form
+        // and the approval queue — could not be opened at all, and every ticket in every list read
+        // "ผู้แจ้ง: ผู้ดูแลระบบ", which looks like broken data rather than a sample.
+        $roles = $database->query(
+            "SELECT role, COUNT(*) FROM users WHERE username LIKE '%_demo%' GROUP BY role"
+        )->fetchAll(PDO::FETCH_KEY_PAIR);
+        foreach (['technician', 'manager', 'requester'] as $role) {
+            assert_true(
+                (int) ($roles[$role] ?? 0) > 0,
+                "the demo pack creates a {$role} account so that role can actually be logged into (got: "
+                . json_encode($roles, JSON_UNESCAPED_UNICODE) . ')'
+            );
+        }
+
+        // and the caller is told how to log in as them — the password is random per load and shown once
+        $accounts = $result['demo_accounts'] ?? null;
+        assert_true(is_array($accounts) && ($accounts['password'] ?? '') !== '', 'the load result carries the shared demo password');
+        assert_same(
+            ['ผู้แจ้ง', 'หัวหน้างาน', 'ช่าง'],
+            array_keys((array) ($accounts['usernames'] ?? [])),
+            'and names one account per role a buyer needs to try'
+        );
+
+        // tickets are reported by the requester accounts, not by the admin who pressed the button
+        $adminReported = (int) $database->query(
+            "SELECT COUNT(*) FROM tickets t JOIN users u ON u.id = t.requester_id WHERE u.role = 'admin'"
+        )->fetchColumn();
+        assert_same(0, $adminReported, 'no demo ticket is reported by the admin account');
+        $distinctRequesters = (int) $database->query('SELECT COUNT(DISTINCT requester_id) FROM tickets')->fetchColumn();
+        assert_true($distinctRequesters >= 2, "the ผู้แจ้ง column shows more than one name (got {$distinctRequesters})");
     } finally {
         if ($database->inTransaction()) {
             $database->rollBack();

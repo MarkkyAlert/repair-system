@@ -380,3 +380,36 @@ if (!function_exists('user_changed_fields')) {
         return $changed;
     }
 }
+
+if (!function_exists('demo_accounts_message')) {
+    /**
+     * ข้อความบอกบัญชีตัวอย่างหลังโหลด demo — ใช้ร่วมกันระหว่าง Setup Wizard และปุ่มในหน้าผู้ดูแล เพราะทั้งสองทาง
+     * คือทางเดียวที่คนติดตั้งจะได้รู้รหัสนี้ (สุ่มใหม่ทุกครั้ง ไม่แสดงซ้ำ) — ถ้าสองที่เขียนคนละแบบ จะมีทางหนึ่งที่
+     * บอกไม่ครบแล้วผู้ซื้อล็อกอินได้แค่บางบทบาท.
+     *
+     * @param array<string, mixed> $summary ผลลัพธ์จาก DemoDataService::load()
+     */
+    function demo_accounts_message(array $summary): string
+    {
+        $accounts = $summary['demo_accounts'] ?? null;
+        if (is_array($accounts) && !empty($accounts['usernames'])) {
+            $pairs = [];
+            foreach ((array) $accounts['usernames'] as $roleLabel => $username) {
+                $pairs[] = $roleLabel . ' ' . (string) $username;
+            }
+
+            return ' · บัญชีตัวอย่าง (' . implode(' · ', $pairs) . ') รหัสผ่านเดียวกันทุกบัญชี: '
+                . (string) ($accounts['password'] ?? '') . ' (บันทึกไว้ — รหัสนี้จะไม่แสดงอีก)';
+        }
+
+        // ข้อมูลรุ่นก่อนที่คืนมาแค่บัญชีช่าง
+        if (!empty($summary['demo_technician']) && is_array($summary['demo_technician'])) {
+            $cred = $summary['demo_technician'];
+
+            return ' · บัญชีช่างตัวอย่าง: ' . (string) ($cred['username'] ?? '')
+                . ' / ' . (string) ($cred['password'] ?? '') . ' (บันทึกไว้ — รหัสนี้จะไม่แสดงอีก)';
+        }
+
+        return '';
+    }
+}

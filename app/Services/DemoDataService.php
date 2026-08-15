@@ -69,13 +69,19 @@ class DemoDataService
             $assetCategoryIds = $this->codeMap($this->admin->getAssetCategories());
             $priorityIds = $this->codeMap($this->admin->getPriorities());
 
-            [$techIds, $created['users'], $techPassword] = $this->seedTechnician($departmentIds);
+            [$staffIds, $created['users'], $staffPassword] = $this->seedTechnician($departmentIds);
             [$assetIds, $created['assets']] = $this->seedAssets($createdByUserId, $assetCategoryIds, $locationIds);
-            $created['tickets'] = $this->seedTickets($createdByUserId, $techIds, $departmentIds, $locationIds, $assetIds, $ticketCategoryIds, $priorityIds);
+            $created['tickets'] = $this->seedTickets($createdByUserId, $staffIds, $departmentIds, $locationIds, $assetIds, $ticketCategoryIds, $priorityIds);
 
-            // surface รหัสช่างตัวอย่างเฉพาะเมื่อสร้างบัญชีใหม่จริง (ถ้ามีอยู่แล้วไม่รู้/ไม่แตะรหัสเดิม)
+            // surface รหัสบัญชีตัวอย่างเฉพาะเมื่อสร้างบัญชีใหม่จริง (ถ้ามีอยู่แล้วไม่รู้/ไม่แตะรหัสเดิม).
+            // demo_technician คงไว้ตามเดิมเพื่อไม่ให้ผู้เรียกเดิมพัง; demo_accounts เพิ่มมาให้บอกครบทุกบทบาท เพราะ
+            // คนที่เพิ่งติดตั้งต้องล็อกอินเป็นผู้แจ้งและหัวหน้าได้ ไม่ใช่รู้แค่บัญชีช่าง
             if ($created['users'] > 0) {
-                $created['demo_technician'] = ['username' => 'tech_demo', 'password' => $techPassword];
+                $created['demo_technician'] = ['username' => 'tech_demo', 'password' => $staffPassword];
+                $created['demo_accounts'] = [
+                    'password' => $staffPassword,
+                    'usernames' => ['ผู้แจ้ง' => 'user_demo', 'หัวหน้างาน' => 'mgr_demo', 'ช่าง' => 'tech_demo'],
+                ];
             }
 
             if ($startedTransaction) {
@@ -177,43 +183,53 @@ class DemoDataService
     }
 
     /**
+     * สร้างบัญชีตัวอย่างให้ครบทุกบทบาทที่ผู้ซื้อต้องลอง — ช่าง 3 คน (ต่างแผนก เพื่อให้รายงานผลงานช่าง/CSAT-ต่อช่าง
+     * มีหลายแถว) หัวหน้า 1 คน และผู้แจ้ง 2 คน (ต่างแผนก เพื่อให้มิติ "แผนก" ในรายงานมีของจริง).
+     *
      * @param array<string, int> $departmentIds
-     * @return array{0: int, 1: int, 2: string} [technicianUserId, usersCreated, plainPassword ('' ถ้าไม่ได้สร้าง)]
-     */
-    /**
-     * สร้างช่างตัวอย่าง 3 คน (ต่างแผนก) เพื่อให้รายงานผลงานช่าง/CSAT-ต่อช่างมีหลายแถว.
-     * @return array{0: array<int, int>, 1: int, 2: string} [techIds, created, sharedPassword]
+     * @return array{0: array{technician: list<int>, manager: list<int>, requester: list<int>}, 1: int, 2: string}
+     *         [idsByRole, usersCreated, sharedPassword]
      */
     private function seedTechnician(array $departmentIds): array
     {
         // สุ่มรหัสผ่านใหม่ทุกครั้งที่โหลด — ห้าม hardcode ค่าคงที่ไว้ใน source เพราะใครเปิด source ก็รู้รหัสทันที.
-        // caller (setup/admin) จะโชว์รหัสนี้ให้ operator เห็นครั้งเดียวหลังโหลด. ช่าง demo ทุกคนใช้รหัสเดียวกัน.
+        // caller (setup/admin) จะโชว์รหัสนี้ให้ operator เห็นครั้งเดียวหลังโหลด. บัญชี demo ทุกใบใช้รหัสเดียวกัน.
+        //
+        // ต้องมีครบทั้ง 4 บทบาท ไม่ใช่แค่ช่าง: คนที่เพิ่งติดตั้งจะกดดูรอบแรกด้วยบัญชีที่ demo แถมมาเท่านั้น ถ้ามีแต่
+        // แอดมินกับช่าง เขาจะไม่มีทางเห็นสองหน้าจอที่พนักงานส่วนใหญ่ใช้จริง — หน้าแจ้งซ่อมบนมือถือของผู้แจ้ง และคิว
+        // อนุมัติของหัวหน้า ซึ่งเป็นสองอย่างที่ตัดสินใจซื้อ. ผู้แจ้งมีสองคนคนละแผนก เพื่อให้รายงานแยกตามแผนกมีของจริง
+        // ให้ดู แทนที่จะเป็นชื่อเดียวทั้งตาราง
         $plainPassword = bin2hex(random_bytes(8));
-        $techs = [
-            ['username' => 'tech_demo', 'full_name' => 'สมชาย ช่างเทคนิค', 'dept' => 'IT'],
-            ['username' => 'tech_demo2', 'full_name' => 'วิภา ช่างซ่อมบำรุง', 'dept' => 'FACILITY'],
-            ['username' => 'tech_demo3', 'full_name' => 'ธนา ช่างไฟฟ้า', 'dept' => 'FACILITY'],
+        $staff = [
+            ['username' => 'tech_demo', 'full_name' => 'สมชาย ช่างเทคนิค', 'dept' => 'IT', 'role' => 'technician'],
+            ['username' => 'tech_demo2', 'full_name' => 'วิภา ช่างซ่อมบำรุง', 'dept' => 'FACILITY', 'role' => 'technician'],
+            ['username' => 'tech_demo3', 'full_name' => 'ธนา ช่างไฟฟ้า', 'dept' => 'FACILITY', 'role' => 'technician'],
+            ['username' => 'mgr_demo', 'full_name' => 'สุภาวดี หัวหน้าฝ่ายอาคาร', 'dept' => 'FACILITY', 'role' => 'manager'],
+            ['username' => 'user_demo', 'full_name' => 'ปรียา ธุรการ', 'dept' => 'OFFICE', 'role' => 'requester'],
+            ['username' => 'user_demo2', 'full_name' => 'ณัฐพล ฝ่ายผลิต', 'dept' => 'IT', 'role' => 'requester'],
         ];
 
-        $ids = [];
-        foreach ($techs as $tech) {
+        $ids = ['technician' => [], 'manager' => [], 'requester' => []];
+        $created = 0;
+        foreach ($staff as $person) {
             try {
-                $ids[] = $this->admin->createUser([
-                    'username' => $tech['username'],
-                    'email' => $tech['username'] . '@example.com',
+                $ids[$person['role']][] = $this->admin->createUser([
+                    'username' => $person['username'],
+                    'email' => $person['username'] . '@example.com',
                     'password_hash' => password_hash($plainPassword, PASSWORD_BCRYPT),
-                    'full_name' => $tech['full_name'],
+                    'full_name' => $person['full_name'],
                     'phone' => '',
-                    'role' => 'technician',
-                    'department_id' => $departmentIds[$tech['dept']] ?? null,
+                    'role' => $person['role'],
+                    'department_id' => $departmentIds[$person['dept']] ?? null,
                     'is_active' => true,
                 ]);
+                $created++;
             } catch (DomainException) {
                 // Username/email มีอยู่แล้ว — best-effort: ข้าม (ไม่แตะรหัสเดิม)
             }
         }
 
-        return [$ids, count($ids), $plainPassword];
+        return [$ids, $created, $plainPassword];
     }
 
     /**
@@ -283,12 +299,22 @@ class DemoDataService
      * @param array<string, int> $ticketCategoryIds
      * @param array<string, int> $priorityIds
      */
-    private function seedTickets(int $createdByUserId, array $techIds, array $departmentIds, array $locationIds, array $assetIds, array $ticketCategoryIds, array $priorityIds): int
+    private function seedTickets(int $createdByUserId, array $staffIds, array $departmentIds, array $locationIds, array $assetIds, array $ticketCategoryIds, array $priorityIds): int
     {
-        // ticket ตัวอย่างต้องมี admin มาทำหน้าที่เป็น requester + manager และต้องมีช่าง demo อย่างน้อย 1 คน.
+        $techIds = $staffIds['technician'] ?? [];
+
+        // ต้องมีผู้สร้าง (admin) และช่าง demo อย่างน้อย 1 คน
         if ($createdByUserId <= 0 || $techIds === []) {
             return 0;
         }
+
+        // ผู้แจ้งหมุนเวียนตามบัญชีผู้แจ้งที่ demo สร้างไว้ ไม่ใช่ใส่ admin ทุกใบ: ทุกหน้าจอที่มีคอลัมน์ "ผู้แจ้ง"
+        // (คิวงาน รายงานรวม CSAT) เคยขึ้นชื่อ "ผู้ดูแลระบบ" ซ้ำกันทั้งตาราง ซึ่งดูเหมือนข้อมูลเสียมากกว่าตัวอย่าง.
+        // ถ้าโหลดซ้ำแล้วบัญชีผู้แจ้งมีอยู่เดิม (createUser โยน DomainException → ไม่ได้ id) จะ fallback เป็น admin
+        // เพื่อให้ยังสร้าง ticket ได้ ไม่ใช่ล้มทั้งชุด
+        $requesterPool = $staffIds['requester'] ?? [];
+        $requesterPool = $requesterPool === [] ? [$createdByUserId] : $requesterPool;
+        $managerId = ($staffIds['manager'] ?? [])[0] ?? $createdByUserId;
 
         // แผนกผู้แจ้ง หมุนเวียนให้มิติ "แผนก" (hotspot/csat/backlog/sla/reopen) มีหลายแถว ไม่ใช่ 'ไม่ระบุแผนก' ล้วน.
         $deptCodes = ['IT', 'FACILITY', 'ADMIN'];
@@ -374,13 +400,13 @@ class DemoDataService
                 'ticket_no' => sprintf('DEMO-%03d', $index),
                 'title' => $title,
                 'description' => $title . ' — รายละเอียดตัวอย่างสำหรับสาธิตระบบ',
-                'requester_id' => $createdByUserId,
+                'requester_id' => $requesterPool[$index % count($requesterPool)],
                 'requester_department_id' => $deptId,
                 'location_id' => $locationIds[$loc] ?? 0,
                 'asset_id' => $assetIds[$asset] ?? null,
                 'ticket_category_id' => $ticketCategoryIds[$cat] ?? 0,
                 'priority_id' => $priorityIds[$pri] ?? 0,
-                'manager_id' => $createdByUserId,
+                'manager_id' => $managerId,
                 'technician_id' => $isTerminalReject ? null : $tech,
                 'approval_status' => $approvalStatus,
                 'status' => $status,

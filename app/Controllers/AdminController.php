@@ -108,11 +108,7 @@ class AdminController
             csrf_validate();
             $result = $this->demoData->load((int) ($viewer['id'] ?? 0));
             $message = 'โหลดข้อมูลตัวอย่างเรียบร้อยแล้ว';
-            if (!empty($result['demo_technician'])) {
-                $cred = $result['demo_technician'];
-                $message .= ' · บัญชีช่างตัวอย่าง: ' . (string) $cred['username']
-                    . ' / ' . (string) $cred['password'] . ' (บันทึกไว้ — รหัสนี้จะไม่แสดงอีก)';
-            }
+            $message .= demo_accounts_message($result);
             flash('success', $message);
         } catch (\PDOException $__infra) {
             throw $__infra; // error ระดับ infra ปล่อยให้ตัวจัดการ error ส่วนกลาง log แล้วส่ง 500 กลาง ๆ ไม่ให้ SQL หลุดออกไป
