@@ -110,7 +110,7 @@ php -S 127.0.0.1:8000 -t public public/index.php
 
 | ตัวแปร | บังคับ | คำอธิบาย | ตัวอย่าง |
 |---|---|---|---|
-| `APP_NAME` | ควรตั้ง | ชื่อระบบ (ตั้งใน admin ได้ทีหลัง) | `Repair System` |
+| `APP_NAME` | ควรตั้ง | ชื่อระบบ (ตั้งใน admin ได้ทีหลัง) | `ระบบแจ้งซ่อม` |
 | `APP_ENV` | ✅ | `local` หรือ `production` | `production` |
 | `APP_DEBUG` | ✅ | `false` เสมอบนของจริง (กันข้อมูลหลุด) | `false` |
 | `APP_URL` | ✅ | URL จริงของเว็บ (ไม่มี / ท้าย) | `https://repair.example.com` |
