@@ -138,10 +138,17 @@ test('report guide: glossary defines the non-obvious metrics — formula + direc
         'เวลาตอบรับ',                  // first response
         'เวลาซ่อมเฉลี่ย',              // MTTR
         'คะแนนสุขภาพทรัพย์สิน',        // asset-health score
+        'ข้อตกลงระดับการให้บริการ',    // SLA — the term the whole product is built on, undefined until 2026-08-15
+        'MTTR',                        // survives ONLY here: the screens dropped the abbreviation, the glossary keeps it
     ];
     foreach ($terms as $term) {
         assert_contains_str($term, $guide, "glossary must define \"{$term}\"");
     }
+
+    // เอกสารคู่แฝดที่ผู้ซื้ออ่านนอกระบบต้องนิยาม SLA ด้วย — ก่อนหน้านี้ไม่มีทั้งสองฝั่ง
+    $doc = (string) file_get_contents(BASE_PATH . '/REPORT-GUIDE.md');
+    assert_contains_str('ข้อตกลงระดับการให้บริการ', $doc, 'REPORT-GUIDE.md must define SLA too');
+    assert_contains_str('เวลาซ่อมเฉลี่ย', $doc, 'REPORT-GUIDE.md uses the Thai name for MTTR');
 
     // definition anchors so each entry is a real definition (formula / base / direction), not just the term
     assert_contains_str('จำนวนครั้ง', $guide, 'MTBF entry shows the per-interval formula');
@@ -189,7 +196,7 @@ test('report guide: the period-freeze promise and the ≥30 backlog boundary mat
     $repo = (string) file_get_contents(BASE_PATH . '/app/Repositories/ReportRepository.php');
 
     // (1) the guide still promises the freeze — including SLA by name
-    assert_contains_str('งวดที่จบแล้วตรึงยอดปิด · MTTR · SLA · คะแนน', $guide, 'the guide promises closed periods are frozen');
+    assert_contains_str('งวดที่จบแล้วตรึงยอดปิด · เวลาซ่อมเฉลี่ย · SLA · คะแนน', $guide, 'the guide promises closed periods are frozen');
 
     // (2) the code keeps it: every SLA verdict tied to a reporting PERIOD goes through the as-of helpers,
     //     whose cutoff is the period end (and only falls back to NOW() when no window is selected).
@@ -325,4 +332,27 @@ test('sla as-of: every layer that judges "overdue" honours the period end, not t
         $offenders,
         'every clock use in ReportService must sit in a method allowed to be live: ' . implode(', ', $offenders)
     );
+});
+
+test('report guide: ตัวย่อ MTTR เหลืออยู่ที่อภิธานศัพท์ที่เดียว', function (): void {
+    // ผู้ใช้ปลายทางไม่รู้จัก MTTR (เจ้าของแจ้ง 2026-08-15) หน้าจอจึงใช้คำว่า "เวลาซ่อมเฉลี่ย" ล้วน ๆ
+    // ตัวย่อเหลือไว้เฉพาะบรรทัดที่นิยามมันในอภิธานศัพท์ เผื่อคนที่คุ้นกับชื่อ KPI สากล
+    //
+    // ยกเว้นคอมเมนต์ในโค้ดรายงาน (ReportService/ReportRepository ~15 จุด) โดยตั้งใจ — เป็นโน้ตเชิงวิเคราะห์
+    // สำหรับคนที่มาแก้สูตร ไม่ใช่ข้อความที่ผู้ใช้เห็น การไล่แปลจะทำให้โน้ตอ่านยากขึ้นโดยไม่มีใครได้ประโยชน์
+    $offenders = [];
+    foreach (glob(BASE_PATH . '/app/Views/**/*.php') ?: [] as $view) {
+        if (!str_contains((string) file_get_contents($view), 'MTTR')) {
+            continue;
+        }
+        if (str_ends_with($view, '/reports/guide.php')) {
+            continue;
+        }
+        $offenders[] = str_replace(BASE_PATH . '/', '', $view);
+    }
+
+    assert_same([], $offenders, 'หน้าจอที่ยังใช้ตัวย่อ MTTR: ' . implode(', ', $offenders));
+
+    $guide = (string) file_get_contents(BASE_PATH . '/app/Views/reports/guide.php');
+    assert_same(1, substr_count($guide, 'MTTR'), 'ในหน้าคู่มือเองก็เหลือ MTTR แค่บรรทัดที่นิยามมัน');
 });

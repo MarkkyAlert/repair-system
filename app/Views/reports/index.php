@@ -221,7 +221,7 @@ $isCapped = !empty($rowsMeta['capped']);
         <div class="panel-head">
             <div>
                 <h2 class="panel-title">ผลงานช่างเทคนิค</h2>
-                <p class="field-hint">สรุปผลงานช่างในช่วงที่กรอง — ปริมาณปิดงาน · เวลาซ่อมเฉลี่ย (MTTR) · คะแนน (ให้เครดิตช่างที่ปิดจริง ไม่เปลี่ยนย้อนหลัง)</p>
+                <p class="field-hint">สรุปผลงานช่างในช่วงที่กรอง — ปริมาณปิดงาน · เวลาซ่อมเฉลี่ย · คะแนน (ให้เครดิตช่างที่ปิดจริง ไม่เปลี่ยนย้อนหลัง)</p>
             </div>
             <?php if (!empty($technicianPerformance)): ?>
                 <span class="badge badge-default"><?= e((string) count($technicianPerformance)) ?> คน</span>
