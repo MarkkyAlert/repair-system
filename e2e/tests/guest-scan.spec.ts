@@ -32,6 +32,16 @@ test('golden path B — guest submits by QR, admin converts, and guest sees the 
   await expect(page.getByText('ขอบคุณที่แจ้งปัญหา')).toBeVisible();
   const reference = (await page.getByText(/GR-\d{8}-[0-9a-fA-F]+/).textContent())!.trim();
 
+  // The reference is the guest's only handle on the request, and it is read on a phone. The copy button is
+  // hidden in the HTML and revealed by JS, so its visibility proves the script ran; the clipboard read proves
+  // the click actually copied the reference rather than just changing the label.
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  const copyReference = page.getByRole('button', { name: 'คัดลอกเลขที่อ้างอิง' });
+  await expect(copyReference).toBeVisible();
+  await copyReference.click();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(reference);
+  await expect(page.getByRole('button', { name: 'คัดลอกแล้ว' })).toBeVisible();
+
   const request = mysqlRows(
     `SELECT g.id, g.request_no, g.status, g.guest_phone, a.asset_code ` +
       `FROM guest_ticket_requests g LEFT JOIN assets a ON a.id = g.asset_id ` +
