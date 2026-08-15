@@ -7,7 +7,7 @@ $dimensionLabel = (string) ($filters['dimensionLabel'] ?? 'ระดับคว
     <?= render_partial('partials/components/page-header', [
         'eyebrow' => 'ข้อมูลเพื่อการตัดสินใจ',
         'title' => 'วิเคราะห์ SLA เกินกำหนด',
-        'description' => 'นับระดับรายการ SLA: หนึ่งใบงานมีรายการตอบรับและรายการแก้ไข แยกดูเพื่อหาคอขวดจริง',
+        'description' => 'SLA = กำหนดเวลาตอบรับ/แก้ไข ตามระดับความสำคัญของงาน · หน้านี้นับระดับรายการ SLA: หนึ่งใบงานมีรายการตอบรับและรายการแก้ไข แยกดูเพื่อหาคอขวดจริง',
     ]) ?>
 
     <div class="action-bar">

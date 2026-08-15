@@ -7,7 +7,7 @@ $dimensionLabel = (string) ($filters['dimensionLabel'] ?? 'แผนก');
     <?= render_partial('partials/components/page-header', [
         'eyebrow' => 'ข้อมูลเพื่อการตัดสินใจ',
         'title' => 'พื้นที่ปัญหา (แผนก / สถานที่)',
-        'description' => 'จัดอันดับแผนก/สถานที่ตามความรุนแรง — แจ้งซ่อมเยอะ · เกิน SLA เยอะ · ใช้แรงงานเยอะ',
+        'description' => 'จัดอันดับแผนก/สถานที่ตามความรุนแรง — แจ้งซ่อมเยอะ · เกิน SLA (กำหนดเวลาตอบรับ/แก้ไข) เยอะ · ใช้แรงงานเยอะ',
     ]) ?>
 
     <div class="action-bar">

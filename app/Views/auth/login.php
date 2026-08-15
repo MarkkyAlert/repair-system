@@ -24,7 +24,7 @@
                     <span class="hero-feature-icon"><?= lucide('zap', 'h-4 w-4') ?></span>
                     <div>
                         <strong>SLA อัตโนมัติ</strong>
-                        <span>คำนวณเวลาตอบรับและแก้ไขตาม Priority</span>
+                        <span>กำหนดเวลาตอบรับและเวลาซ่อมให้อัตโนมัติตามระดับความสำคัญ</span>
                     </div>
                 </li>
                 <li>

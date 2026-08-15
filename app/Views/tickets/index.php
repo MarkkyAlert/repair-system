@@ -165,7 +165,19 @@ foreach (['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as $__priorityCode) {
                         </select>
                     </div>
                     <div class="field-group">
-                        <label class="field-label" for="ticket-filter-sla">SLA</label>
+                        <label class="field-label" for="ticket-filter-sla">
+                            SLA
+                            <?= render_partial('partials/components/info-popover', [
+                                'id' => 'sla-filter-info',
+                                'label' => 'SLA',
+                                'lead' => '(Service Level Agreement) = ข้อตกลงระดับการให้บริการ คือกำหนดเวลาที่ต้องทำให้ได้',
+                                'notes' => [
+                                    'ตอบรับ = เวลาที่ช่างต้องกดรับงานหลังได้รับมอบหมาย',
+                                    'แก้ไข = เวลาที่ต้องซ่อมเสร็จนับจากเวลาแจ้ง',
+                                    'ตั้งเวลาแยกตามระดับความสำคัญ นับต่อเนื่อง 24 ชม. ไม่หักเวลานอกเวลาทำการ',
+                                ],
+                            ]) ?>
+                        </label>
                         <select id="ticket-filter-sla" name="sla" class="input" aria-label="กรองตาม SLA">
                             <option value="">ทุกสถานะ SLA</option>
                             <option value="overdue"<?= $qSla === 'overdue' ? ' selected' : '' ?>>เกินกำหนด</option>
@@ -206,7 +218,7 @@ foreach (['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as $__priorityCode) {
                     <span>เลขที่ / หัวข้อ</span>
                     <span>ความสำคัญ</span>
                     <span>สถานะ</span>
-                    <span>SLA</span>
+                    <span>SLA (กำหนดเวลา)</span>
                     <span>ผู้แจ้ง</span>
                     <span>สถานที่</span>
                     <span>วันที่แจ้ง</span>

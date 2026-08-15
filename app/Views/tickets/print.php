@@ -66,6 +66,7 @@
                 <div>
                     <p class="panel-kicker">SLA</p>
                     <h3 class="panel-title">เวลาเป้าหมาย</h3>
+                    <p class="helper-text">SLA = กำหนดเวลาตอบรับ/แก้ไข ตามระดับความสำคัญของงาน</p>
                 </div>
                 <p class="body-text"><strong>ตอบรับ:</strong> <?= e($ticket['sla_response']['label'] ?? '-') ?> · กำหนด <?= e($ticket['sla_response']['target_at'] ?? '-') ?></p>
                 <p class="body-text"><strong>แก้ไข:</strong> <?= e($ticket['sla_resolution']['label'] ?? '-') ?> · กำหนด <?= e($ticket['sla_resolution']['target_at'] ?? '-') ?></p>

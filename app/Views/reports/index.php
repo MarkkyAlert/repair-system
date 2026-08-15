@@ -78,7 +78,7 @@ $isCapped = !empty($rowsMeta['capped']);
         <?= render_partial('partials/components/card', [
             'title' => 'เกิน SLA',
             'value' => (string) ($summary['overdue'] ?? 0),
-            'meta' => 'งานที่เกินกำหนดปัจจุบัน',
+            'meta' => 'งานที่เลยกำหนดเวลาที่ตกลงไว้ (SLA)',
             'tone' => 'danger',
         ]) ?>
         <?= render_partial('partials/components/card', [

@@ -79,12 +79,12 @@ $metricCount = static fn (string $key): int => max(0, (int) ($metrics[$key] ?? 0
         <?php
         $presets = [
             'mine' => ['label' => 'งานของฉัน', 'icon' => 'wrench'],
-            'overdue' => ['label' => 'เกิน SLA', 'icon' => 'triangle-alert'],
+            'overdue' => ['label' => 'เกิน SLA', 'icon' => 'triangle-alert', 'title' => 'งานที่เลยกำหนดเวลาตอบรับหรือกำหนดเวลาซ่อมที่ตกลงไว้ (SLA)'],
             'pending_approval' => ['label' => 'รออนุมัติ', 'icon' => 'clock'],
             'today' => ['label' => 'วันนี้', 'icon' => 'calendar'],
         ];
         foreach ($presets as $presetKey => $preset): ?>
-            <a href="<?= e(url('/dashboard?preset=' . $presetKey)) ?>" class="preset-chip<?= (string) ($filterState['preset'] ?? '') === $presetKey ? ' is-active' : '' ?>"><?= lucide($preset['icon'], 'h-3.5 w-3.5') ?> <?= e($preset['label']) ?></a>
+            <a href="<?= e(url('/dashboard?preset=' . $presetKey)) ?>" class="preset-chip<?= (string) ($filterState['preset'] ?? '') === $presetKey ? ' is-active' : '' ?>"<?= isset($preset['title']) ? ' title="' . e($preset['title']) . '"' : '' ?>><?= lucide($preset['icon'], 'h-3.5 w-3.5') ?> <?= e($preset['label']) ?></a>
         <?php endforeach; ?>
     </nav>
 

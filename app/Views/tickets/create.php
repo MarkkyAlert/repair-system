@@ -124,9 +124,16 @@
                     <div class="field-group">
                         <label for="priority_id" class="field-label">
                             ระดับความสำคัญ <span class="required">*</span>
-                            <button type="button" class="field-info-icon" data-info-toggle="priority-info" aria-expanded="false" aria-controls="priority-info" aria-label="ดูคำอธิบายระดับความสำคัญ">
-                                <?= lucide('info', 'h-4 w-4') ?>
-                            </button>
+                            <?= render_partial('partials/components/info-popover', [
+                                'id' => 'priority-info',
+                                'label' => 'ระดับความสำคัญ',
+                                'lead' => 'ใช้คำนวณ SLA (กำหนดเวลาตอบรับ/แก้ไข) และจัดลำดับงานในคิว',
+                                'notes' => [
+                                    'เลือกระดับให้สอดคล้องกับ ผลกระทบ × ความเร่งด่วน ที่กรอกในส่วนล่าง',
+                                    'แต่ละระดับมีเวลา SLA ที่ผู้ดูแลระบบตั้งไว้ — ระบบจะเตือนเมื่อเกินกำหนด',
+                                    'ถ้าไม่แน่ใจ เลือก ปานกลาง ก่อน — หัวหน้างานปรับให้ได้ภายหลัง',
+                                ],
+                            ]) ?>
                         </label>
                         <select id="priority_id" name="priority_id" class="input" required aria-describedby="priority-help">
                             <option value="">เลือกระดับ</option>
@@ -134,14 +141,6 @@
                                 <option value="<?= e((string) $priority['id']) ?>"<?= (string) ($form['defaults']['priority_id'] ?? '') === (string) $priority['id'] ? ' selected' : '' ?>><?= e($priority['label']) ?></option>
                             <?php endforeach; ?>
                         </select>
-                        <div id="priority-info" class="field-info-popover" hidden>
-                            <p><strong>ระดับความสำคัญ</strong> ใช้คำนวณ SLA และจัดลำดับงานในคิว</p>
-                            <ul>
-                                <li>เลือกระดับให้สอดคล้องกับ <em>ผลกระทบ × ความเร่งด่วน</em> ที่กรอกในส่วนล่าง</li>
-                                <li>แต่ละระดับมีเวลา SLA ที่ admin ตั้งไว้ — ระบบจะเตือนเมื่อเกินกำหนด</li>
-                                <li>ถ้าไม่แน่ใจ เลือก <em>Medium/ปานกลาง</em> ก่อน — manager สามารถปรับให้ได้ภายหลัง</li>
-                            </ul>
-                        </div>
                         <p id="priority-help" class="field-hint">เลือกระดับที่สะท้อนผลกระทบจริงของงานนี้</p>
                     </div>
 
@@ -208,48 +207,46 @@
                     <div class="field-group">
                         <label for="impact_level" class="field-label">
                             ผลกระทบ
-                            <button type="button" class="field-info-icon" data-info-toggle="impact-info" aria-expanded="false" aria-controls="impact-info" aria-label="ดูคำอธิบายระดับผลกระทบ">
-                                <?= lucide('info', 'h-4 w-4') ?>
-                            </button>
+                            <?= render_partial('partials/components/info-popover', [
+                                'id' => 'impact-info',
+                                'label' => 'ผลกระทบ',
+                                'lead' => '= ปัญหานี้กระทบใครบ้าง?',
+                                'levels' => [
+                                    'ต่ำ' => 'คน 1 คน หรือเครื่องเดียว · ทำงานอย่างอื่นต่อได้',
+                                    'ปานกลาง' => '1 แผนก หรือผู้ใช้ 2-5 คน',
+                                    'สูง' => 'หลายแผนก หรือผู้ใช้ 10+ คน',
+                                    'วิกฤต' => 'ทั้งองค์กร หรือบริการให้ลูกค้าสะดุด',
+                                ],
+                            ]) ?>
                         </label>
                         <select id="impact_level" name="impact_level" class="input" aria-describedby="impact-help">
                             <?php foreach (($form['impactOptions'] ?? []) as $option): ?>
                                 <option value="<?= e($option['value']) ?>"<?= $impactCurrent === (string) $option['value'] ? ' selected' : '' ?>><?= e($option['label']) ?></option>
                             <?php endforeach; ?>
                         </select>
-                        <div id="impact-info" class="field-info-popover" hidden>
-                            <p><strong>ผลกระทบ</strong> = ปัญหานี้กระทบใครบ้าง?</p>
-                            <dl class="field-info-levels">
-                                <dt>ต่ำ</dt><dd>คน 1 คน หรือเครื่องเดียว · ทำงานอย่างอื่นต่อได้</dd>
-                                <dt>ปานกลาง</dt><dd>1 แผนก หรือผู้ใช้ 2-5 คน</dd>
-                                <dt>สูง</dt><dd>หลายแผนก หรือผู้ใช้ 10+ คน</dd>
-                                <dt>วิกฤต</dt><dd>ทั้งองค์กร หรือบริการให้ลูกค้าสะดุด</dd>
-                            </dl>
-                        </div>
                         <p id="impact-help" class="field-hint">ปัญหานี้กระทบผู้ใช้กี่คนหรือกี่หน่วยงาน?</p>
                     </div>
 
                     <div class="field-group">
                         <label for="urgency_level" class="field-label">
                             ความเร่งด่วน
-                            <button type="button" class="field-info-icon" data-info-toggle="urgency-info" aria-expanded="false" aria-controls="urgency-info" aria-label="ดูคำอธิบายระดับความเร่งด่วน">
-                                <?= lucide('info', 'h-4 w-4') ?>
-                            </button>
+                            <?= render_partial('partials/components/info-popover', [
+                                'id' => 'urgency-info',
+                                'label' => 'ความเร่งด่วน',
+                                'lead' => '= รอได้นานแค่ไหนก่อนต้องแก้?',
+                                'levels' => [
+                                    'ต่ำ' => 'รอได้ 1+ สัปดาห์ · ไม่กระทบทันที',
+                                    'ปานกลาง' => 'ควรแก้ภายใน 2-3 วัน',
+                                    'สูง' => 'ต้องแก้ภายในวันนี้',
+                                    'วิกฤต' => 'ต้องแก้ภายในชั่วโมงนี้ — งานหยุดชะงัก',
+                                ],
+                            ]) ?>
                         </label>
                         <select id="urgency_level" name="urgency_level" class="input" aria-describedby="urgency-help">
                             <?php foreach (($form['urgencyOptions'] ?? []) as $option): ?>
                                 <option value="<?= e($option['value']) ?>"<?= $urgencyCurrent === (string) $option['value'] ? ' selected' : '' ?>><?= e($option['label']) ?></option>
                             <?php endforeach; ?>
                         </select>
-                        <div id="urgency-info" class="field-info-popover" hidden>
-                            <p><strong>ความเร่งด่วน</strong> = รอได้นานแค่ไหนก่อนต้องแก้?</p>
-                            <dl class="field-info-levels">
-                                <dt>ต่ำ</dt><dd>รอได้ 1+ สัปดาห์ · ไม่กระทบทันที</dd>
-                                <dt>ปานกลาง</dt><dd>ควรแก้ภายใน 2-3 วัน</dd>
-                                <dt>สูง</dt><dd>ต้องแก้ภายในวันนี้</dd>
-                                <dt>วิกฤต</dt><dd>ต้องแก้ภายในชั่วโมงนี้ — งานหยุดชะงัก</dd>
-                            </dl>
-                        </div>
                         <p id="urgency-help" class="field-hint">รอได้นานแค่ไหน? ค่ายิ่งสูง หมายถึงควรเข้าดำเนินการเร็วขึ้น</p>
                     </div>
                 </div>
