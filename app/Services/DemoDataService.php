@@ -72,6 +72,7 @@ class DemoDataService
             [$staffIds, $created['users'], $staffPassword] = $this->seedTechnician($departmentIds);
             [$assetIds, $created['assets']] = $this->seedAssets($createdByUserId, $assetCategoryIds, $locationIds);
             $created['tickets'] = $this->seedTickets($createdByUserId, $staffIds, $departmentIds, $locationIds, $assetIds, $ticketCategoryIds, $priorityIds);
+            $created['guest_requests'] = $this->seedGuestRequests($createdByUserId, $assetIds);
 
             // surface รหัสบัญชีตัวอย่างเฉพาะเมื่อสร้างบัญชีใหม่จริง (ถ้ามีอยู่แล้วไม่รู้/ไม่แตะรหัสเดิม).
             // demo_technician คงไว้ตามเดิมเพื่อไม่ให้ผู้เรียกเดิมพัง; demo_accounts เพิ่มมาให้บอกครบทุกบทบาท เพราะ
@@ -120,6 +121,9 @@ class DemoDataService
             ['code' => 'MEETING', 'name' => 'ห้องประชุม'],
             ['code' => 'SERVER', 'name' => 'ห้องเซิร์ฟเวอร์'],
             ['code' => 'WAREHOUSE', 'name' => 'โกดังสินค้า'],
+            // ปิดใช้งานแล้ว (ย้ายออกไปแล้ว) แต่ยังมีประวัติงานเก่าผูกอยู่ — ทุกองค์กรมีของแบบนี้ และเป็นจุดที่ระบบ
+            // ต้องยังแสดงชื่อในรายงานย้อนหลังได้ ขณะที่ไม่ให้เลือกตอนแจ้งใหม่
+            ['code' => 'OFFICE-OLD', 'name' => 'สำนักงานเก่า (ปิดใช้งาน)', 'active' => false],
         ], fn (array $row): int => $this->admin->createLocation([
             'code' => $row['code'],
             'name' => $row['name'],
@@ -127,7 +131,7 @@ class DemoDataService
             'floor' => '',
             'room' => '',
             'description' => '',
-            'is_active' => true,
+            'is_active' => (bool) ($row['active'] ?? true),
         ]));
     }
 
@@ -138,12 +142,14 @@ class DemoDataService
             ['code' => 'SOFTWARE', 'name' => 'ซอฟต์แวร์', 'sort' => 2],
             ['code' => 'ELECTRICAL', 'name' => 'ระบบไฟฟ้า', 'sort' => 3],
             ['code' => 'PLUMBING', 'name' => 'ประปา', 'sort' => 4],
+            // เลิกใช้แล้ว — เก็บไว้ให้เห็นว่าหมวดที่ปิดใช้งานยังอ่านรายงานย้อนหลังได้ แต่เลือกตอนแจ้งใหม่ไม่ได้
+            ['code' => 'FAX', 'name' => 'เครื่องแฟกซ์ (เลิกใช้แล้ว)', 'sort' => 9, 'active' => false],
         ], fn (array $row): int => $this->admin->createTicketCategory([
             'code' => $row['code'],
             'name' => $row['name'],
             'description' => '',
             'sort_order' => $row['sort'],
-            'is_active' => true,
+            'is_active' => (bool) ($row['active'] ?? true),
         ]));
     }
 
@@ -183,6 +189,74 @@ class DemoDataService
     }
 
     /**
+     * คำขอจาก QR ของคนนอกที่ไม่มีบัญชี — สองใบ: ใบหนึ่งยังรอผู้ดูแลตรวจ (จะได้เห็นกล่องคำขอมีของจริงให้กด) และอีก
+     * ใบหนึ่งถูกแปลงเป็นใบงานไปแล้ว (จะได้เห็นว่าปลายทางของ QR หน้าตาเป็นยังไง) เส้นทางนี้คือจุดขายที่คนซื้อชอบที่สุด
+     * เวลาเดโม แต่เดิมกล่องคำขอว่างเปล่าเสมอ จึงไม่มีอะไรให้ดูเลย
+     *
+     * @param array<string, int> $assetIds
+     */
+    private function seedGuestRequests(int $createdByUserId, array $assetIds): int
+    {
+        if ($createdByUserId <= 0) {
+            return 0;
+        }
+
+        // ผูกกับใบงานที่ demo สร้างไว้ใบหนึ่ง เพื่อให้ "คำขอที่แปลงแล้ว" ชี้ไปที่งานจริงที่เปิดดูต่อได้
+        $convertedTicketId = (int) ($this->db->query("SELECT id FROM tickets WHERE ticket_no = 'DEMO-002' LIMIT 1")->fetchColumn() ?: 0);
+        $printerAssetId = $assetIds['PRT-001'] ?? null;
+
+        $rows = [
+            [
+                'no' => 'GR-DEMO-0001',
+                'name' => 'คุณสมศรี (แม่บ้าน)',
+                'phone' => '081-234-5678',
+                'title' => 'หลอดไฟหน้าห้องน้ำชั้น 1 กระพริบ',
+                'desc' => "หลอดไฟตรงทางเดินหน้าห้องน้ำกระพริบมาสองวันแล้ว ตอนกลางคืนมองไม่ค่อยเห็น\nกลัวว่าคนเดินจะสะดุด รบกวนช่วยเปลี่ยนให้หน่อยค่ะ",
+                'status' => 'new',
+                'ticket' => null,
+                'daysAgo' => 1,
+            ],
+            [
+                'no' => 'GR-DEMO-0002',
+                'name' => 'คุณวิชัย (พนักงานส่งของ)',
+                'phone' => '089-876-5432',
+                'title' => 'เครื่องพิมพ์ใบเสร็จหน้าเคาน์เตอร์กระดาษติด',
+                'desc' => 'กระดาษติดในเครื่องพิมพ์ ดึงออกเองแล้วแต่ยังพิมพ์ไม่ออก มีลูกค้ารอรับใบเสร็จอยู่',
+                'status' => $convertedTicketId > 0 ? 'converted' : 'new',
+                'ticket' => $convertedTicketId > 0 ? $convertedTicketId : null,
+                'daysAgo' => 9,
+            ],
+        ];
+
+        $stmt = $this->db->prepare(
+            'INSERT INTO guest_ticket_requests
+                (request_no, asset_id, guest_name, guest_phone, title, description, status, converted_ticket_id, reviewed_by, reviewed_at, created_at)
+             VALUES (:no, :asset_id, :name, :phone, :title, :description, :status, :ticket, :reviewed_by, :reviewed_at, :created_at)'
+        );
+
+        $created = 0;
+        foreach ($rows as $row) {
+            $createdAt = date('Y-m-d H:i:s', strtotime('-' . $row['daysAgo'] . ' days'));
+            $stmt->execute([
+                'no' => $row['no'],
+                'asset_id' => $printerAssetId,
+                'name' => $row['name'],
+                'phone' => $row['phone'],
+                'title' => $row['title'],
+                'description' => $row['desc'],
+                'status' => $row['status'],
+                'ticket' => $row['ticket'],
+                'reviewed_by' => $row['ticket'] !== null ? $createdByUserId : null,
+                'reviewed_at' => $row['ticket'] !== null ? $createdAt : null,
+                'created_at' => $createdAt,
+            ]);
+            $created++;
+        }
+
+        return $created;
+    }
+
+    /**
      * สร้างบัญชีตัวอย่างให้ครบทุกบทบาทที่ผู้ซื้อต้องลอง — ช่าง 3 คน (ต่างแผนก เพื่อให้รายงานผลงานช่าง/CSAT-ต่อช่าง
      * มีหลายแถว) หัวหน้า 1 คน และผู้แจ้ง 2 คน (ต่างแผนก เพื่อให้มิติ "แผนก" ในรายงานมีของจริง).
      *
@@ -207,6 +281,9 @@ class DemoDataService
             ['username' => 'mgr_demo', 'full_name' => 'สุภาวดี หัวหน้าฝ่ายอาคาร', 'dept' => 'FACILITY', 'role' => 'manager'],
             ['username' => 'user_demo', 'full_name' => 'ปรียา ธุรการ', 'dept' => 'OFFICE', 'role' => 'requester'],
             ['username' => 'user_demo2', 'full_name' => 'ณัฐพล ฝ่ายผลิต', 'dept' => 'IT', 'role' => 'requester'],
+            // ลาออกไปแล้ว: บัญชีถูกปิด แต่ประวัติงานที่เคยแจ้งยังอยู่ — ให้ผู้ซื้อเห็นว่าปิดบัญชีแล้วข้อมูลไม่หาย
+            // และเป็นคู่กับความสามารถ "แอดมินปิดงานแทนผู้แจ้งที่ลาออก" ซึ่งไม่มีทางลองได้ถ้าทุกบัญชียัง active
+            ['username' => 'user_left', 'full_name' => 'กมล (ลาออกแล้ว)', 'dept' => 'OFFICE', 'role' => 'requester', 'active' => false],
         ];
 
         $ids = ['technician' => [], 'manager' => [], 'requester' => []];
@@ -221,7 +298,7 @@ class DemoDataService
                     'phone' => '',
                     'role' => $person['role'],
                     'department_id' => $departmentIds[$person['dept']] ?? null,
-                    'is_active' => true,
+                    'is_active' => (bool) ($person['active'] ?? true),
                 ]);
                 $created++;
             } catch (DomainException) {
@@ -250,6 +327,9 @@ class DemoDataService
             ['code' => 'SRV-001', 'name' => 'Dell PowerEdge R350', 'category' => 'COMPUTER', 'location' => 'SERVER', 'ageMonths' => 78, 'warrantyMonths' => 36],
             ['code' => 'LGT-001', 'name' => 'หลอด LED ห้องประชุม', 'category' => 'LIGHTING', 'location' => 'MEETING', 'ageMonths' => 6, 'warrantyMonths' => 12],
             ['code' => 'PRT-002', 'name' => 'Brother MFC-L2750DW', 'category' => 'PRINTER', 'location' => 'OFFICE-2F', 'ageMonths' => 12, 'warrantyMonths' => 24],
+            // ปลดระวางแล้ว — สติกเกอร์ QR ยังติดอยู่บนตัวเครื่องในชีวิตจริง ผู้ซื้อจึงควรได้ลองสแกนดูว่าระบบตอบว่า
+            // "ไม่เปิดรับแจ้งซ่อม" แทนที่จะเป็นหน้า error ซึ่งเป็นพฤติกรรมที่ทีมตั้งใจทำไว้แต่มองไม่เห็นถ้าไม่มีของจริง
+            ['code' => 'PC-OLD-01', 'name' => 'PC เก่าฝ่ายบัญชี (ปลดระวาง)', 'category' => 'COMPUTER', 'location' => 'OFFICE-2F', 'ageMonths' => 96, 'warrantyMonths' => 12, 'status' => 'retired'],
         ];
         $assetIds = [];
         $count = 0;
@@ -277,7 +357,7 @@ class DemoDataService
                     'vendor' => '',
                     'purchase_date' => $purchaseDate,
                     'warranty_expires_at' => $warrantyExpires,
-                    'status' => 'active',
+                    'status' => (string) ($spec['status'] ?? 'active'),
                     'notes' => '',
                     'generated_by' => $createdByUserId > 0 ? $createdByUserId : null,
                 ]);
@@ -399,7 +479,14 @@ class DemoDataService
             $ticketId = $this->tickets->createSeedTicket([
                 'ticket_no' => sprintf('DEMO-%03d', $index),
                 'title' => $title,
-                'description' => $title . ' — รายละเอียดตัวอย่างสำหรับสาธิตระบบ',
+                // ใบแรกได้รายละเอียดยาวแบบที่คนแจ้งจริงเขียน (หลายบรรทัด อาการ + สิ่งที่ลองแล้ว + ผลกระทบ) เพื่อให้
+                // ผู้ซื้อเห็นว่าข้อความไทยยาว ๆ ไม่ถูกตัดทิ้งและขึ้นบรรทัดถูกต้อง — ใบที่เหลือใช้บรรทัดเดียวพอ
+                'description' => $index === 1
+                    ? $title . "\n\nอาการ: เป็นมาตั้งแต่เมื่อวานช่วงบ่าย ตอนแรกเป็น ๆ หาย ๆ พอเช้านี้เป็นตลอดทั้งวัน\n"
+                        . "สิ่งที่ลองแล้ว: ปิดเปิดเครื่องใหม่สองรอบ สลับปลั๊กไปอีกช่องหนึ่ง และลองเปลี่ยนสายแล้ว อาการเหมือนเดิม\n"
+                        . "ผลกระทบ: ทั้งแผนกใช้เครื่องนี้ร่วมกัน ตอนนี้ต้องเดินไปใช้ของอีกชั้นหนึ่งแทน เสียเวลามาก\n"
+                        . 'รบกวนช่วยดูให้หน่อยนะครับ ถ้าต้องสั่งอะไหล่รบกวนแจ้งกลับด้วยว่าใช้เวลากี่วัน ขอบคุณครับ'
+                    : $title . ' — รายละเอียดตัวอย่างสำหรับสาธิตระบบ',
                 'requester_id' => $requesterPool[$index % count($requesterPool)],
                 'requester_department_id' => $deptId,
                 'location_id' => $locationIds[$loc] ?? 0,

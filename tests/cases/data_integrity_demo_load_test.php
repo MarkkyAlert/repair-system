@@ -170,6 +170,35 @@ test('demo-load(integrity): generated lifecycle, work order, SLA, approval, hist
         assert_same(0, $adminReported, 'no demo ticket is reported by the admin account');
         $distinctRequesters = (int) $database->query('SELECT COUNT(DISTINCT requester_id) FROM tickets')->fetchColumn();
         assert_true($distinctRequesters >= 2, "the ผู้แจ้ง column shows more than one name (got {$distinctRequesters})");
+
+        // The behaviours a buyer is most impressed by are the ones that only appear when the awkward case exists:
+        // a QR sticker still stuck to a machine that was written off, a category the company stopped using, an
+        // account belonging to someone who left. With a pack of only healthy rows they are invisible, and the
+        // evaluation misses them entirely — so the demo has to contain one of each.
+        $cases = [
+            'ทรัพย์สินที่ปลดระวาง' => "SELECT COUNT(*) FROM assets WHERE status IN ('retired','disposed')",
+            'บัญชีที่ถูกปิด' => 'SELECT COUNT(*) FROM users WHERE is_active = 0',
+            'หมวดหมู่ที่ปิดใช้งาน' => 'SELECT COUNT(*) FROM ticket_categories WHERE is_active = 0',
+            'สถานที่ที่ปิดใช้งาน' => 'SELECT COUNT(*) FROM locations WHERE is_active = 0',
+            'งานที่เคยเปิดใหม่' => "SELECT COUNT(*) FROM ticket_activity_logs WHERE action = 'ticket_reopened'",
+            'คำขอจากคนนอกที่รอตรวจ' => "SELECT COUNT(*) FROM guest_ticket_requests WHERE status = 'new'",
+            'คำขอจากคนนอกที่แปลงเป็นใบงานแล้ว' => 'SELECT COUNT(*) FROM guest_ticket_requests WHERE converted_ticket_id IS NOT NULL',
+        ];
+        foreach ($cases as $label => $sql) {
+            assert_true((int) $database->query($sql)->fetchColumn() > 0, "the demo pack contains {$label} so a buyer can meet it without being told");
+        }
+
+        // and at least one ticket carries a description long enough to prove Thai text is not silently truncated
+        $longest = (int) $database->query('SELECT MAX(CHAR_LENGTH(description)) FROM tickets')->fetchColumn();
+        assert_true($longest >= 200, "one sample ticket is written the way a real reporter writes (longest: {$longest} chars)");
+
+        // a converted guest request must point at a ticket that exists — a dangling id would show as a broken link
+        $dangling = (int) $database->query(
+            'SELECT COUNT(*) FROM guest_ticket_requests g
+             LEFT JOIN tickets t ON t.id = g.converted_ticket_id
+             WHERE g.converted_ticket_id IS NOT NULL AND t.id IS NULL'
+        )->fetchColumn();
+        assert_same(0, $dangling, 'every converted guest request opens a ticket that is really there');
     } finally {
         if ($database->inTransaction()) {
             $database->rollBack();
