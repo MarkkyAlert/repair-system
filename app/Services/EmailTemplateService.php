@@ -11,15 +11,15 @@ class EmailTemplateService
 {
     public const TEMPLATE_REGISTRY = [
         'ticket_created' => [
-            'label' => 'Ticket ใหม่รออนุมัติ',
+            'label' => 'งานแจ้งซ่อมใหม่รออนุมัติ',
             'fields' => ['heading', 'intro', 'footer_note'],
         ],
         'ticket_approved' => [
-            'label' => 'Ticket ได้รับการอนุมัติ',
+            'label' => 'งานแจ้งซ่อมได้รับการอนุมัติ',
             'fields' => ['heading', 'intro', 'footer_note'],
         ],
         'ticket_rejected' => [
-            'label' => 'Ticket ถูกปฏิเสธ',
+            'label' => 'งานแจ้งซ่อมถูกปฏิเสธ',
             'fields' => ['heading', 'intro', 'footer_note'],
         ],
         'ticket_assigned' => [
@@ -31,7 +31,7 @@ class EmailTemplateService
             'fields' => ['heading', 'intro', 'footer_note'],
         ],
         'ticket_event' => [
-            'label' => 'อีเมล ticket event เริ่มต้น (fallback)',
+            'label' => 'อีเมลเหตุการณ์งานแจ้งซ่อม เริ่มต้น (fallback)',
             'fields' => ['heading', 'intro', 'footer_note'],
         ],
         'comment_event' => [
@@ -129,13 +129,13 @@ class EmailTemplateService
         return $this->renderNotificationTemplate([
             'subject' => $subject,
             'heading' => $this->override($templateKey, 'heading', $title),
-            'intro' => $this->override($templateKey, 'intro', 'มีการอัปเดตสถานะ ticket ที่เกี่ยวข้องกับคุณ'),
+            'intro' => $this->override($templateKey, 'intro', 'มีการอัปเดตสถานะงานแจ้งซ่อมที่เกี่ยวข้องกับคุณ'),
             'message' => $message,
             'recipient_name' => (string) ($recipient['full_name'] ?? $recipient['email'] ?? 'ผู้ใช้งาน'),
             'ticket_url' => $ticketUrl,
-            'button_label' => 'เปิดดู Ticket',
+            'button_label' => 'เปิดดูงานแจ้งซ่อม',
             'sections' => [
-                ['label' => 'Ticket No', 'value' => $ticketNo],
+                ['label' => 'เลขที่งานแจ้งซ่อม', 'value' => $ticketNo],
                 ['label' => 'หัวข้อ', 'value' => $ticketTitle],
                 ['label' => 'เหตุการณ์', 'value' => humanize_label($eventType)],
                 ['label' => 'สถานะล่าสุด', 'value' => ticket_status_label_th((string) ($context['status'] ?? '-'))],
@@ -178,13 +178,13 @@ class EmailTemplateService
         return $this->renderNotificationTemplate([
             'subject' => '[' . (string) setting('app_name', config('app.name', 'Repair System')) . '] ' . $title . ' - ' . $ticketNo,
             'heading' => $this->override('comment_event', 'heading', $title),
-            'intro' => $this->override('comment_event', 'intro', 'มีความเคลื่อนไหวใหม่ใน comment ของ ticket'),
+            'intro' => $this->override('comment_event', 'intro', 'มีความเคลื่อนไหวใหม่ในความคิดเห็นของงานแจ้งซ่อม'),
             'message' => $message,
             'recipient_name' => (string) ($recipient['full_name'] ?? $recipient['email'] ?? 'ผู้ใช้งาน'),
             'ticket_url' => $ticketUrl,
             'button_label' => 'เปิดดู Comment',
             'sections' => [
-                ['label' => 'Ticket No', 'value' => $ticketNo],
+                ['label' => 'เลขที่งานแจ้งซ่อม', 'value' => $ticketNo],
                 ['label' => 'หัวข้อ', 'value' => (string) ($context['title'] ?? '-')],
                 ['label' => 'Action', 'value' => humanize_label($action)],
                 ['label' => 'Visibility', 'value' => $isInternal ? 'Internal note' : 'Public comment'],
@@ -208,20 +208,20 @@ class EmailTemplateService
         $ticketNo = (string) ($context['ticket_no'] ?? '-');
         $ticketId = (int) ($context['id'] ?? 0);
         $ticketUrl = $ticketId > 0 ? url('/tickets/' . $ticketId) : url('/tickets');
-        $metricLabel = $metricType === 'response' ? 'Response SLA' : 'Resolution SLA';
+        $metricLabel = $metricType === 'response' ? 'SLA การตอบรับ' : 'SLA การแก้ไข';
 
         return $this->renderNotificationTemplate([
             'subject' => '[' . (string) setting('app_name', config('app.name', 'Repair System')) . '] ' . $title . ' - ' . $ticketNo,
             'heading' => $this->override('sla_breached', 'heading', $title),
-            'intro' => $this->override('sla_breached', 'intro', 'ระบบตรวจพบ ticket ที่เกินกำหนด SLA'),
+            'intro' => $this->override('sla_breached', 'intro', 'ระบบตรวจพบงานแจ้งซ่อมที่เกินกำหนด SLA (กำหนดเวลาตอบรับ/แก้ไข ตามระดับความสำคัญ)'),
             'message' => $message,
             'recipient_name' => (string) ($recipient['full_name'] ?? $recipient['email'] ?? 'ผู้ใช้งาน'),
             'ticket_url' => $ticketUrl,
-            'button_label' => 'ตรวจสอบ Ticket',
+            'button_label' => 'ตรวจสอบงานแจ้งซ่อม',
             'sections' => [
-                ['label' => 'Ticket No', 'value' => $ticketNo],
+                ['label' => 'เลขที่งานแจ้งซ่อม', 'value' => $ticketNo],
                 ['label' => 'หัวข้อ', 'value' => (string) ($context['title'] ?? '-')],
-                ['label' => 'Metric', 'value' => $metricLabel],
+                ['label' => 'เกณฑ์ที่เกิน', 'value' => $metricLabel],
                 ['label' => 'สถานะล่าสุด', 'value' => ticket_status_label_th((string) ($context['status'] ?? '-'))],
             ],
             'footer_note' => $this->override('sla_breached', 'footer_note', 'กรุณาติดตามรายการนี้โดยเร็วเพื่อไม่ให้กระทบ SLA เพิ่มเติม'),
@@ -306,7 +306,7 @@ class EmailTemplateService
         );
     }
 
-    /** อีเมล ticket-event ตัวอย่างสำหรับ preview/ทดสอบส่ง โดยใช้ admin ปัจจุบันเป็นผู้รับ. */
+    /** อีเมลเหตุการณ์งานแจ้งซ่อมตัวอย่างสำหรับ preview/ทดสอบส่ง โดยใช้ admin ปัจจุบันเป็นผู้รับ. */
     public function buildSampleTicketEvent(array $viewer): array
     {
         return $this->buildTicketEvent(
@@ -322,8 +322,8 @@ class EmailTemplateService
                 'email' => (string) ($viewer['email'] ?? 'admin@example.com'),
             ],
             'ticket.approved',
-            'มี Ticket ที่อนุมัติแล้ว',
-            'Ticket ตัวอย่างถูกอนุมัติและพร้อมมอบหมายช่าง'
+            'มีงานแจ้งซ่อมที่อนุมัติแล้ว',
+            'งานแจ้งซ่อมตัวอย่างถูกอนุมัติและพร้อมมอบหมายช่าง'
         );
     }
 

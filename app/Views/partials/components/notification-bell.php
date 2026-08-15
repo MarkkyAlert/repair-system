@@ -36,7 +36,7 @@ $recentItems = array_values(array_filter($notificationItems, static fn (array $i
                     <span class="notification-empty-icon"><?= lucide('check-circle', 'h-5 w-5') ?></span>
                     <div>
                         <p class="notification-title">ไม่มีข้อความใหม่</p>
-                        <p class="notification-copy">ไม่มี Ticket ที่มีอัปเดตในขณะนี้</p>
+                        <p class="notification-copy">ไม่มีงานแจ้งซ่อมที่มีอัปเดตในขณะนี้</p>
                     </div>
                 </div>
             <?php else: ?>
@@ -54,7 +54,7 @@ $recentItems = array_values(array_filter($notificationItems, static fn (array $i
                                 <?php if ((int) ($item['event_count'] ?? 1) > 1): ?><span>· <?= e((string) $item['event_count']) ?> กิจกรรม</span><?php endif; ?>
                             </span>
                         </span>
-                        <span class="notification-item-arrow" title="<?= e((string) ($item['action_label'] ?? 'เปิด Ticket')) ?>"><?= lucide('arrow-right', 'h-5 w-5') ?></span>
+                        <span class="notification-item-arrow" title="<?= e((string) ($item['action_label'] ?? 'เปิดงานแจ้งซ่อม')) ?>"><?= lucide('arrow-right', 'h-5 w-5') ?></span>
                     </a>
                 <?php };
                 ?>

@@ -119,14 +119,14 @@ class EmailTemplateController
     private function defaultIntroFor(string $templateKey): string
     {
         return match ($templateKey) {
-            'ticket_created' => 'มีการอัปเดตสถานะ ticket ที่เกี่ยวข้องกับคุณ',
-            'ticket_approved' => 'มีการอัปเดตสถานะ ticket ที่เกี่ยวข้องกับคุณ',
-            'ticket_rejected' => 'มีการอัปเดตสถานะ ticket ที่เกี่ยวข้องกับคุณ',
-            'ticket_assigned' => 'มีการอัปเดตสถานะ ticket ที่เกี่ยวข้องกับคุณ',
-            'ticket_status_changed' => 'มีการอัปเดตสถานะ ticket ที่เกี่ยวข้องกับคุณ',
-            'comment_event' => 'มีความเคลื่อนไหวใหม่ใน comment ของ ticket',
-            'sla_breached' => 'ระบบตรวจพบ ticket ที่เกินกำหนด SLA',
-            default => 'มีการอัปเดตสถานะ ticket ที่เกี่ยวข้องกับคุณ',
+            'ticket_created' => 'มีการอัปเดตสถานะงานแจ้งซ่อมที่เกี่ยวข้องกับคุณ',
+            'ticket_approved' => 'มีการอัปเดตสถานะงานแจ้งซ่อมที่เกี่ยวข้องกับคุณ',
+            'ticket_rejected' => 'มีการอัปเดตสถานะงานแจ้งซ่อมที่เกี่ยวข้องกับคุณ',
+            'ticket_assigned' => 'มีการอัปเดตสถานะงานแจ้งซ่อมที่เกี่ยวข้องกับคุณ',
+            'ticket_status_changed' => 'มีการอัปเดตสถานะงานแจ้งซ่อมที่เกี่ยวข้องกับคุณ',
+            'comment_event' => 'มีความเคลื่อนไหวใหม่ในความคิดเห็นของงานแจ้งซ่อม',
+            'sla_breached' => 'ระบบตรวจพบงานแจ้งซ่อมที่เกินกำหนด SLA (กำหนดเวลาตอบรับ/แก้ไข ตามระดับความสำคัญ)',
+            default => 'มีการอัปเดตสถานะงานแจ้งซ่อมที่เกี่ยวข้องกับคุณ',
         };
     }
 }

@@ -45,11 +45,11 @@ $returnTo = '/notifications' . ($returnQuery === [] ? '' : '?' . http_build_quer
                     </span>
                     <span class="notification-summary-card tone-info">
                         <span class="notification-summary-icon" aria-hidden="true"><?= lucide('message-circle', 'h-4 w-4') ?></span>
-                        <span><strong><?= e((string) ($unreadThreadCount ?? 0)) ?></strong><small>Ticket มีข้อความใหม่</small></span>
+                        <span><strong><?= e((string) ($unreadThreadCount ?? 0)) ?></strong><small>งานที่มีข้อความใหม่</small></span>
                     </span>
                     <span class="notification-summary-card tone-default">
                         <span class="notification-summary-icon" aria-hidden="true"><?= lucide('clipboard-list', 'h-4 w-4') ?></span>
-                        <span><strong><?= e((string) ($threadCount ?? 0)) ?></strong><small>Ticket ทั้งหมด</small></span>
+                        <span><strong><?= e((string) ($threadCount ?? 0)) ?></strong><small>งานแจ้งซ่อมทั้งหมด</small></span>
                     </span>
                 </div>
             </div>
@@ -121,7 +121,7 @@ $returnTo = '/notifications' . ($returnQuery === [] ? '' : '?' . http_build_quer
                                     </div>
                                     <div class="notification-inbox-actions">
                                         <?= render_partial('partials/components/button', [
-                                            'label' => (string) ($notification['action_label'] ?? 'เปิด Ticket'),
+                                            'label' => (string) ($notification['action_label'] ?? 'เปิดงานแจ้งซ่อม'),
                                             'variant' => $actionVariant,
                                             'href' => $notificationLink,
                                             'size' => 'sm',
@@ -134,7 +134,7 @@ $returnTo = '/notifications' . ($returnQuery === [] ? '' : '?' . http_build_quer
                                                 : '/notifications/' . (int) ($notification['id'] ?? 0) . '/read')) ?>">
                                                 <?= csrf_field() ?>
                                                 <input type="hidden" name="return_to" value="<?= e($returnTo) ?>">
-                                                <button type="submit" class="notification-mark-read">อ่านข้อความใน Ticket นี้แล้ว</button>
+                                                <button type="submit" class="notification-mark-read">อ่านข้อความในงานนี้แล้ว</button>
                                             </form>
                                         <?php endif; ?>
                                     </div>

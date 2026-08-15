@@ -11,19 +11,19 @@ use DomainException;
 use Throwable;
 
 /**
- * ศูนย์กลางการแจ้งเตือน — ยิงเหตุการณ์ของ ticket ออกทั้งช่องทางในแอปและอีเมล ตามการตั้งค่าของผู้รับแต่ละคน
+ * ศูนย์กลางการแจ้งเตือน — ยิงเหตุการณ์ของงานแจ้งซ่อมออกทั้งช่องทางในแอปและอีเมล ตามการตั้งค่าของผู้รับแต่ละคน
  * (เคารพ notification_preferences). ช่องทางหนึ่งล้มเหลวถูกนับเป็น notify_failed โดยไม่ทำให้งานหลักที่กำลังทำอยู่ล้ม.
  */
 class NotificationService
 {
     public const NOTIFICATION_TYPES = [
-        // คิวงานที่ "รอคุณอนุมัติ" (มี ticket ใหม่เข้ามา) แยกจาก "ใบตัวเองได้รับอนุมัติ" (แจ้งเพื่อทราบ) — เดิมใช้ key
+        // คิวงานที่ "รอคุณอนุมัติ" (มีงานแจ้งซ่อมใหม่เข้ามา) แยกจาก "ใบตัวเองได้รับอนุมัติ" (แจ้งเพื่อทราบ) — เดิมใช้ key
         // เดียวกัน หัวหน้าที่ปิด key นั้นเลยพลาดคิวงานที่ต้องอนุมัติไปด้วย (เจ้าของตัดสินใจแยก 2026-07-25)
-        'ticket_pending_approval' => 'มี Ticket ใหม่รอคุณอนุมัติ',
-        'ticket_approved' => 'Ticket ของคุณได้รับการอนุมัติ',
-        'ticket_rejected' => 'Ticket ถูกปฏิเสธ',
-        'ticket_status_changed' => 'สถานะ Ticket เปลี่ยน',
-        'comment_added' => 'มี comment ใหม่ใน Ticket',
+        'ticket_pending_approval' => 'มีงานแจ้งซ่อมใหม่รอคุณอนุมัติ',
+        'ticket_approved' => 'งานแจ้งซ่อมของคุณได้รับการอนุมัติ',
+        'ticket_rejected' => 'งานแจ้งซ่อมถูกปฏิเสธ',
+        'ticket_status_changed' => 'สถานะงานแจ้งซ่อมเปลี่ยน',
+        'comment_added' => 'มีความคิดเห็นใหม่ในงานแจ้งซ่อม',
         'sla_breached' => 'SLA เกินกำหนด',
         'system_announcement' => 'ประกาศจากผู้ดูแลระบบ',
     ];
@@ -35,11 +35,11 @@ class NotificationService
     ];
 
     public const NOTIFICATION_TYPE_OFF_IMPACT = [
-        'ticket_pending_approval' => 'แนะนำให้เปิดไว้ — ปิดแล้วจะพลาดคิวงานที่มี Ticket ใหม่รอให้คุณอนุมัติ',
-        'ticket_approved' => 'ปิดแล้วจะไม่ทราบเมื่อ Ticket ที่คุณแจ้งได้รับการอนุมัติ (เป็นข้อมูลแจ้งเพื่อทราบ)',
-        'ticket_rejected' => 'ปิดแล้วจะไม่ทราบเมื่อ ticket ถูกปฏิเสธ — อาจตกหล่นการแก้ไข',
+        'ticket_pending_approval' => 'แนะนำให้เปิดไว้ — ปิดแล้วจะพลาดคิวงานที่มีงานแจ้งซ่อมใหม่รอให้คุณอนุมัติ',
+        'ticket_approved' => 'ปิดแล้วจะไม่ทราบเมื่องานแจ้งซ่อมที่คุณแจ้งได้รับการอนุมัติ (เป็นข้อมูลแจ้งเพื่อทราบ)',
+        'ticket_rejected' => 'ปิดแล้วจะไม่ทราบเมื่องานแจ้งซ่อมถูกปฏิเสธ — อาจตกหล่นการแก้ไข',
         'ticket_status_changed' => 'ปิดแล้วจะไม่ทราบเมื่อช่างเริ่มงาน / สรุปงาน / ปิดงาน',
-        'comment_added' => 'ปิดแล้วจะไม่ทราบเมื่อมีคนตอบกลับใน ticket ของคุณ',
+        'comment_added' => 'ปิดแล้วจะไม่ทราบเมื่อมีคนตอบกลับในงานแจ้งซ่อมของคุณ',
         'sla_breached' => 'แนะนำให้เปิดไว้ — ปิดแล้วจะไม่ทราบเมื่องานเกินกำหนด SLA',
         'system_announcement' => 'ปิดแล้วจะไม่ได้รับประกาศจากผู้ดูแล เช่น maintenance / นโยบายใหม่',
     ];
@@ -100,7 +100,7 @@ class NotificationService
         $perPage = 25;
 
         // aggregate → filter → แบ่งหน้า ต้องทำ "ตามลำดับนี้" บนชุดข้อมูลทั้งหมด ไม่ใช่แบ่งหน้าที่ระดับ SQL ก่อน เพราะ
-        // 1) การรวม event เป็น thread ต่อ ticket ต้องเห็นทุก event ของ ticket นั้น 2) หมวด (action/sla/comment)
+        // 1) การรวม event เป็น thread ต่องานแจ้งซ่อมหนึ่งใบ ต้องเห็นทุก event ของใบนั้น 2) หมวด (action/sla/comment)
         // คำนวณจาก type+SLA ใน PHP ไม่ใช่คอลัมน์ DB — ถ้ากรองหลังแบ่งหน้า หน้าแรกจะว่างทั้งที่มีรายการตรงเงื่อนไขในหน้าถัดไป.
         // $items เรียงใหม่→เก่าอยู่แล้ว (ตามลำดับ event ล่าสุดของแต่ละ thread) จึง slice แบ่งหน้าได้ตรง ๆ.
         $items = $this->aggregateNotifications(
@@ -161,7 +161,7 @@ class NotificationService
 
     public function notifyTicketEvent(int $ticketId, string $eventType, int $actorId): void
     {
-        // การแจ้งเตือนเป็นผลข้างเคียงแบบ best-effort: ถ้าตรงนี้ล้มเหลว ต้องไม่ทำให้การเปลี่ยนสถานะ ticket ที่ commit
+        // การแจ้งเตือนเป็นผลข้างเคียงแบบ best-effort: ถ้าตรงนี้ล้มเหลว ต้องไม่ทำให้การเปลี่ยนสถานะงานแจ้งซ่อมที่ commit
         // ไปแล้วเด้ง error ให้ผู้ใช้เห็น (ตัว dispatch กับ email กลืน error แล้ว log ของตัวเองอยู่แล้ว;
         // ตรงนี้แค่กันพลาดที่เหลือ). ทุกจุดที่เปลี่ยนสถานะใน workflow เลยเรียกอันนี้ได้ตรง ๆ ไม่ต้องมี try-catch.
         try {
@@ -180,53 +180,53 @@ class NotificationService
 
         [$title, $message, $recipients] = match ($eventType) {
             'ticket.created' => [
-                'มี ticket ใหม่รออนุมัติ',
-                'Ticket ' . (string) ($context['ticket_no'] ?? '-') . ' ถูกสร้างใหม่และรอการอนุมัติ',
+                'มีงานแจ้งซ่อมใหม่รออนุมัติ',
+                'งานแจ้งซ่อม ' . (string) ($context['ticket_no'] ?? '-') . ' ถูกสร้างใหม่และรอการอนุมัติ',
                 $this->reads->findActiveApproverIds(),
             ],
             'ticket.approved' => [
-                'Ticket ได้รับการอนุมัติ',
-                'Ticket ' . (string) ($context['ticket_no'] ?? '-') . ' ได้รับการอนุมัติแล้ว และรอมอบหมายช่าง',
+                'งานแจ้งซ่อมได้รับการอนุมัติ',
+                'งานแจ้งซ่อม ' . (string) ($context['ticket_no'] ?? '-') . ' ได้รับการอนุมัติแล้ว และรอมอบหมายช่าง',
                 [(int) ($context['requester_id'] ?? 0)],
             ],
             'ticket.rejected' => [
-                'Ticket ถูกปฏิเสธ',
-                'Ticket ' . (string) ($context['ticket_no'] ?? '-') . ' ถูกปฏิเสธโดยผู้อนุมัติ',
+                'งานแจ้งซ่อมถูกปฏิเสธ',
+                'งานแจ้งซ่อม ' . (string) ($context['ticket_no'] ?? '-') . ' ถูกปฏิเสธโดยผู้อนุมัติ',
                 [(int) ($context['requester_id'] ?? 0)],
             ],
             'ticket.assigned' => [
                 'มีการมอบหมายงานใหม่',
-                'Ticket ' . (string) ($context['ticket_no'] ?? '-') . ' ถูกมอบหมายให้ช่างเข้าดำเนินการแล้ว',
+                'งานแจ้งซ่อม ' . (string) ($context['ticket_no'] ?? '-') . ' ถูกมอบหมายให้ช่างเข้าดำเนินการแล้ว',
                 [(int) ($context['assigned_technician_id'] ?? 0), (int) ($context['requester_id'] ?? 0)],
             ],
             'ticket.accepted' => [
                 'ช่างรับงานแล้ว',
-                'Ticket ' . (string) ($context['ticket_no'] ?? '-') . ' ถูกช่างรับงานเรียบร้อยแล้ว',
+                'งานแจ้งซ่อม ' . (string) ($context['ticket_no'] ?? '-') . ' ถูกช่างรับงานเรียบร้อยแล้ว',
                 array_merge([(int) ($context['requester_id'] ?? 0)], $this->managerRecipients($context)),
             ],
             'ticket.started' => [
                 'เริ่มดำเนินงานแล้ว',
-                'Ticket ' . (string) ($context['ticket_no'] ?? '-') . ' อยู่ระหว่างดำเนินงาน',
+                'งานแจ้งซ่อม ' . (string) ($context['ticket_no'] ?? '-') . ' อยู่ระหว่างดำเนินงาน',
                 array_merge([(int) ($context['requester_id'] ?? 0)], $this->managerRecipients($context)),
             ],
             'ticket.resolved' => [
                 'งานถูกสรุปเป็น Resolved',
-                'Ticket ' . (string) ($context['ticket_no'] ?? '-') . ' ถูกสรุปผลการซ่อมแล้ว รอผู้แจ้งยืนยัน',
+                'งานแจ้งซ่อม ' . (string) ($context['ticket_no'] ?? '-') . ' ถูกสรุปผลการซ่อมแล้ว รอผู้แจ้งยืนยัน',
                 array_merge([(int) ($context['requester_id'] ?? 0)], $this->managerRecipients($context)),
             ],
             'ticket.completed' => [
                 'งานถูกยืนยันปิดแล้ว',
-                'Ticket ' . (string) ($context['ticket_no'] ?? '-') . ' ถูกผู้แจ้งยืนยันปิดงานเรียบร้อยแล้ว',
+                'งานแจ้งซ่อม ' . (string) ($context['ticket_no'] ?? '-') . ' ถูกผู้แจ้งยืนยันปิดงานเรียบร้อยแล้ว',
                 array_merge([(int) ($context['assigned_technician_id'] ?? 0)], $this->managerRecipients($context)),
             ],
             'ticket.reopened' => [
                 'มีการส่งงานกลับไปแก้ไขซ้ำ',
-                'Ticket ' . (string) ($context['ticket_no'] ?? '-') . ' ถูกผู้แจ้งส่งกลับไปดำเนินการซ้ำแล้ว',
+                'งานแจ้งซ่อม ' . (string) ($context['ticket_no'] ?? '-') . ' ถูกผู้แจ้งส่งกลับไปดำเนินการซ้ำแล้ว',
                 array_merge([(int) ($context['assigned_technician_id'] ?? 0)], $this->managerRecipients($context)),
             ],
             'ticket.cancelled' => [
-                'Ticket ถูกยกเลิก',
-                'Ticket ' . (string) ($context['ticket_no'] ?? '-') . ' ถูกยกเลิกโดยผู้แจ้ง',
+                'งานแจ้งซ่อมถูกยกเลิก',
+                'งานแจ้งซ่อม ' . (string) ($context['ticket_no'] ?? '-') . ' ถูกยกเลิกโดยผู้แจ้ง',
                 (int) ($context['assigned_manager_id'] ?? 0) > 0
                     ? [(int) ($context['assigned_manager_id'] ?? 0)]
                     : $this->reads->findActiveApproverIds(),
@@ -265,7 +265,7 @@ class NotificationService
     /**
      * บอกช่างที่ "ถูกย้ายงานออก" ว่างานไม่ใช่ของตัวเองแล้ว — แจ้งในแอปอย่างเดียว ไม่ส่งอีเมล (เจ้าของตัดสิน B-2).
      *
-     * ต้องรับ id ของช่างคนเดิมเข้ามาตรง ๆ เพราะตอนที่ยิงแจ้งเตือน transaction commit ไปแล้ว บริบทของ ticket
+     * ต้องรับ id ของช่างคนเดิมเข้ามาตรง ๆ เพราะตอนที่ยิงแจ้งเตือน transaction commit ไปแล้ว บริบทของงานแจ้งซ่อม
      * จึงชี้ไปที่ช่างคนใหม่เรียบร้อย. ถ้าไม่แจ้ง งานจะหายจากคิวของช่างคนเดิมไปเฉย ๆ (หลังย้ายแล้วเขาก็หมดสิทธิ์
      * เห็นใบนั้นด้วย) — คนที่กำลังจะไปหน้างานจริงจะไม่มีทางรู้เลยว่าถูกถอดออกแล้ว
      */
@@ -289,7 +289,7 @@ class NotificationService
             $this->dispatchNotification([
                 'type' => 'ticket.unassigned',
                 'title' => 'งานถูกย้ายให้ช่างท่านอื่น',
-                'message' => 'Ticket ' . (string) ($context['ticket_no'] ?? '-') . ' ถูกมอบหมายให้ช่างท่านอื่นดำเนินการแทนแล้ว',
+                'message' => 'งานแจ้งซ่อม ' . (string) ($context['ticket_no'] ?? '-') . ' ถูกมอบหมายให้ช่างท่านอื่นดำเนินการแทนแล้ว',
                 'payload' => json_encode([
                     'ticket_id' => (int) ($context['id'] ?? $ticketId),
                     'ticket_no' => (string) ($context['ticket_no'] ?? ''),
@@ -328,15 +328,15 @@ class NotificationService
         }
 
         $title = match ($action) {
-            'updated' => $isInternal ? 'มีการอัปเดต internal note' : 'มีการอัปเดต comment',
-            'deleted' => $isInternal ? 'internal note ถูกลบ' : 'comment ถูกลบ',
-            default => $isInternal ? 'มี internal note ใหม่' : 'มี comment ใหม่ใน ticket',
+            'updated' => $isInternal ? 'มีการอัปเดตบันทึกภายใน' : 'มีการอัปเดตความคิดเห็น',
+            'deleted' => $isInternal ? 'บันทึกภายในถูกลบ' : 'ความคิดเห็นถูกลบ',
+            default => $isInternal ? 'มีบันทึกภายในใหม่' : 'มีความคิดเห็นใหม่ในงานแจ้งซ่อม',
         };
 
-        $message = 'Ticket ' . (string) ($context['ticket_no'] ?? '-') . ' มีการ' . match ($action) {
-            'updated' => 'แก้ไข comment',
-            'deleted' => 'ลบ comment',
-            default => 'เพิ่ม comment ใหม่',
+        $message = 'งานแจ้งซ่อม ' . (string) ($context['ticket_no'] ?? '-') . ' มีการ' . match ($action) {
+            'updated' => 'แก้ไขความคิดเห็น',
+            'deleted' => 'ลบความคิดเห็น',
+            default => 'เพิ่มความคิดเห็นใหม่',
         };
 
         if ($preview !== '' && $action !== 'deleted') {
@@ -430,7 +430,7 @@ class NotificationService
     {
         $context = $this->reads->findTicketNotificationContextById($ticketId);
         if ($context === null) {
-            return false; // ticket หายไป — การแจ้งเตือน breach ไม่ได้ถูกส่งออกไป
+            return false; // งานแจ้งซ่อมหายไป — การแจ้งเตือน breach ไม่ได้ถูกส่งออกไป
         }
 
         $metricLabel = $metricType === 'response' ? 'Response SLA' : 'Resolution SLA';
@@ -444,7 +444,7 @@ class NotificationService
         $emailRecipients = $this->filterByPreference($recipientIds, 'sla_breached', 'email');
 
         $title = $metricLabel . ' เกินกำหนด';
-        $message = 'Ticket ' . (string) ($context['ticket_no'] ?? '-') . ' มีสถานะเกินกำหนดตาม ' . $metricLabel;
+        $message = 'งานแจ้งซ่อม ' . (string) ($context['ticket_no'] ?? '-') . ' มีสถานะเกินกำหนดตาม ' . $metricLabel;
 
         $inAppDelivered = $this->dispatchNotification([
             'type' => 'ticket.sla_breached.' . $metricType,
@@ -488,7 +488,7 @@ class NotificationService
         $this->dispatchNotification([
             'type' => 'guest_request.submitted',
             'title' => 'มีคำขอแจ้งซ่อมใหม่จาก Guest',
-            'message' => 'คำขอ ' . $requestNo . ' จาก ' . ($guestName !== '' ? $guestName : 'ผู้แจ้ง') . ' รอตรวจสอบ/แปลงเป็น Ticket',
+            'message' => 'คำขอ ' . $requestNo . ' จาก ' . ($guestName !== '' ? $guestName : 'ผู้แจ้ง') . ' รอตรวจสอบ/แปลงเป็นงานแจ้งซ่อม',
             'payload' => json_encode([
                 'request_id' => $requestId,
                 'request_no' => $requestNo,
@@ -499,8 +499,8 @@ class NotificationService
     }
 
     /**
-     * แจ้งผู้อนุมัติ (manager/admin) ว่าทรัพย์สินที่แขกสแกนแล้วแปลงเป็น ticket มีสถานะไม่ตรงปัจจุบัน (ถูกย้าย/
-     * ปลดระวาง/สถานที่ถูกปิด หลังจากแขกแจ้ง) — ticket ถูกสร้างและคงลิงก์ทรัพย์สินไว้แล้ว flag นี้ให้ไปตรวจสอบ
+     * แจ้งผู้อนุมัติ (manager/admin) ว่าทรัพย์สินที่แขกสแกนแล้วแปลงเป็นงานแจ้งซ่อมมีสถานะไม่ตรงปัจจุบัน (ถูกย้าย/
+     * ปลดระวาง/สถานที่ถูกปิด หลังจากแขกแจ้ง) — งานแจ้งซ่อมถูกสร้างและคงลิงก์ทรัพย์สินไว้แล้ว flag นี้ให้ไปตรวจสอบ
      * สถานะทรัพย์สินจริง เพราะการที่มีคนสแกนเจอแปลว่าข้อมูลทรัพย์สินอาจไม่ตรง. best-effort.
      */
     public function notifyGuestConvertAssetReview(int $ticketId, string $assetCode): void
@@ -514,7 +514,7 @@ class NotificationService
         $this->dispatchNotification([
             'type' => 'asset.needs_review',
             'title' => 'ตรวจสอบสถานะทรัพย์สินที่แขกสแกน',
-            'message' => 'ทรัพย์สิน ' . $label . ' ที่แขกสแกนแจ้งซ่อมมีสถานะไม่ตรงปัจจุบัน (อาจถูกย้าย/ปลดระวาง หรือสถานที่ถูกปิด) — Ticket ถูกสร้างแล้ว กรุณาตรวจสอบข้อมูลทรัพย์สิน',
+            'message' => 'ทรัพย์สิน ' . $label . ' ที่แขกสแกนแจ้งซ่อมมีสถานะไม่ตรงปัจจุบัน (อาจถูกย้าย/ปลดระวาง หรือสถานที่ถูกปิด) — งานแจ้งซ่อมถูกสร้างแล้ว กรุณาตรวจสอบข้อมูลทรัพย์สิน',
             'payload' => json_encode([
                 'ticket_id' => $ticketId,
                 'asset_code' => $assetCode,
@@ -555,7 +555,7 @@ class NotificationService
     }
 
     /**
-     * ผู้รับฝั่งหัวหน้างานของ ticket ใบหนึ่ง: หัวหน้าเจ้าของงานถ้ามี ถ้าไม่มีก็กระจายให้ผู้อนุมัติที่ยัง active ทุกคน.
+     * ผู้รับฝั่งหัวหน้างานของงานแจ้งซ่อมใบหนึ่ง: หัวหน้าเจ้าของงานถ้ามี ถ้าไม่มีก็กระจายให้ผู้อนุมัติที่ยัง active ทุกคน.
      *
      * งานที่ "ไม่มีหัวหน้าเจ้าของ" ไม่ใช่เคสหายาก — admin อนุมัติเมื่อไหร่ก็ปล่อยงานไว้ในคิวส่วนกลางโดยตั้งใจ
      * (assigned_manager_id = NULL เพื่อให้หัวหน้าคนไหนก็หยิบต่อได้). ถ้าส่งแจ้งเตือนไปที่ id 0 เฉย ๆ ตัวกรอง
@@ -590,7 +590,7 @@ class NotificationService
         }
 
         return match ($eventType) {
-            // "ticket ใหม่เข้ามา" = คิวรออนุมัติของผู้อนุมัติ → key แยก (ไม่ปนกับ "ใบตัวเองได้รับอนุมัติ" ของผู้แจ้ง)
+            // "งานแจ้งซ่อมใหม่เข้ามา" = คิวรออนุมัติของผู้อนุมัติ → key แยก (ไม่ปนกับ "ใบตัวเองได้รับอนุมัติ" ของผู้แจ้ง)
             'ticket.created' => 'ticket_pending_approval',
             'ticket.approved' => 'ticket_approved',
             'ticket.rejected' => 'ticket_rejected',
@@ -697,7 +697,7 @@ class NotificationService
         return match ($type) {
             'ticket.rejected' => ['category' => 'workflow', 'category_label' => 'Workflow', 'tone' => 'danger', 'icon' => 'triangle-alert', 'action_label' => 'ดูเหตุผล', 'priority_rank' => 40, 'deadline_label' => ''],
             'ticket.cancelled' => ['category' => 'workflow', 'category_label' => 'Workflow', 'tone' => 'danger', 'icon' => 'x', 'action_label' => 'ดูเหตุผล', 'priority_rank' => 40, 'deadline_label' => ''],
-            default => ['category' => 'workflow', 'category_label' => 'Workflow', 'tone' => 'default', 'icon' => 'activity', 'action_label' => 'เปิด Ticket', 'priority_rank' => 50, 'deadline_label' => ''],
+            default => ['category' => 'workflow', 'category_label' => 'Workflow', 'tone' => 'default', 'icon' => 'activity', 'action_label' => 'เปิดงานแจ้งซ่อม', 'priority_rank' => 50, 'deadline_label' => ''],
         };
     }
 
@@ -778,7 +778,7 @@ class NotificationService
             if ((int) ($thread['ticket_id'] ?? 0) > 0) {
                 $ticketNo = trim((string) ($thread['ticket_no'] ?? ''));
                 $ticketTitle = trim((string) ($thread['ticket_title'] ?? ''));
-                $thread['title'] = $ticketNo !== '' ? $ticketNo . ($ticketTitle !== '' ? ' · ' . $ticketTitle : '') : (string) ($thread['title'] ?? 'Ticket');
+                $thread['title'] = $ticketNo !== '' ? $ticketNo . ($ticketTitle !== '' ? ' · ' . $ticketTitle : '') : (string) ($thread['title'] ?? 'งานแจ้งซ่อม');
                 $thread['message'] = 'อัปเดตล่าสุด: ' . (string) ($thread['message'] ?? '');
             }
         }
