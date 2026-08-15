@@ -117,14 +117,14 @@ test('scan B-6: the opening blurb matches whether the asset can actually be repo
         $token = $repo->regenerateQrToken($assetId, null);
 
         $html = $render($svc->getScanData($token, false));
-        assert_contains_str('เปิด Ticket ใหม่', $html, 'sanity: an active asset is invited to open a ticket');
+        assert_contains_str('เปิดงานแจ้งซ่อมใหม่', $html, 'sanity: an active asset is invited to open a ticket');
 
         foreach (['retired', 'disposed'] as $status) {
             ssp_pdo()->prepare('UPDATE assets SET status = ? WHERE id = ?')->execute([$status, $assetId]);
             $html = $render($svc->getScanData($token, false));
 
             assert_true(
-                !str_contains($html, 'เปิด Ticket ใหม่แบบเติมข้อมูลอัตโนมัติได้ทันที'),
+                !str_contains($html, 'เปิดงานแจ้งซ่อมใหม่แบบเติมข้อมูลอัตโนมัติได้ทันที'),
                 "a $status asset must not invite the scanner to open a ticket it cannot accept"
             );
             assert_contains_str('ไม่เปิดรับแจ้งซ่อม', $html, "and says so instead ($status)");

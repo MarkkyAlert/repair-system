@@ -30,7 +30,7 @@
 </div>
 
 <div class="panel">
-    <div class="label">Ticket</div>
+    <div class="label">เลขที่งานแจ้งซ่อม</div>
     <div class="value"><?= e((string) ($ticket['ticket_no'] ?? '-')) ?> - <?= e((string) ($ticket['title'] ?? '-')) ?></div>
     <p class="muted paragraph-space-lg"><?= e((string) ($ticket['description'] ?? '-')) ?></p>
 </div>

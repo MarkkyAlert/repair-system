@@ -38,7 +38,7 @@ if (!empty($workflow['canReview'])) {
     </div>
     <?= render_partial('partials/components/breadcrumb', [
         'items' => [
-            ['label' => 'Tickets', 'href' => '/tickets'],
+            ['label' => 'รายการแจ้งซ่อม', 'href' => '/tickets'],
             ['label' => (string) $ticket['ticket_no']],
         ],
     ]) ?>
@@ -58,7 +58,7 @@ if (!empty($workflow['canReview'])) {
         </div>
         <div class="action-bar-right">
             <?php if (!empty($workflow['canDuplicate'])): ?>
-                <?= render_partial('partials/components/button', ['label' => 'เปิด Ticket ใหม่จากรายการนี้', 'variant' => 'secondary', 'href' => '/tickets/' . $ticket['id'] . '/duplicate', 'icon' => 'copy']) ?>
+                <?= render_partial('partials/components/button', ['label' => 'เปิดงานแจ้งซ่อมใหม่จากรายการนี้', 'variant' => 'secondary', 'href' => '/tickets/' . $ticket['id'] . '/duplicate', 'icon' => 'copy']) ?>
             <?php endif; ?>
             <?php if ($primaryCta): ?>
                 <a href="<?= e($primaryAnchor) ?>" class="btn btn-primary btn-md">
@@ -81,7 +81,7 @@ if (!empty($workflow['canReview'])) {
         </div>
     </div>
 
-    <!-- ส่วนหัว hero แสดงสถานะ ticket -->
+    <!-- ส่วนหัว hero แสดงสถานะงานแจ้งซ่อม -->
     <section class="panel-card ticket-status-hero">
         <div class="panel-head">
             <h2 class="panel-title">สถานะและความคืบหน้า</h2>
@@ -92,7 +92,7 @@ if (!empty($workflow['canReview'])) {
         </div>
         <p class="body-text"><?= e($ticket['description']) ?></p>
         <?php if (!empty($attachments)): ?>
-            <div class="attachment-grid" aria-label="ไฟล์แนบ Ticket">
+            <div class="attachment-grid" aria-label="ไฟล์แนบของงานแจ้งซ่อม">
                 <?php foreach ($attachments as $attachment): ?>
                     <?php $isImage = str_starts_with((string) ($attachment['mime_type'] ?? ''), 'image/'); ?>
                     <a class="attachment-card<?= $isImage ? '' : ' attachment-card-doc' ?>" href="<?= e(url($attachment['url'])) ?>" target="_blank" rel="noopener">
@@ -460,17 +460,17 @@ if (!empty($workflow['canReview'])) {
             </div>
 
             <?php if (!empty($workflow['canCancel'])): ?>
-                <form method="post" action="<?= e(url('/tickets/' . $ticket['id'] . '/cancel')) ?>" class="action-form action-form-danger" id="action-cancel" data-confirm-submit="ยืนยันการยกเลิก Ticket นี้? การดำเนินการนี้ย้อนกลับไม่ได้">
+                <form method="post" action="<?= e(url('/tickets/' . $ticket['id'] . '/cancel')) ?>" class="action-form action-form-danger" id="action-cancel" data-confirm-submit="ยืนยันการยกเลิกงานแจ้งซ่อมนี้? การดำเนินการนี้ย้อนกลับไม่ได้">
                     <?= csrf_field() ?>
                     <div class="action-form-head">
                         <span class="action-form-icon tone-danger"><?= lucide('x', 'h-5 w-5') ?></span>
-                        <div><h3>ยกเลิก Ticket</h3><p>ยกเลิกได้เฉพาะก่อนมีการมอบหมายงานให้ช่าง</p></div>
+                        <div><h3>ยกเลิกงานแจ้งซ่อม</h3><p>ยกเลิกได้เฉพาะก่อนมีการมอบหมายงานให้ช่าง</p></div>
                     </div>
                     <div class="field-group">
                         <label for="cancel_note" class="field-label">เหตุผลในการยกเลิก <span class="required">*</span></label>
-                        <textarea id="cancel_note" name="cancel_note" class="input" rows="3" required placeholder="ระบุเหตุผลที่ไม่ต้องการดำเนินการ Ticket นี้ต่อ"><?= e((string) ($workflow['defaults']['cancel_note'] ?? '')) ?></textarea>
+                        <textarea id="cancel_note" name="cancel_note" class="input" rows="3" required placeholder="ระบุเหตุผลที่ไม่ต้องการดำเนินการงานนี้ต่อ"><?= e((string) ($workflow['defaults']['cancel_note'] ?? '')) ?></textarea>
                     </div>
-                    <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ยืนยันยกเลิก Ticket', 'variant' => 'danger', 'icon' => 'x']) ?>
+                    <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ยืนยันยกเลิกงานแจ้งซ่อม', 'variant' => 'danger', 'icon' => 'x']) ?>
                 </form>
             <?php endif; ?>
 
@@ -668,7 +668,7 @@ if (!empty($workflow['canReview'])) {
                 <?= render_partial('partials/components/empty-state', [
                     'icon' => 'activity',
                     'title' => 'ยังไม่มีประวัติการเปลี่ยนสถานะ',
-                    'description' => 'เมื่อมีการเปลี่ยนสถานะหรือ action ใน ticket รายการจะปรากฏที่นี่',
+                    'description' => 'เมื่อมีการเปลี่ยนสถานะหรือการดำเนินการในงานนี้ รายการจะปรากฏที่นี่',
                 ]) ?>
             <?php else: ?>
                 <ol class="timeline">

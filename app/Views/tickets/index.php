@@ -42,38 +42,38 @@ foreach (['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as $__priorityCode) {
         <?= render_partial('partials/components/card', [
             'title' => 'ทั้งหมด',
             'value' => (string) $metricCount('total'),
-            'meta' => 'ดูรายการ Ticket',
+            'meta' => 'ดูรายการงานแจ้งซ่อม',
             'tone' => 'default',
             'icon' => 'clipboard-list',
             'href' => '/tickets',
-            'ariaLabel' => 'ดูรายการ Ticket ทั้งหมด จำนวน ' . $metricCount('total') . ' รายการ',
+            'ariaLabel' => 'ดูรายการงานแจ้งซ่อมทั้งหมด จำนวน ' . $metricCount('total') . ' รายการ',
         ]) ?>
         <?= render_partial('partials/components/card', [
             'title' => 'รออนุมัติ',
             'value' => (string) $metricCount('pendingApproval'),
-            'meta' => 'ดูรายการ Ticket',
+            'meta' => 'ดูรายการงานแจ้งซ่อม',
             'tone' => 'warning',
             'icon' => 'clock',
             'href' => '/tickets?status=pending_approval',
-            'ariaLabel' => 'ดูรายการ Ticket รออนุมัติ จำนวน ' . $metricCount('pendingApproval') . ' รายการ',
+            'ariaLabel' => 'ดูรายการงานแจ้งซ่อมที่รออนุมัติ จำนวน ' . $metricCount('pendingApproval') . ' รายการ',
         ]) ?>
         <?= render_partial('partials/components/card', [
             'title' => 'กำลังดำเนินการ',
             'value' => (string) $metricCount('inProgress'),
-            'meta' => 'ดูรายการ Ticket',
+            'meta' => 'ดูรายการงานแจ้งซ่อม',
             'tone' => 'info',
             'icon' => 'activity',
             'href' => '/tickets?status=in_progress',
-            'ariaLabel' => 'ดูรายการ Ticket กำลังดำเนินการ จำนวน ' . $metricCount('inProgress') . ' รายการ',
+            'ariaLabel' => 'ดูรายการงานแจ้งซ่อมที่กำลังดำเนินการ จำนวน ' . $metricCount('inProgress') . ' รายการ',
         ]) ?>
         <?= render_partial('partials/components/card', [
             'title' => 'เกินกำหนด',
             'value' => (string) $metricCount('overdue'),
-            'meta' => 'ดูรายการ Ticket',
+            'meta' => 'ดูรายการงานแจ้งซ่อม',
             'tone' => 'danger',
             'icon' => 'triangle-alert',
             'href' => '/tickets?sla=overdue',
-            'ariaLabel' => 'ดูรายการ Ticket เกิน SLA จำนวน ' . $metricCount('overdue') . ' รายการ',
+            'ariaLabel' => 'ดูรายการงานแจ้งซ่อมที่เกิน SLA จำนวน ' . $metricCount('overdue') . ' รายการ',
         ]) ?>
     </div>
 
@@ -110,7 +110,7 @@ foreach (['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as $__priorityCode) {
             <div class="ticket-filter-main">
                 <div class="filter-search">
                     <?= lucide('search', 'h-4 w-4') ?>
-                    <input type="search" name="q" value="<?= e($qSearch) ?>" placeholder="ค้นหาเลขที่ Ticket หรือหัวข้องาน..." aria-label="ค้นหาเลขที่ Ticket หรือหัวข้องาน">
+                    <input type="search" name="q" value="<?= e($qSearch) ?>" placeholder="ค้นหาเลขที่งานหรือหัวข้องาน..." aria-label="ค้นหาเลขที่งานแจ้งซ่อมหรือหัวข้องาน">
                 </div>
                 <div class="ticket-filter-actions">
                     <button type="submit" class="btn btn-secondary btn-md"><?= lucide('filter', 'button-icon') ?><span>ค้นหาและกรอง</span></button>
@@ -185,18 +185,18 @@ foreach (['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as $__priorityCode) {
             <?php endif; ?>
             <?= render_partial('partials/components/empty-state', [
                 'icon' => 'clipboard-list',
-                'title' => $isFilterActive ? 'ไม่พบ Ticket ตามเงื่อนไข' : 'ยังไม่มี Ticket ในคิวงาน',
+                'title' => $isFilterActive ? 'ไม่พบงานแจ้งซ่อมตามเงื่อนไข' : 'ยังไม่มีงานแจ้งซ่อมในคิวงาน',
                 'description' => $isFilterActive ? 'ลองปรับคำค้นหรือล้างตัวกรองเพื่อดูรายการที่เกี่ยวข้อง' : 'เมื่อมีงานแจ้งซ่อมตามสิทธิ์ของคุณ รายการจะแสดงในคิวงานนี้',
                 'slot' => $emptySlot ?? '',
             ]) ?>
         <?php else: ?>
             <?php $canBulkApprove = is_manager_or_admin($viewerRole) && $qStatus === 'pending_approval'; ?>
-            <div class="sr-only" id="ticket-queue-title">รายการ Ticket ที่ตรงตามตัวกรอง</div>
-            <p class="sr-only" id="ticket-queue-description">รายการ Ticket ที่ตรงตามตัวกรอง จำนวน <?= e((string) ($pagination['total'] ?? 0)) ?> รายการ</p>
+            <div class="sr-only" id="ticket-queue-title">รายการงานแจ้งซ่อมที่ตรงตามตัวกรอง</div>
+            <p class="sr-only" id="ticket-queue-description">รายการงานแจ้งซ่อมที่ตรงตามตัวกรอง จำนวน <?= e((string) ($pagination['total'] ?? 0)) ?> รายการ</p>
             <?php if ($canBulkApprove): ?>
                 <div class="ticket-bulk-toolbar" data-bulk-root>
                     <label class="checkbox-row">
-                        <input type="checkbox" data-bulk-select-all aria-label="เลือกทุก ticket ในหน้านี้">
+                        <input type="checkbox" data-bulk-select-all aria-label="เลือกทุกงานแจ้งซ่อมในหน้านี้">
                         <span>เลือกทุกรายการในหน้านี้</span>
                     </label>
                 </div>
@@ -215,7 +215,7 @@ foreach (['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as $__priorityCode) {
                     <?php foreach ($tickets as $ticket): ?>
                         <?php
                         $ticketHref = '/tickets/' . $ticket['id'];
-                        $ticketAria = 'เปิด Ticket ' . (string) $ticket['ticket_no']
+                        $ticketAria = 'เปิดงานแจ้งซ่อม ' . (string) $ticket['ticket_no']
                             . ' ' . (string) $ticket['title']
                             . ' สถานะ ' . (string) $ticket['status_label']
                             . ' ความสำคัญ ' . (string) $ticket['priority_label']
@@ -224,7 +224,7 @@ foreach (['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as $__priorityCode) {
                         <li class="<?= $canBulkApprove ? 'ticket-queue-item-bulk' : '' ?>">
                             <?php if ($canBulkApprove): ?>
                                 <label class="ticket-queue-checkbox">
-                                    <input type="checkbox" data-bulk-checkbox value="<?= (int) $ticket['id'] ?>" aria-label="เลือก ticket <?= e($ticket['ticket_no']) ?>">
+                                    <input type="checkbox" data-bulk-checkbox value="<?= (int) $ticket['id'] ?>" aria-label="เลือกงานแจ้งซ่อม <?= e($ticket['ticket_no']) ?>">
                                 </label>
                             <?php endif; ?>
                             <a class="ticket-queue-row<?= !empty($ticket['is_overdue']) ? ' is-overdue' : '' ?>" href="<?= e(url($ticketHref)) ?>" aria-label="<?= e($ticketAria) ?>">
@@ -280,7 +280,7 @@ foreach (['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as $__priorityCode) {
                     'id' => 'bulk-approve-confirm',
                     'title' => 'ยืนยันการอนุมัติแบบกลุ่ม',
                     'icon' => 'check-circle',
-                    'lead' => 'ระบบจะอนุมัติทุก ticket ที่เลือกพร้อมกัน — การกระทำนี้ไม่สามารถย้อนกลับได้',
+                    'lead' => 'ระบบจะอนุมัติทุกงานแจ้งซ่อมที่เลือกพร้อมกัน — การกระทำนี้ไม่สามารถย้อนกลับได้',
                     'tone' => 'primary',
                     'confirm_label' => 'ยืนยันอนุมัติ',
                     'cancel_label' => 'ยกเลิก',

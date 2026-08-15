@@ -117,8 +117,8 @@ class TicketsController
         }
 
         Response::view('tickets/create', [
-            'title' => 'ทำซ้ำ Ticket',
-            'pageHeading' => 'เปิด Ticket ใหม่จากรายการเดิม',
+            'title' => 'ทำซ้ำงานแจ้งซ่อม',
+            'pageHeading' => 'เปิดงานแจ้งซ่อมใหม่จากรายการเดิม',
             'currentUser' => $viewer,
             'form' => $form,
             'errorMessage' => flash_message('error'),
@@ -290,7 +290,7 @@ class TicketsController
     {
         $this->handleUpdate(
             fn (array $viewer) => $this->workflow->cancelTicket((int) $ticketId, $viewer, $_POST),
-            successMessage: 'ยกเลิก Ticket เรียบร้อยแล้ว',
+            successMessage: 'ยกเลิกงานแจ้งซ่อมเรียบร้อยแล้ว',
             redirectTo: '/tickets/' . (int) $ticketId,
             oldInputOnError: ['cancel_note' => (string) ($_POST['cancel_note'] ?? '')],
         );
@@ -316,8 +316,8 @@ class TicketsController
         }
 
         Response::view('tickets/show', [
-            'title' => 'รายละเอียด Ticket',
-            'pageHeading' => 'รายละเอียด Ticket',
+            'title' => 'รายละเอียดงานแจ้งซ่อม',
+            'pageHeading' => 'รายละเอียดงานแจ้งซ่อม',
             'currentUser' => $viewer,
             'ticket' => $detail['ticket'],
             'attachments' => $detail['attachments'],
@@ -446,7 +446,7 @@ class TicketsController
     }
 
     /**
-     * สร้าง QR ของ ticket เป็น PNG แล้วส่งกลับแบบ inline (GET, ต้องล็อกอิน) ผ่าน TicketPrintService::generatePrintQrPng.
+     * สร้าง QR ของงานแจ้งซ่อมเป็น PNG แล้วส่งกลับแบบ inline (GET, ต้องล็อกอิน) ผ่าน TicketPrintService::generatePrintQrPng.
      * ผลข้างเคียง: ไม่เขียน DB — render PNG แล้ว stream ออก (Response::download inline, ปิดด้วย exit → return never).
      * ไม่พบ/ไม่มีสิทธิ์ → 404; render พัง → log แล้ว 500.
      */
@@ -467,7 +467,7 @@ class TicketsController
             // ปัญหาระดับปฏิบัติการตอน render เช่น RuntimeException หรือ GD/imagick — เมื่อก่อนถูกกลบเป็น 404
             // ไม่มี log เลย; คราวนี้ตอบเป็น 500 ที่ log ไว้ เหมือน printPdf.
             log_caught_exception('ticket.qrpng', $exception, ['ticket' => (int) $ticketId]);
-            Response::abort(500, 'ไม่สามารถสร้าง QR ของ Ticket ได้ กรุณาลองใหม่อีกครั้ง');
+            Response::abort(500, 'ไม่สามารถสร้าง QR ของงานแจ้งซ่อมได้ กรุณาลองใหม่อีกครั้ง');
         }
     }
 }

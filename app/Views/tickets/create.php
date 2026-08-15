@@ -1,5 +1,5 @@
 <section class="stack-lg">
-    <h1 class="sr-only">แจ้งซ่อมใหม่ — กรอกข้อมูลปัญหาเพื่อเปิด Ticket</h1>
+    <h1 class="sr-only">แจ้งซ่อมใหม่ — กรอกข้อมูลปัญหาเพื่อเปิดงานแจ้งซ่อม</h1>
     <?= render_partial('partials/components/page-header', [
         'eyebrow' => 'แจ้งซ่อมใหม่',
         'title' => 'แจ้งซ่อมใหม่',
@@ -10,7 +10,7 @@
     <?php if (!empty($form['prefill']['source_ticket_id'])): ?>
         <div class="auth-alert auth-alert-info" role="status" aria-live="polite">
             <span class="auth-alert-icon"><?= lucide('copy', 'h-4 w-4') ?></span>
-            <p>กำลังเตรียม Ticket ใหม่จาก <a href="<?= e(url('/tickets/' . (int) $form['prefill']['source_ticket_id'])) ?>"><strong><?= e((string) $form['prefill']['source_ticket_no']) ?></strong></a> โดยคัดลอกเฉพาะข้อมูลปัญหาเดิม</p>
+            <p>กำลังเตรียมงานแจ้งซ่อมใหม่จาก <a href="<?= e(url('/tickets/' . (int) $form['prefill']['source_ticket_id'])) ?>"><strong><?= e((string) $form['prefill']['source_ticket_no']) ?></strong></a> โดยคัดลอกเฉพาะข้อมูลปัญหาเดิม</p>
         </div>
     <?php endif; ?>
 
@@ -40,7 +40,7 @@
             </summary>
             <div class="ticket-create-info-body stack-md">
                 <ol class="ticket-flow-list">
-                    <li><span>1</span><div><strong>ระบบสร้าง Ticket</strong><span>พร้อมเลขอ้างอิงอัตโนมัติ</span></div></li>
+                    <li><span>1</span><div><strong>ระบบสร้างงานแจ้งซ่อม</strong><span>พร้อมเลขอ้างอิงอัตโนมัติ</span></div></li>
                     <li><span>2</span><div><strong>ส่งให้หัวหน้างานอนุมัติ</strong><span>เข้าคิวผู้อนุมัติส่วนกลางขององค์กร</span></div></li>
                     <li><span>3</span><div><strong>เริ่มนับ SLA</strong><span>บันทึกประวัติทุกความเคลื่อนไหวของงาน</span></div></li>
                 </ol>
@@ -72,7 +72,7 @@
                     <span class="metric-icon metric-icon-sm"><?= lucide('send', 'h-4 w-4') ?></span>
                     <div>
                         <strong>พร้อมส่งเมื่อกรอกข้อมูลจำเป็นครบ</strong>
-                        <p class="helper-text">ระบบจะสร้าง Ticket และส่งเข้าสู่ขั้นตอนอนุมัติ</p>
+                        <p class="helper-text">ระบบจะสร้างงานแจ้งซ่อมและส่งเข้าสู่ขั้นตอนอนุมัติ</p>
                     </div>
                 </div>
                 <div class="action-bar-right">
@@ -103,7 +103,7 @@
                 <div class="field-group">
                     <label for="title" class="field-label">หัวข้อปัญหา <span class="required">*</span></label>
                     <input id="title" name="title" type="text" class="input" required maxlength="200" value="<?= e((string) ($form['defaults']['title'] ?? '')) ?>" placeholder="เช่น อินเทอร์เน็ตห้อง Server หลุดบ่อย" aria-describedby="title-help">
-                    <p id="title-help" class="field-hint">เขียนสั้น กระชับ และเห็นอาการจากรายการ Ticket ได้ทันที</p>
+                    <p id="title-help" class="field-hint">เขียนสั้น กระชับ และเห็นอาการจากหน้ารายการได้ทันที</p>
                 </div>
 
                 <div class="field-group">
