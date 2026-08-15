@@ -429,7 +429,7 @@ class TicketWorkflowService
 
         $note = trim((string) ($input['cancel_note'] ?? ''));
         if ($note === '') {
-            throw new DomainException('กรุณาระบุเหตุผลในการยกเลิก Ticket');
+            throw new DomainException('กรุณาระบุเหตุผลในการยกเลิกงานแจ้งซ่อม');
         }
         require_max_bytes($note, self::MAX_TEXT_BYTES, 'เหตุผลการยกเลิก');
 

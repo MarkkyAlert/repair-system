@@ -196,15 +196,15 @@ class AdminService
             ],
             'capabilities' => [
                 ['label' => 'เข้าสู่ Dashboard และดูภาพรวมของตนเอง', 'roles' => ['requester', 'manager', 'technician', 'admin']],
-                ['label' => 'สร้าง Ticket ใหม่และติดตามงานที่ตนแจ้ง', 'roles' => ['requester', 'manager', 'technician', 'admin']],
-                ['label' => 'ยกเลิก Ticket ของตนเองก่อนเริ่มงาน', 'roles' => ['requester', 'manager', 'technician', 'admin']],
-                ['label' => 'อนุมัติ/ปฏิเสธ Ticket ที่รออนุมัติ (manager อนุมัติงานที่ตนแจ้งเองไม่ได้)', 'roles' => ['manager', 'admin']],
+                ['label' => 'สร้างงานแจ้งซ่อมใหม่และติดตามงานที่ตนแจ้ง', 'roles' => ['requester', 'manager', 'technician', 'admin']],
+                ['label' => 'ยกเลิกงานแจ้งซ่อมของตนเองก่อนเริ่มงาน', 'roles' => ['requester', 'manager', 'technician', 'admin']],
+                ['label' => 'อนุมัติ/ปฏิเสธงานแจ้งซ่อมที่รออนุมัติ (หัวหน้างานอนุมัติงานที่ตนแจ้งเองไม่ได้)', 'roles' => ['manager', 'admin']],
                 ['label' => 'มอบหมายช่างและจัดคิวงานที่เป็นคิวส่วนกลาง/อยู่ในความรับผิดชอบ', 'roles' => ['manager', 'admin']],
                 // งานลงมือของช่าง (รับงาน/เริ่มงาน/สรุปผลซ่อมเพื่อส่งตรวจรับ) เป็นสิทธิ์ของช่างเท่านั้น — TicketPolicy::canTechnicianWork
                 // ต้องเป็นช่างที่ถูกมอบหมาย; admin เป็นผู้จัดการ/มอบหมาย แต่ไม่ได้ลงมือซ่อมเอง.
                 ['label' => 'รับงาน เริ่มงาน และสรุปผลซ่อมเพื่อส่งรอตรวจรับ', 'roles' => ['technician']],
                 ['label' => 'ปิดงานสถานะรอตรวจรับแทนผู้แจ้ง (ต้องระบุเหตุผล ไม่สร้างคะแนน)', 'roles' => ['admin']],
-                ['label' => 'เพิ่ม/แก้ไขความคิดเห็นและโน้ตภายในตามสิทธิ์ Ticket', 'roles' => ['requester', 'manager', 'technician', 'admin']],
+                ['label' => 'เพิ่ม/แก้ไขความคิดเห็นและโน้ตภายในตามสิทธิ์ของงานแจ้งซ่อม', 'roles' => ['requester', 'manager', 'technician', 'admin']],
                 ['label' => 'จัดการทรัพย์สินและแผ่น QR', 'roles' => ['manager', 'admin']],
                 ['label' => 'ดูรายงานและส่งออก Excel/PDF/CSV', 'roles' => ['manager', 'admin']],
                 ['label' => 'ตั้งค่าระบบ ผู้ใช้ ข้อมูลหลัก โลโก้ และทดสอบอีเมล', 'roles' => ['admin']],
@@ -256,7 +256,7 @@ class AdminService
                 'body_text' => (string) ($passwordReset['body_text'] ?? ''),
             ],
             'notification' => [
-                'label' => 'การแจ้งเตือน / เหตุการณ์ Ticket',
+                'label' => 'การแจ้งเตือน / เหตุการณ์ของงานแจ้งซ่อม',
                 'subject' => (string) ($notification['subject'] ?? ''),
                 'body_html' => (string) ($notification['body_html'] ?? ''),
                 'body_text' => (string) ($notification['body_text'] ?? ''),

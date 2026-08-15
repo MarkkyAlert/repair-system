@@ -719,7 +719,7 @@ test('adminUser H-3: an admin can finish a departed staff ticket and then close 
             $deactivate();
         } catch (DomainException $e) {
             $blocked = true;
-            assert_contains_str('ยังมี Ticket ที่เป็นผู้แจ้ง', $e->getMessage(), 'the open-ticket guard is what refuses');
+            assert_contains_str('ยังมีงานแจ้งซ่อมที่เป็นผู้แจ้ง', $e->getMessage(), 'the open-ticket guard is what refuses');
         }
         assert_true($blocked, 'a requester with an unconfirmed ticket still cannot be deactivated');
 

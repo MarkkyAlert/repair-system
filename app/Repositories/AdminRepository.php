@@ -224,7 +224,7 @@ class AdminRepository
             }
 
             if (!$newIsActive && $this->hasOpenRequesterTickets($userId)) {
-                throw new DomainException('ผู้ใช้นี้ยังมี Ticket ที่เป็นผู้แจ้ง กรุณาปิดงานให้เรียบร้อยก่อนปิดบัญชี');
+                throw new DomainException('ผู้ใช้นี้ยังมีงานแจ้งซ่อมที่เป็นผู้แจ้ง กรุณาปิดงานให้เรียบร้อยก่อนปิดบัญชี');
             }
 
             // optimistic lock: บวก version เฉพาะเมื่อยังตรงกับค่าที่ฟอร์มอ่านไปตอนเปิด เพื่อไม่ให้การเซฟฟอร์มเต็ม

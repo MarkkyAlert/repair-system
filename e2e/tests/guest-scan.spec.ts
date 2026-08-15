@@ -124,8 +124,8 @@ test('golden path B — guest submits by QR, admin converts, and guest sees the 
     await convertForm.locator('select[name="priority_id"]').selectOption({ index: 1 });
     await convertForm.locator('select[name="ticket_category_id"]').selectOption({ index: 1 });
     moderation.on('dialog', (dialog) => dialog.accept());
-    await convertForm.getByRole('button', { name: 'แปลงเป็น Ticket' }).click();
-    await expect(moderation.getByText('แปลงเป็น Ticket เรียบร้อยแล้ว')).toBeVisible();
+    await convertForm.getByRole('button', { name: 'แปลงเป็นงานแจ้งซ่อม' }).click();
+    await expect(moderation.getByText('แปลงเป็นงานแจ้งซ่อมเรียบร้อยแล้ว')).toBeVisible();
 
     const converted = mysqlRows(
       `SELECT g.status, g.converted_ticket_id, t.status, t.channel, a.asset_code ` +
@@ -145,7 +145,7 @@ test('golden path B — guest submits by QR, admin converts, and guest sees the 
     await moderation.goto('/admin/guest-requests?status=converted');
     const convertedPanel = moderation.locator('details', { hasText: title });
     await convertedPanel.locator('summary').click();
-    await expect(convertedPanel.getByRole('link', { name: `ดู Ticket #${convertedTicketId}` })).toBeVisible();
+    await expect(convertedPanel.getByRole('link', { name: `ดูงานแจ้งซ่อม #${convertedTicketId}` })).toBeVisible();
   } finally {
     await admin.close();
   }

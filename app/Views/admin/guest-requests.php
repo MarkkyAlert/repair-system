@@ -1,7 +1,7 @@
 <?php
 $statusOptions = [
     'new' => 'รอตรวจสอบ',
-    'converted' => 'แปลงเป็น Ticket แล้ว',
+    'converted' => 'แปลงเป็นงานแจ้งซ่อมแล้ว',
     'rejected' => 'ปฏิเสธ',
     '' => 'ทุกสถานะ',
 ];
@@ -27,7 +27,7 @@ $tabUrl = static fn (string $status): string => url('/admin/guest-requests' . ($
     <?= render_partial('partials/components/page-header', [
         'eyebrow' => 'ผู้ดูแลระบบ',
         'title' => 'คำขอแจ้งซ่อมจาก Guest QR',
-        'description' => 'ผู้ที่สแกน QR แล้วแจ้งปัญหาโดยไม่ต้องล็อกอิน ระบบเก็บไว้รอตรวจสอบก่อนแปลงเป็น Ticket',
+        'description' => 'ผู้ที่สแกน QR แล้วแจ้งปัญหาโดยไม่ต้องล็อกอิน ระบบเก็บไว้รอตรวจสอบก่อนแปลงเป็นงานแจ้งซ่อม',
         'actions' => render_partial('partials/components/button', [
             'label' => 'กลับหน้าตั้งค่า',
             'variant' => 'secondary',
@@ -38,7 +38,7 @@ $tabUrl = static fn (string $status): string => url('/admin/guest-requests' . ($
 
     <div class="stat-grid stat-grid-3">
         <?= render_partial('partials/components/card', ['title' => 'รอตรวจ', 'value' => (string) ($totals['new'] ?? 0), 'meta' => 'ต้องดำเนินการ', 'tone' => 'warning', 'icon' => 'clock']) ?>
-        <?= render_partial('partials/components/card', ['title' => 'แปลงแล้ว', 'value' => (string) ($totals['converted'] ?? 0), 'meta' => 'กลายเป็น Ticket', 'tone' => 'success', 'icon' => 'check-circle']) ?>
+        <?= render_partial('partials/components/card', ['title' => 'แปลงแล้ว', 'value' => (string) ($totals['converted'] ?? 0), 'meta' => 'กลายเป็นงานแจ้งซ่อม', 'tone' => 'success', 'icon' => 'check-circle']) ?>
         <?= render_partial('partials/components/card', ['title' => 'ปฏิเสธ', 'value' => (string) ($totals['rejected'] ?? 0), 'meta' => 'ไม่ผ่านเกณฑ์', 'tone' => 'danger', 'icon' => 'triangle-alert']) ?>
     </div>
 
@@ -108,7 +108,7 @@ $tabUrl = static fn (string $status): string => url('/admin/guest-requests' . ($
                             </dl>
 
                             <?php if ((string) $request['status'] === 'new'): ?>
-                                <form method="post" action="<?= e(url('/admin/guest-requests/' . (int) $request['id'] . '/convert')) ?>" class="stack-md" data-confirm-submit="ยืนยันแปลงเป็น ticket?">
+                                <form method="post" action="<?= e(url('/admin/guest-requests/' . (int) $request['id'] . '/convert')) ?>" class="stack-md" data-confirm-submit="ยืนยันแปลงเป็นงานแจ้งซ่อม?">
                                     <?= csrf_field() ?>
                                     <div class="content-grid">
                                         <div class="field-group">
@@ -131,7 +131,7 @@ $tabUrl = static fn (string $status): string => url('/admin/guest-requests' . ($
                                         </div>
                                     </div>
                                     <div class="button-row">
-                                        <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'แปลงเป็น Ticket', 'variant' => 'primary', 'icon' => 'check-circle']) ?>
+                                        <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'แปลงเป็นงานแจ้งซ่อม', 'variant' => 'primary', 'icon' => 'check-circle']) ?>
                                     </div>
                                 </form>
 
@@ -149,7 +149,7 @@ $tabUrl = static fn (string $status): string => url('/admin/guest-requests' . ($
                                 </div>
                             <?php elseif ((string) $request['status'] === 'converted' && !empty($request['converted_ticket_id'])): ?>
                                 <?= render_partial('partials/components/button', [
-                                    'label' => 'ดู Ticket #' . (int) $request['converted_ticket_id'],
+                                    'label' => 'ดูงานแจ้งซ่อม #' . (int) $request['converted_ticket_id'],
                                     'variant' => 'secondary',
                                     'href' => '/tickets/' . (int) $request['converted_ticket_id'],
                                     'icon' => 'arrow-right',

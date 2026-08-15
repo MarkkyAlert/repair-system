@@ -664,7 +664,7 @@ class TicketRepository
             ]);
 
             if ($workOrderStmt->rowCount() === 0) {
-                throw new RuntimeException('ไม่พบ work order สำหรับ ticket นี้');
+                throw new RuntimeException('ไม่พบใบสั่งงานของงานแจ้งซ่อมนี้');
             }
 
             $this->markSlaAchieved($ticketId, 'response', $acceptedAt);
@@ -737,7 +737,7 @@ class TicketRepository
             ]);
 
             if ($workOrderStmt->rowCount() === 0) {
-                throw new RuntimeException('ไม่พบ work order สำหรับ ticket นี้');
+                throw new RuntimeException('ไม่พบใบสั่งงานของงานแจ้งซ่อมนี้');
             }
 
             $this->markSlaAchieved($ticketId, 'response', $startedAt);
@@ -820,7 +820,7 @@ class TicketRepository
             ]);
 
             if ($workOrderStmt->rowCount() === 0) {
-                throw new RuntimeException('ไม่พบ work order สำหรับ ticket นี้');
+                throw new RuntimeException('ไม่พบใบสั่งงานของงานแจ้งซ่อมนี้');
             }
 
             $this->markSlaAchieved($ticketId, 'response', $resolvedAt);
@@ -1009,7 +1009,7 @@ class TicketRepository
             ]);
 
             if ($workOrderStmt->rowCount() === 0) {
-                throw new RuntimeException('ไม่พบ work order สำหรับ ticket นี้');
+                throw new RuntimeException('ไม่พบใบสั่งงานของงานแจ้งซ่อมนี้');
             }
 
             // As-reported: rating ของ cycle ก่อนยังอยู่ (re-rate จะ append cycle ใหม่) และ
@@ -1426,7 +1426,7 @@ class TicketRepository
         $stmt = $this->db->prepare('SELECT GET_LOCK(:name, 5)');
         $stmt->execute(['name' => $name]);
         if ((int) $stmt->fetchColumn() !== 1) {
-            throw new DomainException('ระบบกำลังสร้างเลข Ticket กรุณาลองอีกครั้ง');
+            throw new DomainException('ระบบกำลังสร้างเลขที่งานแจ้งซ่อม กรุณาลองอีกครั้ง');
         }
     }
 
@@ -1482,7 +1482,7 @@ class TicketRepository
     ): string {
         $allowedOwnerColumns = ['assigned_technician_id', 'requester_id'];
         if ($ownerColumn !== null && !in_array($ownerColumn, $allowedOwnerColumns, true)) {
-            throw new RuntimeException('ไม่สามารถตรวจสอบผู้ดำเนินการของ Ticket ได้');
+            throw new RuntimeException('ไม่สามารถตรวจสอบผู้ดำเนินการของงานแจ้งซ่อมได้');
         }
 
         $columns = 'status, approval_status';
@@ -1507,7 +1507,7 @@ class TicketRepository
             && ($ownerColumn === null || (int) ($ticket[$ownerColumn] ?? 0) === (int) $ownerId);
 
         if (!$valid) {
-            throw new DomainException('สถานะ Ticket ถูกเปลี่ยนแล้ว กรุณารีเฟรชหน้าแล้วลองอีกครั้ง');
+            throw new DomainException('สถานะงานแจ้งซ่อมถูกเปลี่ยนแล้ว กรุณารีเฟรชหน้าแล้วลองอีกครั้ง');
         }
 
         return (string) ($ticket['status'] ?? '');

@@ -201,11 +201,11 @@ test('comment(validation): empty body / bad token / missing ticket / missing com
 
         $throws(fn () => cm_service()->createComment($ticketId, cm_owner(), ['body' => '', 'submission_token' => cm_token()]), 'กรุณากรอกข้อความ comment ก่อนบันทึก', 'empty body');
         $throws(fn () => cm_service()->createComment($ticketId, cm_owner(), ['body' => 'hi', 'submission_token' => 'not-a-valid-token']), 'แบบฟอร์ม comment หมดอายุ กรุณารีเฟรชหน้าแล้วลองอีกครั้ง', 'bad submission token');
-        $throws(fn () => cm_service()->createComment(999999999, cm_owner(), ['body' => 'hi', 'submission_token' => cm_token()]), 'ไม่พบ ticket ที่ต้องการแสดงความคิดเห็น', 'non-existent ticket');
+        $throws(fn () => cm_service()->createComment(999999999, cm_owner(), ['body' => 'hi', 'submission_token' => cm_token()]), 'ไม่พบงานแจ้งซ่อมที่ต้องการแสดงความคิดเห็น', 'non-existent ticket');
         $throws(fn () => cm_service()->updateComment($ticketId, 999999999, cm_owner(), ['body' => 'hi', 'original_version' => 1]), 'ไม่พบ comment ที่ต้องการแก้ไข', 'non-existent comment (update)');
         $throws(fn () => cm_service()->deleteComment($ticketId, 999999999, cm_owner()), 'ไม่พบ comment ที่ต้องการแก้ไข', 'non-existent comment (delete)');
         // a guest cannot even see the ticket → blocked at the visibility guard (not the login message)
-        $throws(fn () => cm_service()->createComment($ticketId, ['id' => 0, 'role' => 'guest'], ['body' => 'hi', 'submission_token' => cm_token()]), 'ไม่พบ ticket ที่ต้องการแสดงความคิดเห็น', 'guest blocked');
+        $throws(fn () => cm_service()->createComment($ticketId, ['id' => 0, 'role' => 'guest'], ['body' => 'hi', 'submission_token' => cm_token()]), 'ไม่พบงานแจ้งซ่อมที่ต้องการแสดงความคิดเห็น', 'guest blocked');
     } finally {
         cm_cleanup($ticketId);
     }

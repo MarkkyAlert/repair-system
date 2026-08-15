@@ -132,7 +132,7 @@ test('race: the guard that makes this safe is still in the code', function (): v
         'the shared transition guard still re-reads the ticket row under FOR UPDATE before deciding'
     );
     assert_contains_str(
-        'สถานะ Ticket ถูกเปลี่ยนแล้ว',
+        'สถานะงานแจ้งซ่อมถูกเปลี่ยนแล้ว',
         $src,
         'and still refuses the loser with a message telling them to refresh, rather than writing a second transition'
     );

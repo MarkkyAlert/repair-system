@@ -716,7 +716,7 @@ class TicketService
     {
         $ticket = $this->reads->findVisibleTicketById($ticketId, $viewer);
         if ($ticket === null || !$this->policy->canDuplicateTicket($ticket, $viewer)) {
-            throw new DomainException('Ticket นี้ไม่สามารถใช้เปิดรายการใหม่ได้');
+            throw new DomainException('งานแจ้งซ่อมนี้ไม่สามารถใช้เปิดรายการใหม่ได้');
         }
 
         return $this->getCreateFormData($viewer, [], [

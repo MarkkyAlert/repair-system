@@ -39,7 +39,7 @@ class DemoDataService
         }
 
         if ($this->reads->countAllTickets() > 0) {
-            throw new DomainException('ไม่สามารถโหลดข้อมูลตัวอย่าง — มี ticket อยู่ในระบบแล้ว');
+            throw new DomainException('ไม่สามารถโหลดข้อมูลตัวอย่าง — มีงานแจ้งซ่อมอยู่ในระบบแล้ว');
         }
 
         // ห่อ seed ทั้งชุดใน transaction เดียว — ถ้าพังกลางทาง rollback หมด ไม่เหลือ demo data ค้างครึ่งๆ.

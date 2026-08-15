@@ -10,7 +10,7 @@ declare(strict_types=1);
 test('O2: retry/conflict conditions are DomainException (expected), not RuntimeException operational noise', function (): void {
     $root = dirname(__DIR__, 2);
     $retryMessages = [
-        'app/Repositories/TicketRepository.php' => ['ระบบกำลังสร้างเลข Ticket', 'สถานะ Ticket ถูกเปลี่ยนแล้ว'],
+        'app/Repositories/TicketRepository.php' => ['ระบบกำลังสร้างเลขที่งานแจ้งซ่อม', 'สถานะงานแจ้งซ่อมถูกเปลี่ยนแล้ว'],
         'app/Repositories/AssetRepository.php' => ['ไม่สามารถสร้าง QR token ที่ไม่ซ้ำ'],
         'app/Repositories/GuestTicketRequestRepository.php' => ['ระบบกำลังประมวลผลคำขอนี้'],
     ];

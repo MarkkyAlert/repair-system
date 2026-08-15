@@ -237,7 +237,7 @@ class GuestTicketService
                 // แปลงได้แม้ทรัพย์สินถูกย้าย/ปลดระวางหลังแจ้ง (คงลิงก์ทรัพย์สินไว้ + flag ให้ admin ตรวจด้านล่าง)
                 $ticketId = $tickets->createTicket($converterWithoutDepartment, $ticketInput, [], 'qr', true);
                 if (!$this->requests->claimAndLink($requestId, $ticketId, (int) ($viewer['id'] ?? 0))) {
-                    throw new RuntimeException('เชื่อมโยง Ticket กับ guest request ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+                    throw new RuntimeException('เชื่อมโยงงานแจ้งซ่อมกับคำขอจากผู้แจ้งภายนอกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
                 }
                 $this->db->commit();
             } catch (Throwable $exception) {

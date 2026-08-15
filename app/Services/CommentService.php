@@ -194,7 +194,7 @@ class CommentService
     {
         $ticket = $this->reads->findVisibleTicketById($ticketId, $viewer);
         if ($ticket === null) {
-            throw new DomainException('ไม่พบ ticket ที่ต้องการแสดงความคิดเห็น');
+            throw new DomainException('ไม่พบงานแจ้งซ่อมที่ต้องการแสดงความคิดเห็น');
         }
 
         if ((int) ($viewer['id'] ?? 0) <= 0) {

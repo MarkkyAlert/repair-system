@@ -85,7 +85,7 @@ class TicketPrintService
     {
         $ticket = $this->reads->findVisibleTicketById($ticketId, $viewer);
         if ($ticket === null) {
-            throw new DomainException('ไม่พบ ticket ที่ต้องการสร้าง QR สำหรับพิมพ์');
+            throw new DomainException('ไม่พบงานแจ้งซ่อมที่ต้องการสร้าง QR สำหรับพิมพ์');
         }
 
         $result = Builder::create()
