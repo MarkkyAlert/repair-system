@@ -69,9 +69,9 @@ INSERT INTO assets (
     created_at,
     updated_at
 ) VALUES
-    (1, 'AST-PRN-0001', 'Receipt Printer Front Desk', 'PRN-2024-0001', 1, 4, 1, 1, 'HP', 'LaserJet Pro', 'Office Supplies Co.', '2024-01-15', '2027-01-15', 'active', 'เครื่องพิมพ์หลักบริเวณ reception', NOW(), NOW()),
-    (2, 'AST-RTR-0001', 'Core Router Server Room', 'RTR-2023-0099', 2, 3, 2, NULL, 'Cisco', 'ISR 1000', 'Network Vendor Co.', '2023-09-10', '2026-09-10', 'active', 'อุปกรณ์เครือข่ายหลักของสำนักงาน', NOW(), NOW()),
-    (3, 'AST-AC-0001', 'Meeting Room Air Conditioner', 'AC-2022-0201', 3, 2, 3, NULL, 'Daikin', 'Cassette Inverter', 'Cooling Expert Ltd.', '2022-03-20', '2025-03-20', 'maintenance', 'เริ่มมีอาการเย็นช้าช่วงบ่าย', NOW(), NOW());
+    (1, 'AST-PRN-0001', 'เครื่องพิมพ์ใบเสร็จ แผนกต้อนรับ', 'PRN-2024-0001', 1, 4, 1, 1, 'HP', 'LaserJet Pro', 'บจก. ออฟฟิศ ซัพพลาย', '2024-01-15', '2027-01-15', 'active', 'เครื่องพิมพ์หลักบริเวณแผนกต้อนรับ', NOW(), NOW()),
+    (2, 'AST-RTR-0001', 'เราเตอร์หลัก ห้องเซิร์ฟเวอร์', 'RTR-2023-0099', 2, 3, 2, NULL, 'Cisco', 'ISR 1000', 'บจก. เน็ตเวิร์ค เวนเดอร์', '2023-09-10', '2026-09-10', 'active', 'อุปกรณ์เครือข่ายหลักของสำนักงาน', NOW(), NOW()),
+    (3, 'AST-AC-0001', 'เครื่องปรับอากาศ ห้องประชุม', 'AC-2022-0201', 3, 2, 3, NULL, 'Daikin', 'Cassette Inverter', 'บจก. คูลลิ่ง เอ็กซ์เพิร์ท', '2022-03-20', '2025-03-20', 'maintenance', 'เริ่มมีอาการเย็นช้าช่วงบ่าย', NOW(), NOW());
 
 INSERT INTO asset_qr_tokens (id, asset_id, token, generated_by, is_active, last_scanned_at, created_at, updated_at) VALUES
     (1, 1, '8f1b9c6d2a4e7f8091b2c3d4e5f60718', 4, 1, NOW(), NOW(), NOW()),

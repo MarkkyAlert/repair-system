@@ -173,9 +173,9 @@ class DemoDataService
     {
         return $this->seedMasterData([
             ['code' => 'LOW', 'name' => 'ต่ำ', 'level' => 1, 'color' => 'slate', 'response' => 240, 'resolution' => 2880],
-            ['code' => 'MEDIUM', 'name' => 'กลาง', 'level' => 2, 'color' => 'sky', 'response' => 120, 'resolution' => 1440],
+            ['code' => 'MEDIUM', 'name' => 'ปานกลาง', 'level' => 2, 'color' => 'sky', 'response' => 120, 'resolution' => 1440],
             ['code' => 'HIGH', 'name' => 'สูง', 'level' => 3, 'color' => 'amber', 'response' => 60, 'resolution' => 480],
-            ['code' => 'URGENT', 'name' => 'ด่วน', 'level' => 4, 'color' => 'rose', 'response' => 15, 'resolution' => 120],
+            ['code' => 'URGENT', 'name' => 'เร่งด่วน', 'level' => 4, 'color' => 'rose', 'response' => 15, 'resolution' => 120],
         ], fn (array $row): int => $this->admin->createPriority([
             'code' => $row['code'],
             'name' => $row['name'],
@@ -319,14 +319,14 @@ class DemoDataService
         // ageMonths/warrantyMonths → กระจายอายุ+ประกัน ให้ asset-reliability โชว์ health/MTBF ได้ครบ
         // (เก่า+หมดประกัน = สุขภาพแย่/ควรเปลี่ยน ; ใหม่+ในประกัน = ดี). warranty < age = หมดประกันแล้ว.
         $assetSpecs = [
-            ['code' => 'PC-001', 'name' => 'PC HR-01', 'category' => 'COMPUTER', 'location' => 'OFFICE-1F', 'ageMonths' => 48, 'warrantyMonths' => 12],
-            ['code' => 'PC-002', 'name' => 'PC Finance-01', 'category' => 'COMPUTER', 'location' => 'OFFICE-2F', 'ageMonths' => 40, 'warrantyMonths' => 12],
-            ['code' => 'PRT-001', 'name' => 'HP LaserJet Pro M404', 'category' => 'PRINTER', 'location' => 'OFFICE-1F', 'ageMonths' => 60, 'warrantyMonths' => 12],
-            ['code' => 'AC-001', 'name' => 'Daikin Inverter 18000 BTU', 'category' => 'AC', 'location' => 'MEETING', 'ageMonths' => 66, 'warrantyMonths' => 24],
-            ['code' => 'AC-002', 'name' => 'Mitsubishi 12000 BTU', 'category' => 'AC', 'location' => 'OFFICE-2F', 'ageMonths' => 22, 'warrantyMonths' => 24],
-            ['code' => 'SRV-001', 'name' => 'Dell PowerEdge R350', 'category' => 'COMPUTER', 'location' => 'SERVER', 'ageMonths' => 78, 'warrantyMonths' => 36],
+            ['code' => 'PC-001', 'name' => 'คอมพิวเตอร์ฝ่ายบุคคล 01', 'category' => 'COMPUTER', 'location' => 'OFFICE-1F', 'ageMonths' => 48, 'warrantyMonths' => 12],
+            ['code' => 'PC-002', 'name' => 'คอมพิวเตอร์ฝ่ายบัญชี 01', 'category' => 'COMPUTER', 'location' => 'OFFICE-2F', 'ageMonths' => 40, 'warrantyMonths' => 12],
+            ['code' => 'PRT-001', 'name' => 'เครื่องพิมพ์สำนักงาน (HP LaserJet Pro M404)', 'category' => 'PRINTER', 'location' => 'OFFICE-1F', 'ageMonths' => 60, 'warrantyMonths' => 12],
+            ['code' => 'AC-001', 'name' => 'แอร์ห้องประชุม (Daikin Inverter 18000 BTU)', 'category' => 'AC', 'location' => 'MEETING', 'ageMonths' => 66, 'warrantyMonths' => 24],
+            ['code' => 'AC-002', 'name' => 'แอร์ห้องทำงานชั้น 2 (Mitsubishi 12000 BTU)', 'category' => 'AC', 'location' => 'OFFICE-2F', 'ageMonths' => 22, 'warrantyMonths' => 24],
+            ['code' => 'SRV-001', 'name' => 'เซิร์ฟเวอร์หลัก (Dell PowerEdge R350)', 'category' => 'COMPUTER', 'location' => 'SERVER', 'ageMonths' => 78, 'warrantyMonths' => 36],
             ['code' => 'LGT-001', 'name' => 'หลอด LED ห้องประชุม', 'category' => 'LIGHTING', 'location' => 'MEETING', 'ageMonths' => 6, 'warrantyMonths' => 12],
-            ['code' => 'PRT-002', 'name' => 'Brother MFC-L2750DW', 'category' => 'PRINTER', 'location' => 'OFFICE-2F', 'ageMonths' => 12, 'warrantyMonths' => 24],
+            ['code' => 'PRT-002', 'name' => 'เครื่องพิมพ์ชั้น 2 (Brother MFC-L2750DW)', 'category' => 'PRINTER', 'location' => 'OFFICE-2F', 'ageMonths' => 12, 'warrantyMonths' => 24],
             // ปลดระวางแล้ว — สติกเกอร์ QR ยังติดอยู่บนตัวเครื่องในชีวิตจริง ผู้ซื้อจึงควรได้ลองสแกนดูว่าระบบตอบว่า
             // "ไม่เปิดรับแจ้งซ่อม" แทนที่จะเป็นหน้า error ซึ่งเป็นพฤติกรรมที่ทีมตั้งใจทำไว้แต่มองไม่เห็นถ้าไม่มีของจริง
             ['code' => 'PC-OLD-01', 'name' => 'PC เก่าฝ่ายบัญชี (ปลดระวาง)', 'category' => 'COMPUTER', 'location' => 'OFFICE-2F', 'ageMonths' => 96, 'warrantyMonths' => 12, 'status' => 'retired'],
