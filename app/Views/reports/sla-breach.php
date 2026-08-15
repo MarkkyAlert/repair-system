@@ -209,7 +209,7 @@ $dimensionLabel = (string) ($filters['dimensionLabel'] ?? 'ระดับคว
             <?= render_partial('partials/components/empty-state', [
                 'icon' => 'clock',
                 'title' => 'ยังไม่มีข้อมูล SLA ในเงื่อนไขนี้',
-                'description' => 'เมื่อมี ticket ที่มีการวัด SLA ในช่วงเวลา/เงื่อนไขที่เลือก ระบบจะสรุปจุดที่เกินกำหนดให้อัตโนมัติ',
+                'description' => 'เมื่อมีงานแจ้งซ่อมที่มีการวัด SLA ในช่วงเวลา/เงื่อนไขที่เลือก ระบบจะสรุปจุดที่เกินกำหนดให้อัตโนมัติ',
             ]) ?>
         <?php endif; ?>
     </section>

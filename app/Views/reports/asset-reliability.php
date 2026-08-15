@@ -224,7 +224,7 @@ $rowsMeta = $rowsMeta ?? ['displayed' => $rowCount, 'limit' => 500, 'capped' => 
             <?= render_partial('partials/components/empty-state', [
                 'icon' => 'wrench',
                 'title' => 'ยังไม่มีทรัพย์สินที่แจ้งซ่อมในเงื่อนไขนี้',
-                'description' => 'เมื่อมี ticket ที่ผูกกับทรัพย์สินในช่วงเวลา/เงื่อนไขที่เลือก ระบบจะจัดอันดับสุขภาพให้อัตโนมัติ',
+                'description' => 'เมื่อมีงานแจ้งซ่อมที่ผูกกับทรัพย์สินในช่วงเวลา/เงื่อนไขที่เลือก ระบบจะจัดอันดับสุขภาพให้อัตโนมัติ',
             ]) ?>
         <?php endif; ?>
     </section>

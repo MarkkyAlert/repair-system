@@ -80,7 +80,7 @@ $distColors = [5 => '#10b981', 4 => '#84cc16', 3 => '#f59e0b', 2 => '#f97316', 1
         <?= render_partial('partials/components/card', [
             'title' => 'จำนวนรีวิว',
             'value' => number_format((int) ($summary['rating_count'] ?? 0)),
-            'meta' => 'จำนวน ticket ที่ถูกให้คะแนน',
+            'meta' => 'จำนวนงานที่ถูกให้คะแนน',
             'tone' => 'default',
         ]) ?>
         <?= render_partial('partials/components/card', [

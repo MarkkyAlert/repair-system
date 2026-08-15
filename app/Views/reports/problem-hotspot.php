@@ -79,7 +79,7 @@ $dimensionLabel = (string) ($filters['dimensionLabel'] ?? 'แผนก');
         <?= render_partial('partials/components/card', [
             'title' => 'แจ้งซ่อมรวม',
             'value' => (string) ($summary['total_tickets'] ?? 0),
-            'meta' => 'จำนวน ticket ในช่วงที่กรอง',
+            'meta' => 'จำนวนงานแจ้งซ่อมในช่วงที่กรอง',
             'tone' => 'default',
         ]) ?>
         <?= render_partial('partials/components/card', [
@@ -200,7 +200,7 @@ $dimensionLabel = (string) ($filters['dimensionLabel'] ?? 'แผนก');
             <?= render_partial('partials/components/empty-state', [
                 'icon' => 'map-pin',
                 'title' => 'ยังไม่มีข้อมูลในเงื่อนไขนี้',
-                'description' => 'เมื่อมี ticket ในช่วงเวลา/เงื่อนไขที่เลือก ระบบจะจัดอันดับพื้นที่ปัญหาให้อัตโนมัติ',
+                'description' => 'เมื่อมีงานแจ้งซ่อมในช่วงเวลา/เงื่อนไขที่เลือก ระบบจะจัดอันดับพื้นที่ปัญหาให้อัตโนมัติ',
             ]) ?>
         <?php endif; ?>
     </section>

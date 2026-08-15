@@ -212,7 +212,7 @@ $isCapped = !empty($rowsMeta['capped']);
             <?= render_partial('partials/components/empty-state', [
                 'icon' => 'clock',
                 'title' => 'ยังไม่มีข้อมูล SLA ในช่วงที่กรอง',
-                'description' => 'เมื่อมี ticket ที่มีการวัด SLA ในช่วงเวลาที่เลือก ระบบจะสรุป %ตรงตามกำหนดให้อัตโนมัติ',
+                'description' => 'เมื่อมีงานแจ้งซ่อมที่มีการวัด SLA ในช่วงเวลาที่เลือก ระบบจะสรุป %ตรงตามกำหนดให้อัตโนมัติ',
             ]) ?>
         <?php endif; ?>
     </section>
@@ -260,7 +260,7 @@ $isCapped = !empty($rowsMeta['capped']);
             <?= render_partial('partials/components/empty-state', [
                 'icon' => 'wrench',
                 'title' => 'ยังไม่มีผลงานช่างในช่วงที่กรอง',
-                'description' => 'เมื่อมี ticket ที่มอบหมายให้ช่างในช่วงเวลาที่เลือก ระบบจะสรุปผลงานให้อัตโนมัติ',
+                'description' => 'เมื่อมีงานแจ้งซ่อมที่มอบหมายให้ช่างในช่วงเวลาที่เลือก ระบบจะสรุปผลงานให้อัตโนมัติ',
             ]) ?>
         <?php endif; ?>
     </section>
@@ -381,7 +381,7 @@ $isCapped = !empty($rowsMeta['capped']);
             <?= render_partial('partials/components/empty-state', [
                 'icon' => 'wrench',
                 'title' => 'ยังไม่มีทรัพย์สินที่แจ้งซ่อมในช่วงนี้',
-                'description' => 'เมื่อมี ticket ที่ผูกกับทรัพย์สินในช่วงเวลาที่เลือก ระบบจะจัดอันดับให้อัตโนมัติ',
+                'description' => 'เมื่อมีงานแจ้งซ่อมที่ผูกกับทรัพย์สินในช่วงเวลาที่เลือก ระบบจะจัดอันดับให้อัตโนมัติ',
             ]) ?>
         <?php endif; ?>
     </section>

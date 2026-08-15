@@ -2,7 +2,7 @@
         <div class="panel-head">
             <div>
                 <h2 class="panel-title">จัดการความสำคัญและ SLA</h2>
-                <p class="field-hint">สร้าง/แก้/ลบระดับความสำคัญและเวลา SLA · ลบได้เฉพาะระดับที่ยังไม่ถูกใช้กับ ticket</p>
+                <p class="field-hint">สร้าง/แก้/ลบระดับความสำคัญและเวลา SLA · ลบได้เฉพาะระดับที่ยังไม่ถูกใช้กับงานแจ้งซ่อม</p>
             </div>
             <span class="badge badge-info"><?= e((string) count($priorities ?? [])) ?> ระดับ</span>
         </div>
@@ -146,7 +146,7 @@
                                 </div>
                             </form>
                             <div class="delete-zone">
-                                <form method="post" action="<?= e(url('/admin/priorities/' . $priorityId . '/delete')) ?>" class="button-row" data-confirm-submit="ยืนยันการลบระดับความสำคัญนี้? ลบได้เฉพาะระดับที่ยังไม่ถูกใช้กับ ticket หากถูกใช้งานแล้วให้ปิดใช้งานแทน">
+                                <form method="post" action="<?= e(url('/admin/priorities/' . $priorityId . '/delete')) ?>" class="button-row" data-confirm-submit="ยืนยันการลบระดับความสำคัญนี้? ลบได้เฉพาะระดับที่ยังไม่ถูกใช้กับงานแจ้งซ่อม หากถูกใช้งานแล้วให้ปิดใช้งานแทน">
                                     <?= csrf_field() ?>
                                     <?= render_partial('partials/components/button', ['type' => 'submit', 'label' => 'ลบความสำคัญ', 'variant' => 'danger', 'icon' => 'trash']) ?>
                                 </form>

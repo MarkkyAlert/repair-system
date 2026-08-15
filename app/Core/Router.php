@@ -68,7 +68,7 @@ class Router
     private function match(string $routePath, string $requestPath): ?array
     {
         // placeholder ที่เป็น id ({ticketId}, {userId}, {commentId}, …) จะ match เฉพาะตัวเลขเท่านั้น
-        // path ผิดรูปอย่าง "/tickets/12junk/approve" เลยได้ 404 ไม่ใช่ส่ง "12junk" ให้ controller ไป (int)-cast เป็น ticket 12
+        // path ผิดรูปอย่าง "/tickets/12junk/approve" เลยได้ 404 ไม่ใช่ส่ง "12junk" ให้ controller ไป (int)-cast เป็นงานแจ้งซ่อมหมายเลข 12
         // ส่วน placeholder ที่ไม่ใช่ id ({token}, {templateKey}) ยังใช้ [^/]+ ตามเดิม ขณะที่ส่วน path ปกติ
         // ต้อง quote เป็น literal ไม่ให้ "." ใน template.csv/qr.png กลายเป็น regex wildcard
         $parts = preg_split(

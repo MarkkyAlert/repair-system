@@ -167,7 +167,7 @@ INSERT INTO ticket_ratings (id, ticket_id, requester_id, technician_id, score, f
     (1, 3, 1, 3, 5, 'ช่างเข้าดำเนินการเร็ว อธิบายสาเหตุชัดเจน และงานเรียบร้อยมาก', NOW(), NOW());
 
 INSERT INTO notifications (id, type, title, message, payload, related_type, related_id, created_at) VALUES
-    (1, 'ticket.created', 'มีงานแจ้งซ่อมใหม่', 'มี ticket ใหม่รอการอนุมัติจากหัวหน้างาน', '{"ticket_no":"MT-20260602-0001"}', 'ticket', 1, NOW()),
+    (1, 'ticket.created', 'มีงานแจ้งซ่อมใหม่', 'มีงานแจ้งซ่อมใหม่รอการอนุมัติจากหัวหน้างาน', '{"ticket_no":"MT-20260602-0001"}', 'ticket', 1, NOW()),
     (2, 'ticket.assigned', 'มีการมอบหมายงานใหม่', 'คุณได้รับมอบหมายงานตรวจสอบอุปกรณ์เครือข่าย', '{"ticket_no":"MT-20260602-0002","work_order_no":"WO-20260602-0001"}', 'ticket', 2, NOW()),
     (3, 'ticket.completed', 'งานซ่อมเสร็จสิ้น', 'งานซ่อมแอร์ห้องประชุมเสร็จสิ้นและรอการให้คะแนน', '{"ticket_no":"MT-20260602-0003"}', 'ticket', 3, NOW());
 

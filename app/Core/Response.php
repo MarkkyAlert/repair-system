@@ -31,7 +31,7 @@ class Response
     /**
      * รูปแบบ JSON มาตรฐานสำหรับ endpoint ที่เปลี่ยนข้อมูล (สร้าง/แก้/ลบ): {"success":true,"message":...,...$data}
      * ใช้คู่กับ jsonError() กับทุก action ที่ฟอร์ม/AJAX ส่งมา ส่วน endpoint แบบดึงสถานะเป็นระยะ (polling)
-     * อย่างสถานะ ticket, ฟีดคอมเมนต์, {max_id}, ฟีดแจ้งเตือน จงใจใช้รูปแบบเฉพาะของตัวเอง
+     * อย่างสถานะงานแจ้งซ่อม, ฟีดคอมเมนต์, {max_id}, ฟีดแจ้งเตือน จงใจใช้รูปแบบเฉพาะของตัวเอง
      * เพราะ JS ฝั่งนั้นอ่านค่าตามชื่อฟิลด์ ไม่ได้อ่าน envelope นี้
      */
     public static function jsonSuccess(array $data = [], string $message = '', int $status = 200): never

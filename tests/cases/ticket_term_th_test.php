@@ -59,3 +59,98 @@ test('term: ข้อความในกระดิ่งแจ้งเต�
         assert_true(str_contains($js, $shared), "app.js (ตัวที่วาดกระดิ่งซ้ำ) ต้องมีข้อความ \"{$shared}\" ชุดเดียวกัน");
     }
 });
+
+/**
+ * ตัดคอมเมนต์ออกก่อนสแกน — เทสต์นี้วัด "คำที่ผู้ใช้เห็น" ไม่ใช่โน้ตของนักพัฒนา. คอมเมนต์ในโค้ดเรียกมันว่า
+ * ticket ได้ตามสบาย เพราะตารางในฐานข้อมูลชื่อ tickets จริง ๆ คนที่มาแก้โค้ดต่อควรเห็นคำเดียวกับชื่อตาราง
+ * (ถ้าไล่แปลคอมเมนต์ด้วยจะได้โน้ตที่อ่านยากขึ้นโดยไม่มีใครได้ประโยชน์). ไฟล์ view ที่มี HTML ปนอยู่ยังถูก
+ * สแกนเต็ม เพราะ T_INLINE_HTML คือข้อความที่ผู้ใช้อ่าน
+ */
+function ttt_strip_comments(string $path, string $body): string
+{
+    $extension = strtolower((string) pathinfo($path, PATHINFO_EXTENSION));
+    if ($extension === 'php') {
+        $kept = '';
+        foreach (token_get_all($body) as $token) {
+            if (is_array($token)) {
+                $kept .= in_array($token[0], [T_COMMENT, T_DOC_COMMENT], true) ? ' ' : $token[1];
+                continue;
+            }
+            $kept .= $token;
+        }
+
+        // คิวรียาว ๆ ถูกเขียนเป็น heredoc คอมเมนต์ SQL ข้างในจึงเป็น "ส่วนหนึ่งของสตริง" ในสายตา token_get_all
+        // ต้องตัดทิ้งอีกชั้น ไม่งั้นโน้ตของนักพัฒนาใน SQL จะถูกนับเป็นข้อความที่ผู้ใช้เห็น
+        return (string) preg_replace('/^[ \t]*--[ \t][^\n]*$/m', ' ', $kept);
+    }
+    if ($extension === 'sql') {
+        return (string) preg_replace('/--[^\n]*/', ' ', $body);
+    }
+
+    return (string) preg_replace(['#/\*.*?\*/#s', '#(^|\n)[ \t]*//[^\n]*#'], [' ', '$1'], $body);
+}
+
+/**
+ * ไล่หาไฟล์ที่ยังมีคำต้องห้าม แล้วคืนเป็น path สั้น ๆ พร้อมข้อความตัวอย่างที่เจอ
+ *
+ * @param  array<int, string> $roots
+ * @return array<int, string>
+ */
+function ttt_scan_sources(array $roots, string $pattern): array
+{
+    $offenders = [];
+    foreach ($roots as $root) {
+        if (is_file($root)) {
+            $files = [$root];
+        } elseif (is_dir($root)) {
+            $files = [];
+            $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS));
+            foreach ($it as $file) {
+                $files[] = $file->getPathname();
+            }
+        } else {
+            continue;
+        }
+
+        foreach ($files as $path) {
+            // ไฟล์ upgrade เป็นบันทึกประวัติศาสตร์ ต้องเอ่ยชื่อของเดิมเพื่อแปลงข้อมูล — carve-out เดียวกับ
+            // ที่ on_hold_paused_removal_test ใช้
+            if (str_contains($path, '/upgrades/')) {
+                continue;
+            }
+            if (!in_array(strtolower((string) pathinfo($path, PATHINFO_EXTENSION)), ['php', 'js', 'css', 'sql'], true)) {
+                continue;
+            }
+            $body = ttt_strip_comments($path, (string) file_get_contents($path));
+            if (preg_match($pattern, $body, $m) === 1) {
+                $offenders[] = str_replace(BASE_PATH . '/', '', $path) . ' → "' . trim($m[0]) . '"';
+            }
+        }
+    }
+
+    return $offenders;
+}
+
+test('term(guard): ไม่มีคำว่า Ticket ตัวใหญ่หลงเหลือในของที่ส่งขาย', function (): void {
+    // สนใจตัวพิมพ์ใหญ่-เล็ก และใช้ขอบเขตคำ จึงไม่แตะชื่อในโค้ดเลย: TicketService/TicketsController มีตัวอักษร
+    // ต่อท้ายทันที ส่วน $ticketId, /tickets, ticket_prefix, .ticket-queue, data-ticket-* เป็นตัวเล็กทั้งหมด
+    $offenders = ttt_scan_sources(
+        [BASE_PATH . '/app', BASE_PATH . '/bin', BASE_PATH . '/public/assets/js', BASE_PATH . '/resources/css', BASE_PATH . '/database'],
+        '/\bTickets?\b/'
+    );
+
+    assert_same([], $offenders, "ยังมีคำว่า Ticket ที่ผู้ใช้เห็น:\n" . implode("\n", $offenders));
+});
+
+test('term(guard): ไม่มีคำว่า ticket ตัวเล็กใช้เป็นคำนามในประโยคไทย', function (): void {
+    // เคล็ดอยู่ที่ช่องว่าง — ประโยคไทยที่แทรกคำอังกฤษจะเว้นวรรครอบคำนั้นเสมอ ("ไม่พบ ticket ที่ต้องการ")
+    // ส่วนตัวระบุในโค้ดจะติดกับเครื่องหมายอื่นทันที ($ticket['x'], id="ticket-filter-sla", ticket_prefix)
+    // จึงแยกข้อความสำหรับคนอ่านออกจากโค้ดได้โดยไม่ต้องไล่ยกเว้นทีละชื่อ ยกเว้นอย่างเดียวคือ path ของ route
+    // ("เช่นหน้า /tickets หรือ…") ซึ่งเป็นที่อยู่ของหน้า ไม่ใช่คำเรียกงาน
+    $offenders = ttt_scan_sources(
+        [BASE_PATH . '/app', BASE_PATH . '/bin', BASE_PATH . '/public/assets/js', BASE_PATH . '/database'],
+        '/[ก-๙][\x20]{1,2}\bticket(s)?\b|(?<![\/\w_-])ticket(s)?\b[\x20]{1,2}[ก-๙]/iu'
+    );
+
+    assert_same([], $offenders, "ยังมีคำว่า ticket ปนอยู่ในประโยคไทย:\n" . implode("\n", $offenders));
+});

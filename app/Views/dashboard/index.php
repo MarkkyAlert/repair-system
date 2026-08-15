@@ -435,7 +435,7 @@ $metricCount = static fn (string $key): int => max(0, (int) ($metrics[$key] ?? 0
             <?php if ((int) $csat['total_ratings'] === 0): ?>
                 <?= render_partial('partials/components/empty-state', [
                     'icon' => 'message-circle',
-                    'title' => 'ยังไม่มี ticket ที่ได้รับคะแนน',
+                    'title' => 'ยังไม่มีงานแจ้งซ่อมที่ได้รับคะแนน',
                     'description' => 'หลังจากผู้แจ้งกดปิดงาน + ให้คะแนน ระบบจะสรุปสัดส่วนความพึงพอใจให้ที่นี่',
                 ]) ?>
             <?php else: ?>
